@@ -8,7 +8,7 @@ import {
 } from "@workspace/api-client-react";
 import type { OrgMemberInfo } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { Building2, Crown, LogOut, Mail, Trash2, UserPlus, Shield } from "lucide-react";
+import { AlertTriangle, Building2, Crown, LogOut, Mail, Trash2, UserPlus, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,154 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
+
+// ─── LeaveOrgSection ─────────────────────────────────────────────────────────
+
+interface LeaveOrgSectionProps {
+  orgName: string;
+  isAdmin: boolean;
+  isOnlyMember: boolean;
+  isLeaving: boolean;
+  onLeave: () => void;
+}
+
+function LeaveOrgSection({ orgName, isAdmin, isOnlyMember, isLeaving, onLeave }: LeaveOrgSectionProps) {
+  // Case 1: sole member — leaving deletes the entire org and all its data
+  if (isOnlyMember) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
+          <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-destructive">This will permanently delete the organization</p>
+            <p className="text-muted-foreground mt-0.5">
+              You are the only member. Leaving will delete <strong>{orgName}</strong> and
+              all of its projects, tasks, and notes. This cannot be undone.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">Leave &amp; delete organization</p>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="destructive"
+                className="gap-2"
+                disabled={isLeaving}
+              >
+                <LogOut className="w-4 h-4" />
+                {isLeaving ? "Deleting…" : "Leave & delete"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-destructive" />
+                  Delete organization?
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      You are the only member of <strong>{orgName}</strong>. Leaving will
+                      permanently delete the organization and <strong>all of its data</strong>:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li>All projects</li>
+                      <li>All tasks and comments</li>
+                      <li>All notes</li>
+                    </ul>
+                    <p className="font-medium text-destructive">This cannot be undone.</p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={onLeave}
+                >
+                  Delete organization
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 2: admin with other members — must transfer admin first
+  if (isAdmin) {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+          <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-amber-600 dark:text-amber-400">Admin role must be transferred first</p>
+            <p className="text-muted-foreground mt-0.5">
+              Use the Shield icon next to another member above to transfer admin, then you can leave.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">Leave organization</p>
+          <Button
+            variant="outline"
+            className="gap-2 border-destructive/40 text-destructive opacity-50 cursor-not-allowed"
+            disabled
+          >
+            <LogOut className="w-4 h-4" />
+            Leave
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Case 3: regular member — standard confirmation
+  return (
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium">Leave organization</p>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          You will lose access to all projects, tasks, and notes.
+        </p>
+      </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="outline"
+            className="gap-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+            disabled={isLeaving}
+          >
+            <LogOut className="w-4 h-4" />
+            {isLeaving ? "Leaving…" : "Leave"}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave organization?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will lose access to <strong>{orgName}</strong> and all its projects,
+              tasks, and notes. You can be re-invited by an admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={onLeave}
+            >
+              Leave organization
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ─── OrgSettings page ─────────────────────────────────────────────────────────
 
 export default function OrgSettings() {
   const { org, isAdmin, refetchOrg } = useOrgContext();
@@ -272,42 +420,13 @@ export default function OrgSettings() {
           <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium">Leave organization</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isAdmin
-                  ? "Transfer admin to another member before leaving."
-                  : "You will lose access to all projects and tasks."}
-              </p>
-            </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground" disabled={isLeaving}>
-                  <LogOut className="w-4 h-4" />
-                  Leave
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Leave organization?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    You will lose access to <strong>{org?.name}</strong> and all its projects and tasks.
-                    {isAdmin && " Make sure to transfer admin to another member first."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => leaveOrg()}
-                  >
-                    Leave organization
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          <LeaveOrgSection
+            orgName={org?.name ?? ""}
+            isAdmin={isAdmin}
+            isOnlyMember={members.length <= 1}
+            isLeaving={isLeaving}
+            onLeave={() => leaveOrg()}
+          />
         </CardContent>
       </Card>
     </div>

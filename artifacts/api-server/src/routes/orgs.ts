@@ -453,15 +453,31 @@ router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req,
 // POST /orgs/leave — leave the current organization
 router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
   const userId = req.user!.id;
+  const orgId = req.orgId!;
 
-  // If user is the only admin, they cannot leave
+  // Count total members to decide whether to delete the org or just remove self
+  const [memberCount] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(orgMembersTable)
+    .where(eq(orgMembersTable.orgId, orgId));
+
+  const totalMembers = memberCount?.count ?? 0;
+
+  if (totalMembers <= 1) {
+    // Sole member — delete the org entirely (cascades to projects, tasks, notes, etc.)
+    await db.delete(organizationsTable).where(eq(organizationsTable.id, orgId));
+    res.json({ success: true });
+    return;
+  }
+
+  // More than one member — check admin constraint
   if (req.orgRole === 'admin') {
     const [adminCount] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(orgMembersTable)
       .where(
         and(
-          eq(orgMembersTable.orgId, req.orgId!),
+          eq(orgMembersTable.orgId, orgId),
           eq(orgMembersTable.role, 'admin'),
         ),
       );
@@ -478,7 +494,7 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
     .delete(orgMembersTable)
     .where(
       and(
-        eq(orgMembersTable.orgId, req.orgId!),
+        eq(orgMembersTable.orgId, orgId),
         eq(orgMembersTable.userId, userId),
       ),
     );
