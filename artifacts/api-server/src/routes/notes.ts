@@ -15,6 +15,7 @@ import {
   DeleteNoteParams,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { addSseClient, broadcastNoteChange } from "../lib/notes-sse";
 
 const router = Router();
 
@@ -53,6 +54,36 @@ async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
     .limit(1);
   return !!row;
 }
+
+// GET /notes/events — SSE stream for real-time note change notifications.
+// Must be registered before /notes/:id so Express doesn't treat "events" as an id.
+router.get("/notes/events", requireOrg, (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // disable nginx/proxy response buffering
+  res.flushHeaders();
+
+  // Initial comment keeps the connection alive through proxies that buffer headers.
+  res.write(": connected\n\n");
+
+  const orgId = req.orgId!;
+  const remove = addSseClient(orgId, res);
+
+  // Keepalive comment every 25 s so the connection survives idle-timeout proxies.
+  const keepalive = setInterval(() => {
+    try {
+      res.write(": keepalive\n\n");
+    } catch {
+      clearInterval(keepalive);
+    }
+  }, 25_000);
+
+  req.on("close", () => {
+    clearInterval(keepalive);
+    remove();
+  });
+});
 
 // GET /notes
 router.get("/notes", requireOrg, async (req, res) => {
@@ -107,6 +138,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .values({ ...body.data, orgId, createdBy: userId })
     .returning();
 
+  broadcastNoteChange(orgId);
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -198,6 +230,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
+  broadcastNoteChange(orgId);
   return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -228,6 +261,7 @@ router.delete("/notes/:id", requireOrg, async (req, res) => {
     .delete(notesTable)
     .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
+  broadcastNoteChange(req.orgId!);
   return res.sendStatus(204);
 });
 

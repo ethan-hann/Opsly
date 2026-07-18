@@ -21,6 +21,7 @@ import OrgInvitation from '@/pages/org-invitation';
 import OrgSettings from '@/pages/org-settings';
 import InvitePage from '@/pages/invite-page';
 import type { PendingInvitation } from '@workspace/api-client-react';
+import { useNotesSSE } from '@/hooks/use-notes-sse';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,6 +70,11 @@ function Router() {
   );
 }
 
+function NotesSync() {
+  useNotesSSE();
+  return null;
+}
+
 function OrgAwareApp() {
   return (
     <OrgGuard
@@ -83,6 +89,7 @@ function OrgAwareApp() {
         />
       )}
     >
+      <NotesSync />
       <Router />
     </OrgGuard>
   );
