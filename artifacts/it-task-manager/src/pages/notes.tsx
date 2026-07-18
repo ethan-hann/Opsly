@@ -277,22 +277,22 @@ export default function NotesPage() {
                 </Select>
               </div>
             </div>
-          ) : (selectedNote.projectId || selectedNote.taskId) ? (
+          ) : (
             <div className="flex flex-wrap items-center gap-3 ml-auto text-xs text-muted-foreground">
-              {selectedNote.projectId && (
-                <span className="flex items-center gap-1">
-                  <span className="opacity-60">Project:</span>
-                  <span className="text-foreground font-medium">{getProjectName(selectedNote.projectId) ?? "—"}</span>
+              <span className="flex items-center gap-1">
+                <span className="opacity-60">Project:</span>
+                <span className={selectedNote.projectId ? "text-foreground font-medium" : "opacity-50"}>
+                  {getProjectName(selectedNote.projectId) ?? "None"}
                 </span>
-              )}
-              {selectedNote.taskId && (
-                <span className="flex items-center gap-1">
-                  <span className="opacity-60">Task:</span>
-                  <span className="text-foreground font-medium">{getTaskTitle(selectedNote.taskId) ?? "—"}</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="opacity-60">Task:</span>
+                <span className={selectedNote.taskId ? "text-foreground font-medium" : "opacity-50"}>
+                  {getTaskTitle(selectedNote.taskId) ?? "None"}
                 </span>
-              )}
+              </span>
             </div>
-          ) : null}
+          )}
         </div>
       </div>
 
