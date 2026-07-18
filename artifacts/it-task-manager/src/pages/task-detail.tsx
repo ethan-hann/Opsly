@@ -103,7 +103,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     if (!commentText.trim()) return;
     commentMutation.mutate({
       id: taskId,
-      data: { content: commentText, author: user ? `${user.firstName} ${user.lastName ?? ""}`.trim() : "Unknown" }
+      data: { content: commentText, author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? "Unknown")) : "Unknown" }
     });
   };
 
@@ -188,12 +188,23 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </div>
               ) : comments && comments.length > 0 ? (
                 <div className="space-y-4">
-                  {[...comments].reverse().map((comment) => (
+                  {[...comments].reverse().map((comment) => {
+                    const currentUserName = user
+                      ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? ""))
+                      : "";
+                    const isCurrentUser = !!currentUserName && comment.author === currentUserName;
+                    const initials = (comment.author ?? "?")
+                      .split(" ")
+                      .filter(Boolean)
+                      .map((w: string) => w[0].toUpperCase())
+                      .slice(0, 2)
+                      .join("");
+                    return (
                     <div key={comment.id} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 mt-1">
-                        {user?.profileImageUrl
+                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 mt-1 flex items-center justify-center">
+                        {isCurrentUser && user?.profileImageUrl
                           ? <img src={user.profileImageUrl} alt={comment.author ?? ""} className="w-full h-full object-cover" />
-                          : <div className="w-full h-full flex items-center justify-center"><User className="w-4 h-4 text-primary" /></div>
+                          : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
                         }
                       </div>
                       <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg p-3">
@@ -204,7 +215,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                         <p className="text-sm text-foreground/80 whitespace-pre-wrap">{comment.content}</p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
