@@ -27,10 +27,10 @@ import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const COLUMNS: { id: TaskStatus; label: string; borderClass: string }[] = [
-  { id: "todo", label: "To Do", borderClass: "border-t-slate-400" },
-  { id: "in_progress", label: "In Progress", borderClass: "border-t-blue-500" },
+  { id: "todo", label: "To Do", borderClass: "border-t-stone-400" },
+  { id: "in_progress", label: "In Progress", borderClass: "border-t-amber-500" },
   { id: "blocked", label: "Blocked", borderClass: "border-t-red-500" },
-  { id: "done", label: "Done", borderClass: "border-t-green-500" },
+  { id: "done", label: "Done", borderClass: "border-t-emerald-500" },
 ];
 
 // Prefix used to distinguish column IDs from task IDs in drag events

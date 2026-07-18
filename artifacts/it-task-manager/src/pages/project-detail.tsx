@@ -66,7 +66,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
     <div className="space-y-6 max-w-6xl mx-auto">
       <EditProjectModal open={editOpen} onOpenChange={setEditOpen} project={project} />
       {/* Header / Nav */}
-      <div className="flex items-center gap-4 text-sm font-mono text-muted-foreground mb-4">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Projects
@@ -109,7 +109,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           <div className="bg-card border border-border/50 rounded-lg p-4 mt-6">
             <div className="flex justify-between items-end mb-2">
               <div className="space-y-1">
-                <span className="text-sm font-medium uppercase tracking-wider font-mono text-muted-foreground">Project Progress</span>
+                <span className="text-sm font-medium text-muted-foreground">Project Progress</span>
                 <div className="text-2xl font-bold font-mono">{progress}%</div>
               </div>
               <div className="text-sm text-muted-foreground font-mono mb-1">
@@ -125,13 +125,13 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           </div>
           
           <div className="flex justify-end gap-2 pt-4 border-t border-border/40">
-            <Button variant="outline" size="sm" className="gap-2 font-mono uppercase text-xs" onClick={() => setEditOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
               <Edit className="w-3.5 h-3.5" /> Edit Project
             </Button>
             
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="gap-2 font-mono uppercase text-xs" data-testid="btn-delete-project">
+                <Button variant="destructive" size="sm" className="gap-2 text-xs" data-testid="btn-delete-project">
                   <Trash2 className="w-3.5 h-3.5" /> Delete
                 </Button>
               </AlertDialogTrigger>

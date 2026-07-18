@@ -73,57 +73,57 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Light Theme - Slate & Emerald/Teal */
-  --background: 210 40% 98%;
-  --foreground: 222 47% 11%;
-  
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  /* Light Theme — Warm Stone & Amber */
+  --background: 60 5% 98%;         /* stone-50  #fafaf9  */
+  --foreground: 20 14% 11%;        /* stone-900 #1c1917  */
+
+  --card: 0 0% 100%;               /* white                */
+  --card-foreground: 20 14% 11%;
+  --card-border: 30 8% 91%;        /* stone-200 #e7e5e4   */
 
   --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover-foreground: 20 14% 11%;
+  --popover-border: 30 8% 91%;
 
-  /* Teal primary */
-  --primary: 175 75% 35%;
+  /* Amber primary */
+  --primary: 38 92% 44%;           /* amber-600 #d97706   */
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 214 32% 91%;
-  --secondary-foreground: 222 47% 11%;
+  --secondary: 30 8% 91%;          /* stone-200           */
+  --secondary-foreground: 20 14% 11%;
 
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
+  --muted: 60 5% 96%;              /* stone-100 #f5f5f4   */
+  --muted-foreground: 25 8% 46%;   /* stone-500 #78716c   */
 
-  --accent: 210 40% 96%;
-  --accent-foreground: 222 47% 11%;
+  --accent: 38 60% 94%;            /* very light amber    */
+  --accent-foreground: 20 14% 11%;
 
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 175 75% 35%;
+  --border: 30 8% 91%;             /* stone-200           */
+  --input: 30 8% 91%;
+  --ring: 38 92% 44%;              /* amber-600           */
 
-  --chart-1: 175 75% 35%;
-  --chart-2: 214 32% 91%;
-  --chart-3: 210 40% 96%;
-  --chart-4: 215 16% 47%;
-  --chart-5: 222 47% 11%;
+  --chart-1: 38 92% 44%;
+  --chart-2: 30 8% 91%;
+  --chart-3: 60 5% 96%;
+  --chart-4: 25 8% 46%;
+  --chart-5: 20 14% 11%;
 
-  --sidebar: 210 40% 98%;
-  --sidebar-foreground: 222 47% 11%;
-  --sidebar-border: 214 32% 91%;
-  --sidebar-primary: 175 75% 35%;
+  --sidebar: 60 5% 98%;            /* stone-50            */
+  --sidebar-foreground: 20 14% 11%;
+  --sidebar-border: 30 8% 91%;
+  --sidebar-primary: 38 92% 44%;   /* amber-600           */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 214 32% 91%;
-  --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-ring: 175 75% 35%;
+  --sidebar-accent: 38 60% 94%;    /* light amber — active nav bg */
+  --sidebar-accent-foreground: 20 14% 11%;
+  --sidebar-ring: 38 92% 44%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', monospace;
-  --radius: 0.5rem;
-  
+  --radius: 0.75rem;               /* bumped from 0.5rem for warmer roundness */
+
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
   --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
   --shadow-sm: 0px 2px 4px 0px rgba(0,0,0,0.05);
@@ -132,7 +132,7 @@
   --shadow-lg: 0px 10px 15px -3px rgba(0,0,0,0.1), 0px 4px 6px -4px rgba(0,0,0,0.05);
   --shadow-xl: 0px 20px 25px -5px rgba(0,0,0,0.1), 0px 8px 10px -6px rgba(0,0,0,0.05);
   --shadow-2xl: 0px 25px 50px -12px rgba(0,0,0,0.25);
-  
+
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 
@@ -152,52 +152,52 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  /* Deep dark slate background */
-  --background: 222 47% 6%;
-  --foreground: 210 40% 98%;
+  /* Dark Theme — Warm dark stone & amber */
+  --background: 20 14% 8%;         /* warm near-black     */
+  --foreground: 60 9% 96%;         /* warm off-white      */
 
-  --card: 222 47% 9%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 32% 17%;
+  --card: 20 14% 11%;              /* slightly lighter warm dark */
+  --card-foreground: 60 9% 96%;
+  --card-border: 20 12% 20%;       /* warm dark border    */
 
-  --popover: 222 47% 9%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 32% 17%;
+  --popover: 20 14% 11%;
+  --popover-foreground: 60 9% 96%;
+  --popover-border: 20 12% 20%;
 
-  /* Brighter Teal for dark mode */
-  --primary: 175 75% 45%;
-  --primary-foreground: 222 47% 11%;
+  /* Brighter amber for dark mode */
+  --primary: 38 95% 58%;           /* amber-400 area      */
+  --primary-foreground: 20 14% 10%;
 
-  --secondary: 217 32% 17%;
-  --secondary-foreground: 210 40% 98%;
+  --secondary: 20 12% 20%;         /* warm dark gray      */
+  --secondary-foreground: 60 9% 96%;
 
-  --muted: 217 32% 17%;
-  --muted-foreground: 215 20.2% 65.1%;
+  --muted: 20 12% 18%;
+  --muted-foreground: 25 10% 62%;  /* warm muted text     */
 
-  --accent: 217 32% 17%;
-  --accent-foreground: 210 40% 98%;
+  --accent: 38 40% 22%;            /* dark amber tint     */
+  --accent-foreground: 60 9% 96%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 217 32% 17%;
-  --input: 217 32% 17%;
-  --ring: 175 75% 45%;
+  --border: 20 12% 20%;
+  --input: 20 12% 20%;
+  --ring: 38 95% 58%;
 
-  --chart-1: 175 75% 45%;
-  --chart-2: 217 32% 17%;
-  --chart-3: 215 20.2% 65.1%;
-  --chart-4: 210 40% 98%;
-  --chart-5: 222 47% 11%;
+  --chart-1: 38 95% 58%;
+  --chart-2: 20 12% 20%;
+  --chart-3: 25 10% 62%;
+  --chart-4: 60 9% 96%;
+  --chart-5: 20 14% 10%;
 
-  --sidebar: 222 47% 6%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 32% 17%;
-  --sidebar-primary: 175 75% 45%;
-  --sidebar-primary-foreground: 222 47% 11%;
-  --sidebar-accent: 217 32% 17%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 175 75% 45%;
+  --sidebar: 20 14% 8%;            /* same as background  */
+  --sidebar-foreground: 60 9% 96%;
+  --sidebar-border: 20 12% 20%;
+  --sidebar-primary: 38 95% 58%;   /* amber in dark mode  */
+  --sidebar-primary-foreground: 20 14% 10%;
+  --sidebar-accent: 38 40% 20%;    /* dark amber nav hover */
+  --sidebar-accent-foreground: 60 9% 96%;
+  --sidebar-ring: 38 95% 58%;
 }
 
 @layer base {

@@ -130,7 +130,7 @@ export default function TasksList() {
                         {task.projectName && (
                           <span className="text-foreground/80">{task.projectName}</span>
                         )}
-                        <span className="uppercase px-1.5 py-0.5 rounded border border-border">
+                        <span className="px-1.5 py-0.5 rounded border border-border">
                           {task.category}
                         </span>
                         {task.dueDate && (

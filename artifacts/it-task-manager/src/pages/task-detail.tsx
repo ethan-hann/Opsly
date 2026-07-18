@@ -111,7 +111,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
       <EditTaskModal open={editOpen} onOpenChange={setEditOpen} task={task} />
       {/* Navigation */}
-      <div className="flex items-center gap-4 text-sm font-mono text-muted-foreground mb-2">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
         <Link href="/tasks" className="hover:text-foreground flex items-center gap-1 transition-colors">
           <ArrowLeft className="w-4 h-4" />
           Tasks
@@ -128,7 +128,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               <div className="flex justify-between items-start gap-4">
                 <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="sm" className="gap-2 font-mono uppercase text-xs" onClick={() => setEditOpen(true)}>
+                  <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
                     <Edit className="w-3.5 h-3.5" /> Edit Task
                   </Button>
                   <AlertDialog>
@@ -236,7 +236,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   size="sm" 
                   onClick={handlePostComment}
                   disabled={!commentText.trim() || commentMutation.isPending}
-                  className="font-mono text-xs uppercase tracking-wide"
+                  className="text-xs"
                 >
                   {commentMutation.isPending ? "Posting..." : "Post Comment"}
                 </Button>
@@ -249,7 +249,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         <div className="space-y-6">
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-muted/20 border-b border-border py-3">
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Notes</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Notes</CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <InlineNotes taskId={taskId} />
@@ -258,7 +258,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-muted/20 border-b border-border py-3">
-              <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Properties</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Properties</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border text-sm">
