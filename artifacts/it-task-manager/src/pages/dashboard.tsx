@@ -1,5 +1,5 @@
 import { Link } from "wouter";
-import { 
+import {
   useGetDashboardSummary,
   getGetDashboardSummaryQueryKey,
   useGetRecentActivity,
@@ -9,17 +9,16 @@ import {
   useListProjects,
   getListProjectsQueryKey,
 } from "@workspace/api-client-react";
-import { StatCard } from "@/components/dashboard/stat-card";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AlertCircle, CheckCircle2, Clock, Activity, Target, AlertTriangle } from "lucide-react";
+import {
+  Briefcase, CheckCircle2, AlertCircle, Clock,
+  Activity, LayoutGrid, ArrowRight,
+} from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatTimeAgo, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  // Dashboard queries poll every 30 s and refetch on window focus so the
-  // overview stays current without the user manually refreshing.
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
@@ -33,221 +32,310 @@ export default function Dashboard() {
     query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  const activeProjects = projects?.filter(p => p.status === "active") ?? [];
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-8 max-w-7xl mx-auto">
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">System Status</h1>
-          <p className="text-muted-foreground mt-1">Overview of IT operations, deployments, and incidents.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100">System Status</h1>
+          <p className="text-stone-500 dark:text-stone-400 mt-1">{greeting}. Here's what needs your attention today.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/tasks">
-            <Button variant="outline" size="sm" className="font-mono text-xs uppercase">View All Tasks</Button>
-          </Link>
+        <div className="flex items-center gap-3">
           <Link href="/projects">
-            <Button variant="default" size="sm" className="font-mono text-xs uppercase">Manage Projects</Button>
+            <Button variant="ghost" className="font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 border-0">
+              Manage Projects
+            </Button>
+          </Link>
+          <Link href="/tasks">
+            <Button className="font-medium bg-amber-600 hover:bg-amber-700 text-white shadow-sm gap-2">
+              View All Tasks
+              <ArrowRight className="w-4 h-4" />
+            </Button>
           </Link>
         </div>
       </div>
 
-      {/* KPI Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {isLoadingSummary ? (
-          Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)
+          Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
         ) : summary ? (
           <>
-            <StatCard 
-              title="Active Projects" 
-              value={summary.activeProjects} 
-              icon={<Target className="w-4 h-4" />} 
-              description={`Out of ${summary.totalProjects} total`}
-              href="/projects"
-              className="border-primary/20"
-            />
-            <StatCard 
-              title="Open Tasks" 
-              value={summary.tasksByStatus.todo + summary.tasksByStatus.in_progress} 
-              icon={<CheckCircle2 className="w-4 h-4" />} 
-              description="Requires attention"
-              href="/tasks"
-            />
-            <StatCard 
-              title="Blocked Issues" 
-              value={summary.tasksByStatus.blocked} 
-              icon={<AlertCircle className="w-4 h-4 text-amber-500" />} 
-              href="/tasks"
-              className={summary.tasksByStatus.blocked > 0 ? "border-amber-500/50 bg-amber-500/5" : ""}
-            />
-            <StatCard 
-              title="Overdue Tasks" 
-              value={summary.overdueCount} 
-              icon={<Clock className="w-4 h-4 text-destructive" />} 
-              href="/tasks"
-              className={summary.overdueCount > 0 ? "border-destructive/50 bg-destructive/5" : ""}
-            />
+            <Link href="/projects">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Active Projects</p>
+                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">{summary.activeProjects}</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Out of {summary.totalProjects} total</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform">
+                    <Briefcase className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/tasks">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Open Tasks</p>
+                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">
+                      {summary.tasksByStatus.todo + summary.tasksByStatus.in_progress}
+                    </p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Requires attention</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform">
+                    <LayoutGrid className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/tasks">
+              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
+                summary.tasksByStatus.blocked > 0
+                  ? "border-rose-200 dark:border-rose-800 hover:border-rose-300 dark:hover:border-rose-700"
+                  : "border-stone-200 dark:border-stone-700 hover:border-amber-200 dark:hover:border-amber-700"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Blocked Issues</p>
+                    <p className={`text-3xl font-bold mt-2 ${summary.tasksByStatus.blocked > 0 ? "text-rose-600 dark:text-rose-400" : "text-stone-800 dark:text-stone-100"}`}>
+                      {summary.tasksByStatus.blocked}
+                    </p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                    summary.tasksByStatus.blocked > 0
+                      ? "bg-rose-100 text-rose-500 dark:bg-rose-900/40 dark:text-rose-400"
+                      : "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                  }`}>
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+            </Link>
+
+            <Link href="/tasks">
+              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
+                summary.overdueCount > 0
+                  ? "border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700"
+                  : "border-stone-200 dark:border-stone-700 hover:border-amber-200 dark:hover:border-amber-700"
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Overdue Tasks</p>
+                    <p className={`text-3xl font-bold mt-2 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
+                      {summary.overdueCount}
+                    </p>
+                  </div>
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                    summary.overdueCount > 0
+                      ? "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400"
+                      : "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                  }`}>
+                    <Clock className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+            </Link>
           </>
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content Area - Left 2 Columns */}
-        <div className="lg:col-span-2 space-y-6">
-          
-          {/* Critical & High Priority Overview */}
-          <Card className="border-destructive/20 shadow-sm overflow-hidden">
-            <CardHeader className="bg-destructive/5 border-b border-destructive/10 pb-4">
-              <CardTitle className="text-lg flex items-center gap-2 text-destructive">
-                <AlertTriangle className="w-5 h-5" />
-                Attention Required
-              </CardTitle>
-              <CardDescription>Overdue or critical priority tasks</CardDescription>
-            </CardHeader>
-            <CardContent className="p-0">
-              {isLoadingOverdue ? (
-                <div className="p-6 space-y-4">
-                  <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-12 w-full" />
-                </div>
-              ) : overdueTasks && overdueTasks.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {overdueTasks.slice(0, 5).map(task => (
-                    <div key={task.id} className="p-4 flex flex-col sm:flex-row gap-4 justify-between hover:bg-muted/50 transition-colors">
-                      <div className="space-y-1">
+      {/* Main Content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+        {/* Left 2 columns */}
+        <div className="lg:col-span-2 space-y-8">
+
+          {/* Attention Required */}
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-rose-50/40 dark:bg-rose-950/20">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-300">Attention Required</h2>
+              </div>
+              <p className="text-sm text-stone-400 dark:text-stone-500">Overdue or critical priority tasks</p>
+            </div>
+
+            {isLoadingOverdue ? (
+              <div className="p-6 space-y-4">
+                <Skeleton className="h-14 w-full rounded-xl" />
+                <Skeleton className="h-14 w-full rounded-xl" />
+              </div>
+            ) : overdueTasks && overdueTasks.length > 0 ? (
+              <div className="divide-y divide-stone-100 dark:divide-stone-800">
+                {overdueTasks.slice(0, 5).map(task => (
+                  <div key={task.id} className="p-5 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="mt-0.5 p-2 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
                         <Link href={`/tasks/${task.id}`}>
-                          <div className="font-medium text-sm hover:underline cursor-pointer flex items-center gap-2">
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer truncate">
                             {task.title}
-                          </div>
+                          </h3>
                         </Link>
-                        <div className="text-xs text-muted-foreground flex items-center gap-2">
-                          <span className="font-mono">{task.projectName || 'Unassigned'}</span>
-                          <span>•</span>
-                          <span className="text-destructive flex items-center gap-1">
+                        <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+                          <span className="font-mono text-xs">{task.projectName || "Unassigned"}</span>
+                          <span>·</span>
+                          <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
                             <Clock className="w-3 h-3" />
                             Due {formatDate(task.dueDate)}
                           </span>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <StatusBadge status={task.status} />
-                        <PriorityBadge priority={task.priority} />
-                      </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-muted-foreground flex flex-col items-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mb-2 opacity-50" />
-                  <p>No overdue or critical tasks. System nominal.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StatusBadge status={task.status} />
+                      <PriorityBadge priority={task.priority} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-10 text-center text-stone-400 dark:text-stone-500 flex flex-col items-center gap-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-60" />
+                <p className="text-sm">No overdue or critical tasks. System nominal.</p>
+              </div>
+            )}
+          </div>
 
-          {/* Active Projects Quick View */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Active Projects</CardTitle>
-              <CardDescription>Ongoing operational streams</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isLoadingProjects ? (
-                <div className="space-y-3">
-                  <Skeleton className="h-16 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              ) : projects && projects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {projects.filter(p => p.status === 'active').slice(0, 4).map(project => {
-                    const progress = project.taskCount ? Math.round(((project.completedTaskCount || 0) / project.taskCount) * 100) : 0;
-                    return (
-                      <Link key={project.id} href={`/projects/${project.id}`}>
-                        <div className="p-4 rounded-lg border border-border bg-card hover:border-primary/50 transition-colors cursor-pointer group">
-                          <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-medium text-sm group-hover:text-primary transition-colors line-clamp-1">{project.name}</h3>
-                            <PriorityBadge priority={project.priority} />
+          {/* Active Projects */}
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Active Projects</h2>
+                <p className="text-sm text-stone-400 dark:text-stone-500">Ongoing operational streams</p>
+              </div>
+              <Link href="/projects">
+                <button className="p-2 text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                  <LayoutGrid className="w-5 h-5" />
+                </button>
+              </Link>
+            </div>
+
+            {isLoadingProjects ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Skeleton className="h-28 rounded-xl" />
+                <Skeleton className="h-28 rounded-xl" />
+              </div>
+            ) : activeProjects.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {activeProjects.slice(0, 4).map(project => {
+                  const progress = project.taskCount
+                    ? Math.round(((project.completedTaskCount || 0) / project.taskCount) * 100)
+                    : 0;
+                  return (
+                    <Link key={project.id} href={`/projects/${project.id}`}>
+                      <div className="p-4 rounded-xl border border-stone-100 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/30 hover:bg-amber-50/40 dark:hover:bg-amber-900/10 hover:border-amber-200 dark:hover:border-amber-700/50 transition-all cursor-pointer group">
+                        <div className="flex justify-between items-start mb-3">
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
+                            {project.name}
+                          </h3>
+                          <PriorityBadge priority={project.priority} />
+                        </div>
+                        <div className="mb-3">
+                          <div className="flex justify-between text-xs mb-1.5">
+                            <span className="text-stone-500 dark:text-stone-400 font-medium">Progress</span>
+                            <span className="text-stone-700 dark:text-stone-300 font-bold">{progress}%</span>
                           </div>
-                          <div className="mt-4 space-y-2">
-                            <div className="flex justify-between text-xs text-muted-foreground font-mono">
-                              <span>{project.completedTaskCount || 0}/{project.taskCount || 0} Tasks</span>
-                              <span>{progress}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-primary rounded-full transition-all duration-500" 
-                                style={{ width: `${progress}%` }} 
-                              />
-                            </div>
+                          <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                              style={{ width: `${progress}%` }}
+                            />
                           </div>
                         </div>
-                      </Link>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground text-sm">
-                  No active projects.
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-        </div>
-
-        {/* Sidebar Area - Right Column */}
-        <div className="space-y-6">
-          <Card className="h-full flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" />
-                Activity Log
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-auto">
-              {isLoadingActivity ? (
-                <div className="space-y-4">
-                  {Array(6).fill(0).map((_, i) => (
-                    <div key={i} className="flex gap-3">
-                      <Skeleton className="w-2 h-2 rounded-full mt-2" />
-                      <div className="space-y-2 flex-1">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : activity && activity.length > 0 ? (
-                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-[5px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
-                  {activity.slice(0, 10).map((item) => {
-                    const href = item.entityType === "project"
-                      ? `/projects/${item.entityId}`
-                      : `/tasks/${item.entityId}`;
-                    return (
-                      <div key={item.id} className="relative flex items-start gap-4">
-                        <div className="absolute left-0 mt-1.5 w-3 h-3 rounded-full bg-background border-2 border-primary z-10" />
-                        <div className="ml-6 space-y-1">
-                          <p className="text-sm">
-                            <Link href={href}>
-                              <span className="font-medium text-foreground hover:text-primary hover:underline cursor-pointer transition-colors">
-                                {item.title}
-                              </span>
-                            </Link>
-                          </p>
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {formatTimeAgo(item.createdAt)}
-                          </div>
+                        <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50 font-mono">
+                          <span>{project.completedTaskCount || 0}/{project.taskCount || 0} tasks</span>
+                          <span>{progress}% complete</span>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground text-sm">
-                  No recent activity.
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
+                No active projects.
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Activity Log */}
+        <div className="lg:col-span-1">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6 sticky top-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Activity Log</h2>
+              <Activity className="w-5 h-5 text-stone-400 dark:text-stone-500" />
+            </div>
+
+            {isLoadingActivity ? (
+              <div className="space-y-5">
+                {Array(5).fill(0).map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <Skeleton className="w-5 h-5 rounded-full shrink-0 mt-0.5" />
+                    <div className="space-y-1.5 flex-1">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : activity && activity.length > 0 ? (
+              <div className="space-y-5 relative before:absolute before:inset-0 before:ml-[9px] before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-stone-200 before:via-stone-200 dark:before:from-stone-700 dark:before:via-stone-700 before:to-transparent">
+                {activity.slice(0, 10).map((item) => {
+                  const href = item.entityType === "project"
+                    ? `/projects/${item.entityId}`
+                    : `/tasks/${item.entityId}`;
+                  return (
+                    <div key={item.id} className="relative flex items-start gap-4">
+                      <div className="absolute left-0 mt-1 flex items-center justify-center z-10">
+                        <div className="w-5 h-5 rounded-full border-4 border-white dark:border-stone-900 bg-amber-400 dark:bg-amber-500 shrink-0" />
+                      </div>
+                      <div className="ml-8 space-y-0.5">
+                        <p className="text-sm text-stone-600 dark:text-stone-400">
+                          <Link href={href}>
+                            <span className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer">
+                              {item.title}
+                            </span>
+                          </Link>
+                        </p>
+                        <span className="text-xs text-stone-400 dark:text-stone-500 font-medium">
+                          {formatTimeAgo(item.createdAt)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
+                No recent activity.
+              </div>
+            )}
+
+            {activity && activity.length > 0 && (
+              <Link href="/tasks">
+                <button className="w-full mt-8 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-xl transition-colors">
+                  View All Tasks
+                </button>
+              </Link>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   );
