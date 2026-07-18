@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: Auth
     description: Browser and mobile authentication endpoints.
+  - name: orgs
+    description: Organization management
   - name: projects
     description: IT project operations
   - name: tasks
@@ -561,6 +563,165 @@ paths:
                 items:
                   $ref: "#/components/schemas/Task"
 
+  /orgs:
+    post:
+      operationId: createOrg
+      tags: [orgs]
+      summary: Create a new organization (caller becomes admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgInput"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMeResponse"
+        "409":
+          description: Already belongs to an organization
+
+  /orgs/me:
+    get:
+      operationId: getMyOrg
+      tags: [orgs]
+      summary: Get current org membership, role, and any pending invitation
+      responses:
+        "200":
+          description: Current org context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMeResponse"
+
+  /orgs/members:
+    get:
+      operationId: listOrgMembers
+      tags: [orgs]
+      summary: List all members of the current organization
+      responses:
+        "200":
+          description: Member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgMemberInfo"
+
+  /orgs/invite:
+    post:
+      operationId: inviteOrgMember
+      tags: [orgs]
+      summary: Invite a user to the organization (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteMemberInput"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationInfo"
+
+  /orgs/invitations/{token}/accept:
+    post:
+      operationId: acceptOrgInvitation
+      tags: [orgs]
+      summary: Accept a pending invitation
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation accepted, org membership returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMeResponse"
+
+  /orgs/invitations/{token}/decline:
+    post:
+      operationId: declineOrgInvitation
+      tags: [orgs]
+      summary: Decline a pending invitation
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation declined
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+
+  /orgs/members/{userId}:
+    delete:
+      operationId: removeOrgMember
+      tags: [orgs]
+      summary: Remove a member from the organization (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Member removed
+
+  /orgs/members/{userId}/role:
+    patch:
+      operationId: updateOrgMemberRole
+      tags: [orgs]
+      summary: Change a member role, or transfer admin (admin only)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRoleInput"
+      responses:
+        "200":
+          description: Updated member
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgMemberInfo"
+
+  /orgs/leave:
+    post:
+      operationId: leaveOrg
+      tags: [orgs]
+      summary: Leave the current organization
+      responses:
+        "200":
+          description: Left organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleSuccess"
+
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -914,3 +1075,121 @@ components:
           type: string
         createdAt:
           type: string
+
+    Organization:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+
+    PendingInvitation:
+      type: object
+      required: [id, orgId, orgName, token, expiresAt]
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        orgName:
+          type: string
+        token:
+          type: string
+        expiresAt:
+          type: string
+
+    OrgMeResponse:
+      type: object
+      required: [org, role, pendingInvitation]
+      properties:
+        org:
+          oneOf:
+            - $ref: '#/components/schemas/Organization'
+            - type: 'null'
+        role:
+          oneOf:
+            - type: string
+              enum: [admin, member]
+            - type: 'null'
+        pendingInvitation:
+          oneOf:
+            - $ref: '#/components/schemas/PendingInvitation'
+            - type: 'null'
+
+    OrgMemberInfo:
+      type: object
+      required: [userId, role, joinedAt]
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+          enum: [admin, member]
+        joinedAt:
+          type: string
+        firstName:
+          type: ["string", "null"]
+        lastName:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        profileImageUrl:
+          type: ["string", "null"]
+
+    InvitationInfo:
+      type: object
+      required: [id, orgId, token, status, expiresAt, createdAt]
+      properties:
+        id:
+          type: string
+        orgId:
+          type: string
+        invitedEmail:
+          type: ["string", "null"]
+        invitedUserId:
+          type: ["string", "null"]
+        token:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, declined]
+        expiresAt:
+          type: string
+        createdAt:
+          type: string
+
+    OrgInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    InviteMemberInput:
+      type: object
+      properties:
+        email:
+          type: string
+        userId:
+          type: string
+
+    UpdateMemberRoleInput:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [admin, member]
+
+    SimpleSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean

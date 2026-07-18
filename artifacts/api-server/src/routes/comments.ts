@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
-import { db, commentsTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { db, commentsTable, tasksTable } from "@workspace/db";
 import {
   CreateCommentBody,
   CreateCommentParams,
@@ -10,13 +10,26 @@ import {
   CreateCommentResponse,
   DeleteCommentResponse,
 } from "@workspace/api-zod";
+import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
 
-router.get("/tasks/:id/comments", async (req, res): Promise<void> => {
+router.get("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> => {
   const params = ListCommentsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Verify task belongs to the org
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, req.orgId!)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
     return;
   }
 
@@ -33,10 +46,22 @@ router.get("/tasks/:id/comments", async (req, res): Promise<void> => {
   }))));
 });
 
-router.post("/tasks/:id/comments", async (req, res): Promise<void> => {
+router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> => {
   const params = CreateCommentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  // Verify task belongs to the org
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, req.orgId!)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
     return;
   }
 
@@ -58,23 +83,37 @@ router.post("/tasks/:id/comments", async (req, res): Promise<void> => {
   }));
 });
 
-router.delete("/comments/:id", async (req, res): Promise<void> => {
+router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
   const params = DeleteCommentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
+  // Verify comment belongs to a task in the org
   const [comment] = await db
-    .delete(commentsTable)
+    .select({ id: commentsTable.id, taskId: commentsTable.taskId })
+    .from(commentsTable)
     .where(eq(commentsTable.id, params.data.id))
-    .returning();
+    .limit(1);
 
   if (!comment) {
     res.status(404).json({ error: "Comment not found" });
     return;
   }
 
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, comment.taskId), eq(tasksTable.orgId, req.orgId!)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  await db.delete(commentsTable).where(eq(commentsTable.id, params.data.id));
   res.sendStatus(204);
 });
 

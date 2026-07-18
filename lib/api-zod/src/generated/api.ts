@@ -560,3 +560,162 @@ export const GetOverdueTasksResponseItem = zod.object({
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
 
+/**
+ * @summary Create a new organization (caller becomes admin)
+ */
+export const createOrgBodyNameMax = 200;
+
+
+
+export const CreateOrgBody = zod.object({
+  "name": zod.string().min(1).max(createOrgBodyNameMax)
+})
+
+export const CreateOrgResponse = zod.object({
+  "org": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "pendingInvitation": zod.union([zod.object({
+  "id": zod.string(),
+  "orgId": zod.string(),
+  "orgName": zod.string(),
+  "token": zod.string(),
+  "expiresAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Get current org membership, role, and any pending invitation
+ */
+export const GetMyOrgResponse = zod.object({
+  "org": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "pendingInvitation": zod.union([zod.object({
+  "id": zod.string(),
+  "orgId": zod.string(),
+  "orgName": zod.string(),
+  "token": zod.string(),
+  "expiresAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary List all members of the current organization
+ */
+export const ListOrgMembersResponseItem = zod.object({
+  "userId": zod.string(),
+  "role": zod.enum(['admin', 'member']),
+  "joinedAt": zod.string(),
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "profileImageUrl": zod.string().nullish()
+})
+export const ListOrgMembersResponse = zod.array(ListOrgMembersResponseItem)
+
+
+/**
+ * @summary Invite a user to the organization (admin only)
+ */
+export const InviteOrgMemberBody = zod.object({
+  "email": zod.string().optional(),
+  "userId": zod.string().optional()
+})
+
+export const InviteOrgMemberResponse = zod.object({
+  "id": zod.string(),
+  "orgId": zod.string(),
+  "invitedEmail": zod.string().nullish(),
+  "invitedUserId": zod.string().nullish(),
+  "token": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "expiresAt": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
+ * @summary Accept a pending invitation
+ */
+export const AcceptOrgInvitationParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const AcceptOrgInvitationResponse = zod.object({
+  "org": zod.union([zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+}),zod.null()]),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "pendingInvitation": zod.union([zod.object({
+  "id": zod.string(),
+  "orgId": zod.string(),
+  "orgName": zod.string(),
+  "token": zod.string(),
+  "expiresAt": zod.string()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Decline a pending invitation
+ */
+export const DeclineOrgInvitationParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const DeclineOrgInvitationResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
+ * @summary Remove a member from the organization (admin only)
+ */
+export const RemoveOrgMemberParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const RemoveOrgMemberResponse = zod.void()
+
+
+/**
+ * @summary Change a member role, or transfer admin (admin only)
+ */
+export const UpdateOrgMemberRoleParams = zod.object({
+  "userId": zod.coerce.string()
+})
+
+export const UpdateOrgMemberRoleBody = zod.object({
+  "role": zod.enum(['admin', 'member'])
+})
+
+export const UpdateOrgMemberRoleResponse = zod.object({
+  "userId": zod.string(),
+  "role": zod.enum(['admin', 'member']),
+  "joinedAt": zod.string(),
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "profileImageUrl": zod.string().nullish()
+})
+
+
+/**
+ * @summary Leave the current organization
+ */
+export const LeaveOrgResponse = zod.object({
+  "success": zod.boolean()
+})
+
+

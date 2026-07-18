@@ -1,10 +1,12 @@
-import { pgTable, text, serial, timestamp, integer, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, date, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
+import { organizationsTable } from "./organizations";
 
 export const tasksTable = pgTable("tasks", {
   id: serial("id").primaryKey(),
+  orgId: varchar("org_id").references(() => organizationsTable.id, { onDelete: "cascade" }),
   projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description"),

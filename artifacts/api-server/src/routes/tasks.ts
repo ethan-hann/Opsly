@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, isNull, lt } from "drizzle-orm";
+import { eq, sql, and, lt } from "drizzle-orm";
 import { db, tasksTable, projectsTable, commentsTable } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -14,12 +14,29 @@ import {
   UpdateTaskResponse,
   GetOverdueTasksResponse,
 } from "@workspace/api-zod";
+import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
 
-async function buildTaskWithProject(task: typeof tasksTable.$inferSelect) {
+/**
+ * Build enriched task payload.
+ * Project lookup is scoped to orgId to prevent cross-tenant metadata leaks.
+ */
+async function buildTaskWithProject(
+  task: typeof tasksTable.$inferSelect,
+  orgId: string,
+) {
+  // Only expose project name if the project belongs to the same org
   const [project] = task.projectId
-    ? await db.select({ name: projectsTable.name }).from(projectsTable).where(eq(projectsTable.id, task.projectId))
+    ? await db
+        .select({ name: projectsTable.name })
+        .from(projectsTable)
+        .where(
+          and(
+            eq(projectsTable.id, task.projectId),
+            eq(projectsTable.orgId, orgId),
+          ),
+        )
     : [];
 
   const [{ count }] = await db
@@ -40,28 +57,46 @@ async function buildTaskWithProject(task: typeof tasksTable.$inferSelect) {
   };
 }
 
-router.get("/tasks/overdue", async (req, res): Promise<void> => {
+/**
+ * Verify a projectId belongs to the org. Returns false if it doesn't.
+ */
+async function projectBelongsToOrg(projectId: number, orgId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: projectsTable.id })
+    .from(projectsTable)
+    .where(and(eq(projectsTable.id, projectId), eq(projectsTable.orgId, orgId)))
+    .limit(1);
+  return !!row;
+}
+
+router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
   const today = new Date().toISOString().split("T")[0];
   const tasks = await db
     .select()
     .from(tasksTable)
-    .where(and(lt(tasksTable.dueDate, today), sql`${tasksTable.status} != 'done'`))
+    .where(and(
+      eq(tasksTable.orgId, orgId),
+      lt(tasksTable.dueDate, today),
+      sql`${tasksTable.status} != 'done'`,
+    ))
     .orderBy(tasksTable.dueDate);
 
-  const result = await Promise.all(tasks.map(buildTaskWithProject));
+  const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId)));
   res.json(GetOverdueTasksResponse.parse(result));
 });
 
-router.get("/tasks", async (req, res): Promise<void> => {
+router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
   const queryParams = ListTasksQueryParams.safeParse(req.query);
   if (!queryParams.success) {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
 
+  const orgId = req.orgId!;
   const { projectId, status, priority, category } = queryParams.data;
 
-  const conditions = [];
+  const conditions = [eq(tasksTable.orgId, orgId)];
   if (projectId != null) conditions.push(eq(tasksTable.projectId, projectId));
   if (status) conditions.push(eq(tasksTable.status, status));
   if (priority) conditions.push(eq(tasksTable.priority, priority));
@@ -70,44 +105,63 @@ router.get("/tasks", async (req, res): Promise<void> => {
   const tasks = await db
     .select()
     .from(tasksTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(and(...conditions))
     .orderBy(tasksTable.createdAt);
 
-  const result = await Promise.all(tasks.map(buildTaskWithProject));
+  const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId)));
   res.json(ListTasksResponse.parse(result));
 });
 
-router.post("/tasks", async (req, res): Promise<void> => {
+router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
   const parsed = CreateTaskBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [task] = await db.insert(tasksTable).values(parsed.data).returning();
-  const enriched = await buildTaskWithProject(task);
+  const orgId = req.orgId!;
+
+  // Validate that projectId (if provided) belongs to this org
+  if (parsed.data.projectId != null) {
+    const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
+    if (!valid) {
+      res.status(400).json({ error: "Invalid projectId" });
+      return;
+    }
+  }
+
+  const [task] = await db
+    .insert(tasksTable)
+    .values({ ...parsed.data, orgId })
+    .returning();
+
+  const enriched = await buildTaskWithProject(task, orgId);
   res.status(201).json(CreateTaskResponse.parse(enriched));
 });
 
-router.get("/tasks/:id", async (req, res): Promise<void> => {
+router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const params = GetTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [task] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id));
+  const orgId = req.orgId!;
+  const [task] = await db
+    .select()
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)));
 
   if (!task) {
     res.status(404).json({ error: "Task not found" });
     return;
   }
 
-  const enriched = await buildTaskWithProject(task);
+  const enriched = await buildTaskWithProject(task, orgId);
   res.json(GetTaskResponse.parse(enriched));
 });
 
-router.patch("/tasks/:id", async (req, res): Promise<void> => {
+router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const params = UpdateTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -120,10 +174,21 @@ router.patch("/tasks/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const orgId = req.orgId!;
+
+  // Validate that projectId (if being changed) belongs to this org
+  if (parsed.data.projectId != null) {
+    const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
+    if (!valid) {
+      res.status(400).json({ error: "Invalid projectId" });
+      return;
+    }
+  }
+
   const [task] = await db
     .update(tasksTable)
     .set(parsed.data)
-    .where(eq(tasksTable.id, params.data.id))
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .returning();
 
   if (!task) {
@@ -131,18 +196,22 @@ router.patch("/tasks/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const enriched = await buildTaskWithProject(task);
+  const enriched = await buildTaskWithProject(task, orgId);
   res.json(UpdateTaskResponse.parse(enriched));
 });
 
-router.delete("/tasks/:id", async (req, res): Promise<void> => {
+router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const params = DeleteTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [task] = await db.delete(tasksTable).where(eq(tasksTable.id, params.data.id)).returning();
+  const orgId = req.orgId!;
+  const [task] = await db
+    .delete(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .returning();
 
   if (!task) {
     res.status(404).json({ error: "Task not found" });

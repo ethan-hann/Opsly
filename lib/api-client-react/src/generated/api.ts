@@ -29,6 +29,8 @@ import type {
   ErrorEnvelope,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
+  InvitationInfo,
+  InviteMemberInput,
   ListNotesParams,
   ListTasksParams,
   LogoutBrowserSessionParams,
@@ -38,12 +40,17 @@ import type {
   Note,
   NoteInput,
   NoteUpdate,
+  OrgInput,
+  OrgMeResponse,
+  OrgMemberInfo,
   Project,
   ProjectInput,
   ProjectUpdate,
+  SimpleSuccess,
   Task,
   TaskInput,
-  TaskUpdate
+  TaskUpdate,
+  UpdateMemberRoleInput
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -2190,4 +2197,656 @@ export function useGetOverdueTasks<TData = Awaited<ReturnType<typeof getOverdueT
 
 
 
+
+export const getCreateOrgUrl = () => {
+
+
+
+
+  return `/api/orgs`
+}
+
+/**
+ * @summary Create a new organization (caller becomes admin)
+ */
+export const createOrg = async (orgInput: OrgInput, options?: RequestInit): Promise<OrgMeResponse> => {
+
+  return customFetch<OrgMeResponse>(getCreateOrgUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(orgInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOrgMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOrg>>, TError,{data: BodyType<OrgInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOrg>>, TError,{data: BodyType<OrgInput>}, TContext> => {
+
+const mutationKey = ['createOrg'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOrg>>, {data: BodyType<OrgInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createOrg(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOrgMutationResult = NonNullable<Awaited<ReturnType<typeof createOrg>>>
+    export type CreateOrgMutationBody = BodyType<OrgInput>
+    export type CreateOrgMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a new organization (caller becomes admin)
+ */
+export const useCreateOrg = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOrg>>, TError,{data: BodyType<OrgInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOrg>>,
+        TError,
+        {data: BodyType<OrgInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOrgMutationOptions(options));
+    }
+
+export const getGetMyOrgUrl = () => {
+
+
+
+
+  return `/api/orgs/me`
+}
+
+/**
+ * @summary Get current org membership, role, and any pending invitation
+ */
+export const getMyOrg = async ( options?: RequestInit): Promise<OrgMeResponse> => {
+
+  return customFetch<OrgMeResponse>(getGetMyOrgUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyOrgQueryKey = () => {
+    return [
+    `/api/orgs/me`
+    ] as const;
+    }
+
+
+export const getGetMyOrgQueryOptions = <TData = Awaited<ReturnType<typeof getMyOrg>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyOrg>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyOrgQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyOrg>>> = ({ signal }) => getMyOrg({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyOrg>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetMyOrgQueryResult = NonNullable<Awaited<ReturnType<typeof getMyOrg>>>
+export type GetMyOrgQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get current org membership, role, and any pending invitation
+ */
+
+export function useGetMyOrg<TData = Awaited<ReturnType<typeof getMyOrg>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyOrg>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetMyOrgQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListOrgMembersUrl = () => {
+
+
+
+
+  return `/api/orgs/members`
+}
+
+/**
+ * @summary List all members of the current organization
+ */
+export const listOrgMembers = async ( options?: RequestInit): Promise<OrgMemberInfo[]> => {
+
+  return customFetch<OrgMemberInfo[]>(getListOrgMembersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOrgMembersQueryKey = () => {
+    return [
+    `/api/orgs/members`
+    ] as const;
+    }
+
+
+export const getListOrgMembersQueryOptions = <TData = Awaited<ReturnType<typeof listOrgMembers>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrgMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOrgMembersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOrgMembers>>> = ({ signal }) => listOrgMembers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOrgMembers>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOrgMembersQueryResult = NonNullable<Awaited<ReturnType<typeof listOrgMembers>>>
+export type ListOrgMembersQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all members of the current organization
+ */
+
+export function useListOrgMembers<TData = Awaited<ReturnType<typeof listOrgMembers>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOrgMembers>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOrgMembersQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteOrgMemberUrl = () => {
+
+
+
+
+  return `/api/orgs/invite`
+}
+
+/**
+ * @summary Invite a user to the organization (admin only)
+ */
+export const inviteOrgMember = async (inviteMemberInput: InviteMemberInput, options?: RequestInit): Promise<InvitationInfo> => {
+
+  return customFetch<InvitationInfo>(getInviteOrgMemberUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inviteMemberInput)
+  }
+);}
+
+
+
+
+
+export const getInviteOrgMemberMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteOrgMember>>, TError,{data: BodyType<InviteMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteOrgMember>>, TError,{data: BodyType<InviteMemberInput>}, TContext> => {
+
+const mutationKey = ['inviteOrgMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteOrgMember>>, {data: BodyType<InviteMemberInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteOrgMember(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteOrgMemberMutationResult = NonNullable<Awaited<ReturnType<typeof inviteOrgMember>>>
+    export type InviteOrgMemberMutationBody = BodyType<InviteMemberInput>
+    export type InviteOrgMemberMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Invite a user to the organization (admin only)
+ */
+export const useInviteOrgMember = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteOrgMember>>, TError,{data: BodyType<InviteMemberInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof inviteOrgMember>>,
+        TError,
+        {data: BodyType<InviteMemberInput>},
+        TContext
+      > => {
+      return useMutation(getInviteOrgMemberMutationOptions(options));
+    }
+
+export const getAcceptOrgInvitationUrl = (token: string,) => {
+
+
+
+
+  return `/api/orgs/invitations/${token}/accept`
+}
+
+/**
+ * @summary Accept a pending invitation
+ */
+export const acceptOrgInvitation = async (token: string, options?: RequestInit): Promise<OrgMeResponse> => {
+
+  return customFetch<OrgMeResponse>(getAcceptOrgInvitationUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAcceptOrgInvitationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['acceptOrgInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof acceptOrgInvitation>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  acceptOrgInvitation(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AcceptOrgInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof acceptOrgInvitation>>>
+
+    export type AcceptOrgInvitationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Accept a pending invitation
+ */
+export const useAcceptOrgInvitation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof acceptOrgInvitation>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getAcceptOrgInvitationMutationOptions(options));
+    }
+
+export const getDeclineOrgInvitationUrl = (token: string,) => {
+
+
+
+
+  return `/api/orgs/invitations/${token}/decline`
+}
+
+/**
+ * @summary Decline a pending invitation
+ */
+export const declineOrgInvitation = async (token: string, options?: RequestInit): Promise<SimpleSuccess> => {
+
+  return customFetch<SimpleSuccess>(getDeclineOrgInvitationUrl(token),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeclineOrgInvitationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext> => {
+
+const mutationKey = ['declineOrgInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof declineOrgInvitation>>, {token: string}> = (props) => {
+          const {token} = props ?? {};
+
+          return  declineOrgInvitation(token,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeclineOrgInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof declineOrgInvitation>>>
+
+    export type DeclineOrgInvitationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Decline a pending invitation
+ */
+export const useDeclineOrgInvitation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof declineOrgInvitation>>,
+        TError,
+        {token: string},
+        TContext
+      > => {
+      return useMutation(getDeclineOrgInvitationMutationOptions(options));
+    }
+
+export const getRemoveOrgMemberUrl = (userId: string,) => {
+
+
+
+
+  return `/api/orgs/members/${userId}`
+}
+
+/**
+ * @summary Remove a member from the organization (admin only)
+ */
+export const removeOrgMember = async (userId: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveOrgMemberUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveOrgMemberMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['removeOrgMember'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeOrgMember>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  removeOrgMember(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveOrgMemberMutationResult = NonNullable<Awaited<ReturnType<typeof removeOrgMember>>>
+
+    export type RemoveOrgMemberMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove a member from the organization (admin only)
+ */
+export const useRemoveOrgMember = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeOrgMember>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getRemoveOrgMemberMutationOptions(options));
+    }
+
+export const getUpdateOrgMemberRoleUrl = (userId: string,) => {
+
+
+
+
+  return `/api/orgs/members/${userId}/role`
+}
+
+/**
+ * @summary Change a member role, or transfer admin (admin only)
+ */
+export const updateOrgMemberRole = async (userId: string,
+    updateMemberRoleInput: UpdateMemberRoleInput, options?: RequestInit): Promise<OrgMemberInfo> => {
+
+  return customFetch<OrgMemberInfo>(getUpdateOrgMemberRoleUrl(userId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateMemberRoleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateOrgMemberRoleMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext> => {
+
+const mutationKey = ['updateOrgMemberRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrgMemberRole>>, {userId: string;data: BodyType<UpdateMemberRoleInput>}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  updateOrgMemberRole(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOrgMemberRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrgMemberRole>>>
+    export type UpdateOrgMemberRoleMutationBody = BodyType<UpdateMemberRoleInput>
+    export type UpdateOrgMemberRoleMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Change a member role, or transfer admin (admin only)
+ */
+export const useUpdateOrgMemberRole = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOrgMemberRole>>,
+        TError,
+        {userId: string;data: BodyType<UpdateMemberRoleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateOrgMemberRoleMutationOptions(options));
+    }
+
+export const getLeaveOrgUrl = () => {
+
+
+
+
+  return `/api/orgs/leave`
+}
+
+/**
+ * @summary Leave the current organization
+ */
+export const leaveOrg = async ( options?: RequestInit): Promise<SimpleSuccess> => {
+
+  return customFetch<SimpleSuccess>(getLeaveOrgUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getLeaveOrgMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveOrg>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leaveOrg>>, TError,void, TContext> => {
+
+const mutationKey = ['leaveOrg'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leaveOrg>>, void> = () => {
+
+
+          return  leaveOrg(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeaveOrgMutationResult = NonNullable<Awaited<ReturnType<typeof leaveOrg>>>
+
+    export type LeaveOrgMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Leave the current organization
+ */
+export const useLeaveOrg = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leaveOrg>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof leaveOrg>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getLeaveOrgMutationOptions(options));
+    }
 

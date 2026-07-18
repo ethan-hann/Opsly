@@ -1,0 +1,315 @@
+import { useState } from "react";
+import {
+  useListOrgMembers,
+  useInviteOrgMember,
+  useRemoveOrgMember,
+  useUpdateOrgMemberRole,
+  useLeaveOrg,
+} from "@workspace/api-client-react";
+import type { OrgMemberInfo } from "@workspace/api-client-react";
+import { useOrgContext } from "@/hooks/use-org-context";
+import { Building2, Crown, LogOut, Mail, Trash2, UserPlus, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@workspace/replit-auth-web";
+
+export default function OrgSettings() {
+  const { org, isAdmin, refetchOrg } = useOrgContext();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [inviteValue, setInviteValue] = useState("");
+
+  const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
+
+  const { mutate: inviteMember, isPending: isInviting } = useInviteOrgMember({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Invitation sent", description: `Invitation sent to ${inviteValue}.` });
+        setInviteValue("");
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to send invitation", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: removeMember } = useRemoveOrgMember({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Member removed" });
+        refetchMembers();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to remove member", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: updateRole } = useUpdateOrgMemberRole({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Role updated", description: "Admin has been transferred." });
+        refetchMembers();
+        refetchOrg();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to update role", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: leaveOrg, isPending: isLeaving } = useLeaveOrg({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "You have left the organization" });
+        refetchOrg();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Cannot leave", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteValue.trim()) return;
+    const val = inviteValue.trim();
+    const isEmail = val.includes("@");
+    inviteMember({ data: isEmail ? { email: val } : { userId: val } });
+  }
+
+  function getDisplayName(m: OrgMemberInfo) {
+    if (m.firstName || m.lastName) {
+      return [m.firstName, m.lastName].filter(Boolean).join(" ");
+    }
+    return m.email ?? m.userId;
+  }
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+          <Building2 className="w-7 h-7 text-primary" />
+          Organization Settings
+        </h1>
+        <p className="text-muted-foreground mt-1">Manage your organization and its members.</p>
+      </div>
+
+      {/* Org Info */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Organization</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="font-semibold">{org?.name}</p>
+              <p className="text-xs text-muted-foreground font-mono">{org?.id}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Members */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Members</CardTitle>
+          <CardDescription>{members.length} member{members.length !== 1 ? "s" : ""}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {members.map((m) => {
+            const isMe = m.userId === user?.id;
+            const isThisAdmin = m.role === "admin";
+            return (
+              <div
+                key={m.userId}
+                className="flex items-center gap-3 py-2 border-b border-border last:border-0"
+              >
+                {/* Avatar */}
+                <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 font-mono text-xs font-bold text-primary">
+                  {m.firstName?.[0] ?? m.email?.[0] ?? "?"}
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm truncate">{getDisplayName(m)}</span>
+                    {isMe && (
+                      <Badge variant="outline" className="text-xs shrink-0">You</Badge>
+                    )}
+                  </div>
+                  {m.email && (
+                    <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                  )}
+                </div>
+                {/* Role badge */}
+                <div className="shrink-0">
+                  {isThisAdmin ? (
+                    <Badge className="gap-1 text-xs">
+                      <Crown className="w-3 h-3" />
+                      Admin
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs">Member</Badge>
+                  )}
+                </div>
+                {/* Actions (admin only, not on yourself) */}
+                {isAdmin && !isMe && (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* Transfer admin */}
+                    {!isThisAdmin && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Make admin">
+                            <Shield className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Transfer admin role?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {getDisplayName(m)} will become the new admin. You will be demoted to member.
+                              This cannot be undone without their action.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => updateRole({ userId: m.userId, data: { role: "admin" } })}
+                            >
+                              Transfer admin
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                    {/* Remove */}
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Remove member">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remove member?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {getDisplayName(m)} will lose access to this organization and all its projects.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => removeMember({ userId: m.userId })}
+                          >
+                            Remove
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Invite (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <UserPlus className="w-4 h-4" />
+              Invite a member
+            </CardTitle>
+            <CardDescription>
+              Enter an email address or Replit user ID to invite someone to your organization.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleInvite} className="flex gap-2">
+              <div className="flex-1">
+                <Input
+                  placeholder="email@example.com or user ID"
+                  value={inviteValue}
+                  onChange={(e) => setInviteValue(e.target.value)}
+                  disabled={isInviting}
+                />
+              </div>
+              <Button type="submit" disabled={isInviting || !inviteValue.trim()} className="gap-2">
+                <Mail className="w-4 h-4" />
+                {isInviting ? "Sending…" : "Send invite"}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Danger zone — leave org */}
+      <Card className="border-destructive/30">
+        <CardHeader>
+          <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Leave organization</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {isAdmin
+                  ? "Transfer admin to another member before leaving."
+                  : "You will lose access to all projects and tasks."}
+              </p>
+            </div>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="gap-2 border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground" disabled={isLeaving}>
+                  <LogOut className="w-4 h-4" />
+                  Leave
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Leave organization?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    You will lose access to <strong>{org?.name}</strong> and all its projects and tasks.
+                    {isAdmin && " Make sure to transfer admin to another member first."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => leaveOrg()}
+                  >
+                    Leave organization
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

@@ -5,10 +5,13 @@ import {
   GetDashboardSummaryResponse,
   GetRecentActivityResponse,
 } from "@workspace/api-zod";
+import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
 
-router.get("/dashboard/summary", async (req, res): Promise<void> => {
+router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
+
   const [taskStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -21,20 +24,26 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
       high: sql<number>`count(*) filter (where ${tasksTable.priority} = 'high')::int`,
       critical: sql<number>`count(*) filter (where ${tasksTable.priority} = 'critical')::int`,
     })
-    .from(tasksTable);
+    .from(tasksTable)
+    .where(eq(tasksTable.orgId, orgId));
 
   const today = new Date().toISOString().split("T")[0];
   const [overdueResult] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(tasksTable)
-    .where(and(lt(tasksTable.dueDate, today), sql`${tasksTable.status} != 'done'`));
+    .where(and(
+      eq(tasksTable.orgId, orgId),
+      lt(tasksTable.dueDate, today),
+      sql`${tasksTable.status} != 'done'`,
+    ));
 
   const [projectStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
       active: sql<number>`count(*) filter (where ${projectsTable.status} = 'active')::int`,
     })
-    .from(projectsTable);
+    .from(projectsTable)
+    .where(eq(projectsTable.orgId, orgId));
 
   const summary = {
     totalTasks: taskStats?.total ?? 0,
@@ -58,8 +67,9 @@ router.get("/dashboard/summary", async (req, res): Promise<void> => {
   res.json(GetDashboardSummaryResponse.parse(summary));
 });
 
-router.get("/dashboard/activity", async (req, res): Promise<void> => {
-  // Recent tasks created/updated
+router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
+
   const recentTasks = await db
     .select({
       id: tasksTable.id,
@@ -67,10 +77,10 @@ router.get("/dashboard/activity", async (req, res): Promise<void> => {
       createdAt: tasksTable.createdAt,
     })
     .from(tasksTable)
+    .where(eq(tasksTable.orgId, orgId))
     .orderBy(sql`${tasksTable.createdAt} desc`)
     .limit(5);
 
-  // Recent comments
   const recentComments = await db
     .select({
       id: commentsTable.id,
@@ -79,6 +89,8 @@ router.get("/dashboard/activity", async (req, res): Promise<void> => {
       createdAt: commentsTable.createdAt,
     })
     .from(commentsTable)
+    .innerJoin(tasksTable, eq(commentsTable.taskId, tasksTable.id))
+    .where(eq(tasksTable.orgId, orgId))
     .orderBy(sql`${commentsTable.createdAt} desc`)
     .limit(5);
 

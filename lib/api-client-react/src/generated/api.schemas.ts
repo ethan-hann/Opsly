@@ -363,6 +363,107 @@ export interface ActivityItem {
   createdAt: string;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface PendingInvitation {
+  id: string;
+  orgId: string;
+  orgName: string;
+  token: string;
+  expiresAt: string;
+}
+
+export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
+
+
+export const OrgMeResponseRole = {
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface OrgMeResponse {
+  org: Organization | null;
+  role: OrgMeResponseRole;
+  pendingInvitation: PendingInvitation | null;
+}
+
+export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
+
+
+export const OrgMemberInfoRole = {
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface OrgMemberInfo {
+  userId: string;
+  role: OrgMemberInfoRole;
+  joinedAt: string;
+  /** @nullable */
+  firstName?: string | null;
+  /** @nullable */
+  lastName?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  profileImageUrl?: string | null;
+}
+
+export type InvitationInfoStatus = typeof InvitationInfoStatus[keyof typeof InvitationInfoStatus];
+
+
+export const InvitationInfoStatus = {
+  pending: 'pending',
+  accepted: 'accepted',
+  declined: 'declined',
+} as const;
+
+export interface InvitationInfo {
+  id: string;
+  orgId: string;
+  /** @nullable */
+  invitedEmail?: string | null;
+  /** @nullable */
+  invitedUserId?: string | null;
+  token: string;
+  status: InvitationInfoStatus;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface OrgInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+}
+
+export interface InviteMemberInput {
+  email?: string;
+  userId?: string;
+}
+
+export type UpdateMemberRoleInputRole = typeof UpdateMemberRoleInputRole[keyof typeof UpdateMemberRoleInputRole];
+
+
+export const UpdateMemberRoleInputRole = {
+  admin: 'admin',
+  member: 'member',
+} as const;
+
+export interface UpdateMemberRoleInput {
+  role: UpdateMemberRoleInputRole;
+}
+
+export interface SimpleSuccess {
+  success: boolean;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */

@@ -7,6 +7,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
+import { OrgGuard } from '@/hooks/use-org-context';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
@@ -15,6 +16,10 @@ import TasksList from '@/pages/tasks';
 import TaskDetail from '@/pages/task-detail';
 import NotesPage from '@/pages/notes';
 import LoginPage from '@/pages/login';
+import OrgOnboarding from '@/pages/org-onboarding';
+import OrgInvitation from '@/pages/org-invitation';
+import OrgSettings from '@/pages/org-settings';
+import type { PendingInvitation } from '@workspace/api-client-react';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,9 +61,31 @@ function Router() {
         <Route path="/tasks" component={TasksList} />
         <Route path="/tasks/:id" component={TaskDetail} />
         <Route path="/notes" component={NotesPage} />
+        <Route path="/org/settings" component={OrgSettings} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
+  );
+}
+
+function OrgAwareApp() {
+  return (
+    <OrgGuard
+      onboarding={
+        <OrgOnboarding
+          onCreated={() => queryClient.invalidateQueries({ queryKey: ['getMyOrg'] })}
+        />
+      }
+      invitation={(inv: PendingInvitation) => (
+        <OrgInvitation
+          invitation={inv}
+          onAccepted={() => queryClient.invalidateQueries({ queryKey: ['getMyOrg'] })}
+          onDeclined={() => queryClient.invalidateQueries({ queryKey: ['getMyOrg'] })}
+        />
+      )}
+    >
+      <Router />
+    </OrgGuard>
   );
 }
 
@@ -69,7 +96,7 @@ function App() {
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <AuthGuard>
-              <Router />
+              <OrgAwareApp />
             </AuthGuard>
           </WouterRouter>
           <Toaster />

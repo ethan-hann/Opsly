@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and } from "drizzle-orm";
 import { db, projectsTable, tasksTable } from "@workspace/db";
 import {
   CreateProjectBody,
@@ -12,6 +12,7 @@ import {
   GetProjectResponse,
   UpdateProjectResponse,
 } from "@workspace/api-zod";
+import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
 
@@ -27,10 +28,13 @@ function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, c
   };
 }
 
-router.get("/projects", async (req, res): Promise<void> => {
-  const projects = await db.select().from(projectsTable).orderBy(projectsTable.createdAt);
+router.get("/projects", requireOrg, async (req, res): Promise<void> => {
+  const projects = await db
+    .select()
+    .from(projectsTable)
+    .where(eq(projectsTable.orgId, req.orgId!))
+    .orderBy(projectsTable.createdAt);
 
-  // Attach task counts
   const taskCounts = await db
     .select({
       projectId: tasksTable.projectId,
@@ -38,6 +42,7 @@ router.get("/projects", async (req, res): Promise<void> => {
       completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
     })
     .from(tasksTable)
+    .where(eq(tasksTable.orgId, req.orgId!))
     .groupBy(tasksTable.projectId);
 
   const countMap = new Map(taskCounts.map((r) => [r.projectId, r]));
@@ -50,19 +55,22 @@ router.get("/projects", async (req, res): Promise<void> => {
   res.json(ListProjectsResponse.parse(result));
 });
 
-router.post("/projects", async (req, res): Promise<void> => {
+router.post("/projects", requireOrg, async (req, res): Promise<void> => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [project] = await db.insert(projectsTable).values(parsed.data).returning();
+  const [project] = await db
+    .insert(projectsTable)
+    .values({ ...parsed.data, orgId: req.orgId! })
+    .returning();
 
   res.status(201).json(CreateProjectResponse.parse(serializeProject(project, 0, 0)));
 });
 
-router.get("/projects/:id", async (req, res): Promise<void> => {
+router.get("/projects/:id", requireOrg, async (req, res): Promise<void> => {
   const params = GetProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -72,7 +80,7 @@ router.get("/projects/:id", async (req, res): Promise<void> => {
   const [project] = await db
     .select()
     .from(projectsTable)
-    .where(eq(projectsTable.id, params.data.id));
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.orgId, req.orgId!)));
 
   if (!project) {
     res.status(404).json({ error: "Project not found" });
@@ -85,12 +93,12 @@ router.get("/projects/:id", async (req, res): Promise<void> => {
       completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
     })
     .from(tasksTable)
-    .where(eq(tasksTable.projectId, project.id));
+    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, req.orgId!)));
 
   res.json(GetProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
 });
 
-router.patch("/projects/:id", async (req, res): Promise<void> => {
+router.patch("/projects/:id", requireOrg, async (req, res): Promise<void> => {
   const params = UpdateProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -106,7 +114,7 @@ router.patch("/projects/:id", async (req, res): Promise<void> => {
   const [project] = await db
     .update(projectsTable)
     .set(parsed.data)
-    .where(eq(projectsTable.id, params.data.id))
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.orgId, req.orgId!)))
     .returning();
 
   if (!project) {
@@ -120,12 +128,12 @@ router.patch("/projects/:id", async (req, res): Promise<void> => {
       completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
     })
     .from(tasksTable)
-    .where(eq(tasksTable.projectId, project.id));
+    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, req.orgId!)));
 
   res.json(UpdateProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
 });
 
-router.delete("/projects/:id", async (req, res): Promise<void> => {
+router.delete("/projects/:id", requireOrg, async (req, res): Promise<void> => {
   const params = DeleteProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -134,7 +142,7 @@ router.delete("/projects/:id", async (req, res): Promise<void> => {
 
   const [project] = await db
     .delete(projectsTable)
-    .where(eq(projectsTable.id, params.data.id))
+    .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.orgId, req.orgId!)))
     .returning();
 
   if (!project) {
