@@ -182,24 +182,26 @@ export default function NotesPage() {
             Saved
           </span>
 
-          {/* Preview dock controls — hidden on mobile */}
-          <div className="hidden md:flex items-center gap-0.5 shrink-0">
-            <DockBtn title="Hide preview"       active={dock === "hidden"} onClick={() => setDock("hidden")}><EyeOff className="w-3.5 h-3.5" /></DockBtn>
-            <DockBtn title="Preview on right"   active={dock === "right"}  onClick={() => setDock("right")} ><PanelRight className="w-3.5 h-3.5" /></DockBtn>
-            <DockBtn title="Preview below"      active={dock === "bottom"} onClick={() => setDock("bottom")}><PanelBottom className="w-3.5 h-3.5" /></DockBtn>
-            <DockBtn
-              title="Open preview in new window"
-              active={dock === "window"}
-              onClick={() => { setDock("window"); handleOpenWindow(); }}
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-            </DockBtn>
-            {dock === "window" && (
-              <Button size="sm" variant="outline" className="h-6 text-xs ml-1" onClick={handleOpenWindow}>
-                <Eye className="w-3 h-3 mr-1" /> Refresh
-              </Button>
-            )}
-          </div>
+          {/* Preview dock controls — hidden on mobile and for read-only notes */}
+          {canEdit && (
+            <div className="hidden md:flex items-center gap-0.5 shrink-0">
+              <DockBtn title="Hide preview"       active={dock === "hidden"} onClick={() => setDock("hidden")}><EyeOff className="w-3.5 h-3.5" /></DockBtn>
+              <DockBtn title="Preview on right"   active={dock === "right"}  onClick={() => setDock("right")} ><PanelRight className="w-3.5 h-3.5" /></DockBtn>
+              <DockBtn title="Preview below"      active={dock === "bottom"} onClick={() => setDock("bottom")}><PanelBottom className="w-3.5 h-3.5" /></DockBtn>
+              <DockBtn
+                title="Open preview in new window"
+                active={dock === "window"}
+                onClick={() => { setDock("window"); handleOpenWindow(); }}
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </DockBtn>
+              {dock === "window" && (
+                <Button size="sm" variant="outline" className="h-6 text-xs ml-1" onClick={handleOpenWindow}>
+                  <Eye className="w-3 h-3 mr-1" /> Refresh
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Visibility toggle (owner) or read-only badge (non-owner) */}
@@ -270,13 +272,17 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Editor + preview split */}
-      {dock === "hidden" || dock === "window" ? (
-        <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="flex-1 overflow-hidden" readOnly={!canEdit} />
+      {/* Editor + preview split (editable) — preview only (read-only) */}
+      {!canEdit ? (
+        <div className="flex-1 overflow-y-auto">
+          <MarkdownPreview content={localContent} />
+        </div>
+      ) : dock === "hidden" || dock === "window" ? (
+        <MarkdownEditor value={localContent} onChange={handleContentChange} className="flex-1 overflow-hidden" />
       ) : dock === "right" ? (
         <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
           <Panel defaultSize={55} minSize={25}>
-            <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="h-full" readOnly={!canEdit} />
+            <MarkdownEditor value={localContent} onChange={handleContentChange} className="h-full" />
           </Panel>
           <PanelResizeHandle className="w-1 bg-border hover:bg-primary/40 transition-colors cursor-col-resize" />
           <Panel defaultSize={45} minSize={20}>
@@ -291,7 +297,7 @@ export default function NotesPage() {
       ) : (
         <PanelGroup direction="vertical" className="flex-1 overflow-hidden">
           <Panel defaultSize={55} minSize={20}>
-            <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="h-full" readOnly={!canEdit} />
+            <MarkdownEditor value={localContent} onChange={handleContentChange} className="h-full" />
           </Panel>
           <PanelResizeHandle className="h-1 bg-border hover:bg-primary/40 transition-colors cursor-row-resize" />
           <Panel defaultSize={45} minSize={15}>
