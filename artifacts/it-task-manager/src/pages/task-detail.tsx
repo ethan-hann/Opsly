@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, getListTasksQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -49,6 +49,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       onSuccess: () => {
         toast({ title: "Task deleted successfully" });
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         setLocation("/tasks");
       },
       onError: () => {
@@ -63,6 +65,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         toast({ title: "Task updated" });
         queryClient.setQueryData(["getTask", taskId], data);
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
       }
     }
   });

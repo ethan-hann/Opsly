@@ -5,6 +5,8 @@ import {
   useListProjects,
   useListOrgMembers,
   getListTasksQueryKey,
+  getGetOverdueTasksQueryKey,
+  getGetDashboardSummaryQueryKey,
   TaskInputStatus,
   TaskInputPriority,
   TaskInputCategory,
@@ -135,6 +137,8 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
         onSuccess: (data) => {
           queryClient.setQueryData(["getTask", task.id], data);
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           toast({ title: "Task updated" });
           onOpenChange(false);
         },

@@ -5,6 +5,8 @@ import {
   useListProjects,
   useListOrgMembers,
   getListTasksQueryKey,
+  getGetOverdueTasksQueryKey,
+  getGetDashboardSummaryQueryKey,
   TaskInputStatus,
   TaskInputPriority,
   TaskInputCategory,
@@ -128,7 +130,9 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
       },
       {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+          queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
           toast({ title: "Task created", description: `"${title.trim()}" has been created.` });
           resetForm();
           onOpenChange(false);

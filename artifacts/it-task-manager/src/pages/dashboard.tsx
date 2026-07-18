@@ -188,10 +188,16 @@ export default function Dashboard() {
                         <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
                           <span className="font-mono text-xs">{task.projectName || "Unassigned"}</span>
                           <span>·</span>
-                          <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
-                            <Clock className="w-3 h-3" />
-                            Due {formatDate(task.dueDate)}
-                          </span>
+                          {task.dueDate ? (
+                            <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
+                              <Clock className="w-3 h-3" />
+                              Due {formatDate(task.dueDate)}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                              Critical priority
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

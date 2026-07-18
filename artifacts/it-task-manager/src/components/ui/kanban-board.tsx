@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useUpdateTask, getListTasksQueryKey } from "@workspace/api-client-react";
+import { useUpdateTask, getListTasksQueryKey, getGetOverdueTasksQueryKey } from "@workspace/api-client-react";
 import type { Task, TaskStatus } from "@workspace/api-client-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
@@ -254,6 +254,7 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
           // and custom keys like ["listTasks", { projectId }] in project-detail)
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: ["listTasks"] });
+          queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
         },
         onError: () => {
           toast({
@@ -264,6 +265,7 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
           // Revert all caches to server state
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: ["listTasks"] });
+          queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: ["getTask", activeId] });
         },
       }
