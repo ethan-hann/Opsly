@@ -91,7 +91,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Root — full height on desktop, natural height on mobile */}
       <div className="flex flex-col md:flex-row md:h-[100dvh] min-h-[100dvh] bg-background text-foreground font-sans">
         {/* ── Mobile top bar ─────────────────────────────────────────────── */}
-        <header className="md:hidden shrink-0 flex items-center justify-between px-4 py-3 border-b border-border bg-card z-20">
+        <header className="md:hidden shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-card z-20">
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded bg-primary flex items-center justify-center text-primary-foreground shrink-0">
               <Activity className="w-4 h-4" />
@@ -114,7 +114,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <aside
           className={[
             // base
-            "fixed md:relative md:sticky top-0 left-0 z-10 h-[100dvh]",
+            "fixed md:relative md:sticky top-14 md:top-0 left-0 z-10 h-[calc(100dvh-3.5rem)] md:h-[100dvh]",
             "border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
             "flex flex-col transition-all duration-200 ease-in-out shrink-0",
             // mobile: always full-width when open, hidden otherwise
