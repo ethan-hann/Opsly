@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 interface RichTextEditorProps {
   content: string;
   onChange?: (html: string) => void;
+  onBlur?: () => void;
   placeholder?: string;
   editable?: boolean;
   className?: string;
@@ -15,6 +16,7 @@ interface RichTextEditorProps {
 export function RichTextEditor({
   content,
   onChange,
+  onBlur,
   placeholder = "Start writing…",
   editable = true,
   className,
@@ -28,6 +30,9 @@ export function RichTextEditor({
     editable,
     onUpdate: ({ editor }) => {
       onChange?.(editor.getHTML());
+    },
+    onBlur: () => {
+      onBlur?.();
     },
   });
 
