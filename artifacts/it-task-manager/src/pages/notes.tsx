@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useSearch } from "wouter";
 import {
   Plus, StickyNote, Search, Link2Off,
@@ -51,6 +52,7 @@ export default function NotesPage() {
   const [filterProjectId, setFilterProjectId] = useState<number | "all">("all");
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const isMobile = useIsMobile();
   const [dock, setDock] = useState<PreviewDock>("right");
   const [localContent, setLocalContent] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
@@ -318,7 +320,7 @@ export default function NotesPage() {
         <div className="flex-1 overflow-y-auto">
           <MarkdownPreview content={localContent} />
         </div>
-      ) : dock === "hidden" || dock === "window" ? (
+      ) : isMobile || dock === "hidden" || dock === "window" ? (
         <MarkdownEditor value={localContent} onChange={handleContentChange} className="flex-1 overflow-hidden" />
       ) : dock === "right" ? (
         <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
