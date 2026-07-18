@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReactNode } from "react";
+import { Link } from "wouter";
 import { cn } from "@/lib/utils";
 
 interface StatCardProps {
@@ -7,6 +8,7 @@ interface StatCardProps {
   value: string | number;
   icon?: ReactNode;
   description?: string;
+  href?: string;
   trend?: {
     value: number;
     label: string;
@@ -15,9 +17,13 @@ interface StatCardProps {
   className?: string;
 }
 
-export function StatCard({ title, value, icon, description, trend, className }: StatCardProps) {
-  return (
-    <Card className={cn("overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm shadow-sm", className)}>
+export function StatCard({ title, value, icon, description, href, trend, className }: StatCardProps) {
+  const card = (
+    <Card className={cn(
+      "overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm shadow-sm",
+      href && "transition-colors hover:border-primary/40 hover:bg-card cursor-pointer",
+      className,
+    )}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono">
           {title}
@@ -43,4 +49,9 @@ export function StatCard({ title, value, icon, description, trend, className }: 
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return <Link href={href}>{card}</Link>;
+  }
+  return card;
 }

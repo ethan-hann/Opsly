@@ -61,6 +61,7 @@ export default function Dashboard() {
               value={summary.activeProjects} 
               icon={<Target className="w-4 h-4" />} 
               description={`Out of ${summary.totalProjects} total`}
+              href="/projects"
               className="border-primary/20"
             />
             <StatCard 
@@ -68,17 +69,20 @@ export default function Dashboard() {
               value={summary.tasksByStatus.todo + summary.tasksByStatus.in_progress} 
               icon={<CheckCircle2 className="w-4 h-4" />} 
               description="Requires attention"
+              href="/tasks"
             />
             <StatCard 
               title="Blocked Issues" 
               value={summary.tasksByStatus.blocked} 
               icon={<AlertCircle className="w-4 h-4 text-amber-500" />} 
+              href="/tasks"
               className={summary.tasksByStatus.blocked > 0 ? "border-amber-500/50 bg-amber-500/5" : ""}
             />
             <StatCard 
               title="Overdue Tasks" 
               value={summary.overdueCount} 
               icon={<Clock className="w-4 h-4 text-destructive" />} 
+              href="/tasks"
               className={summary.overdueCount > 0 ? "border-destructive/50 bg-destructive/5" : ""}
             />
           </>
