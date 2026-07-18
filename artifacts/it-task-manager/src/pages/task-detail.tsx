@@ -120,8 +120,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               <div className="flex justify-between items-start gap-4">
                 <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="icon" className="h-8 w-8" title="Edit Task" onClick={() => setEditOpen(true)}>
-                    <Edit className="w-4 h-4" />
+                  <Button variant="outline" size="sm" className="gap-2 font-mono uppercase text-xs" onClick={() => setEditOpen(true)}>
+                    <Edit className="w-3.5 h-3.5" /> Edit Task
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
