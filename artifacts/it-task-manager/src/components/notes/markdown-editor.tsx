@@ -6,6 +6,7 @@ interface MarkdownEditorProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  readOnly?: boolean;
 }
 
 type WrapConfig = { prefix: string; suffix: string; placeholder: string };
@@ -64,7 +65,7 @@ function insertBlock(
   });
 }
 
-export function MarkdownEditor({ value, onChange, placeholder, className }: MarkdownEditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, className, readOnly }: MarkdownEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const wrap = useCallback((cfg: WrapConfig) => {
@@ -94,7 +95,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
   return (
     <div className={cn("flex flex-col h-full", className)}>
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-border bg-card flex-wrap shrink-0">
+      <div className={cn("flex items-center gap-0.5 px-3 py-1.5 border-b border-border bg-card flex-wrap shrink-0", readOnly && "pointer-events-none opacity-40")}>
         <ToolBtn title="Bold (Ctrl+B)" onClick={() => wrap({ prefix: "**", suffix: "**", placeholder: "bold text" })}>
           <strong className="text-xs">B</strong>
         </ToolBtn>
@@ -146,8 +147,9 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
       <textarea
         ref={textareaRef}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={handleTab}
+        onChange={(e) => !readOnly && onChange(e.target.value)}
+        onKeyDown={readOnly ? undefined : handleTab}
+        readOnly={readOnly}
         placeholder={placeholder ?? "Write in Markdown…\n\n# Heading\n**bold**, _italic_, `code`\n- bullet list\n1. numbered list"}
         spellCheck
         className={cn(
@@ -155,6 +157,7 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
           "font-mono text-sm leading-relaxed p-4",
           "focus:outline-none placeholder:text-muted-foreground/50",
           "scrollbar-thin",
+          readOnly && "cursor-default select-text",
         )}
       />
     </div>

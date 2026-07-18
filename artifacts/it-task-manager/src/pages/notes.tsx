@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import {
   Plus, StickyNote, Search, Link2Off,
   PanelBottom, PanelRight, ExternalLink, EyeOff, Eye,
-  CheckCheck,
+  CheckCheck, Lock, Users, ArrowLeft, Edit2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { MarkdownPreview, openPreviewWindow } from "@/components/notes/markdown-
 import { NoteCard } from "@/components/notes/note-card";
 import {
   useListNotes, useCreateNote, useUpdateNote, useDeleteNote,
+  NoteVisibility,
 } from "@workspace/api-client-react";
 import { useListProjects, useListTasks } from "@workspace/api-client-react";
 import {
@@ -25,8 +26,17 @@ import {
 import {
   PanelGroup, Panel, PanelResizeHandle,
 } from "react-resizable-panels";
+import {
+  Tooltip, TooltipContent, TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type PreviewDock = "right" | "bottom" | "window" | "hidden";
+
+const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.ElementType; description: string }[] = [
+  { value: "private",      label: "Private",       icon: Lock,  description: "Only you can see and edit" },
+  { value: "public_read",  label: "Shared (read)", icon: Eye,   description: "Org can view, only you can edit" },
+  { value: "public_write", label: "Shared (edit)", icon: Users, description: "Org can view and edit" },
+];
 
 export default function NotesPage() {
   const { toast } = useToast();
@@ -34,8 +44,8 @@ export default function NotesPage() {
   const [search, setSearch] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [dock, setDock] = useState<PreviewDock>("right");
-  const [localContent, setLocalContent] = useState("");   // tracks textarea live value
-  const [savedAt, setSavedAt] = useState<number | null>(null); // timestamp of last save
+  const [localContent, setLocalContent] = useState("");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: notes = [], refetch } = useListNotes({});
@@ -57,7 +67,6 @@ export default function NotesPage() {
       return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
     });
 
-  // Flash the "Saved" indicator for 2 s
   const flashSaved = () => {
     setSavedAt(Date.now());
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
@@ -91,6 +100,8 @@ export default function NotesPage() {
     setLocalContent(note?.content ?? "");
   };
 
+  const handleBack = () => setSelectedId(null);
+
   const handleTitleChange = (val: string) => {
     if (!selectedNote) return;
     scheduleAutoSave(selectedNote.id, { title: val || "Untitled Note" });
@@ -106,6 +117,13 @@ export default function NotesPage() {
     if (!selectedNote) return;
     const numVal = value === "none" ? null : Number(value);
     await updateNote.mutateAsync({ id: selectedNote.id, data: { [field]: numVal } });
+    refetch();
+  };
+
+  const handleVisibilityChange = async (visibility: NoteVisibility) => {
+    if (!selectedNote) return;
+    await updateNote.mutateAsync({ id: selectedNote.id, data: { visibility } });
+    flashSaved();
     refetch();
   };
 
@@ -128,20 +146,33 @@ export default function NotesPage() {
   const getTaskTitle = (id: number | null | undefined) =>
     id ? tasks.find((t) => t.id === id)?.title ?? null : null;
 
+  const canEdit = !selectedNote || selectedNote.isOwner || selectedNote.visibility === "public_write";
+
   // ─── editor area ────────────────────────────────────────────────────────────
   const editorArea = selectedNote ? (
     <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
       {/* Note header */}
-      <div className="px-5 pt-4 pb-3 border-b border-border shrink-0">
-        <div className="flex items-center justify-between gap-3">
+      <div className="px-4 md:px-5 pt-3 pb-2 border-b border-border shrink-0">
+        {/* Top row: back (mobile), title, save indicator, dock controls */}
+        <div className="flex items-center gap-2">
+          {/* Back button — mobile only */}
+          <button
+            className="md:hidden shrink-0 p-1 -ml-1 text-muted-foreground hover:text-foreground"
+            onClick={handleBack}
+            aria-label="Back to notes list"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
           <input
             key={selectedNote.id}
             defaultValue={selectedNote.title}
             onChange={(e) => handleTitleChange(e.target.value)}
-            className="flex-1 bg-transparent text-lg font-semibold focus:outline-none placeholder:text-muted-foreground min-w-0"
+            readOnly={!canEdit}
+            className="flex-1 bg-transparent text-base md:text-lg font-semibold focus:outline-none placeholder:text-muted-foreground min-w-0 disabled:cursor-default"
             placeholder="Untitled Note"
           />
-          {/* Save indicator */}
+
           <span
             className={`text-xs flex items-center gap-1 transition-opacity duration-500 shrink-0 ${
               savedAt ? "text-primary opacity-100" : "opacity-0"
@@ -150,117 +181,102 @@ export default function NotesPage() {
             <CheckCheck className="w-3.5 h-3.5" />
             Saved
           </span>
-          {/* Preview dock controls */}
-          <div className="flex items-center gap-0.5 shrink-0">
-            <DockBtn
-              title="Hide preview"
-              active={dock === "hidden"}
-              onClick={() => setDock("hidden")}
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-            </DockBtn>
-            <DockBtn
-              title="Preview on right"
-              active={dock === "right"}
-              onClick={() => setDock("right")}
-            >
-              <PanelRight className="w-3.5 h-3.5" />
-            </DockBtn>
-            <DockBtn
-              title="Preview below"
-              active={dock === "bottom"}
-              onClick={() => setDock("bottom")}
-            >
-              <PanelBottom className="w-3.5 h-3.5" />
-            </DockBtn>
+
+          {/* Preview dock controls — hidden on mobile */}
+          <div className="hidden md:flex items-center gap-0.5 shrink-0">
+            <DockBtn title="Hide preview"       active={dock === "hidden"} onClick={() => setDock("hidden")}><EyeOff className="w-3.5 h-3.5" /></DockBtn>
+            <DockBtn title="Preview on right"   active={dock === "right"}  onClick={() => setDock("right")} ><PanelRight className="w-3.5 h-3.5" /></DockBtn>
+            <DockBtn title="Preview below"      active={dock === "bottom"} onClick={() => setDock("bottom")}><PanelBottom className="w-3.5 h-3.5" /></DockBtn>
             <DockBtn
               title="Open preview in new window"
               active={dock === "window"}
-              onClick={() => {
-                setDock("window");
-                handleOpenWindow();
-              }}
+              onClick={() => { setDock("window"); handleOpenWindow(); }}
             >
               <ExternalLink className="w-3.5 h-3.5" />
             </DockBtn>
             {dock === "window" && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 text-xs ml-1"
-                onClick={handleOpenWindow}
-              >
-                <Eye className="w-3 h-3 mr-1" />
-                Refresh
+              <Button size="sm" variant="outline" className="h-6 text-xs ml-1" onClick={handleOpenWindow}>
+                <Eye className="w-3 h-3 mr-1" /> Refresh
               </Button>
             )}
           </div>
         </div>
 
-        {/* Link controls */}
-        <div className="flex flex-wrap items-center gap-3 mt-2">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Project:</span>
-            <Select
-              value={selectedNote.projectId?.toString() ?? "none"}
-              onValueChange={(v) => handleLinkChange("projectId", v)}
-            >
-              <SelectTrigger className="h-6 text-xs w-40">
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Link2Off className="w-3 h-3" /> None
-                  </span>
-                </SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-muted-foreground">Task:</span>
-            <Select
-              value={selectedNote.taskId?.toString() ?? "none"}
-              onValueChange={(v) => handleLinkChange("taskId", v)}
-            >
-              <SelectTrigger className="h-6 text-xs w-48">
-                <SelectValue placeholder="None" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <Link2Off className="w-3 h-3" /> None
-                  </span>
-                </SelectItem>
-                {tasks.map((t) => (
-                  <SelectItem key={t.id} value={t.id.toString()}>
-                    <span className="truncate max-w-[180px] block">{t.title}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Visibility toggle (owner) or read-only badge (non-owner) */}
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          {selectedNote.isOwner ? (
+            <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
+              {VISIBILITY_OPTIONS.map((opt) => {
+                const active = selectedNote.visibility === opt.value;
+                const Icon = opt.icon;
+                return (
+                  <Tooltip key={opt.value}>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => handleVisibilityChange(opt.value)}
+                        className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                          active
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <Icon className={`w-3 h-3 ${active ? "text-primary" : ""}`} />
+                        <span className="hidden sm:inline">{opt.label}</span>
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="text-xs">{opt.description}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+            </div>
+          ) : (
+            <span className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border ${
+              selectedNote.visibility === "public_write"
+                ? "border-blue-500/30 bg-blue-500/5 text-blue-400"
+                : "border-border bg-muted/30 text-muted-foreground"
+            }`}>
+              {selectedNote.visibility === "public_write"
+                ? <><Edit2 className="w-3 h-3" /> Shared — you can edit</>
+                : <><Eye className="w-3 h-3" /> Shared — read only</>
+              }
+            </span>
+          )}
+
+          {/* Link controls */}
+          <div className="flex flex-wrap items-center gap-2 ml-auto">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Project:</span>
+              <Select value={selectedNote.projectId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("projectId", v)}>
+                <SelectTrigger className="h-6 text-xs w-36"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
+                  {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-muted-foreground">Task:</span>
+              <Select value={selectedNote.taskId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("taskId", v)}>
+                <SelectTrigger className="h-6 text-xs w-44"><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
+                  {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Editor + preview split */}
       {dock === "hidden" || dock === "window" ? (
-        <MarkdownEditor
-          value={localContent}
-          onChange={handleContentChange}
-          className="flex-1 overflow-hidden"
-        />
+        <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="flex-1 overflow-hidden" readOnly={!canEdit} />
       ) : dock === "right" ? (
         <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
           <Panel defaultSize={55} minSize={25}>
-            <MarkdownEditor
-              value={localContent}
-              onChange={handleContentChange}
-              className="h-full"
-            />
+            <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="h-full" readOnly={!canEdit} />
           </Panel>
           <PanelResizeHandle className="w-1 bg-border hover:bg-primary/40 transition-colors cursor-col-resize" />
           <Panel defaultSize={45} minSize={20}>
@@ -273,14 +289,9 @@ export default function NotesPage() {
           </Panel>
         </PanelGroup>
       ) : (
-        /* bottom */
         <PanelGroup direction="vertical" className="flex-1 overflow-hidden">
           <Panel defaultSize={55} minSize={20}>
-            <MarkdownEditor
-              value={localContent}
-              onChange={handleContentChange}
-              className="h-full"
-            />
+            <MarkdownEditor value={localContent} onChange={canEdit ? handleContentChange : () => {}} className="h-full" readOnly={!canEdit} />
           </Panel>
           <PanelResizeHandle className="h-1 bg-border hover:bg-primary/40 transition-colors cursor-row-resize" />
           <Panel defaultSize={45} minSize={15}>
@@ -295,30 +306,26 @@ export default function NotesPage() {
       )}
     </div>
   ) : (
-    <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
+    <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
       <StickyNote className="w-12 h-12 opacity-20" />
       <p className="text-sm">Select a note or create one</p>
       <Button variant="outline" size="sm" onClick={handleNew}>
-        <Plus className="w-4 h-4 mr-1" />
-        New note
+        <Plus className="w-4 h-4 mr-1" /> New note
       </Button>
     </div>
   );
 
   return (
     <div className="flex h-[calc(100dvh-2rem)] -m-4 md:-m-8 overflow-hidden rounded-lg border border-border">
-      {/* Sidebar */}
-      <div className="w-64 shrink-0 flex flex-col border-r border-border bg-card">
+      {/* Note list sidebar — hidden on mobile when a note is open */}
+      <div className={`${selectedId !== null ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 flex-col border-r border-border bg-card`}>
         <div className="p-3 border-b border-border flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-primary" />
           <span className="font-semibold text-sm flex-1">Scratch Pad</span>
           <Button
-            size="icon"
-            variant="ghost"
+            size="icon" variant="ghost"
             className="h-7 w-7 text-muted-foreground hover:text-primary"
-            onClick={handleNew}
-            disabled={createNote.isPending}
-            title="New note"
+            onClick={handleNew} disabled={createNote.isPending} title="New note"
           >
             <Plus className="w-4 h-4" />
           </Button>
@@ -327,12 +334,7 @@ export default function NotesPage() {
         <div className="p-2 border-b border-border">
           <div className="relative">
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Search notes…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-7 text-xs bg-background"
-            />
+            <Input placeholder="Search notes…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-7 text-xs bg-background" />
           </div>
         </div>
 
@@ -363,6 +365,7 @@ export default function NotesPage() {
         </div>
       </div>
 
+      {/* Editor — full width on mobile when note is open */}
       {editorArea}
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
@@ -373,10 +376,7 @@ export default function NotesPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={handleDelete}
-            >
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -386,24 +386,11 @@ export default function NotesPage() {
   );
 }
 
-function DockBtn({
-  onClick, active, title, children,
-}: {
-  onClick: () => void;
-  active: boolean;
-  title: string;
-  children: React.ReactNode;
-}) {
+function DockBtn({ onClick, active, title, children }: { onClick: () => void; active: boolean; title: string; children: React.ReactNode }) {
   return (
     <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      className={`p-1.5 rounded transition-colors ${
-        active
-          ? "bg-primary text-primary-foreground"
-          : "text-muted-foreground hover:text-foreground hover:bg-accent"
-      }`}
+      type="button" onClick={onClick} title={title}
+      className={`p-1.5 rounded transition-colors ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
     >
       {children}
     </button>
