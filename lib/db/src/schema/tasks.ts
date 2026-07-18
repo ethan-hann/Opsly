@@ -8,6 +8,7 @@ export const tasksTable = pgTable("tasks", {
   id: serial("id").primaryKey(),
   orgId: varchar("org_id").references(() => organizationsTable.id, { onDelete: "cascade" }),
   projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "set null" }),
+  orgTaskNumber: integer("org_task_number").notNull().default(0),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("todo"), // todo | in_progress | blocked | done

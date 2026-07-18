@@ -118,7 +118,7 @@ export default function TasksList() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
-                          TSK-{task.id}
+                          TSK-{task.orgTaskNumber}
                         </span>
                         <Link href={`/tasks/${task.id}`}>
                           <span className="font-medium text-sm hover:text-primary transition-colors cursor-pointer">

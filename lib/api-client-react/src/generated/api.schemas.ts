@@ -299,6 +299,8 @@ export const TaskCategory = {
 export interface Task {
   /** Auto-incremented primary key. */
   id: number;
+  /** Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique. */
+  orgTaskNumber: number;
   /**
      * ID of the linked project. Null if the task is not associated with a project.
      * @nullable

@@ -91,7 +91,7 @@ function TaskCard({ task, overlay }: TaskCardProps) {
           <span className="truncate">{task.assignee}</span>
         </div>
       )}
-      <div className="text-[10px] font-mono text-muted-foreground/60">TSK-{task.id}</div>
+      <div className="text-[10px] font-mono text-muted-foreground/60">TSK-{task.orgTaskNumber}</div>
     </div>
   );
 }

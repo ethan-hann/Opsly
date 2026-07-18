@@ -114,6 +114,7 @@ function buildApp() {
 
 const MOCK_TASK = {
   id: 1,
+  orgTaskNumber: 1,
   orgId: "test-org",
   title: "Fix the server",
   status: "todo",
@@ -310,6 +311,7 @@ describe("POST /api/tasks — body validation", () => {
 
   it("returns 201 with the created task on success", async () => {
     mockState.insertResult = [MOCK_TASK];
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber) for new task number
     mockState.selectQueue.push([{ count: 0 }]); // buildTaskWithProject comment count
 
     const res = await request(buildApp())
@@ -334,6 +336,7 @@ describe("POST /api/tasks — assignee validation", () => {
   });
 
   it("accepts a task with no assignee (unassigned)", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).post("/api/tasks").send(VALID_TASK_BODY);
@@ -343,6 +346,7 @@ describe("POST /api/tasks — assignee validation", () => {
 
   it("accepts a task whose assignee is an org member", async () => {
     mockState.selectQueue.push([{ userId: "user-1" }]); // assignee in org
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp())

@@ -121,7 +121,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
           Tasks
         </Link>
         <span>/</span>
-        <span className="text-foreground">TSK-{task.id}</span>
+        <span className="text-foreground">TSK-{task.orgTaskNumber}</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">

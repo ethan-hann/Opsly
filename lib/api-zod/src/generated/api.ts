@@ -241,6 +241,7 @@ export const ListTasksQueryParams = zod.object({
 
 export const ListTasksResponseItem = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique.\n'),
   "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
@@ -277,6 +278,7 @@ export const CreateTaskBody = zod.object({
 
 export const CreateTaskResponse = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique.\n'),
   "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
@@ -302,6 +304,7 @@ export const GetTaskParams = zod.object({
 
 export const GetTaskResponse = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique.\n'),
   "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
@@ -341,6 +344,7 @@ export const UpdateTaskBody = zod.object({
 
 export const UpdateTaskResponse = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique.\n'),
   "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
@@ -585,6 +589,7 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
  */
 export const GetOverdueTasksResponseItem = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-organization sequential task number. Starts at 1 for each org and increments with each new task. Used to display the TSK-## badge. Unique within an org but not globally unique.\n'),
   "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),

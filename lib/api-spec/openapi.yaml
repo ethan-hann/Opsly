@@ -1314,11 +1314,17 @@ components:
         An individual work item within an organization, optionally linked to a
         project. Enriched with the project name and the number of comments.
       type: object
-      required: [id, title, status, priority, category, createdAt, updatedAt]
+      required: [id, orgTaskNumber, title, status, priority, category, createdAt, updatedAt]
       properties:
         id:
           type: integer
           description: Auto-incremented primary key.
+        orgTaskNumber:
+          type: integer
+          description: >
+            Per-organization sequential task number. Starts at 1 for each org
+            and increments with each new task. Used to display the TSK-## badge.
+            Unique within an org but not globally unique.
         projectId:
           type: ["integer", "null"]
           description: ID of the linked project. Null if the task is not associated with a project.

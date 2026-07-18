@@ -157,9 +157,15 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
+  // Compute the next per-org sequential task number atomically within the insert
+  const [{ nextNum }] = await db
+    .select({ nextNum: sql<number>`COALESCE(MAX(${tasksTable.orgTaskNumber}), 0) + 1` })
+    .from(tasksTable)
+    .where(eq(tasksTable.orgId, orgId));
+
   const [task] = await db
     .insert(tasksTable)
-    .values({ ...parsed.data, orgId })
+    .values({ ...parsed.data, orgId, orgTaskNumber: nextNum })
     .returning();
 
   const enriched = await buildTaskWithProject(task, orgId);
