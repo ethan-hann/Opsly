@@ -24,12 +24,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@workspace/replit-auth-web";
 
 export default function TaskDetail({ params }: { params: { id: string } }) {
   const taskId = parseInt(params.id, 10);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { user } = useAuth();
   
   const [commentText, setCommentText] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -101,7 +103,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     if (!commentText.trim()) return;
     commentMutation.mutate({
       id: taskId,
-      data: { content: commentText, author: "Current User" }
+      data: { content: commentText, author: user ? `${user.firstName} ${user.lastName ?? ""}`.trim() : "Unknown" }
     });
   };
 
@@ -186,10 +188,13 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </div>
               ) : comments && comments.length > 0 ? (
                 <div className="space-y-4">
-                  {comments.map((comment) => (
+                  {[...comments].reverse().map((comment) => (
                     <div key={comment.id} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-1">
-                        <User className="w-4 h-4 text-primary" />
+                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 mt-1">
+                        {user?.profileImageUrl
+                          ? <img src={user.profileImageUrl} alt={comment.author ?? ""} className="w-full h-full object-cover" />
+                          : <div className="w-full h-full flex items-center justify-center"><User className="w-4 h-4 text-primary" /></div>
+                        }
                       </div>
                       <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg p-3">
                         <div className="flex justify-between items-center mb-2">
