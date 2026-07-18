@@ -321,7 +321,9 @@ export default function OrgSettings() {
           <Building2 className="w-7 h-7 text-primary" />
           Organization Settings
         </h1>
-        <p className="text-muted-foreground mt-1">Manage your organization and its members.</p>
+        <p className="text-muted-foreground mt-1">
+          {isAdmin ? "Manage your organization and its members." : "View your organization and its members."}
+        </p>
       </div>
 
       {/* Org Info */}

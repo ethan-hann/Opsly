@@ -83,9 +83,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const allNavItems = [
     ...mainNavItems,
-    ...(isAdmin
-      ? [{ href: "/org/settings", label: "Org Settings", icon: Settings }]
-      : []),
+    { href: "/org/settings", label: "Org Settings", icon: Settings },
   ];
 
   return (
