@@ -86,12 +86,24 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
       id: commentsTable.id,
       content: commentsTable.content,
       taskId: commentsTable.taskId,
+      taskTitle: tasksTable.title,
       createdAt: commentsTable.createdAt,
     })
     .from(commentsTable)
     .innerJoin(tasksTable, eq(commentsTable.taskId, tasksTable.id))
     .where(eq(tasksTable.orgId, orgId))
     .orderBy(sql`${commentsTable.createdAt} desc`)
+    .limit(5);
+
+  const recentProjects = await db
+    .select({
+      id: projectsTable.id,
+      name: projectsTable.name,
+      createdAt: projectsTable.createdAt,
+    })
+    .from(projectsTable)
+    .where(eq(projectsTable.orgId, orgId))
+    .orderBy(sql`${projectsTable.createdAt} desc`)
     .limit(5);
 
   const taskItems = recentTasks.map((t) => ({
@@ -106,13 +118,22 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
   const commentItems = recentComments.map((c) => ({
     id: c.id + 100000,
     type: "comment_added",
-    title: `Comment added on task #${c.taskId}`,
+    title: `Comment on "${c.taskTitle}"`,
     entityId: c.taskId,
     entityType: "task",
     createdAt: c.createdAt.toISOString(),
   }));
 
-  const combined = [...taskItems, ...commentItems]
+  const projectItems = recentProjects.map((p) => ({
+    id: p.id + 200000,
+    type: "project_created",
+    title: `Project created: ${p.name}`,
+    entityId: p.id,
+    entityType: "project",
+    createdAt: p.createdAt.toISOString(),
+  }));
+
+  const combined = [...taskItems, ...commentItems, ...projectItems]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10);
 

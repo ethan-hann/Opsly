@@ -213,19 +213,28 @@ export default function Dashboard() {
                 </div>
               ) : activity && activity.length > 0 ? (
                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-[5px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
-                  {activity.slice(0, 10).map((item, index) => (
-                    <div key={item.id} className="relative flex items-start gap-4">
-                      <div className="absolute left-0 mt-1.5 w-3 h-3 rounded-full bg-background border-2 border-primary z-10" />
-                      <div className="ml-6 space-y-1">
-                        <p className="text-sm">
-                          <span className="font-medium text-foreground">{item.title}</span>
-                        </p>
-                        <div className="text-xs text-muted-foreground font-mono">
-                          {formatTimeAgo(item.createdAt)}
+                  {activity.slice(0, 10).map((item) => {
+                    const href = item.entityType === "project"
+                      ? `/projects/${item.entityId}`
+                      : `/tasks/${item.entityId}`;
+                    return (
+                      <div key={item.id} className="relative flex items-start gap-4">
+                        <div className="absolute left-0 mt-1.5 w-3 h-3 rounded-full bg-background border-2 border-primary z-10" />
+                        <div className="ml-6 space-y-1">
+                          <p className="text-sm">
+                            <Link href={href}>
+                              <span className="font-medium text-foreground hover:text-primary hover:underline cursor-pointer transition-colors">
+                                {item.title}
+                              </span>
+                            </Link>
+                          </p>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {formatTimeAgo(item.createdAt)}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground text-sm">
