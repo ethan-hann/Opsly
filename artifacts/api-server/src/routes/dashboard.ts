@@ -1,0 +1,110 @@
+import { Router, type IRouter } from "express";
+import { eq, sql, lt, and } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable } from "@workspace/db";
+import {
+  GetDashboardSummaryResponse,
+  GetRecentActivityResponse,
+} from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+router.get("/dashboard/summary", async (req, res): Promise<void> => {
+  const [taskStats] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      todo: sql<number>`count(*) filter (where ${tasksTable.status} = 'todo')::int`,
+      in_progress: sql<number>`count(*) filter (where ${tasksTable.status} = 'in_progress')::int`,
+      blocked: sql<number>`count(*) filter (where ${tasksTable.status} = 'blocked')::int`,
+      done: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
+      low: sql<number>`count(*) filter (where ${tasksTable.priority} = 'low')::int`,
+      medium: sql<number>`count(*) filter (where ${tasksTable.priority} = 'medium')::int`,
+      high: sql<number>`count(*) filter (where ${tasksTable.priority} = 'high')::int`,
+      critical: sql<number>`count(*) filter (where ${tasksTable.priority} = 'critical')::int`,
+    })
+    .from(tasksTable);
+
+  const today = new Date().toISOString().split("T")[0];
+  const [overdueResult] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(tasksTable)
+    .where(and(lt(tasksTable.dueDate, today), sql`${tasksTable.status} != 'done'`));
+
+  const [projectStats] = await db
+    .select({
+      total: sql<number>`count(*)::int`,
+      active: sql<number>`count(*) filter (where ${projectsTable.status} = 'active')::int`,
+    })
+    .from(projectsTable);
+
+  const summary = {
+    totalTasks: taskStats?.total ?? 0,
+    totalProjects: projectStats?.total ?? 0,
+    tasksByStatus: {
+      todo: taskStats?.todo ?? 0,
+      in_progress: taskStats?.in_progress ?? 0,
+      blocked: taskStats?.blocked ?? 0,
+      done: taskStats?.done ?? 0,
+    },
+    tasksByPriority: {
+      low: taskStats?.low ?? 0,
+      medium: taskStats?.medium ?? 0,
+      high: taskStats?.high ?? 0,
+      critical: taskStats?.critical ?? 0,
+    },
+    overdueCount: overdueResult?.count ?? 0,
+    activeProjects: projectStats?.active ?? 0,
+  };
+
+  res.json(GetDashboardSummaryResponse.parse(summary));
+});
+
+router.get("/dashboard/activity", async (req, res): Promise<void> => {
+  // Recent tasks created/updated
+  const recentTasks = await db
+    .select({
+      id: tasksTable.id,
+      title: tasksTable.title,
+      createdAt: tasksTable.createdAt,
+    })
+    .from(tasksTable)
+    .orderBy(sql`${tasksTable.createdAt} desc`)
+    .limit(5);
+
+  // Recent comments
+  const recentComments = await db
+    .select({
+      id: commentsTable.id,
+      content: commentsTable.content,
+      taskId: commentsTable.taskId,
+      createdAt: commentsTable.createdAt,
+    })
+    .from(commentsTable)
+    .orderBy(sql`${commentsTable.createdAt} desc`)
+    .limit(5);
+
+  const taskItems = recentTasks.map((t) => ({
+    id: t.id,
+    type: "task_created",
+    title: `Task created: ${t.title}`,
+    entityId: t.id,
+    entityType: "task",
+    createdAt: t.createdAt.toISOString(),
+  }));
+
+  const commentItems = recentComments.map((c) => ({
+    id: c.id + 100000,
+    type: "comment_added",
+    title: `Comment added on task #${c.taskId}`,
+    entityId: c.taskId,
+    entityType: "task",
+    createdAt: c.createdAt.toISOString(),
+  }));
+
+  const combined = [...taskItems, ...commentItems]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 10);
+
+  res.json(GetRecentActivityResponse.parse(combined));
+});
+
+export default router;
