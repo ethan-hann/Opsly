@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -6,9 +7,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, FolderGit2, Calendar } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
+import { NewProjectModal } from "@/components/ui/new-project-modal";
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
+  const [showNewProject, setShowNewProject] = useState(false);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -17,7 +20,7 @@ export default function ProjectsList() {
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground mt-1">Manage IT initiatives, deployments, and epics.</p>
         </div>
-        <Button className="gap-2" data-testid="button-create-project">
+        <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
           <Plus className="w-4 h-4" />
           New Project
         </Button>
@@ -54,16 +57,16 @@ export default function ProjectsList() {
                       </div>
                       <PriorityBadge priority={project.priority} />
                     </div>
-                    
+
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs font-mono">
                         <span className="text-muted-foreground">Progress</span>
                         <span className="font-medium">{progress}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-primary rounded-full transition-all duration-500" 
-                          style={{ width: `${progress}%` }} 
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-500"
+                          style={{ width: `${progress}%` }}
                         />
                       </div>
                       <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
@@ -80,13 +83,15 @@ export default function ProjectsList() {
             <FolderGit2 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-lg font-medium">No projects found</h3>
             <p className="text-muted-foreground mb-4">Get started by creating a new project initiative.</p>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
               <Plus className="w-4 h-4" />
               Create Project
             </Button>
           </div>
         )}
       </div>
+
+      <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
     </div>
   );
 }

@@ -1,24 +1,44 @@
 import { useListTasks } from "@workspace/api-client-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, Filter, LayoutList, Columns } from "lucide-react";
+import { Plus, Search, LayoutList, Columns } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { NewTaskModal } from "@/components/ui/new-task-modal";
+import { KanbanBoard } from "@/components/ui/kanban-board";
+
+type ProjectFilter = "all" | "with_project" | "no_project";
+
+const PROJECT_FILTER_OPTIONS: { value: ProjectFilter; label: string }[] = [
+  { value: "all", label: "All Tasks" },
+  { value: "with_project", label: "In a Project" },
+  { value: "no_project", label: "No Project" },
+];
 
 export default function TasksList() {
   const [viewMode, setViewMode] = useState<'list' | 'board'>('list');
   const [search, setSearch] = useState("");
-  
+  const [projectFilter, setProjectFilter] = useState<ProjectFilter>("all");
+  const [showNewTask, setShowNewTask] = useState(false);
+
   const { data: tasks, isLoading } = useListTasks();
 
-  const filteredTasks = tasks?.filter(t => 
-    t.title.toLowerCase().includes(search.toLowerCase()) || 
-    (t.projectName && t.projectName.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredTasks = tasks?.filter(t => {
+    // Text search
+    const matchesSearch =
+      t.title.toLowerCase().includes(search.toLowerCase()) ||
+      (t.projectName && t.projectName.toLowerCase().includes(search.toLowerCase()));
+    if (!matchesSearch) return false;
+
+    // Project filter
+    if (projectFilter === "with_project") return !!t.projectId;
+    if (projectFilter === "no_project") return !t.projectId;
+    return true;
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
@@ -27,7 +47,7 @@ export default function TasksList() {
           <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage incidents, changes, and operational work.</p>
         </div>
-        <Button className="gap-2" data-testid="button-create-task">
+        <Button className="gap-2" data-testid="button-create-task" onClick={() => setShowNewTask(true)}>
           <Plus className="w-4 h-4" />
           New Task
         </Button>
@@ -37,29 +57,43 @@ export default function TasksList() {
       <div className="flex flex-col sm:flex-row gap-3 bg-card p-2 rounded-lg border border-border shadow-sm">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Search tasks, tickets, projects..." 
+          <Input
+            placeholder="Search tasks, tickets, projects..."
             className="pl-9 bg-background/50 border-transparent focus-visible:border-primary"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" className="shrink-0 bg-background/50">
-            <Filter className="w-4 h-4" />
-          </Button>
+        <div className="flex gap-2 items-center flex-wrap">
+          {/* Project filter segment */}
           <div className="bg-background/50 flex p-1 rounded-md border border-border">
-            <Button 
-              variant={viewMode === 'list' ? 'secondary' : 'ghost'} 
-              size="icon" 
+            {PROJECT_FILTER_OPTIONS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setProjectFilter(opt.value)}
+                className={`px-3 h-8 text-xs rounded-sm font-medium transition-colors ${
+                  projectFilter === opt.value
+                    ? "bg-secondary text-secondary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {/* View toggle */}
+          <div className="bg-background/50 flex p-1 rounded-md border border-border">
+            <Button
+              variant={viewMode === 'list' ? 'secondary' : 'ghost'}
+              size="icon"
               className="w-8 h-8 rounded-sm"
               onClick={() => setViewMode('list')}
             >
               <LayoutList className="w-4 h-4" />
             </Button>
-            <Button 
-              variant={viewMode === 'board' ? 'secondary' : 'ghost'} 
-              size="icon" 
+            <Button
+              variant={viewMode === 'board' ? 'secondary' : 'ghost'}
+              size="icon"
               className="w-8 h-8 rounded-sm"
               onClick={() => setViewMode('board')}
             >
@@ -70,7 +104,7 @@ export default function TasksList() {
       </div>
 
       {/* Content Area */}
-      <div className="flex-1">
+      <div className="flex-1 min-h-0">
         {isLoading ? (
           <div className="space-y-3">
             {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -126,13 +160,11 @@ export default function TasksList() {
             </div>
           </Card>
         ) : (
-          <div className="text-center py-12 border border-dashed rounded-lg bg-card/30">
-            {/* Minimal Board Placeholder for now */}
-            <Columns className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
-            <p className="text-muted-foreground">Board view implementation coming soon.</p>
-          </div>
+          <KanbanBoard tasks={filteredTasks ?? []} />
         )}
       </div>
+
+      <NewTaskModal open={showNewTask} onOpenChange={setShowNewTask} />
     </div>
   );
 }
