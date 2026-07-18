@@ -21,6 +21,7 @@ import {
   useDeleteNote,
   useGetNote,
   useUpdateNote,
+  NoteVisibility,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -70,6 +71,67 @@ const seg = StyleSheet.create({
   wrap: { flexDirection: 'row', padding: 3 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 6 },
   label: { fontSize: 13, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
+});
+
+// ─── VisibilityToggle ─────────────────────────────────────────────────────────
+
+const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: string }[] = [
+  { value: 'private', label: 'Private', icon: 'lock' },
+  { value: 'public_read', label: 'Shared (read)', icon: 'eye' },
+  { value: 'public_write', label: 'Shared (edit)', icon: 'edit-2' },
+];
+
+function VisibilityToggle({
+  value,
+  onChange,
+  colors,
+}: {
+  value: NoteVisibility;
+  onChange: (v: NoteVisibility) => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={[vis.wrap, { backgroundColor: colors.muted, borderRadius: colors.radius }]}>
+      {VISIBILITY_OPTIONS.map(opt => {
+        const active = value === opt.value;
+        return (
+          <Pressable
+            key={opt.value}
+            style={[
+              vis.tab,
+              { borderRadius: colors.radius - 2 },
+              active && { backgroundColor: colors.card },
+            ]}
+            onPress={() => {
+              Haptics.selectionAsync();
+              onChange(opt.value);
+            }}
+          >
+            <Feather
+              name={opt.icon as any}
+              size={11}
+              color={active ? colors.primary : colors.mutedForeground}
+            />
+            <Text
+              style={[
+                vis.label,
+                { color: active ? colors.foreground : colors.mutedForeground },
+              ]}
+              numberOfLines={1}
+            >
+              {opt.label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+const vis = StyleSheet.create({
+  wrap: { flexDirection: 'row', padding: 3 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 6, paddingHorizontal: 4 },
+  label: { fontSize: 11, fontWeight: '600' as const, fontFamily: 'Inter_600SemiBold' },
 });
 
 // ─── SaveIndicator ───────────────────────────────────────────────────────────
@@ -208,6 +270,8 @@ export default function NoteEditorScreen() {
   const [mode, setMode] = useState<Mode>('edit');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [visibility, setVisibility] = useState<NoteVisibility>('private');
+  const [isOwner, setIsOwner] = useState(true);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [initialised, setInitialised] = useState(false);
 
@@ -222,18 +286,22 @@ export default function NoteEditorScreen() {
     if (note && !initialised) {
       setTitle(note.title);
       setContent(note.content);
+      setVisibility(note.visibility);
+      setIsOwner(note.isOwner);
       setInitialised(true);
     }
   }, [note, initialised]);
 
-  // ── Auto-save ──────────────────────────────────────────────────────────────
+  // Whether the current user can edit this note's content
+  const canEdit = isOwner || visibility === 'public_write';
+
+  // ── Auto-save (title + content) ────────────────────────────────────────────
   const save = useCallback(
     async (t: string, c: string) => {
       setSaveStatus('saving');
       try {
         await updateNote.mutateAsync({ id: noteId, data: { title: t, content: c } });
         setSaveStatus('saved');
-        // invalidate the list so the list screen stays fresh
         queryClient.invalidateQueries({ queryKey: ['/api/notes'] });
         setTimeout(() => setSaveStatus('idle'), 1500);
       } catch {
@@ -264,11 +332,28 @@ export default function NoteEditorScreen() {
   // flush on unmount
   useEffect(() => {
     return () => {
-      if (saveTimer.current) {
-        clearTimeout(saveTimer.current);
-      }
+      if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, []);
+
+  // ── Visibility change (immediate, no debounce) ─────────────────────────────
+  const handleVisibilityChange = useCallback(
+    async (v: NoteVisibility) => {
+      const prev = visibility;
+      setVisibility(v);
+      setSaveStatus('saving');
+      try {
+        await updateNote.mutateAsync({ id: noteId, data: { visibility: v } });
+        setSaveStatus('saved');
+        queryClient.invalidateQueries({ queryKey: ['/api/notes'] });
+        setTimeout(() => setSaveStatus('idle'), 1500);
+      } catch {
+        setVisibility(prev); // revert on failure
+        setSaveStatus('error');
+      }
+    },
+    [noteId, visibility, updateNote, queryClient],
+  );
 
   // ── Delete ─────────────────────────────────────────────────────────────────
   const handleDelete = () => {
@@ -327,25 +412,50 @@ export default function NoteEditorScreen() {
 
         <SaveIndicator status={saveStatus} colors={colors} />
 
-        <Pressable
-          style={({ pressed }) => [s.iconBtn, pressed && { opacity: 0.6 }]}
-          onPress={handleDelete}
-          hitSlop={8}
-        >
-          <Feather name="trash-2" size={20} color={colors.destructive} />
-        </Pressable>
+        {isOwner && (
+          <Pressable
+            style={({ pressed }) => [s.iconBtn, pressed && { opacity: 0.6 }]}
+            onPress={handleDelete}
+            hitSlop={8}
+          >
+            <Feather name="trash-2" size={20} color={colors.destructive} />
+          </Pressable>
+        )}
+        {!isOwner && <View style={s.iconBtn} />}
       </View>
 
       {/* Title input */}
       <TextInput
-        style={s.titleInput}
+        style={[s.titleInput, !canEdit && { color: colors.mutedForeground }]}
         value={title}
         onChangeText={handleTitleChange}
         placeholder="Untitled"
         placeholderTextColor={colors.mutedForeground}
         multiline={false}
         returnKeyType="next"
+        editable={canEdit}
       />
+
+      {/* Visibility toggle — owner only */}
+      {isOwner && (
+        <View style={s.visibilityRow}>
+          <VisibilityToggle value={visibility} onChange={handleVisibilityChange} colors={colors} />
+        </View>
+      )}
+
+      {/* Read-only notice for non-owners viewing a shared read-only note */}
+      {!isOwner && (
+        <View style={[s.readOnlyBanner, { backgroundColor: colors.muted }]}>
+          <Feather
+            name={visibility === 'public_write' ? 'edit-2' : 'eye'}
+            size={12}
+            color={colors.mutedForeground}
+          />
+          <Text style={[s.readOnlyText, { color: colors.mutedForeground }]}>
+            {visibility === 'public_write' ? 'Shared — you can edit this note' : 'Shared — read only'}
+          </Text>
+        </View>
+      )}
 
       {/* Mode toggle */}
       <View style={s.toggleRow}>
@@ -358,13 +468,14 @@ export default function NoteEditorScreen() {
           style={[s.editor, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }]}
           value={content}
           onChangeText={handleContentChange}
-          placeholder="Write in markdown…"
+          placeholder={canEdit ? 'Write in markdown…' : 'Nothing to read yet'}
           placeholderTextColor={colors.mutedForeground}
           multiline
           textAlignVertical="top"
           autoCorrect={false}
           autoCapitalize="sentences"
           scrollEnabled
+          editable={canEdit}
         />
       ) : (
         <ScrollView
@@ -418,6 +529,24 @@ function makeStyles(colors: ReturnType<typeof useColors>) {
       color: colors.foreground,
       paddingHorizontal: 20,
       paddingVertical: 8,
+    },
+    visibilityRow: {
+      paddingHorizontal: 20,
+      marginBottom: 8,
+    },
+    readOnlyBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginHorizontal: 20,
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: colors.radius,
+    },
+    readOnlyText: {
+      fontSize: 11,
+      fontFamily: 'Inter_400Regular',
     },
     toggleRow: {
       paddingHorizontal: 20,

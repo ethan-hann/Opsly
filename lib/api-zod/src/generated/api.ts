@@ -414,6 +414,9 @@ export const ListNotesResponseItem = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "content": zod.string(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']),
+  "isOwner": zod.boolean(),
+  "createdBy": zod.string().nullish(),
   "projectId": zod.number().nullish(),
   "taskId": zod.number().nullish(),
   "createdAt": zod.string(),
@@ -431,6 +434,7 @@ export const ListNotesResponse = zod.array(ListNotesResponseItem)
 export const CreateNoteBody = zod.object({
   "title": zod.string().min(1).optional(),
   "content": zod.string().optional(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional(),
   "projectId": zod.number().optional(),
   "taskId": zod.number().optional()
 })
@@ -439,6 +443,9 @@ export const CreateNoteResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "content": zod.string(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']),
+  "isOwner": zod.boolean(),
+  "createdBy": zod.string().nullish(),
   "projectId": zod.number().nullish(),
   "taskId": zod.number().nullish(),
   "createdAt": zod.string(),
@@ -457,6 +464,9 @@ export const GetNoteResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "content": zod.string(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']),
+  "isOwner": zod.boolean(),
+  "createdBy": zod.string().nullish(),
   "projectId": zod.number().nullish(),
   "taskId": zod.number().nullish(),
   "createdAt": zod.string(),
@@ -477,6 +487,7 @@ export const UpdateNoteParams = zod.object({
 export const UpdateNoteBody = zod.object({
   "title": zod.string().min(1).optional(),
   "content": zod.string().optional(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional(),
   "projectId": zod.number().nullish(),
   "taskId": zod.number().nullish()
 })
@@ -485,6 +496,9 @@ export const UpdateNoteResponse = zod.object({
   "id": zod.number(),
   "title": zod.string(),
   "content": zod.string(),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']),
+  "isOwner": zod.boolean(),
+  "createdBy": zod.string().nullish(),
   "projectId": zod.number().nullish(),
   "taskId": zod.number().nullish(),
   "createdAt": zod.string(),

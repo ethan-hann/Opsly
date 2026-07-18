@@ -301,10 +301,23 @@ export interface CommentInput {
   author?: string;
 }
 
+export type NoteVisibility = typeof NoteVisibility[keyof typeof NoteVisibility];
+
+
+export const NoteVisibility = {
+  private: 'private',
+  public_read: 'public_read',
+  public_write: 'public_write',
+} as const;
+
 export interface Note {
   id: number;
   title: string;
   content: string;
+  visibility: NoteVisibility;
+  isOwner: boolean;
+  /** @nullable */
+  createdBy?: string | null;
   /** @nullable */
   projectId?: number | null;
   /** @nullable */
@@ -317,6 +330,7 @@ export interface NoteInput {
   /** @minLength 1 */
   title?: string;
   content?: string;
+  visibility?: NoteVisibility;
   projectId?: number;
   taskId?: number;
 }
@@ -325,6 +339,7 @@ export interface NoteUpdate {
   /** @minLength 1 */
   title?: string;
   content?: string;
+  visibility?: NoteVisibility;
   /** @nullable */
   projectId?: number | null;
   /** @nullable */

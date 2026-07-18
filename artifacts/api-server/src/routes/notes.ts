@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { notesTable, projectsTable, tasksTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, ne, isNull } from "drizzle-orm";
 import {
   ListNotesQueryParams,
   ListNotesResponse,
@@ -18,15 +18,24 @@ import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router = Router();
 
-function serializeNote(note: typeof notesTable.$inferSelect) {
+function serializeNote(note: typeof notesTable.$inferSelect, userId: string) {
   return {
     ...note,
+    isOwner: note.createdBy === null || note.createdBy === userId,
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
   };
 }
 
-/** Reject if projectId is provided but doesn't belong to orgId. */
+/** Visibility filter: own notes + legacy (no owner) + any non-private shared note */
+function visibilityFilter(userId: string) {
+  return or(
+    isNull(notesTable.createdBy),
+    eq(notesTable.createdBy, userId),
+    ne(notesTable.visibility, "private"),
+  );
+}
+
 async function validateProjectId(projectId: number, orgId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: projectsTable.id })
@@ -36,7 +45,6 @@ async function validateProjectId(projectId: number, orgId: string): Promise<bool
   return !!row;
 }
 
-/** Reject if taskId is provided but doesn't belong to orgId. */
 async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: tasksTable.id })
@@ -53,7 +61,10 @@ router.get("/notes", requireOrg, async (req, res) => {
     return res.status(400).json({ error: query.error.message });
   }
 
-  const conditions = [eq(notesTable.orgId, req.orgId!)];
+  const userId = req.user!.id;
+  const orgId = req.orgId!;
+
+  const conditions = [eq(notesTable.orgId, orgId), visibilityFilter(userId)];
   if (query.data.projectId !== undefined) {
     conditions.push(eq(notesTable.projectId, query.data.projectId));
   }
@@ -67,7 +78,7 @@ router.get("/notes", requireOrg, async (req, res) => {
     .where(and(...conditions))
     .orderBy(notesTable.updatedAt);
 
-  return res.json(ListNotesResponse.parse(rows.map(serializeNote)));
+  return res.json(ListNotesResponse.parse(rows.map((n) => serializeNote(n, userId))));
 });
 
 // POST /notes
@@ -78,8 +89,8 @@ router.post("/notes", requireOrg, async (req, res) => {
   }
 
   const orgId = req.orgId!;
+  const userId = req.user!.id;
 
-  // Validate cross-tenant FK references
   if (body.data.projectId != null) {
     if (!(await validateProjectId(body.data.projectId, orgId))) {
       return res.status(400).json({ error: "Invalid projectId" });
@@ -93,10 +104,10 @@ router.post("/notes", requireOrg, async (req, res) => {
 
   const [note] = await db
     .insert(notesTable)
-    .values({ ...body.data, orgId })
+    .values({ ...body.data, orgId, createdBy: userId })
     .returning();
 
-  return res.status(201).json(CreateNoteResponse.parse(serializeNote(note)));
+  return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
 // GET /notes/:id
@@ -105,6 +116,8 @@ router.get("/notes/:id", requireOrg, async (req, res) => {
   if (!params.success) {
     return res.status(400).json({ error: params.error.message });
   }
+
+  const userId = req.user!.id;
 
   const [note] = await db
     .select()
@@ -115,7 +128,12 @@ router.get("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  return res.json(GetNoteResponse.parse(serializeNote(note)));
+  const isOwner = note.createdBy === null || note.createdBy === userId;
+  if (!isOwner && note.visibility === "private") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+
+  return res.json(GetNoteResponse.parse(serializeNote(note, userId)));
 });
 
 // PATCH /notes/:id
@@ -131,8 +149,27 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   }
 
   const orgId = req.orgId!;
+  const userId = req.user!.id;
 
-  // Validate cross-tenant FK references when being set to a non-null value
+  const [existing] = await db
+    .select()
+    .from(notesTable)
+    .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, orgId)));
+
+  if (!existing) {
+    return res.status(404).json({ error: "Note not found" });
+  }
+
+  const isOwner = existing.createdBy === null || existing.createdBy === userId;
+
+  // Non-owners can only edit public_write notes (and cannot change visibility)
+  if (!isOwner && existing.visibility !== "public_write") {
+    return res.status(403).json({ error: "Access denied" });
+  }
+  if (!isOwner && body.data.visibility !== undefined) {
+    return res.status(403).json({ error: "Only the note owner can change visibility" });
+  }
+
   if (body.data.projectId != null) {
     if (!(await validateProjectId(body.data.projectId, orgId))) {
       return res.status(400).json({ error: "Invalid projectId" });
@@ -147,6 +184,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   const updates: Partial<typeof notesTable.$inferInsert> = {};
   if (body.data.title !== undefined) updates.title = body.data.title;
   if (body.data.content !== undefined) updates.content = body.data.content;
+  if (body.data.visibility !== undefined) updates.visibility = body.data.visibility;
   if ("projectId" in body.data) updates.projectId = body.data.projectId ?? null;
   if ("taskId" in body.data) updates.taskId = body.data.taskId ?? null;
 
@@ -160,24 +198,35 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  return res.json(UpdateNoteResponse.parse(serializeNote(note)));
+  return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
 });
 
-// DELETE /notes/:id
+// DELETE /notes/:id — owner only
 router.delete("/notes/:id", requireOrg, async (req, res) => {
   const params = DeleteNoteParams.safeParse(req.params);
   if (!params.success) {
     return res.status(400).json({ error: params.error.message });
   }
 
-  const [deleted] = await db
-    .delete(notesTable)
-    .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)))
-    .returning();
+  const userId = req.user!.id;
 
-  if (!deleted) {
+  const [existing] = await db
+    .select()
+    .from(notesTable)
+    .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
+
+  if (!existing) {
     return res.status(404).json({ error: "Note not found" });
   }
+
+  const isOwner = existing.createdBy === null || existing.createdBy === userId;
+  if (!isOwner) {
+    return res.status(403).json({ error: "Only the note owner can delete this note" });
+  }
+
+  await db
+    .delete(notesTable)
+    .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
   return res.sendStatus(204);
 });

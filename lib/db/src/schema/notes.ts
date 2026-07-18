@@ -5,11 +5,15 @@ import { projectsTable } from "./projects";
 import { tasksTable } from "./tasks";
 import { organizationsTable } from "./organizations";
 
+export type NoteVisibility = "private" | "public_read" | "public_write";
+
 export const notesTable = pgTable("notes", {
   id: serial("id").primaryKey(),
   orgId: varchar("org_id").references(() => organizationsTable.id, { onDelete: "cascade" }),
+  createdBy: varchar("created_by"),
   title: text("title").notNull().default("Untitled Note"),
   content: text("content").notNull().default(""),
+  visibility: varchar("visibility").$type<NoteVisibility>().notNull().default("private"),
   projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "cascade" }),
   taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

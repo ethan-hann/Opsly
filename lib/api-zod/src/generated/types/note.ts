@@ -5,11 +5,16 @@
  * IT Task Manager API
  * OpenAPI spec version: 0.1.0
  */
+import type { NoteVisibility } from './noteVisibility';
 
 export interface Note {
   id: number;
   title: string;
   content: string;
+  visibility: NoteVisibility;
+  isOwner: boolean;
+  /** @nullable */
+  createdBy?: string | null;
   /** @nullable */
   projectId?: number | null;
   /** @nullable */

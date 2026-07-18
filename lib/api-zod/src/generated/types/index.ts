@@ -32,6 +32,7 @@ export * from './mobileTokenExchangeSuccess';
 export * from './note';
 export * from './noteInput';
 export * from './noteUpdate';
+export * from './noteVisibility';
 export * from './organization';
 export * from './orgInput';
 export * from './orgMemberInfo';
