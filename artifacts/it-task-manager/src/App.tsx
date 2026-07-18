@@ -21,13 +21,14 @@ import OrgInvitation from '@/pages/org-invitation';
 import OrgSettings from '@/pages/org-settings';
 import InvitePage from '@/pages/invite-page';
 import type { PendingInvitation } from '@workspace/api-client-react';
-import { useNotesSSE } from '@/hooks/use-notes-sse';
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: true,
+      staleTime: 0,
+      refetchInterval: 8_000, // poll every 8 s so all sessions stay in sync
+      refetchIntervalInBackground: false, // pause when tab is hidden
     },
   },
 });
@@ -70,11 +71,6 @@ function Router() {
   );
 }
 
-function NotesSync() {
-  useNotesSSE();
-  return null;
-}
-
 function OrgAwareApp() {
   return (
     <OrgGuard
@@ -89,7 +85,6 @@ function OrgAwareApp() {
         />
       )}
     >
-      <NotesSync />
       <Router />
     </OrgGuard>
   );
