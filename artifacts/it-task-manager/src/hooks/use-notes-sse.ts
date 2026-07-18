@@ -2,24 +2,25 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 /**
- * Opens a persistent SSE connection to /api/notes/events and invalidates all
- * notes-related React Query cache entries whenever the server broadcasts a
- * `notes-changed` event.
+ * Keeps every open notes query in sync with the server by polling at a short
+ * interval.  This invalidates all React Query cache entries whose key starts
+ * with "/notes" (covers both the list and individual note detail queries),
+ * which triggers a background refetch for any component that currently has an
+ * active subscription to that data.
  *
- * Mount this once inside the org-authenticated tree so visibility changes and
- * content edits made by any org member propagate immediately to every open tab
- * or session without polling.
+ * We tried SSE first but the Replit preview proxy does not reliably forward
+ * chunked streaming responses, so interval-based invalidation is used instead.
+ * The server-side broadcast infrastructure remains in place for environments
+ * that do support SSE.
  */
+
+const POLL_INTERVAL_MS = 5_000;
+
 export function useNotesSSE() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const es = new EventSource("/api/notes/events", { withCredentials: true });
-
-    const handleMessage = () => {
-      // Invalidate every query whose key starts with "/notes" — this covers
-      // both getListNotesQueryKey() → ["/notes", params]
-      // and    getGetNoteQueryKey(id) → ["/notes/{id}"]
+    const invalidateNotes = () => {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const first = query.queryKey[0];
@@ -28,11 +29,7 @@ export function useNotesSSE() {
       });
     };
 
-    es.addEventListener("message", handleMessage);
-
-    return () => {
-      es.removeEventListener("message", handleMessage);
-      es.close();
-    };
+    const id = setInterval(invalidateNotes, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
   }, [queryClient]);
 }
