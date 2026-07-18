@@ -18,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useUpdateTask } from "@workspace/api-client-react";
+import { useUpdateTask, getListTasksQueryKey } from "@workspace/api-client-react";
 import type { Task, TaskStatus } from "@workspace/api-client-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
@@ -247,8 +247,13 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
     updateTask(
       { id: activeId, data: { status: newStatus } },
       {
-        onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+        onSuccess: (updated) => {
+          // Patch the individual task cache used by task-detail
+          queryClient.setQueryData(["getTask", activeId], updated);
+          // Invalidate all list-task queries (covers both the default Orval key
+          // and custom keys like ["listTasks", { projectId }] in project-detail)
+          queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["listTasks"] });
         },
         onError: () => {
           toast({
@@ -256,8 +261,10 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
             description: "Failed to update task status.",
             variant: "destructive",
           });
-          // No need to revert — optimistic override already cleared
-          queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
+          // Revert all caches to server state
+          queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+          queryClient.invalidateQueries({ queryKey: ["listTasks"] });
+          queryClient.invalidateQueries({ queryKey: ["getTask", activeId] });
         },
       }
     );
