@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * The member's role within the organization.
+ */
 export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
 
 

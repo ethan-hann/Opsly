@@ -6,11 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A comment attached to a task.
+ */
 export interface Comment {
+  /** Auto-incremented primary key. */
   id: number;
+  /** ID of the task this comment belongs to. */
   taskId: number;
+  /** Plain-text body of the comment. */
   content: string;
-  /** @nullable */
+  /**
+     * Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.
+     * @nullable
+     */
   author?: string | null;
+  /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
 }

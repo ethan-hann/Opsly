@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null.
+ */
 export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
 
 

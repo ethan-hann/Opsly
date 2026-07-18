@@ -6,7 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Target user to invite. At least one of `email` or `userId` must be provided; both may be supplied together.
+ */
 export interface InviteMemberInput {
+  /** Email address of the user to invite. */
   email?: string;
+  /** User ID of the user to invite. */
   userId?: string;
 }

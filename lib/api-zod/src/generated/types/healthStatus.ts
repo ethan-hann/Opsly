@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Server health status payload.
+ */
 export interface HealthStatus {
+  /** Health status string. Returns `"ok"` when the server is healthy. */
   status: string;
 }

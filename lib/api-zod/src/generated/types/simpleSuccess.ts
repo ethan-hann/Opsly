@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Generic success acknowledgement with no additional data.
+ */
 export interface SimpleSuccess {
+  /** Always `true` when the operation completed successfully. */
   success: boolean;
 }

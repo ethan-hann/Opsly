@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.
+ */
 export type ProjectPriority = typeof ProjectPriority[keyof typeof ProjectPriority];
 
 

@@ -8,11 +8,21 @@
 import type { ProjectInputPriority } from './projectInputPriority';
 import type { ProjectInputStatus } from './projectInputStatus';
 
+/**
+ * Fields required to create a new project.
+ */
 export interface ProjectInput {
-  /** @minLength 1 */
+  /**
+     * Display name of the project (must be non-empty).
+     * @minLength 1
+     */
   name: string;
+  /** Optional description of the project's scope and goals. */
   description?: string;
+  /** Initial lifecycle status of the project. */
   status: ProjectInputStatus;
+  /** Importance level of the project. */
   priority: ProjectInputPriority;
+  /** Target completion date in `YYYY-MM-DD` format. */
   dueDate?: string;
 }

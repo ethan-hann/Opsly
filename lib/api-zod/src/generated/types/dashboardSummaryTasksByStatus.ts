@@ -6,9 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Task counts grouped by status value.
+ */
 export type DashboardSummaryTasksByStatus = {
+  /** Number of tasks with status `todo`. */
   todo: number;
+  /** Number of tasks with status `in_progress`. */
   in_progress: number;
+  /** Number of tasks with status `blocked`. */
   blocked: number;
+  /** Number of tasks with status `done`. */
   done: number;
 };

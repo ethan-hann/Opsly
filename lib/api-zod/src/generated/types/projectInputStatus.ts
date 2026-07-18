@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Initial lifecycle status of the project.
+ */
 export type ProjectInputStatus = typeof ProjectInputStatus[keyof typeof ProjectInputStatus];
 
 

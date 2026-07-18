@@ -7,6 +7,6 @@
  */
 
 /**
- * Opaque session token — `Bearer <sid>`.
+ * Opaque session token in the form `Bearer <sid>`. Used by mobile clients in place of the session cookie. Passed to the session middleware which resolves the user; ignored if no matching session exists.
  */
 export type AuthorizationSessionHeaderParameter = string;

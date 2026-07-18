@@ -6,14 +6,30 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Profile of the currently authenticated user as stored in the session.
+ */
 export interface AuthUser {
+  /** Unique user ID from the OIDC provider (`sub` claim). */
   id: string;
-  /** @nullable */
+  /**
+     * User's email address. May be null if the provider did not supply one.
+     * @nullable
+     */
   email: string | null;
-  /** @nullable */
+  /**
+     * User's given name. Null if not provided by the OIDC provider.
+     * @nullable
+     */
   firstName: string | null;
-  /** @nullable */
+  /**
+     * User's family name. Null if not provided by the OIDC provider.
+     * @nullable
+     */
   lastName: string | null;
-  /** @nullable */
+  /**
+     * URL of the user's profile picture. Null if not provided.
+     * @nullable
+     */
   profileImageUrl: string | null;
 }

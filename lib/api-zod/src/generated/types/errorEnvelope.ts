@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Standard error response body returned on 4xx and 5xx responses.
+ */
 export interface ErrorEnvelope {
+  /** Human-readable error message describing what went wrong. */
   error: string;
 }

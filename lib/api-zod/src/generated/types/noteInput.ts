@@ -7,11 +7,20 @@
  */
 import type { NoteVisibility } from './noteVisibility';
 
+/**
+ * Fields for creating a new note. All fields are optional except that a useful note should have at least a title or content.
+ */
 export interface NoteInput {
-  /** @minLength 1 */
+  /**
+     * Short descriptive title for the note.
+     * @minLength 1
+     */
   title?: string;
+  /** Rich-text body of the note. */
   content?: string;
   visibility?: NoteVisibility;
+  /** Link this note to a project. Must belong to the caller's org. */
   projectId?: number;
+  /** Link this note to a task. Must belong to the caller's org. */
   taskId?: number;
 }

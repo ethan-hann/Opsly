@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * New priority level.
+ */
 export type ProjectUpdatePriority = typeof ProjectUpdatePriority[keyof typeof ProjectUpdatePriority];
 
 

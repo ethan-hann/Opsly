@@ -6,7 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Public preview of an invitation, returned without authentication so the invite landing page can display the organization name before the user logs in.
+ */
 export interface InvitationPreview {
+  /** Display name of the organization the user is being invited to join. */
   orgName: string;
+  /** ISO 8601 timestamp when the invitation expires. */
   expiresAt: string;
 }

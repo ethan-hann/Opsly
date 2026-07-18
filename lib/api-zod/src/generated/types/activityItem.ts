@@ -6,11 +6,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * A single event in the organization's recent activity feed. Events are sourced from recently created tasks, comments, and projects.
+ */
 export interface ActivityItem {
+  /** Synthetic unique ID for the activity item. Task IDs are used directly; comment IDs are offset by 100,000 and project IDs by 200,000 to avoid collisions in the merged list. */
   id: number;
+  /** Event type. One of `task_created`, `comment_added`, or `project_created`. */
   type: string;
+  /** Human-readable description of the activity event. */
   title: string;
+  /** Numeric ID of the primary entity associated with this event. */
   entityId: number;
+  /** Type of the primary entity. One of `task` or `project`. */
   entityType: string;
+  /** ISO 8601 timestamp of when the event occurred. */
   createdAt: string;
 }

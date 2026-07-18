@@ -7,6 +7,12 @@
  */
 
 export type ListNotesParams = {
+/**
+ * Return only notes linked to this project ID.
+ */
 projectId?: number;
+/**
+ * Return only notes linked to this task ID.
+ */
 taskId?: number;
 };

@@ -6,8 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Request body for renaming an organization.
+ */
 export interface RenameOrgInput {
   /**
+     * New display name for the organization (1–200 characters).
      * @minLength 1
      * @maxLength 200
      */

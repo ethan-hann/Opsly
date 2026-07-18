@@ -92,6 +92,7 @@ export const getGetCurrentAuthUserUrl = () => {
 }
 
 /**
+ * Returns the user object for the active session, or `null` when no valid session is present. Accepts either a `Bearer <sid>` Authorization header (mobile) or the `sid` session cookie (browser). Never returns a 401 — callers must check whether the returned `user` field is null.
  * @summary Get the currently authenticated user
  */
 export const getCurrentAuthUser = async ( options?: RequestInit): Promise<AuthUserEnvelope> => {
@@ -176,6 +177,7 @@ export const getBeginBrowserLoginUrl = (params?: BeginBrowserLoginParams,) => {
 }
 
 /**
+ * Generates a PKCE code challenge, stores transient OIDC state in short-lived cookies (`code_verifier`, `nonce`, `state`, `return_to`), and issues a 302 redirect to the OIDC provider's authorization endpoint. Use `returnTo` to control where the browser lands after a successful login; the value must start with `/` and will default to `/` if absent or unsafe.
  * @summary Start the browser OIDC login flow
  */
 export const beginBrowserLogin = async (params?: BeginBrowserLoginParams, options?: RequestInit): Promise<unknown> => {
@@ -260,6 +262,7 @@ export const getHandleBrowserLoginCallbackUrl = (params?: HandleBrowserLoginCall
 }
 
 /**
+ * Validates the OIDC authorization code response using the PKCE verifier and state stored in cookies, exchanges the code for tokens, upserts the user record in the database, creates a session, and redirects to the `returnTo` path. On any failure (missing cookies, invalid state, exchange error) the browser is redirected back to `/api/login`.
  * @summary Complete the browser OIDC login flow
  */
 export const handleBrowserLoginCallback = async (params?: HandleBrowserLoginCallbackParams, options?: RequestInit): Promise<unknown> => {
@@ -344,6 +347,7 @@ export const getLogoutBrowserSessionUrl = (params?: LogoutBrowserSessionParams,)
 }
 
 /**
+ * Destroys the server-side session identified by the `Authorization` header or `sid` cookie, clears the cookie, and redirects to the OIDC provider's end-session endpoint so the provider session is also invalidated. The `returnTo` parameter controls where the provider redirects the browser after logout.
  * @summary Clear the session and begin OIDC logout
  */
 export const logoutBrowserSession = async (params?: LogoutBrowserSessionParams, options?: RequestInit): Promise<unknown> => {
@@ -421,6 +425,7 @@ export const getExchangeMobileAuthorizationCodeUrl = () => {
 }
 
 /**
+ * Accepts the OIDC authorization code produced by a mobile PKCE flow, validates it against the OIDC provider, upserts the user record, and returns an opaque session token (`sid`). The caller must include this token as `Bearer <token>` in the `Authorization` header on subsequent requests. Returns 400 if required fields are missing, 401 if the ID token contains no usable claims, and 500 if the provider token exchange fails.
  * @summary Exchange a mobile OIDC code for a session token
  */
 export const exchangeMobileAuthorizationCode = async (mobileTokenExchangeRequest: MobileTokenExchangeRequest, options?: RequestInit): Promise<MobileTokenExchangeSuccess> => {
@@ -492,6 +497,7 @@ export const getLogoutMobileSessionUrl = () => {
 }
 
 /**
+ * Deletes the server-side session identified by the `Authorization: Bearer <sid>` header. Always returns 200 even when no session is found, so callers can safely call this without knowing whether the token is still valid.
  * @summary Delete a mobile session token
  */
 export const logoutMobileSession = async ( options?: RequestInit): Promise<LogoutSuccess> => {
@@ -563,7 +569,7 @@ export const getHealthCheckUrl = () => {
 }
 
 /**
- * Returns server health status
+ * Returns the current server health status. Intended for load-balancer and uptime probes. Requires no authentication and always responds with HTTP 200 as long as the process is running.
  * @summary Health check
  */
 export const healthCheck = async ( options?: RequestInit): Promise<HealthStatus> => {
@@ -641,6 +647,7 @@ export const getListProjectsUrl = () => {
 }
 
 /**
+ * Returns every project belonging to the caller's organization, ordered by creation date (oldest first). Each project includes aggregated `taskCount` and `completedTaskCount` computed from tasks in the same org. Requires an active org membership; returns 401 if the session is missing or 403 if the user is not a member of any org.
  * @summary List all projects
  */
 export const listProjects = async ( options?: RequestInit): Promise<Project[]> => {
@@ -718,6 +725,7 @@ export const getCreateProjectUrl = () => {
 }
 
 /**
+ * Creates a new project scoped to the caller's organization. The `orgId` is taken from the authenticated session — it cannot be supplied by the caller. Returns 400 if the request body is invalid.
  * @summary Create a new project
  */
 export const createProject = async (projectInput: ProjectInput, options?: RequestInit): Promise<Project> => {
@@ -789,6 +797,7 @@ export const getGetProjectUrl = (id: number,) => {
 }
 
 /**
+ * Retrieves a single project by its numeric ID, scoped to the caller's organization. Returns 404 if the project does not exist or belongs to a different org (to prevent cross-tenant enumeration).
  * @summary Get a project by ID
  */
 export const getProject = async (id: number, options?: RequestInit): Promise<Project> => {
@@ -866,6 +875,7 @@ export const getUpdateProjectUrl = (id: number,) => {
 }
 
 /**
+ * Partially updates one or more fields of an existing project. Only supplied fields are changed; omitted fields retain their current values. Returns 404 if the project does not exist or belongs to a different org. Returns 400 if the request body fails validation.
  * @summary Update a project
  */
 export const updateProject = async (id: number,
@@ -938,6 +948,7 @@ export const getDeleteProjectUrl = (id: number,) => {
 }
 
 /**
+ * Permanently deletes the project. Returns 404 if the project does not exist or belongs to a different org. Associated tasks are not automatically deleted — they retain their `projectId` reference.
  * @summary Delete a project
  */
 export const deleteProject = async (id: number, options?: RequestInit): Promise<void> => {
@@ -1016,6 +1027,7 @@ export const getListTasksUrl = (params?: ListTasksParams,) => {
 }
 
 /**
+ * Returns all tasks for the caller's organization, ordered by creation date (oldest first). Each task is enriched with `projectName` (from the linked project, if any, scoped to the same org) and a `commentCount`. Supply one or more query parameters to narrow the results. Returns 400 if a query parameter value is not a recognized enum value.
  * @summary List tasks with optional filters
  */
 export const listTasks = async (params?: ListTasksParams, options?: RequestInit): Promise<Task[]> => {
@@ -1093,6 +1105,7 @@ export const getCreateTaskUrl = () => {
 }
 
 /**
+ * Creates a new task scoped to the caller's organization. If `projectId` is supplied it must belong to the same org, otherwise a 400 is returned. If `assignee` (an email address) is supplied it must match a member of the org, otherwise a 400 is returned. The `orgId` is set automatically from the session.
  * @summary Create a new task
  */
 export const createTask = async (taskInput: TaskInput, options?: RequestInit): Promise<Task> => {
@@ -1164,6 +1177,7 @@ export const getGetTaskUrl = (id: number,) => {
 }
 
 /**
+ * Retrieves a single task by numeric ID, scoped to the caller's organization. Returns 404 if the task does not exist or belongs to a different org. The response includes the linked project name and comment count.
  * @summary Get a task by ID
  */
 export const getTask = async (id: number, options?: RequestInit): Promise<Task> => {
@@ -1241,6 +1255,7 @@ export const getUpdateTaskUrl = (id: number,) => {
 }
 
 /**
+ * Partially updates one or more fields of a task. Only supplied fields are changed. If `projectId` is provided it must belong to the caller's org. If `assignee` is provided it must be an org member email. Returns 404 if the task is not found. Returns 400 if validation fails.
  * @summary Update a task
  */
 export const updateTask = async (id: number,
@@ -1313,6 +1328,7 @@ export const getDeleteTaskUrl = (id: number,) => {
 }
 
 /**
+ * Permanently deletes the task and returns 204 on success. Returns 404 if the task does not exist or belongs to a different org. Comments attached to the task are cascade-deleted by the database.
  * @summary Delete a task
  */
 export const deleteTask = async (id: number, options?: RequestInit): Promise<void> => {
@@ -1384,6 +1400,7 @@ export const getListCommentsUrl = (id: number,) => {
 }
 
 /**
+ * Returns all comments for the specified task, ordered by creation date (oldest first). The task must belong to the caller's organization; returns 404 if the task is not found or belongs to another org.
  * @summary List comments for a task
  */
 export const listComments = async (id: number, options?: RequestInit): Promise<Comment[]> => {
@@ -1461,6 +1478,7 @@ export const getCreateCommentUrl = (id: number,) => {
 }
 
 /**
+ * Appends a new comment to the specified task. The task must belong to the caller's organization; returns 404 if the task is not found or belongs to another org. Returns 400 if the request body is invalid (e.g. empty `content`).
  * @summary Add a comment to a task
  */
 export const createComment = async (id: number,
@@ -1533,6 +1551,7 @@ export const getDeleteCommentUrl = (id: number,) => {
 }
 
 /**
+ * Permanently deletes a comment by its numeric ID. The server first verifies that the comment's parent task belongs to the caller's org; returns 404 if the comment is not found or if the parent task belongs to a different org (both cases use the same 404 to avoid leaking task existence). Returns 204 on success.
  * @summary Delete a comment
  */
 export const deleteComment = async (id: number, options?: RequestInit): Promise<void> => {
@@ -1611,6 +1630,7 @@ export const getListNotesUrl = (params?: ListNotesParams,) => {
 }
 
 /**
+ * Returns notes visible to the caller within their organization. Visibility rules: the caller always sees their own notes and legacy notes with no owner; `public_read` and `public_write` notes from other org members are also returned. Private notes owned by other members are excluded. Results are ordered by `updatedAt` descending. Optionally filter to a specific project or task using query parameters.
  * @summary List all notes, optionally filtered by project or task
  */
 export const listNotes = async (params?: ListNotesParams, options?: RequestInit): Promise<Note[]> => {
@@ -1688,6 +1708,7 @@ export const getCreateNoteUrl = () => {
 }
 
 /**
+ * Creates a new note scoped to the caller's organization. The `createdBy` field is set automatically to the authenticated user. If `projectId` or `taskId` are supplied they must belong to the same org, otherwise a 400 is returned. Notes default to `private` visibility if no `visibility` is specified.
  * @summary Create a new note
  */
 export const createNote = async (noteInput: NoteInput, options?: RequestInit): Promise<Note> => {
@@ -1759,6 +1780,7 @@ export const getGetNoteUrl = (id: number,) => {
 }
 
 /**
+ * Retrieves a single note by numeric ID within the caller's organization. Returns 404 if the note does not exist or belongs to a different org. Returns 403 if the note exists but is `private` and owned by another user.
  * @summary Get a note by ID
  */
 export const getNote = async (id: number, options?: RequestInit): Promise<Note> => {
@@ -1836,6 +1858,7 @@ export const getUpdateNoteUrl = (id: number,) => {
 }
 
 /**
+ * Partially updates a note. Owners may change any field including `visibility`. Non-owners may edit content on `public_write` notes but cannot change `visibility` (returns 403). Non-owners cannot edit `private` or `public_read` notes (returns 403). If `projectId` or `taskId` are changed they must belong to the same org. Returns 404 if the note is not found.
  * @summary Update a note
  */
 export const updateNote = async (id: number,
@@ -1908,6 +1931,7 @@ export const getDeleteNoteUrl = (id: number,) => {
 }
 
 /**
+ * Permanently deletes a note. Only the note owner can delete it; other org members receive a 403. Returns 404 if the note does not exist or belongs to a different org.
  * @summary Delete a note
  */
 export const deleteNote = async (id: number, options?: RequestInit): Promise<void> => {
@@ -1925,7 +1949,7 @@ export const deleteNote = async (id: number, options?: RequestInit): Promise<voi
 
 
 
-export const getDeleteNoteMutationOptions = <TError = ErrorType<unknown>,
+export const getDeleteNoteMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteNote>>, TError,{id: number}, TContext> => {
 
@@ -1954,12 +1978,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteNoteMutationResult = NonNullable<Awaited<ReturnType<typeof deleteNote>>>
 
-    export type DeleteNoteMutationError = ErrorType<unknown>
+    export type DeleteNoteMutationError = ErrorType<void>
 
     /**
  * @summary Delete a note
  */
-export const useDeleteNote = <TError = ErrorType<unknown>,
+export const useDeleteNote = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteNote>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof deleteNote>>,
@@ -1979,6 +2003,7 @@ export const getGetDashboardSummaryUrl = () => {
 }
 
 /**
+ * Returns aggregated statistics for the caller's organization in a single query: total task and project counts, task counts broken down by status and by priority, the number of overdue tasks (past due date and not `done`), and the number of currently active projects. Scoped strictly to the caller's org.
  * @summary Get dashboard summary stats
  */
 export const getDashboardSummary = async ( options?: RequestInit): Promise<DashboardSummary> => {
@@ -2056,6 +2081,7 @@ export const getGetRecentActivityUrl = () => {
 }
 
 /**
+ * Returns up to 10 recent activity events for the caller's organization, sorted by `createdAt` descending. Events are sourced from the 5 most recently created tasks, the 5 most recently added comments, and the 5 most recently created projects, then merged and truncated. Each item carries a `type` (`task_created`, `comment_added`, or `project_created`), a human-readable `title`, and the `entityId` / `entityType` of the affected object.
  * @summary Get recent activity feed
  */
 export const getRecentActivity = async ( options?: RequestInit): Promise<ActivityItem[]> => {
@@ -2133,6 +2159,7 @@ export const getGetOverdueTasksUrl = () => {
 }
 
 /**
+ * Returns all tasks in the caller's organization whose `dueDate` is strictly before today and whose `status` is not `done`, ordered by `dueDate` ascending (most overdue first). Enriched the same way as the general task list (project name, comment count).
  * @summary Get all overdue tasks
  */
 export const getOverdueTasks = async ( options?: RequestInit): Promise<Task[]> => {
@@ -2210,6 +2237,7 @@ export const getCreateOrgUrl = () => {
 }
 
 /**
+ * Creates a new organization and automatically adds the authenticated user as its first `admin` member. Returns 409 if the caller already belongs to an organization (each user may belong to at most one org). Returns 400 if `name` is missing or empty.
  * @summary Create a new organization (caller becomes admin)
  */
 export const createOrg = async (orgInput: OrgInput, options?: RequestInit): Promise<OrgMeResponse> => {
@@ -2281,6 +2309,7 @@ export const getRenameOrgUrl = () => {
 }
 
 /**
+ * Updates the display name of the caller's organization. Requires `admin` role; returns 403 for non-admins. Returns 400 if `name` is empty or exceeds 200 characters.
  * @summary Rename the current organization (admin only)
  */
 export const renameOrg = async (renameOrgInput: RenameOrgInput, options?: RequestInit): Promise<Organization> => {
@@ -2352,6 +2381,7 @@ export const getGetMyOrgUrl = () => {
 }
 
 /**
+ * Returns the caller's org context: their current organization and role if they are a member, or the oldest non-expired pending invitation targeted at their user ID or email if they are not. When neither condition applies, all three fields (`org`, `role`, `pendingInvitation`) are `null`. Useful for bootstrapping the UI on first load.
  * @summary Get current org membership, role, and any pending invitation
  */
 export const getMyOrg = async ( options?: RequestInit): Promise<OrgMeResponse> => {
@@ -2429,6 +2459,7 @@ export const getListOrgMembersUrl = () => {
 }
 
 /**
+ * Returns all members of the caller's organization with their profile information, ordered by join date ascending. Requires org membership; both `admin` and `member` roles can call this endpoint.
  * @summary List all members of the current organization
  */
 export const listOrgMembers = async ( options?: RequestInit): Promise<OrgMemberInfo[]> => {
@@ -2506,6 +2537,7 @@ export const getInviteOrgMemberUrl = () => {
 }
 
 /**
+ * Creates a pending invitation valid for 7 days. Either `email` or `userId` must be provided; providing both is allowed. Returns 409 if the target user is already a member of the org. The invitation can be accepted via `/orgs/invitations/{token}/accept` by any authenticated user whose email or userId matches the invitation. Requires `admin` role.
  * @summary Invite a user to the organization (admin only)
  */
 export const inviteOrgMember = async (inviteMemberInput: InviteMemberInput, options?: RequestInit): Promise<InvitationInfo> => {
@@ -2577,6 +2609,7 @@ export const getGetInvitationPreviewUrl = (token: string,) => {
 }
 
 /**
+ * Returns the organization name and expiry date for a pending, non-expired invitation token without requiring authentication. Used to render the "You've been invited to join {orgName}" page before the user logs in. Returns 404 if the token is not found, already accepted/declined, or expired.
  * @summary Get public preview info for an invitation token (no auth required)
  */
 export const getInvitationPreview = async (token: string, options?: RequestInit): Promise<InvitationPreview> => {
@@ -2654,6 +2687,7 @@ export const getListOrgInvitationsUrl = () => {
 }
 
 /**
+ * Returns all non-expired, pending invitations for the caller's organization, ordered by creation date ascending. Requires `admin` role; returns 403 for non-admins.
  * @summary List pending invitations for the current organization (admin only)
  */
 export const listOrgInvitations = async ( options?: RequestInit): Promise<InvitationInfo[]> => {
@@ -2731,6 +2765,7 @@ export const getCancelOrgInvitationUrl = (id: string,) => {
 }
 
 /**
+ * Permanently deletes a pending invitation by its UUID. Requires `admin` role. Returns 404 if the invitation does not exist, belongs to a different org, or is no longer pending. Returns 403 for non-admins.
  * @summary Cancel a pending invitation (admin only)
  */
 export const cancelOrgInvitation = async (id: string, options?: RequestInit): Promise<void> => {
@@ -2802,6 +2837,7 @@ export const getAcceptOrgInvitationUrl = (token: string,) => {
 }
 
 /**
+ * Accepts the invitation identified by `token`, adds the caller to the organization as a `member`, and marks the invitation as `accepted`. Returns 404 if the token is not found, expired, or no longer pending. Returns 403 if the invitation is not addressed to the caller (checked by matching the caller's userId and email against `invitedUserId` and `invitedEmail`). Returns 409 if the caller already belongs to an organization.
  * @summary Accept a pending invitation
  */
 export const acceptOrgInvitation = async (token: string, options?: RequestInit): Promise<OrgMeResponse> => {
@@ -2819,7 +2855,7 @@ export const acceptOrgInvitation = async (token: string, options?: RequestInit):
 
 
 
-export const getAcceptOrgInvitationMutationOptions = <TError = ErrorType<unknown>,
+export const getAcceptOrgInvitationMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext> => {
 
@@ -2848,12 +2884,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AcceptOrgInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof acceptOrgInvitation>>>
 
-    export type AcceptOrgInvitationMutationError = ErrorType<unknown>
+    export type AcceptOrgInvitationMutationError = ErrorType<void>
 
     /**
  * @summary Accept a pending invitation
  */
-export const useAcceptOrgInvitation = <TError = ErrorType<unknown>,
+export const useAcceptOrgInvitation = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof acceptOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof acceptOrgInvitation>>,
@@ -2873,6 +2909,7 @@ export const getDeclineOrgInvitationUrl = (token: string,) => {
 }
 
 /**
+ * Marks the invitation as `declined`. Returns 404 if the token is not found. Returns 403 if the invitation is not addressed to the caller. The caller does not need to be a member of any org to call this endpoint.
  * @summary Decline a pending invitation
  */
 export const declineOrgInvitation = async (token: string, options?: RequestInit): Promise<SimpleSuccess> => {
@@ -2890,7 +2927,7 @@ export const declineOrgInvitation = async (token: string, options?: RequestInit)
 
 
 
-export const getDeclineOrgInvitationMutationOptions = <TError = ErrorType<unknown>,
+export const getDeclineOrgInvitationMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext> => {
 
@@ -2919,12 +2956,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeclineOrgInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof declineOrgInvitation>>>
 
-    export type DeclineOrgInvitationMutationError = ErrorType<unknown>
+    export type DeclineOrgInvitationMutationError = ErrorType<void>
 
     /**
  * @summary Decline a pending invitation
  */
-export const useDeclineOrgInvitation = <TError = ErrorType<unknown>,
+export const useDeclineOrgInvitation = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof declineOrgInvitation>>, TError,{token: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof declineOrgInvitation>>,
@@ -2944,6 +2981,7 @@ export const getRemoveOrgMemberUrl = (userId: string,) => {
 }
 
 /**
+ * Removes the specified user from the caller's organization. Requires `admin` role. Returns 400 if the caller attempts to remove themselves. Returns 404 if the target user is not a member of the org.
  * @summary Remove a member from the organization (admin only)
  */
 export const removeOrgMember = async (userId: string, options?: RequestInit): Promise<void> => {
@@ -2961,7 +2999,7 @@ export const removeOrgMember = async (userId: string, options?: RequestInit): Pr
 
 
 
-export const getRemoveOrgMemberMutationOptions = <TError = ErrorType<unknown>,
+export const getRemoveOrgMemberMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext> => {
 
@@ -2990,12 +3028,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RemoveOrgMemberMutationResult = NonNullable<Awaited<ReturnType<typeof removeOrgMember>>>
 
-    export type RemoveOrgMemberMutationError = ErrorType<unknown>
+    export type RemoveOrgMemberMutationError = ErrorType<void>
 
     /**
  * @summary Remove a member from the organization (admin only)
  */
-export const useRemoveOrgMember = <TError = ErrorType<unknown>,
+export const useRemoveOrgMember = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeOrgMember>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof removeOrgMember>>,
@@ -3015,6 +3053,7 @@ export const getUpdateOrgMemberRoleUrl = (userId: string,) => {
 }
 
 /**
+ * Updates the role of an org member to `admin` or `member`. Requires `admin` role. Promoting another user to `admin` does not remove the caller's own `admin` status — multiple admins are allowed. Returns 404 if the target user is not a member of this org.
  * @summary Change a member role, or transfer admin (admin only)
  */
 export const updateOrgMemberRole = async (userId: string,
@@ -3033,7 +3072,7 @@ export const updateOrgMemberRole = async (userId: string,
 
 
 
-export const getUpdateOrgMemberRoleMutationOptions = <TError = ErrorType<unknown>,
+export const getUpdateOrgMemberRoleMutationOptions = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext> => {
 
@@ -3062,12 +3101,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateOrgMemberRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrgMemberRole>>>
     export type UpdateOrgMemberRoleMutationBody = BodyType<UpdateMemberRoleInput>
-    export type UpdateOrgMemberRoleMutationError = ErrorType<unknown>
+    export type UpdateOrgMemberRoleMutationError = ErrorType<void>
 
     /**
  * @summary Change a member role, or transfer admin (admin only)
  */
-export const useUpdateOrgMemberRole = <TError = ErrorType<unknown>,
+export const useUpdateOrgMemberRole = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateOrgMemberRole>>,
@@ -3087,6 +3126,7 @@ export const getLeaveOrgUrl = () => {
 }
 
 /**
+ * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the last admin, they should transfer the admin role before leaving; the server does not enforce this constraint automatically.
  * @summary Leave the current organization
  */
 export const leaveOrg = async ( options?: RequestInit): Promise<SimpleSuccess> => {

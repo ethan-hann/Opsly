@@ -6,7 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Confirms a successful logout operation.
+ */
 export const LogoutSuccessValue = {
+  /** Always `true` when the logout request was processed. */
   success: true,
 } as const;
 export type LogoutSuccess = typeof LogoutSuccessValue;

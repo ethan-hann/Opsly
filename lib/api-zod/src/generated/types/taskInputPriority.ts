@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Urgency level of the task.
+ */
 export type TaskInputPriority = typeof TaskInputPriority[keyof typeof TaskInputPriority];
 
 

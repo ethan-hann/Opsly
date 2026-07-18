@@ -9,62 +9,67 @@ import * as zod from 'zod';
 
 
 /**
+ * Returns the user object for the active session, or `null` when no valid session is present. Accepts either a `Bearer <sid>` Authorization header (mobile) or the `sid` session cookie (browser). Never returns a 401 — callers must check whether the returned `user` field is null.
  * @summary Get the currently authenticated user
  */
 export const GetCurrentAuthUserHeader = zod.object({
-  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+  "Authorization": zod.string().optional().describe('Opaque session token in the form `Bearer <sid>`. Used by mobile clients in place of the session cookie. Passed to the session middleware which resolves the user; ignored if no matching session exists.\n')
 })
 
 export const GetCurrentAuthUserResponse = zod.object({
   "user": zod.union([zod.object({
-  "id": zod.string(),
-  "email": zod.string().nullable(),
-  "firstName": zod.string().nullable(),
-  "lastName": zod.string().nullable(),
-  "profileImageUrl": zod.string().nullable()
-}),zod.null()])
-})
+  "id": zod.string().describe('Unique user ID from the OIDC provider (`sub` claim).'),
+  "email": zod.string().nullable().describe('User\'s email address. May be null if the provider did not supply one.'),
+  "firstName": zod.string().nullable().describe('User\'s given name. Null if not provided by the OIDC provider.'),
+  "lastName": zod.string().nullable().describe('User\'s family name. Null if not provided by the OIDC provider.'),
+  "profileImageUrl": zod.string().nullable().describe('URL of the user\'s profile picture. Null if not provided.')
+}).describe('Profile of the currently authenticated user as stored in the session.'),zod.null()])
+}).describe('Wrapper returned by `GET \/auth\/user`. The `user` field is null when no valid session exists.\n')
 
 
 /**
+ * Generates a PKCE code challenge, stores transient OIDC state in short-lived cookies (`code_verifier`, `nonce`, `state`, `return_to`), and issues a 302 redirect to the OIDC provider's authorization endpoint. Use `returnTo` to control where the browser lands after a successful login; the value must start with `/` and will default to `/` if absent or unsafe.
  * @summary Start the browser OIDC login flow
  */
 export const BeginBrowserLoginQueryParams = zod.object({
-  "returnTo": zod.coerce.string().optional()
+  "returnTo": zod.coerce.string().optional().describe('Relative path to redirect to after a successful login. Must start with `\/`. Defaults to `\/` if omitted or invalid.\n')
 })
 
 export const BeginBrowserLoginResponse = zod.void()
 
 
 /**
+ * Validates the OIDC authorization code response using the PKCE verifier and state stored in cookies, exchanges the code for tokens, upserts the user record in the database, creates a session, and redirects to the `returnTo` path. On any failure (missing cookies, invalid state, exchange error) the browser is redirected back to `/api/login`.
  * @summary Complete the browser OIDC login flow
  */
 export const HandleBrowserLoginCallbackQueryParams = zod.object({
-  "code": zod.coerce.string().optional(),
-  "state": zod.coerce.string().optional(),
-  "iss": zod.coerce.string().optional()
+  "code": zod.coerce.string().optional().describe('Authorization code returned by the OIDC provider.'),
+  "state": zod.coerce.string().optional().describe('Opaque state value echoed back by the OIDC provider for CSRF protection.'),
+  "iss": zod.coerce.string().optional().describe('Issuer identifier echoed back by some OIDC providers.')
 })
 
 export const HandleBrowserLoginCallbackResponse = zod.void()
 
 
 /**
+ * Destroys the server-side session identified by the `Authorization` header or `sid` cookie, clears the cookie, and redirects to the OIDC provider's end-session endpoint so the provider session is also invalidated. The `returnTo` parameter controls where the provider redirects the browser after logout.
  * @summary Clear the session and begin OIDC logout
  */
 export const logoutBrowserSessionQueryReturnToDefault = `/`;
 
 export const LogoutBrowserSessionQueryParams = zod.object({
-  "returnTo": zod.coerce.string().default(logoutBrowserSessionQueryReturnToDefault)
+  "returnTo": zod.coerce.string().default(logoutBrowserSessionQueryReturnToDefault).describe('Relative path to redirect to after logout. Must start with `\/`. Defaults to `\/`.\n')
 })
 
 export const LogoutBrowserSessionHeader = zod.object({
-  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+  "Authorization": zod.string().optional().describe('Opaque session token in the form `Bearer <sid>`. Used by mobile clients in place of the session cookie. Passed to the session middleware which resolves the user; ignored if no matching session exists.\n')
 })
 
 export const LogoutBrowserSessionResponse = zod.void()
 
 
 /**
+ * Accepts the OIDC authorization code produced by a mobile PKCE flow, validates it against the OIDC provider, upserts the user record, and returns an opaque session token (`sid`). The caller must include this token as `Bearer <token>` in the `Authorization` header on subsequent requests. Returns 400 if required fields are missing, 401 if the ID token contains no usable claims, and 500 if the provider token exchange fails.
  * @summary Exchange a mobile OIDC code for a session token
  */
 
@@ -75,506 +80,529 @@ export const LogoutBrowserSessionResponse = zod.void()
 
 
 export const ExchangeMobileAuthorizationCodeBody = zod.object({
-  "code": zod.string().min(1),
-  "code_verifier": zod.string().min(1),
-  "redirect_uri": zod.string().min(1),
-  "state": zod.string().min(1),
-  "nonce": zod.string().min(1).optional()
-})
+  "code": zod.string().min(1).describe('Authorization code returned by the OIDC provider.'),
+  "code_verifier": zod.string().min(1).describe('PKCE code verifier that was used to generate the code challenge.'),
+  "redirect_uri": zod.string().min(1).describe('Redirect URI registered with the OIDC provider for this flow.'),
+  "state": zod.string().min(1).describe('Opaque state value used for CSRF protection during the flow.'),
+  "nonce": zod.string().min(1).optional().describe('Optional nonce included in the authorization request for replay protection.')
+}).describe('OIDC authorization code and associated PKCE parameters captured by the mobile app after the user completes the in-app browser login flow.\n')
 
 export const ExchangeMobileAuthorizationCodeResponse = zod.object({
-  "token": zod.string()
-})
+  "token": zod.string().describe('Opaque session ID (`sid`). Include this in the `Authorization: Bearer <token>` header on all subsequent authenticated requests.\n')
+}).describe('Successful mobile token exchange response containing the opaque session token.')
 
 
 /**
+ * Deletes the server-side session identified by the `Authorization: Bearer <sid>` header. Always returns 200 even when no session is found, so callers can safely call this without knowing whether the token is still valid.
  * @summary Delete a mobile session token
  */
 export const LogoutMobileSessionHeader = zod.object({
-  "Authorization": zod.string().optional().describe('Opaque session token — `Bearer <sid>`.')
+  "Authorization": zod.string().optional().describe('Opaque session token in the form `Bearer <sid>`. Used by mobile clients in place of the session cookie. Passed to the session middleware which resolves the user; ignored if no matching session exists.\n')
 })
 
 export const LogoutMobileSessionResponse = zod.object({
-  "success": zod.boolean()
-})
+  "success": zod.boolean().describe('Always `true` when the logout request was processed.')
+}).describe('Confirms a successful logout operation.')
 
 
 /**
- * Returns server health status
+ * Returns the current server health status. Intended for load-balancer and uptime probes. Requires no authentication and always responds with HTTP 200 as long as the process is running.
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
-  "status": zod.string()
-})
+  "status": zod.string().describe('Health status string. Returns `\"ok\"` when the server is healthy.\n')
+}).describe('Server health status payload.')
 
 
 /**
+ * Returns every project belonging to the caller's organization, ordered by creation date (oldest first). Each project includes aggregated `taskCount` and `completedTaskCount` computed from tasks in the same org. Requires an active org membership; returns 401 if the session is missing or 403 if the user is not a member of any org.
  * @summary List all projects
  */
 export const ListProjectsResponseItem = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "dueDate": zod.string().nullish(),
-  "taskCount": zod.number().optional(),
-  "completedTaskCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "name": zod.string().describe('Human-readable project name.'),
+  "description": zod.string().nullish().describe('Optional longer description of the project\'s scope and goals.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).describe('Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.\n'),
+  "dueDate": zod.string().nullish().describe('Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
+  "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
+}).describe('An IT project grouping related tasks within an organization.')
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem)
 
 
 /**
+ * Creates a new project scoped to the caller's organization. The `orgId` is taken from the authenticated session — it cannot be supplied by the caller. Returns 400 if the request body is invalid.
  * @summary Create a new project
  */
 
 
 
 export const CreateProjectBody = zod.object({
-  "name": zod.string().min(1),
-  "description": zod.string().optional(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "dueDate": zod.string().optional()
-})
+  "name": zod.string().min(1).describe('Display name of the project (must be non-empty).'),
+  "description": zod.string().optional().describe('Optional description of the project\'s scope and goals.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).describe('Initial lifecycle status of the project.'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Importance level of the project.'),
+  "dueDate": zod.string().optional().describe('Target completion date in `YYYY-MM-DD` format.')
+}).describe('Fields required to create a new project.')
 
 export const CreateProjectResponse = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "dueDate": zod.string().nullish(),
-  "taskCount": zod.number().optional(),
-  "completedTaskCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "name": zod.string().describe('Human-readable project name.'),
+  "description": zod.string().nullish().describe('Optional longer description of the project\'s scope and goals.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).describe('Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.\n'),
+  "dueDate": zod.string().nullish().describe('Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
+  "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
+}).describe('An IT project grouping related tasks within an organization.')
 
 
 /**
+ * Retrieves a single project by its numeric ID, scoped to the caller's organization. Returns 404 if the project does not exist or belongs to a different org (to prevent cross-tenant enumeration).
  * @summary Get a project by ID
  */
 export const GetProjectParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the project.')
 })
 
 export const GetProjectResponse = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "dueDate": zod.string().nullish(),
-  "taskCount": zod.number().optional(),
-  "completedTaskCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "name": zod.string().describe('Human-readable project name.'),
+  "description": zod.string().nullish().describe('Optional longer description of the project\'s scope and goals.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).describe('Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.\n'),
+  "dueDate": zod.string().nullish().describe('Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
+  "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
+}).describe('An IT project grouping related tasks within an organization.')
 
 
 /**
+ * Partially updates one or more fields of an existing project. Only supplied fields are changed; omitted fields retain their current values. Returns 404 if the project does not exist or belongs to a different org. Returns 400 if the request body fails validation.
  * @summary Update a project
  */
 export const UpdateProjectParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the project to update.')
 })
 
 
 
 
 export const UpdateProjectBody = zod.object({
-  "name": zod.string().min(1).optional(),
-  "description": zod.string().optional(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).optional(),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
-  "dueDate": zod.string().optional()
-})
+  "name": zod.string().min(1).optional().describe('New display name for the project.'),
+  "description": zod.string().optional().describe('Updated description.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).optional().describe('New lifecycle status.'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
+  "dueDate": zod.string().optional().describe('New target completion date in `YYYY-MM-DD` format.')
+}).describe('Partial update for an existing project. All fields are optional.')
 
 export const UpdateProjectResponse = zod.object({
-  "id": zod.number(),
-  "name": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "dueDate": zod.string().nullish(),
-  "taskCount": zod.number().optional(),
-  "completedTaskCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "name": zod.string().describe('Human-readable project name.'),
+  "description": zod.string().nullish().describe('Optional longer description of the project\'s scope and goals.'),
+  "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).describe('Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.\n'),
+  "dueDate": zod.string().nullish().describe('Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
+  "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
+}).describe('An IT project grouping related tasks within an organization.')
 
 
 /**
+ * Permanently deletes the project. Returns 404 if the project does not exist or belongs to a different org. Associated tasks are not automatically deleted — they retain their `projectId` reference.
  * @summary Delete a project
  */
 export const DeleteProjectParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the project to delete.')
 })
 
 export const DeleteProjectResponse = zod.void()
 
 
 /**
+ * Returns all tasks for the caller's organization, ordered by creation date (oldest first). Each task is enriched with `projectName` (from the linked project, if any, scoped to the same org) and a `commentCount`. Supply one or more query parameters to narrow the results. Returns 400 if a query parameter value is not a recognized enum value.
  * @summary List tasks with optional filters
  */
 export const ListTasksQueryParams = zod.object({
-  "projectId": zod.coerce.number().optional(),
-  "status": zod.coerce.string().optional(),
-  "priority": zod.coerce.string().optional(),
-  "category": zod.coerce.string().optional()
+  "projectId": zod.coerce.number().optional().describe('Filter tasks by project ID. Returns only tasks linked to this project.'),
+  "status": zod.coerce.string().optional().describe('Filter by task status. One of `todo`, `in_progress`, `blocked`, or `done`.\n'),
+  "priority": zod.coerce.string().optional().describe('Filter by task priority. One of `low`, `medium`, `high`, or `critical`.\n'),
+  "category": zod.coerce.string().optional().describe('Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.\n')
 })
 
 export const ListTasksResponseItem = zod.object({
-  "id": zod.number(),
-  "projectId": zod.number().nullish(),
-  "projectName": zod.string().nullish(),
-  "title": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().nullish(),
-  "dueDate": zod.string().nullish(),
-  "commentCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
+  "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
+  "title": zod.string().describe('Short, descriptive title of the task.'),
+  "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn\'t fit.\n'),
+  "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
+  "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 export const ListTasksResponse = zod.array(ListTasksResponseItem)
 
 
 /**
+ * Creates a new task scoped to the caller's organization. If `projectId` is supplied it must belong to the same org, otherwise a 400 is returned. If `assignee` (an email address) is supplied it must match a member of the org, otherwise a 400 is returned. The `orgId` is set automatically from the session.
  * @summary Create a new task
  */
 
 
 
 export const CreateTaskBody = zod.object({
-  "projectId": zod.number().optional(),
-  "title": zod.string().min(1),
-  "description": zod.string().optional(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().optional(),
-  "dueDate": zod.string().optional()
-})
+  "projectId": zod.number().optional().describe('ID of the project to link this task to. Must belong to the caller\'s org; omit to create an unlinked task.\n'),
+  "title": zod.string().min(1).describe('Short, descriptive title for the task (must be non-empty).'),
+  "description": zod.string().optional().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Initial status of the task.'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency level of the task.'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category for the task.'),
+  "assignee": zod.string().optional().describe('Email address of the org member to assign. Must match an existing org member; omit to leave unassigned.\n'),
+  "dueDate": zod.string().optional().describe('Task deadline in `YYYY-MM-DD` format.')
+}).describe('Fields required to create a new task.')
 
 export const CreateTaskResponse = zod.object({
-  "id": zod.number(),
-  "projectId": zod.number().nullish(),
-  "projectName": zod.string().nullish(),
-  "title": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().nullish(),
-  "dueDate": zod.string().nullish(),
-  "commentCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
+  "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
+  "title": zod.string().describe('Short, descriptive title of the task.'),
+  "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn\'t fit.\n'),
+  "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
+  "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
 /**
+ * Retrieves a single task by numeric ID, scoped to the caller's organization. Returns 404 if the task does not exist or belongs to a different org. The response includes the linked project name and comment count.
  * @summary Get a task by ID
  */
 export const GetTaskParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the task.')
 })
 
 export const GetTaskResponse = zod.object({
-  "id": zod.number(),
-  "projectId": zod.number().nullish(),
-  "projectName": zod.string().nullish(),
-  "title": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().nullish(),
-  "dueDate": zod.string().nullish(),
-  "commentCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
+  "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
+  "title": zod.string().describe('Short, descriptive title of the task.'),
+  "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn\'t fit.\n'),
+  "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
+  "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
 /**
+ * Partially updates one or more fields of a task. Only supplied fields are changed. If `projectId` is provided it must belong to the caller's org. If `assignee` is provided it must be an org member email. Returns 404 if the task is not found. Returns 400 if validation fails.
  * @summary Update a task
  */
 export const UpdateTaskParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the task to update.')
 })
 
 
 
 
 export const UpdateTaskBody = zod.object({
-  "projectId": zod.number().nullish(),
-  "title": zod.string().min(1).optional(),
-  "description": zod.string().optional(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional(),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional(),
-  "assignee": zod.string().optional(),
-  "dueDate": zod.string().optional()
-})
+  "projectId": zod.number().nullish().describe('Updated project link. Pass `null` to unlink from the current project. Must belong to the caller\'s org if non-null.\n'),
+  "title": zod.string().min(1).optional().describe('New task title.'),
+  "description": zod.string().optional().describe('Updated description.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional().describe('New task status.'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('New IT operational category.'),
+  "assignee": zod.string().optional().describe('Updated assignee email. Must match an org member. Pass an empty value or omit to leave unchanged.\n'),
+  "dueDate": zod.string().optional().describe('Updated deadline in `YYYY-MM-DD` format.')
+}).describe('Partial update for an existing task. All fields are optional.')
 
 export const UpdateTaskResponse = zod.object({
-  "id": zod.number(),
-  "projectId": zod.number().nullish(),
-  "projectName": zod.string().nullish(),
-  "title": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().nullish(),
-  "dueDate": zod.string().nullish(),
-  "commentCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
+  "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
+  "title": zod.string().describe('Short, descriptive title of the task.'),
+  "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn\'t fit.\n'),
+  "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
+  "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
 /**
+ * Permanently deletes the task and returns 204 on success. Returns 404 if the task does not exist or belongs to a different org. Comments attached to the task are cascade-deleted by the database.
  * @summary Delete a task
  */
 export const DeleteTaskParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the task to delete.')
 })
 
 export const DeleteTaskResponse = zod.void()
 
 
 /**
+ * Returns all comments for the specified task, ordered by creation date (oldest first). The task must belong to the caller's organization; returns 404 if the task is not found or belongs to another org.
  * @summary List comments for a task
  */
 export const ListCommentsParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the task whose comments to list.')
 })
 
 export const ListCommentsResponseItem = zod.object({
-  "id": zod.number(),
-  "taskId": zod.number(),
-  "content": zod.string(),
-  "author": zod.string().nullish(),
-  "createdAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('ID of the task this comment belongs to.'),
+  "content": zod.string().describe('Plain-text body of the comment.'),
+  "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.')
+}).describe('A comment attached to a task.')
 export const ListCommentsResponse = zod.array(ListCommentsResponseItem)
 
 
 /**
+ * Appends a new comment to the specified task. The task must belong to the caller's organization; returns 404 if the task is not found or belongs to another org. Returns 400 if the request body is invalid (e.g. empty `content`).
  * @summary Add a comment to a task
  */
 export const CreateCommentParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the task to comment on.')
 })
 
 
 
 
 export const CreateCommentBody = zod.object({
-  "content": zod.string().min(1),
-  "author": zod.string().optional()
-})
+  "content": zod.string().min(1).describe('Plain-text body of the comment (must be non-empty).'),
+  "author": zod.string().optional().describe('Optional display name for the author. Not validated against org membership; purely informational.\n')
+}).describe('Fields required to add a comment to a task.')
 
 export const CreateCommentResponse = zod.object({
-  "id": zod.number(),
-  "taskId": zod.number(),
-  "content": zod.string(),
-  "author": zod.string().nullish(),
-  "createdAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('ID of the task this comment belongs to.'),
+  "content": zod.string().describe('Plain-text body of the comment.'),
+  "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.')
+}).describe('A comment attached to a task.')
 
 
 /**
+ * Permanently deletes a comment by its numeric ID. The server first verifies that the comment's parent task belongs to the caller's org; returns 404 if the comment is not found or if the parent task belongs to a different org (both cases use the same 404 to avoid leaking task existence). Returns 204 on success.
  * @summary Delete a comment
  */
 export const DeleteCommentParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the comment to delete.')
 })
 
 export const DeleteCommentResponse = zod.void()
 
 
 /**
+ * Returns notes visible to the caller within their organization. Visibility rules: the caller always sees their own notes and legacy notes with no owner; `public_read` and `public_write` notes from other org members are also returned. Private notes owned by other members are excluded. Results are ordered by `updatedAt` descending. Optionally filter to a specific project or task using query parameters.
  * @summary List all notes, optionally filtered by project or task
  */
 export const ListNotesQueryParams = zod.object({
-  "projectId": zod.coerce.number().optional(),
-  "taskId": zod.coerce.number().optional()
+  "projectId": zod.coerce.number().optional().describe('Return only notes linked to this project ID.'),
+  "taskId": zod.coerce.number().optional().describe('Return only notes linked to this task ID.')
 })
 
 export const ListNotesResponseItem = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']),
-  "isOwner": zod.boolean(),
-  "createdBy": zod.string().nullish(),
-  "projectId": zod.number().nullish(),
-  "taskId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "title": zod.string().describe('Short descriptive title for the note.'),
+  "content": zod.string().describe('Rich-text body of the note (typically stored as HTML or Markdown).'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "isOwner": zod.boolean().describe('True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note.\n'),
+  "createdBy": zod.string().nullish().describe('User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.\n'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if not associated with a project.'),
+  "taskId": zod.number().nullish().describe('ID of the linked task. Null if not associated with a task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the note was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the note was last updated.')
+}).describe('A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.\n')
 export const ListNotesResponse = zod.array(ListNotesResponseItem)
 
 
 /**
+ * Creates a new note scoped to the caller's organization. The `createdBy` field is set automatically to the authenticated user. If `projectId` or `taskId` are supplied they must belong to the same org, otherwise a 400 is returned. Notes default to `private` visibility if no `visibility` is specified.
  * @summary Create a new note
  */
 
 
 
 export const CreateNoteBody = zod.object({
-  "title": zod.string().min(1).optional(),
-  "content": zod.string().optional(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional(),
-  "projectId": zod.number().optional(),
-  "taskId": zod.number().optional()
-})
+  "title": zod.string().min(1).optional().describe('Short descriptive title for the note.'),
+  "content": zod.string().optional().describe('Rich-text body of the note.'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "projectId": zod.number().optional().describe('Link this note to a project. Must belong to the caller\'s org.\n'),
+  "taskId": zod.number().optional().describe('Link this note to a task. Must belong to the caller\'s org.\n')
+}).describe('Fields for creating a new note. All fields are optional except that a useful note should have at least a title or content.')
 
 export const CreateNoteResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']),
-  "isOwner": zod.boolean(),
-  "createdBy": zod.string().nullish(),
-  "projectId": zod.number().nullish(),
-  "taskId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "title": zod.string().describe('Short descriptive title for the note.'),
+  "content": zod.string().describe('Rich-text body of the note (typically stored as HTML or Markdown).'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "isOwner": zod.boolean().describe('True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note.\n'),
+  "createdBy": zod.string().nullish().describe('User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.\n'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if not associated with a project.'),
+  "taskId": zod.number().nullish().describe('ID of the linked task. Null if not associated with a task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the note was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the note was last updated.')
+}).describe('A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.\n')
 
 
 /**
+ * Retrieves a single note by numeric ID within the caller's organization. Returns 404 if the note does not exist or belongs to a different org. Returns 403 if the note exists but is `private` and owned by another user.
  * @summary Get a note by ID
  */
 export const GetNoteParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the note.')
 })
 
 export const GetNoteResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']),
-  "isOwner": zod.boolean(),
-  "createdBy": zod.string().nullish(),
-  "projectId": zod.number().nullish(),
-  "taskId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "title": zod.string().describe('Short descriptive title for the note.'),
+  "content": zod.string().describe('Rich-text body of the note (typically stored as HTML or Markdown).'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "isOwner": zod.boolean().describe('True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note.\n'),
+  "createdBy": zod.string().nullish().describe('User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.\n'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if not associated with a project.'),
+  "taskId": zod.number().nullish().describe('ID of the linked task. Null if not associated with a task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the note was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the note was last updated.')
+}).describe('A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.\n')
 
 
 /**
+ * Partially updates a note. Owners may change any field including `visibility`. Non-owners may edit content on `public_write` notes but cannot change `visibility` (returns 403). Non-owners cannot edit `private` or `public_read` notes (returns 403). If `projectId` or `taskId` are changed they must belong to the same org. Returns 404 if the note is not found.
  * @summary Update a note
  */
 export const UpdateNoteParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the note to update.')
 })
 
 
 
 
 export const UpdateNoteBody = zod.object({
-  "title": zod.string().min(1).optional(),
-  "content": zod.string().optional(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional(),
-  "projectId": zod.number().nullish(),
-  "taskId": zod.number().nullish()
-})
+  "title": zod.string().min(1).optional().describe('New title for the note.'),
+  "content": zod.string().optional().describe('Updated rich-text body.'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "projectId": zod.number().nullish().describe('Updated project link. Pass `null` to remove the association. Must belong to the caller\'s org if non-null. Only the note owner can change this.\n'),
+  "taskId": zod.number().nullish().describe('Updated task link. Pass `null` to remove the association. Must belong to the caller\'s org if non-null. Only the note owner can change this.\n')
+}).describe('Partial update for an existing note. All fields are optional.')
 
 export const UpdateNoteResponse = zod.object({
-  "id": zod.number(),
-  "title": zod.string(),
-  "content": zod.string(),
-  "visibility": zod.enum(['private', 'public_read', 'public_write']),
-  "isOwner": zod.boolean(),
-  "createdBy": zod.string().nullish(),
-  "projectId": zod.number().nullish(),
-  "taskId": zod.number().nullish(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "title": zod.string().describe('Short descriptive title for the note.'),
+  "content": zod.string().describe('Rich-text body of the note (typically stored as HTML or Markdown).'),
+  "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).\n'),
+  "isOwner": zod.boolean().describe('True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note.\n'),
+  "createdBy": zod.string().nullish().describe('User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.\n'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if not associated with a project.'),
+  "taskId": zod.number().nullish().describe('ID of the linked task. Null if not associated with a task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the note was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the note was last updated.')
+}).describe('A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.\n')
 
 
 /**
+ * Permanently deletes a note. Only the note owner can delete it; other org members receive a 403. Returns 404 if the note does not exist or belongs to a different org.
  * @summary Delete a note
  */
 export const DeleteNoteParams = zod.object({
-  "id": zod.coerce.number()
+  "id": zod.coerce.number().describe('Numeric ID of the note to delete.')
 })
 
 export const DeleteNoteResponse = zod.void()
 
 
 /**
+ * Returns aggregated statistics for the caller's organization in a single query: total task and project counts, task counts broken down by status and by priority, the number of overdue tasks (past due date and not `done`), and the number of currently active projects. Scoped strictly to the caller's org.
  * @summary Get dashboard summary stats
  */
 export const GetDashboardSummaryResponse = zod.object({
-  "totalTasks": zod.number(),
-  "totalProjects": zod.number(),
+  "totalTasks": zod.number().describe('Total number of tasks in the organization regardless of status.'),
+  "totalProjects": zod.number().describe('Total number of projects in the organization regardless of status.'),
   "tasksByStatus": zod.object({
-  "todo": zod.number(),
-  "in_progress": zod.number(),
-  "blocked": zod.number(),
-  "done": zod.number()
-}),
+  "todo": zod.number().describe('Number of tasks with status `todo`.'),
+  "in_progress": zod.number().describe('Number of tasks with status `in_progress`.'),
+  "blocked": zod.number().describe('Number of tasks with status `blocked`.'),
+  "done": zod.number().describe('Number of tasks with status `done`.')
+}).describe('Task counts grouped by status value.'),
   "tasksByPriority": zod.object({
-  "low": zod.number(),
-  "medium": zod.number(),
-  "high": zod.number(),
-  "critical": zod.number()
-}),
-  "overdueCount": zod.number(),
-  "activeProjects": zod.number()
-})
+  "low": zod.number().describe('Number of tasks with priority `low`.'),
+  "medium": zod.number().describe('Number of tasks with priority `medium`.'),
+  "high": zod.number().describe('Number of tasks with priority `high`.'),
+  "critical": zod.number().describe('Number of tasks with priority `critical`.')
+}).describe('Task counts grouped by priority level.'),
+  "overdueCount": zod.number().describe('Number of tasks whose `dueDate` is before today and whose status is not `done`.\n'),
+  "activeProjects": zod.number().describe('Number of projects with status `active`.')
+}).describe('Aggregated statistics for the caller\'s organization, computed in real time.')
 
 
 /**
+ * Returns up to 10 recent activity events for the caller's organization, sorted by `createdAt` descending. Events are sourced from the 5 most recently created tasks, the 5 most recently added comments, and the 5 most recently created projects, then merged and truncated. Each item carries a `type` (`task_created`, `comment_added`, or `project_created`), a human-readable `title`, and the `entityId` / `entityType` of the affected object.
  * @summary Get recent activity feed
  */
 export const GetRecentActivityResponseItem = zod.object({
-  "id": zod.number(),
-  "type": zod.string(),
-  "title": zod.string(),
-  "entityId": zod.number(),
-  "entityType": zod.string(),
-  "createdAt": zod.string()
-})
+  "id": zod.number().describe('Synthetic unique ID for the activity item. Task IDs are used directly; comment IDs are offset by 100,000 and project IDs by 200,000 to avoid collisions in the merged list.\n'),
+  "type": zod.string().describe('Event type. One of `task_created`, `comment_added`, or `project_created`.\n'),
+  "title": zod.string().describe('Human-readable description of the activity event.'),
+  "entityId": zod.number().describe('Numeric ID of the primary entity associated with this event.'),
+  "entityType": zod.string().describe('Type of the primary entity. One of `task` or `project`.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp of when the event occurred.')
+}).describe('A single event in the organization\'s recent activity feed. Events are sourced from recently created tasks, comments, and projects.\n')
 export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem)
 
 
 /**
+ * Returns all tasks in the caller's organization whose `dueDate` is strictly before today and whose `status` is not `done`, ordered by `dueDate` ascending (most overdue first). Enriched the same way as the general task list (project name, comment count).
  * @summary Get all overdue tasks
  */
 export const GetOverdueTasksResponseItem = zod.object({
-  "id": zod.number(),
-  "projectId": zod.number().nullish(),
-  "projectName": zod.string().nullish(),
-  "title": zod.string(),
-  "description": zod.string().nullish(),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']),
-  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
-  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
-  "assignee": zod.string().nullish(),
-  "dueDate": zod.string().nullish(),
-  "commentCount": zod.number().optional(),
-  "createdAt": zod.string(),
-  "updatedAt": zod.string()
-})
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "projectId": zod.number().nullish().describe('ID of the linked project. Null if the task is not associated with a project.'),
+  "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
+  "title": zod.string().describe('Short, descriptive title of the task.'),
+  "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.\n'),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn\'t fit.\n'),
+  "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
+  "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
+  "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
 
 /**
+ * Creates a new organization and automatically adds the authenticated user as its first `admin` member. Returns 409 if the caller already belongs to an organization (each user may belong to at most one org). Returns 400 if `name` is missing or empty.
  * @summary Create a new organization (caller becomes admin)
  */
 export const createOrgBodyNameMax = 200;
@@ -582,27 +610,28 @@ export const createOrgBodyNameMax = 200;
 
 
 export const CreateOrgBody = zod.object({
-  "name": zod.string().min(1).max(createOrgBodyNameMax)
-})
+  "name": zod.string().min(1).max(createOrgBodyNameMax).describe('Display name for the new organization (1–200 characters).')
+}).describe('Request body for creating a new organization.')
 
 export const CreateOrgResponse = zod.object({
   "org": zod.union([zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "createdAt": zod.string()
-}),zod.null()]),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "id": zod.string().describe('UUID of the organization.'),
+  "name": zod.string().describe('Display name of the organization.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+}).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
   "pendingInvitation": zod.union([zod.object({
-  "id": zod.string(),
-  "orgId": zod.string(),
-  "orgName": zod.string(),
-  "token": zod.string(),
-  "expiresAt": zod.string()
-}),zod.null()])
-})
+  "id": zod.string().describe('UUID of the invitation.'),
+  "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
+  "orgName": zod.string().describe('Display name of the inviting organization.'),
+  "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
 
 
 /**
+ * Updates the display name of the caller's organization. Requires `admin` role; returns 403 for non-admins. Returns 400 if `name` is empty or exceeds 200 characters.
  * @summary Rename the current organization (admin only)
  */
 export const renameOrgBodyNameMax = 200;
@@ -610,183 +639,194 @@ export const renameOrgBodyNameMax = 200;
 
 
 export const RenameOrgBody = zod.object({
-  "name": zod.string().min(1).max(renameOrgBodyNameMax)
-})
+  "name": zod.string().min(1).max(renameOrgBodyNameMax).describe('New display name for the organization (1–200 characters).')
+}).describe('Request body for renaming an organization.')
 
 export const RenameOrgResponse = zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "createdAt": zod.string()
-})
+  "id": zod.string().describe('UUID of the organization.'),
+  "name": zod.string().describe('Display name of the organization.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+}).describe('An organization record.')
 
 
 /**
+ * Returns the caller's org context: their current organization and role if they are a member, or the oldest non-expired pending invitation targeted at their user ID or email if they are not. When neither condition applies, all three fields (`org`, `role`, `pendingInvitation`) are `null`. Useful for bootstrapping the UI on first load.
  * @summary Get current org membership, role, and any pending invitation
  */
 export const GetMyOrgResponse = zod.object({
   "org": zod.union([zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "createdAt": zod.string()
-}),zod.null()]),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "id": zod.string().describe('UUID of the organization.'),
+  "name": zod.string().describe('Display name of the organization.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+}).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
   "pendingInvitation": zod.union([zod.object({
-  "id": zod.string(),
-  "orgId": zod.string(),
-  "orgName": zod.string(),
-  "token": zod.string(),
-  "expiresAt": zod.string()
-}),zod.null()])
-})
+  "id": zod.string().describe('UUID of the invitation.'),
+  "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
+  "orgName": zod.string().describe('Display name of the inviting organization.'),
+  "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
 
 
 /**
+ * Returns all members of the caller's organization with their profile information, ordered by join date ascending. Requires org membership; both `admin` and `member` roles can call this endpoint.
  * @summary List all members of the current organization
  */
 export const ListOrgMembersResponseItem = zod.object({
-  "userId": zod.string(),
-  "role": zod.enum(['admin', 'member']),
-  "joinedAt": zod.string(),
-  "firstName": zod.string().nullish(),
-  "lastName": zod.string().nullish(),
-  "email": zod.string().nullish(),
-  "profileImageUrl": zod.string().nullish()
-})
+  "userId": zod.string().describe('Unique user ID of the member.'),
+  "role": zod.enum(['admin', 'member']).describe('The member\'s role within the organization.'),
+  "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
+  "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
+  "lastName": zod.string().nullish().describe('Member\'s family name. Null if not set in their profile.'),
+  "email": zod.string().nullish().describe('Member\'s email address. Null if not set in their profile.'),
+  "profileImageUrl": zod.string().nullish().describe('URL of the member\'s profile picture. Null if not set.')
+}).describe('Profile and membership information for a single org member.')
 export const ListOrgMembersResponse = zod.array(ListOrgMembersResponseItem)
 
 
 /**
+ * Creates a pending invitation valid for 7 days. Either `email` or `userId` must be provided; providing both is allowed. Returns 409 if the target user is already a member of the org. The invitation can be accepted via `/orgs/invitations/{token}/accept` by any authenticated user whose email or userId matches the invitation. Requires `admin` role.
  * @summary Invite a user to the organization (admin only)
  */
 export const InviteOrgMemberBody = zod.object({
-  "email": zod.string().optional(),
-  "userId": zod.string().optional()
-})
+  "email": zod.string().optional().describe('Email address of the user to invite.'),
+  "userId": zod.string().optional().describe('User ID of the user to invite.')
+}).describe('Target user to invite. At least one of `email` or `userId` must be provided; both may be supplied together.\n')
 
 export const InviteOrgMemberResponse = zod.object({
-  "id": zod.string(),
-  "orgId": zod.string(),
-  "invitedEmail": zod.string().nullish(),
-  "invitedUserId": zod.string().nullish(),
-  "token": zod.string(),
-  "status": zod.enum(['pending', 'accepted', 'declined']),
-  "expiresAt": zod.string(),
-  "createdAt": zod.string()
-})
+  "id": zod.string().describe('UUID of the invitation.'),
+  "orgId": zod.string().describe('UUID of the organization that issued the invitation.'),
+  "invitedEmail": zod.string().nullish().describe('Email address the invitation was sent to. Null if the invitation was created by userId only.'),
+  "invitedUserId": zod.string().nullish().describe('User ID the invitation is addressed to. Null if the invitation was created by email only.'),
+  "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
+  "status": zod.enum(['pending', 'accepted', 'declined']).describe('Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it.\n'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when the invitation expires (7 days after creation).'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the invitation was issued.')
+}).describe('Full invitation record visible to admins.')
 
 
 /**
+ * Returns the organization name and expiry date for a pending, non-expired invitation token without requiring authentication. Used to render the "You've been invited to join {orgName}" page before the user logs in. Returns 404 if the token is not found, already accepted/declined, or expired.
  * @summary Get public preview info for an invitation token (no auth required)
  */
 export const GetInvitationPreviewParams = zod.object({
-  "token": zod.coerce.string()
+  "token": zod.coerce.string().describe('Opaque invitation token from the invitation email or link.')
 })
 
 export const GetInvitationPreviewResponse = zod.object({
-  "orgName": zod.string(),
-  "expiresAt": zod.string()
-})
+  "orgName": zod.string().describe('Display name of the organization the user is being invited to join.'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when the invitation expires.')
+}).describe('Public preview of an invitation, returned without authentication so the invite landing page can display the organization name before the user logs in.\n')
 
 
 /**
+ * Returns all non-expired, pending invitations for the caller's organization, ordered by creation date ascending. Requires `admin` role; returns 403 for non-admins.
  * @summary List pending invitations for the current organization (admin only)
  */
 export const ListOrgInvitationsResponseItem = zod.object({
-  "id": zod.string(),
-  "orgId": zod.string(),
-  "invitedEmail": zod.string().nullish(),
-  "invitedUserId": zod.string().nullish(),
-  "token": zod.string(),
-  "status": zod.enum(['pending', 'accepted', 'declined']),
-  "expiresAt": zod.string(),
-  "createdAt": zod.string()
-})
+  "id": zod.string().describe('UUID of the invitation.'),
+  "orgId": zod.string().describe('UUID of the organization that issued the invitation.'),
+  "invitedEmail": zod.string().nullish().describe('Email address the invitation was sent to. Null if the invitation was created by userId only.'),
+  "invitedUserId": zod.string().nullish().describe('User ID the invitation is addressed to. Null if the invitation was created by email only.'),
+  "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
+  "status": zod.enum(['pending', 'accepted', 'declined']).describe('Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it.\n'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when the invitation expires (7 days after creation).'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the invitation was issued.')
+}).describe('Full invitation record visible to admins.')
 export const ListOrgInvitationsResponse = zod.array(ListOrgInvitationsResponseItem)
 
 
 /**
+ * Permanently deletes a pending invitation by its UUID. Requires `admin` role. Returns 404 if the invitation does not exist, belongs to a different org, or is no longer pending. Returns 403 for non-admins.
  * @summary Cancel a pending invitation (admin only)
  */
 export const CancelOrgInvitationParams = zod.object({
-  "id": zod.coerce.string()
+  "id": zod.coerce.string().describe('UUID of the invitation to cancel.')
 })
 
 export const CancelOrgInvitationResponse = zod.void()
 
 
 /**
+ * Accepts the invitation identified by `token`, adds the caller to the organization as a `member`, and marks the invitation as `accepted`. Returns 404 if the token is not found, expired, or no longer pending. Returns 403 if the invitation is not addressed to the caller (checked by matching the caller's userId and email against `invitedUserId` and `invitedEmail`). Returns 409 if the caller already belongs to an organization.
  * @summary Accept a pending invitation
  */
 export const AcceptOrgInvitationParams = zod.object({
-  "token": zod.coerce.string()
+  "token": zod.coerce.string().describe('Opaque invitation token to accept.')
 })
 
 export const AcceptOrgInvitationResponse = zod.object({
   "org": zod.union([zod.object({
-  "id": zod.string(),
-  "name": zod.string(),
-  "createdAt": zod.string()
-}),zod.null()]),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]),
+  "id": zod.string().describe('UUID of the organization.'),
+  "name": zod.string().describe('Display name of the organization.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+}).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
   "pendingInvitation": zod.union([zod.object({
-  "id": zod.string(),
-  "orgId": zod.string(),
-  "orgName": zod.string(),
-  "token": zod.string(),
-  "expiresAt": zod.string()
-}),zod.null()])
-})
+  "id": zod.string().describe('UUID of the invitation.'),
+  "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
+  "orgName": zod.string().describe('Display name of the inviting organization.'),
+  "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
+  "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
 
 
 /**
+ * Marks the invitation as `declined`. Returns 404 if the token is not found. Returns 403 if the invitation is not addressed to the caller. The caller does not need to be a member of any org to call this endpoint.
  * @summary Decline a pending invitation
  */
 export const DeclineOrgInvitationParams = zod.object({
-  "token": zod.coerce.string()
+  "token": zod.coerce.string().describe('Opaque invitation token to decline.')
 })
 
 export const DeclineOrgInvitationResponse = zod.object({
-  "success": zod.boolean()
-})
+  "success": zod.boolean().describe('Always `true` when the operation completed successfully.')
+}).describe('Generic success acknowledgement with no additional data.')
 
 
 /**
+ * Removes the specified user from the caller's organization. Requires `admin` role. Returns 400 if the caller attempts to remove themselves. Returns 404 if the target user is not a member of the org.
  * @summary Remove a member from the organization (admin only)
  */
 export const RemoveOrgMemberParams = zod.object({
-  "userId": zod.coerce.string()
+  "userId": zod.coerce.string().describe('ID of the user to remove from the organization.')
 })
 
 export const RemoveOrgMemberResponse = zod.void()
 
 
 /**
+ * Updates the role of an org member to `admin` or `member`. Requires `admin` role. Promoting another user to `admin` does not remove the caller's own `admin` status — multiple admins are allowed. Returns 404 if the target user is not a member of this org.
  * @summary Change a member role, or transfer admin (admin only)
  */
 export const UpdateOrgMemberRoleParams = zod.object({
-  "userId": zod.coerce.string()
+  "userId": zod.coerce.string().describe('ID of the member whose role to change.')
 })
 
 export const UpdateOrgMemberRoleBody = zod.object({
-  "role": zod.enum(['admin', 'member'])
-})
+  "role": zod.enum(['admin', 'member']).describe('New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read\/write operations on projects and tasks.\n')
+}).describe('Request body for changing an org member\'s role.')
 
 export const UpdateOrgMemberRoleResponse = zod.object({
-  "userId": zod.string(),
-  "role": zod.enum(['admin', 'member']),
-  "joinedAt": zod.string(),
-  "firstName": zod.string().nullish(),
-  "lastName": zod.string().nullish(),
-  "email": zod.string().nullish(),
-  "profileImageUrl": zod.string().nullish()
-})
+  "userId": zod.string().describe('Unique user ID of the member.'),
+  "role": zod.enum(['admin', 'member']).describe('The member\'s role within the organization.'),
+  "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
+  "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
+  "lastName": zod.string().nullish().describe('Member\'s family name. Null if not set in their profile.'),
+  "email": zod.string().nullish().describe('Member\'s email address. Null if not set in their profile.'),
+  "profileImageUrl": zod.string().nullish().describe('URL of the member\'s profile picture. Null if not set.')
+}).describe('Profile and membership information for a single org member.')
 
 
 /**
+ * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the last admin, they should transfer the admin role before leaving; the server does not enforce this constraint automatically.
  * @summary Leave the current organization
  */
 export const LeaveOrgResponse = zod.object({
-  "success": zod.boolean()
-})
+  "success": zod.boolean().describe('Always `true` when the operation completed successfully.')
+}).describe('Generic success acknowledgement with no additional data.')
 
 

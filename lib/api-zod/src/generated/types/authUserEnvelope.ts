@@ -7,6 +7,9 @@
  */
 import type { AuthUser } from './authUser';
 
+/**
+ * Wrapper returned by `GET /auth/user`. The `user` field is null when no valid session exists.
+ */
 export interface AuthUserEnvelope {
   user: AuthUser | null;
 }

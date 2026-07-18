@@ -8,11 +8,20 @@
 import type { DashboardSummaryTasksByPriority } from './dashboardSummaryTasksByPriority';
 import type { DashboardSummaryTasksByStatus } from './dashboardSummaryTasksByStatus';
 
+/**
+ * Aggregated statistics for the caller's organization, computed in real time.
+ */
 export interface DashboardSummary {
+  /** Total number of tasks in the organization regardless of status. */
   totalTasks: number;
+  /** Total number of projects in the organization regardless of status. */
   totalProjects: number;
+  /** Task counts grouped by status value. */
   tasksByStatus: DashboardSummaryTasksByStatus;
+  /** Task counts grouped by priority level. */
   tasksByPriority: DashboardSummaryTasksByPriority;
+  /** Number of tasks whose `dueDate` is before today and whose status is not `done`. */
   overdueCount: number;
+  /** Number of projects with status `active`. */
   activeProjects: number;
 }

@@ -6,8 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Fields required to add a comment to a task.
+ */
 export interface CommentInput {
-  /** @minLength 1 */
+  /**
+     * Plain-text body of the comment (must be non-empty).
+     * @minLength 1
+     */
   content: string;
+  /** Optional display name for the author. Not validated against org membership; purely informational. */
   author?: string;
 }

@@ -6,9 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Task counts grouped by priority level.
+ */
 export type DashboardSummaryTasksByPriority = {
+  /** Number of tasks with priority `low`. */
   low: number;
+  /** Number of tasks with priority `medium`. */
   medium: number;
+  /** Number of tasks with priority `high`. */
   high: number;
+  /** Number of tasks with priority `critical`. */
   critical: number;
 };

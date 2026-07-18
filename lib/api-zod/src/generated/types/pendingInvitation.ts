@@ -6,10 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Summary of a pending invitation shown to a user who has not yet joined an org.
+ */
 export interface PendingInvitation {
+  /** UUID of the invitation. */
   id: string;
+  /** UUID of the organization that sent the invitation. */
   orgId: string;
+  /** Display name of the inviting organization. */
   orgName: string;
+  /** Opaque token used to accept or decline the invitation. */
   token: string;
+  /** ISO 8601 timestamp when this invitation expires. */
   expiresAt: string;
 }

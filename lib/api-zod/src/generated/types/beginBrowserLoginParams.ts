@@ -7,5 +7,8 @@
  */
 
 export type BeginBrowserLoginParams = {
+/**
+ * Relative path to redirect to after a successful login. Must start with `/`. Defaults to `/` if omitted or invalid.
+ */
 returnTo?: string;
 };

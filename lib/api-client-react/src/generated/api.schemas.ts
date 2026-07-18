@@ -5,52 +5,108 @@
  * IT Task Manager API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Profile of the currently authenticated user as stored in the session.
+ */
 export interface AuthUser {
+  /** Unique user ID from the OIDC provider (`sub` claim). */
   id: string;
-  /** @nullable */
+  /**
+     * User's email address. May be null if the provider did not supply one.
+     * @nullable
+     */
   email: string | null;
-  /** @nullable */
+  /**
+     * User's given name. Null if not provided by the OIDC provider.
+     * @nullable
+     */
   firstName: string | null;
-  /** @nullable */
+  /**
+     * User's family name. Null if not provided by the OIDC provider.
+     * @nullable
+     */
   lastName: string | null;
-  /** @nullable */
+  /**
+     * URL of the user's profile picture. Null if not provided.
+     * @nullable
+     */
   profileImageUrl: string | null;
 }
 
+/**
+ * Wrapper returned by `GET /auth/user`. The `user` field is null when no valid session exists.
+ */
 export interface AuthUserEnvelope {
   user: AuthUser | null;
 }
 
+/**
+ * OIDC authorization code and associated PKCE parameters captured by the mobile app after the user completes the in-app browser login flow.
+ */
 export interface MobileTokenExchangeRequest {
-  /** @minLength 1 */
+  /**
+     * Authorization code returned by the OIDC provider.
+     * @minLength 1
+     */
   code: string;
-  /** @minLength 1 */
+  /**
+     * PKCE code verifier that was used to generate the code challenge.
+     * @minLength 1
+     */
   code_verifier: string;
-  /** @minLength 1 */
+  /**
+     * Redirect URI registered with the OIDC provider for this flow.
+     * @minLength 1
+     */
   redirect_uri: string;
-  /** @minLength 1 */
+  /**
+     * Opaque state value used for CSRF protection during the flow.
+     * @minLength 1
+     */
   state: string;
-  /** @minLength 1 */
+  /**
+     * Optional nonce included in the authorization request for replay protection.
+     * @minLength 1
+     */
   nonce?: string;
 }
 
+/**
+ * Successful mobile token exchange response containing the opaque session token.
+ */
 export interface MobileTokenExchangeSuccess {
+  /** Opaque session ID (`sid`). Include this in the `Authorization: Bearer <token>` header on all subsequent authenticated requests. */
   token: string;
 }
 
+/**
+ * Confirms a successful logout operation.
+ */
 export const LogoutSuccessValue = {
+  /** Always `true` when the logout request was processed. */
   success: true,
 } as const;
 export type LogoutSuccess = typeof LogoutSuccessValue;
 
+/**
+ * Standard error response body returned on 4xx and 5xx responses.
+ */
 export interface ErrorEnvelope {
+  /** Human-readable error message describing what went wrong. */
   error: string;
 }
 
+/**
+ * Server health status payload.
+ */
 export interface HealthStatus {
+  /** Health status string. Returns `"ok"` when the server is healthy. */
   status: string;
 }
 
+/**
+ * Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.
+ */
 export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 
 
@@ -61,6 +117,9 @@ export const ProjectStatus = {
   completed: 'completed',
 } as const;
 
+/**
+ * Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred.
+ */
 export type ProjectPriority = typeof ProjectPriority[keyof typeof ProjectPriority];
 
 
@@ -71,21 +130,41 @@ export const ProjectPriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * An IT project grouping related tasks within an organization.
+ */
 export interface Project {
+  /** Auto-incremented primary key. */
   id: number;
+  /** Human-readable project name. */
   name: string;
-  /** @nullable */
+  /**
+     * Optional longer description of the project's scope and goals.
+     * @nullable
+     */
   description?: string | null;
+  /** Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished. */
   status: ProjectStatus;
+  /** Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred. */
   priority: ProjectPriority;
-  /** @nullable */
+  /**
+     * Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.
+     * @nullable
+     */
   dueDate?: string | null;
+  /** Total number of tasks linked to this project within the org. */
   taskCount?: number;
+  /** Number of tasks linked to this project with status `done`. */
   completedTaskCount?: number;
+  /** ISO 8601 timestamp when the project was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the project was last updated. */
   updatedAt: string;
 }
 
+/**
+ * Initial lifecycle status of the project.
+ */
 export type ProjectInputStatus = typeof ProjectInputStatus[keyof typeof ProjectInputStatus];
 
 
@@ -96,6 +175,9 @@ export const ProjectInputStatus = {
   completed: 'completed',
 } as const;
 
+/**
+ * Importance level of the project.
+ */
 export type ProjectInputPriority = typeof ProjectInputPriority[keyof typeof ProjectInputPriority];
 
 
@@ -106,15 +188,28 @@ export const ProjectInputPriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * Fields required to create a new project.
+ */
 export interface ProjectInput {
-  /** @minLength 1 */
+  /**
+     * Display name of the project (must be non-empty).
+     * @minLength 1
+     */
   name: string;
+  /** Optional description of the project's scope and goals. */
   description?: string;
+  /** Initial lifecycle status of the project. */
   status: ProjectInputStatus;
+  /** Importance level of the project. */
   priority: ProjectInputPriority;
+  /** Target completion date in `YYYY-MM-DD` format. */
   dueDate?: string;
 }
 
+/**
+ * New lifecycle status.
+ */
 export type ProjectUpdateStatus = typeof ProjectUpdateStatus[keyof typeof ProjectUpdateStatus];
 
 
@@ -125,6 +220,9 @@ export const ProjectUpdateStatus = {
   completed: 'completed',
 } as const;
 
+/**
+ * New priority level.
+ */
 export type ProjectUpdatePriority = typeof ProjectUpdatePriority[keyof typeof ProjectUpdatePriority];
 
 
@@ -135,15 +233,28 @@ export const ProjectUpdatePriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * Partial update for an existing project. All fields are optional.
+ */
 export interface ProjectUpdate {
-  /** @minLength 1 */
+  /**
+     * New display name for the project.
+     * @minLength 1
+     */
   name?: string;
+  /** Updated description. */
   description?: string;
+  /** New lifecycle status. */
   status?: ProjectUpdateStatus;
+  /** New priority level. */
   priority?: ProjectUpdatePriority;
+  /** New target completion date in `YYYY-MM-DD` format. */
   dueDate?: string;
 }
 
+/**
+ * Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.
+ */
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 
@@ -154,6 +265,9 @@ export const TaskStatus = {
   done: 'done',
 } as const;
 
+/**
+ * Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.
+ */
 export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
 
 
@@ -164,6 +278,9 @@ export const TaskPriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn't fit.
+ */
 export type TaskCategory = typeof TaskCategory[keyof typeof TaskCategory];
 
 
@@ -176,27 +293,56 @@ export const TaskCategory = {
   other: 'other',
 } as const;
 
+/**
+ * An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.
+ */
 export interface Task {
+  /** Auto-incremented primary key. */
   id: number;
-  /** @nullable */
+  /**
+     * ID of the linked project. Null if the task is not associated with a project.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.
+     * @nullable
+     */
   projectName?: string | null;
+  /** Short, descriptive title of the task. */
   title: string;
-  /** @nullable */
+  /**
+     * Optional detailed description of the work to be done.
+     * @nullable
+     */
   description?: string | null;
+  /** Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete. */
   status: TaskStatus;
+  /** Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred. */
   priority: TaskPriority;
+  /** IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn't fit. */
   category: TaskCategory;
-  /** @nullable */
+  /**
+     * Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.
+     * @nullable
+     */
   assignee?: string | null;
-  /** @nullable */
+  /**
+     * Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.
+     * @nullable
+     */
   dueDate?: string | null;
+  /** Number of comments attached to this task. */
   commentCount?: number;
+  /** ISO 8601 timestamp when the task was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the task was last updated. */
   updatedAt: string;
 }
 
+/**
+ * Initial status of the task.
+ */
 export type TaskInputStatus = typeof TaskInputStatus[keyof typeof TaskInputStatus];
 
 
@@ -207,6 +353,9 @@ export const TaskInputStatus = {
   done: 'done',
 } as const;
 
+/**
+ * Urgency level of the task.
+ */
 export type TaskInputPriority = typeof TaskInputPriority[keyof typeof TaskInputPriority];
 
 
@@ -217,6 +366,9 @@ export const TaskInputPriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * IT operational category for the task.
+ */
 export type TaskInputCategory = typeof TaskInputCategory[keyof typeof TaskInputCategory];
 
 
@@ -229,18 +381,34 @@ export const TaskInputCategory = {
   other: 'other',
 } as const;
 
+/**
+ * Fields required to create a new task.
+ */
 export interface TaskInput {
+  /** ID of the project to link this task to. Must belong to the caller's org; omit to create an unlinked task. */
   projectId?: number;
-  /** @minLength 1 */
+  /**
+     * Short, descriptive title for the task (must be non-empty).
+     * @minLength 1
+     */
   title: string;
+  /** Optional detailed description of the work to be done. */
   description?: string;
+  /** Initial status of the task. */
   status: TaskInputStatus;
+  /** Urgency level of the task. */
   priority: TaskInputPriority;
+  /** IT operational category for the task. */
   category: TaskInputCategory;
+  /** Email address of the org member to assign. Must match an existing org member; omit to leave unassigned. */
   assignee?: string;
+  /** Task deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
 }
 
+/**
+ * New task status.
+ */
 export type TaskUpdateStatus = typeof TaskUpdateStatus[keyof typeof TaskUpdateStatus];
 
 
@@ -251,6 +419,9 @@ export const TaskUpdateStatus = {
   done: 'done',
 } as const;
 
+/**
+ * New priority level.
+ */
 export type TaskUpdatePriority = typeof TaskUpdatePriority[keyof typeof TaskUpdatePriority];
 
 
@@ -261,6 +432,9 @@ export const TaskUpdatePriority = {
   critical: 'critical',
 } as const;
 
+/**
+ * New IT operational category.
+ */
 export type TaskUpdateCategory = typeof TaskUpdateCategory[keyof typeof TaskUpdateCategory];
 
 
@@ -273,34 +447,69 @@ export const TaskUpdateCategory = {
   other: 'other',
 } as const;
 
+/**
+ * Partial update for an existing task. All fields are optional.
+ */
 export interface TaskUpdate {
-  /** @nullable */
+  /**
+     * Updated project link. Pass `null` to unlink from the current project. Must belong to the caller's org if non-null.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @minLength 1 */
+  /**
+     * New task title.
+     * @minLength 1
+     */
   title?: string;
+  /** Updated description. */
   description?: string;
+  /** New task status. */
   status?: TaskUpdateStatus;
+  /** New priority level. */
   priority?: TaskUpdatePriority;
+  /** New IT operational category. */
   category?: TaskUpdateCategory;
+  /** Updated assignee email. Must match an org member. Pass an empty value or omit to leave unchanged. */
   assignee?: string;
+  /** Updated deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
 }
 
+/**
+ * A comment attached to a task.
+ */
 export interface Comment {
+  /** Auto-incremented primary key. */
   id: number;
+  /** ID of the task this comment belongs to. */
   taskId: number;
+  /** Plain-text body of the comment. */
   content: string;
-  /** @nullable */
+  /**
+     * Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.
+     * @nullable
+     */
   author?: string | null;
+  /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
 }
 
+/**
+ * Fields required to add a comment to a task.
+ */
 export interface CommentInput {
-  /** @minLength 1 */
+  /**
+     * Plain-text body of the comment (must be non-empty).
+     * @minLength 1
+     */
   content: string;
+  /** Optional display name for the author. Not validated against org membership; purely informational. */
   author?: string;
 }
 
+/**
+ * Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).
+ */
 export type NoteVisibility = typeof NoteVisibility[keyof typeof NoteVisibility];
 
 
@@ -310,101 +519,199 @@ export const NoteVisibility = {
   public_write: 'public_write',
 } as const;
 
+/**
+ * A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.
+ */
 export interface Note {
+  /** Auto-incremented primary key. */
   id: number;
+  /** Short descriptive title for the note. */
   title: string;
+  /** Rich-text body of the note (typically stored as HTML or Markdown). */
   content: string;
   visibility: NoteVisibility;
+  /** True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note. */
   isOwner: boolean;
-  /** @nullable */
+  /**
+     * User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.
+     * @nullable
+     */
   createdBy?: string | null;
-  /** @nullable */
+  /**
+     * ID of the linked project. Null if not associated with a project.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * ID of the linked task. Null if not associated with a task.
+     * @nullable
+     */
   taskId?: number | null;
+  /** ISO 8601 timestamp when the note was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the note was last updated. */
   updatedAt: string;
 }
 
+/**
+ * Fields for creating a new note. All fields are optional except that a useful note should have at least a title or content.
+ */
 export interface NoteInput {
-  /** @minLength 1 */
+  /**
+     * Short descriptive title for the note.
+     * @minLength 1
+     */
   title?: string;
+  /** Rich-text body of the note. */
   content?: string;
   visibility?: NoteVisibility;
+  /** Link this note to a project. Must belong to the caller's org. */
   projectId?: number;
+  /** Link this note to a task. Must belong to the caller's org. */
   taskId?: number;
 }
 
+/**
+ * Partial update for an existing note. All fields are optional.
+ */
 export interface NoteUpdate {
-  /** @minLength 1 */
+  /**
+     * New title for the note.
+     * @minLength 1
+     */
   title?: string;
+  /** Updated rich-text body. */
   content?: string;
   visibility?: NoteVisibility;
-  /** @nullable */
+  /**
+     * Updated project link. Pass `null` to remove the association. Must belong to the caller's org if non-null. Only the note owner can change this.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * Updated task link. Pass `null` to remove the association. Must belong to the caller's org if non-null. Only the note owner can change this.
+     * @nullable
+     */
   taskId?: number | null;
 }
 
+/**
+ * Task counts grouped by status value.
+ */
 export type DashboardSummaryTasksByStatus = {
+  /** Number of tasks with status `todo`. */
   todo: number;
+  /** Number of tasks with status `in_progress`. */
   in_progress: number;
+  /** Number of tasks with status `blocked`. */
   blocked: number;
+  /** Number of tasks with status `done`. */
   done: number;
 };
 
+/**
+ * Task counts grouped by priority level.
+ */
 export type DashboardSummaryTasksByPriority = {
+  /** Number of tasks with priority `low`. */
   low: number;
+  /** Number of tasks with priority `medium`. */
   medium: number;
+  /** Number of tasks with priority `high`. */
   high: number;
+  /** Number of tasks with priority `critical`. */
   critical: number;
 };
 
+/**
+ * Aggregated statistics for the caller's organization, computed in real time.
+ */
 export interface DashboardSummary {
+  /** Total number of tasks in the organization regardless of status. */
   totalTasks: number;
+  /** Total number of projects in the organization regardless of status. */
   totalProjects: number;
+  /** Task counts grouped by status value. */
   tasksByStatus: DashboardSummaryTasksByStatus;
+  /** Task counts grouped by priority level. */
   tasksByPriority: DashboardSummaryTasksByPriority;
+  /** Number of tasks whose `dueDate` is before today and whose status is not `done`. */
   overdueCount: number;
+  /** Number of projects with status `active`. */
   activeProjects: number;
 }
 
+/**
+ * A single event in the organization's recent activity feed. Events are sourced from recently created tasks, comments, and projects.
+ */
 export interface ActivityItem {
+  /** Synthetic unique ID for the activity item. Task IDs are used directly; comment IDs are offset by 100,000 and project IDs by 200,000 to avoid collisions in the merged list. */
   id: number;
+  /** Event type. One of `task_created`, `comment_added`, or `project_created`. */
   type: string;
+  /** Human-readable description of the activity event. */
   title: string;
+  /** Numeric ID of the primary entity associated with this event. */
   entityId: number;
+  /** Type of the primary entity. One of `task` or `project`. */
   entityType: string;
+  /** ISO 8601 timestamp of when the event occurred. */
   createdAt: string;
 }
 
+/**
+ * Public preview of an invitation, returned without authentication so the invite landing page can display the organization name before the user logs in.
+ */
 export interface InvitationPreview {
+  /** Display name of the organization the user is being invited to join. */
   orgName: string;
+  /** ISO 8601 timestamp when the invitation expires. */
   expiresAt: string;
 }
 
+/**
+ * Request body for renaming an organization.
+ */
 export interface RenameOrgInput {
   /**
+     * New display name for the organization (1–200 characters).
      * @minLength 1
      * @maxLength 200
      */
   name: string;
 }
 
+/**
+ * An organization record.
+ */
 export interface Organization {
+  /** UUID of the organization. */
   id: string;
+  /** Display name of the organization. */
   name: string;
+  /** ISO 8601 timestamp when the organization was created. */
   createdAt: string;
 }
 
+/**
+ * Summary of a pending invitation shown to a user who has not yet joined an org.
+ */
 export interface PendingInvitation {
+  /** UUID of the invitation. */
   id: string;
+  /** UUID of the organization that sent the invitation. */
   orgId: string;
+  /** Display name of the inviting organization. */
   orgName: string;
+  /** Opaque token used to accept or decline the invitation. */
   token: string;
+  /** ISO 8601 timestamp when this invitation expires. */
   expiresAt: string;
 }
 
+/**
+ * The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null.
+ */
 export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
 
 
@@ -413,12 +720,21 @@ export const OrgMeResponseRole = {
   member: 'member',
 } as const;
 
+/**
+ * Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.
+ */
 export interface OrgMeResponse {
+  /** The organization the user belongs to. Null if they are not a member. */
   org: Organization | null;
+  /** The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null. */
   role: OrgMeResponseRole;
+  /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
 }
 
+/**
+ * The member's role within the organization.
+ */
 export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
 
 
@@ -427,20 +743,41 @@ export const OrgMemberInfoRole = {
   member: 'member',
 } as const;
 
+/**
+ * Profile and membership information for a single org member.
+ */
 export interface OrgMemberInfo {
+  /** Unique user ID of the member. */
   userId: string;
+  /** The member's role within the organization. */
   role: OrgMemberInfoRole;
+  /** ISO 8601 timestamp when the user joined the organization. */
   joinedAt: string;
-  /** @nullable */
+  /**
+     * Member's given name. Null if not set in their profile.
+     * @nullable
+     */
   firstName?: string | null;
-  /** @nullable */
+  /**
+     * Member's family name. Null if not set in their profile.
+     * @nullable
+     */
   lastName?: string | null;
-  /** @nullable */
+  /**
+     * Member's email address. Null if not set in their profile.
+     * @nullable
+     */
   email?: string | null;
-  /** @nullable */
+  /**
+     * URL of the member's profile picture. Null if not set.
+     * @nullable
+     */
   profileImageUrl?: string | null;
 }
 
+/**
+ * Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it.
+ */
 export type InvitationInfoStatus = typeof InvitationInfoStatus[keyof typeof InvitationInfoStatus];
 
 
@@ -450,32 +787,59 @@ export const InvitationInfoStatus = {
   declined: 'declined',
 } as const;
 
+/**
+ * Full invitation record visible to admins.
+ */
 export interface InvitationInfo {
+  /** UUID of the invitation. */
   id: string;
+  /** UUID of the organization that issued the invitation. */
   orgId: string;
-  /** @nullable */
+  /**
+     * Email address the invitation was sent to. Null if the invitation was created by userId only.
+     * @nullable
+     */
   invitedEmail?: string | null;
-  /** @nullable */
+  /**
+     * User ID the invitation is addressed to. Null if the invitation was created by email only.
+     * @nullable
+     */
   invitedUserId?: string | null;
+  /** Opaque token used to accept or decline the invitation. */
   token: string;
+  /** Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it. */
   status: InvitationInfoStatus;
+  /** ISO 8601 timestamp when the invitation expires (7 days after creation). */
   expiresAt: string;
+  /** ISO 8601 timestamp when the invitation was issued. */
   createdAt: string;
 }
 
+/**
+ * Request body for creating a new organization.
+ */
 export interface OrgInput {
   /**
+     * Display name for the new organization (1–200 characters).
      * @minLength 1
      * @maxLength 200
      */
   name: string;
 }
 
+/**
+ * Target user to invite. At least one of `email` or `userId` must be provided; both may be supplied together.
+ */
 export interface InviteMemberInput {
+  /** Email address of the user to invite. */
   email?: string;
+  /** User ID of the user to invite. */
   userId?: string;
 }
 
+/**
+ * New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks.
+ */
 export type UpdateMemberRoleInputRole = typeof UpdateMemberRoleInputRole[keyof typeof UpdateMemberRoleInputRole];
 
 
@@ -484,42 +848,83 @@ export const UpdateMemberRoleInputRole = {
   member: 'member',
 } as const;
 
+/**
+ * Request body for changing an org member's role.
+ */
 export interface UpdateMemberRoleInput {
+  /** New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks. */
   role: UpdateMemberRoleInputRole;
 }
 
+/**
+ * Generic success acknowledgement with no additional data.
+ */
 export interface SimpleSuccess {
+  /** Always `true` when the operation completed successfully. */
   success: boolean;
 }
 
 /**
- * Opaque session token — `Bearer <sid>`.
+ * Opaque session token in the form `Bearer <sid>`. Used by mobile clients in place of the session cookie. Passed to the session middleware which resolves the user; ignored if no matching session exists.
  */
 export type AuthorizationSessionHeaderParameter = string;
 
 export type BeginBrowserLoginParams = {
+/**
+ * Relative path to redirect to after a successful login. Must start with `/`. Defaults to `/` if omitted or invalid.
+ */
 returnTo?: string;
 };
 
 export type HandleBrowserLoginCallbackParams = {
+/**
+ * Authorization code returned by the OIDC provider.
+ */
 code?: string;
+/**
+ * Opaque state value echoed back by the OIDC provider for CSRF protection.
+ */
 state?: string;
+/**
+ * Issuer identifier echoed back by some OIDC providers.
+ */
 iss?: string;
 };
 
 export type LogoutBrowserSessionParams = {
+/**
+ * Relative path to redirect to after logout. Must start with `/`. Defaults to `/`.
+ */
 returnTo?: string;
 };
 
 export type ListTasksParams = {
+/**
+ * Filter tasks by project ID. Returns only tasks linked to this project.
+ */
 projectId?: number;
+/**
+ * Filter by task status. One of `todo`, `in_progress`, `blocked`, or `done`.
+ */
 status?: string;
+/**
+ * Filter by task priority. One of `low`, `medium`, `high`, or `critical`.
+ */
 priority?: string;
+/**
+ * Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.
+ */
 category?: string;
 };
 
 export type ListNotesParams = {
+/**
+ * Return only notes linked to this project ID.
+ */
 projectId?: number;
+/**
+ * Return only notes linked to this task ID.
+ */
 taskId?: number;
 };
 

@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks.
+ */
 export type UpdateMemberRoleInputRole = typeof UpdateMemberRoleInputRole[keyof typeof UpdateMemberRoleInputRole];
 
 

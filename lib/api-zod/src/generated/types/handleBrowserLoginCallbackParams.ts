@@ -7,7 +7,16 @@
  */
 
 export type HandleBrowserLoginCallbackParams = {
+/**
+ * Authorization code returned by the OIDC provider.
+ */
 code?: string;
+/**
+ * Opaque state value echoed back by the OIDC provider for CSRF protection.
+ */
 state?: string;
+/**
+ * Issuer identifier echoed back by some OIDC providers.
+ */
 iss?: string;
 };

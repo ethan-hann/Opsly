@@ -6,8 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Request body for creating a new organization.
+ */
 export interface OrgInput {
   /**
+     * Display name for the new organization (1–200 characters).
      * @minLength 1
      * @maxLength 200
      */

@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished.
+ */
 export type ProjectStatus = typeof ProjectStatus[keyof typeof ProjectStatus];
 
 

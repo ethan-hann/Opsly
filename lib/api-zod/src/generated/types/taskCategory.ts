@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn't fit.
+ */
 export type TaskCategory = typeof TaskCategory[keyof typeof TaskCategory];
 
 

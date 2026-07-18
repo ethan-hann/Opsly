@@ -9,15 +9,30 @@ import type { TaskUpdateCategory } from './taskUpdateCategory';
 import type { TaskUpdatePriority } from './taskUpdatePriority';
 import type { TaskUpdateStatus } from './taskUpdateStatus';
 
+/**
+ * Partial update for an existing task. All fields are optional.
+ */
 export interface TaskUpdate {
-  /** @nullable */
+  /**
+     * Updated project link. Pass `null` to unlink from the current project. Must belong to the caller's org if non-null.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @minLength 1 */
+  /**
+     * New task title.
+     * @minLength 1
+     */
   title?: string;
+  /** Updated description. */
   description?: string;
+  /** New task status. */
   status?: TaskUpdateStatus;
+  /** New priority level. */
   priority?: TaskUpdatePriority;
+  /** New IT operational category. */
   category?: TaskUpdateCategory;
+  /** Updated assignee email. Must match an org member. Pass an empty value or omit to leave unchanged. */
   assignee?: string;
+  /** Updated deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
 }

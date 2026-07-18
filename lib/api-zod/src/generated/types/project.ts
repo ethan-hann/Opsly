@@ -8,17 +8,34 @@
 import type { ProjectPriority } from './projectPriority';
 import type { ProjectStatus } from './projectStatus';
 
+/**
+ * An IT project grouping related tasks within an organization.
+ */
 export interface Project {
+  /** Auto-incremented primary key. */
   id: number;
+  /** Human-readable project name. */
   name: string;
-  /** @nullable */
+  /**
+     * Optional longer description of the project's scope and goals.
+     * @nullable
+     */
   description?: string | null;
+  /** Lifecycle status of the project. `planning` — not yet started; `active` — work is ongoing; `on_hold` — temporarily paused; `completed` — all work finished. */
   status: ProjectStatus;
+  /** Importance level of the project. `critical` projects should be addressed immediately; `low` can be deferred. */
   priority: ProjectPriority;
-  /** @nullable */
+  /**
+     * Target completion date in `YYYY-MM-DD` format. Null if no deadline is set.
+     * @nullable
+     */
   dueDate?: string | null;
+  /** Total number of tasks linked to this project within the org. */
   taskCount?: number;
+  /** Number of tasks linked to this project with status `done`. */
   completedTaskCount?: number;
+  /** ISO 8601 timestamp when the project was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the project was last updated. */
   updatedAt: string;
 }

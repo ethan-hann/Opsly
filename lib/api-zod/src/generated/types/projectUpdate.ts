@@ -8,11 +8,21 @@
 import type { ProjectUpdatePriority } from './projectUpdatePriority';
 import type { ProjectUpdateStatus } from './projectUpdateStatus';
 
+/**
+ * Partial update for an existing project. All fields are optional.
+ */
 export interface ProjectUpdate {
-  /** @minLength 1 */
+  /**
+     * New display name for the project.
+     * @minLength 1
+     */
   name?: string;
+  /** Updated description. */
   description?: string;
+  /** New lifecycle status. */
   status?: ProjectUpdateStatus;
+  /** New priority level. */
   priority?: ProjectUpdatePriority;
+  /** New target completion date in `YYYY-MM-DD` format. */
   dueDate?: string;
 }

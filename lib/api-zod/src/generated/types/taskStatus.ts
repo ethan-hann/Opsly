@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete.
+ */
 export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 

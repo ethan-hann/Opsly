@@ -7,15 +7,30 @@
  */
 import type { InvitationInfoStatus } from './invitationInfoStatus';
 
+/**
+ * Full invitation record visible to admins.
+ */
 export interface InvitationInfo {
+  /** UUID of the invitation. */
   id: string;
+  /** UUID of the organization that issued the invitation. */
   orgId: string;
-  /** @nullable */
+  /**
+     * Email address the invitation was sent to. Null if the invitation was created by userId only.
+     * @nullable
+     */
   invitedEmail?: string | null;
-  /** @nullable */
+  /**
+     * User ID the invitation is addressed to. Null if the invitation was created by email only.
+     * @nullable
+     */
   invitedUserId?: string | null;
+  /** Opaque token used to accept or decline the invitation. */
   token: string;
+  /** Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it. */
   status: InvitationInfoStatus;
+  /** ISO 8601 timestamp when the invitation expires (7 days after creation). */
   expiresAt: string;
+  /** ISO 8601 timestamp when the invitation was issued. */
   createdAt: string;
 }

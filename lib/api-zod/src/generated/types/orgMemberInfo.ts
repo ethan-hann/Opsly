@@ -7,16 +7,34 @@
  */
 import type { OrgMemberInfoRole } from './orgMemberInfoRole';
 
+/**
+ * Profile and membership information for a single org member.
+ */
 export interface OrgMemberInfo {
+  /** Unique user ID of the member. */
   userId: string;
+  /** The member's role within the organization. */
   role: OrgMemberInfoRole;
+  /** ISO 8601 timestamp when the user joined the organization. */
   joinedAt: string;
-  /** @nullable */
+  /**
+     * Member's given name. Null if not set in their profile.
+     * @nullable
+     */
   firstName?: string | null;
-  /** @nullable */
+  /**
+     * Member's family name. Null if not set in their profile.
+     * @nullable
+     */
   lastName?: string | null;
-  /** @nullable */
+  /**
+     * Member's email address. Null if not set in their profile.
+     * @nullable
+     */
   email?: string | null;
-  /** @nullable */
+  /**
+     * URL of the member's profile picture. Null if not set.
+     * @nullable
+     */
   profileImageUrl?: string | null;
 }

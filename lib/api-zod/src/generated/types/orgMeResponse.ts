@@ -9,8 +9,14 @@ import type { Organization } from './organization';
 import type { OrgMeResponseRole } from './orgMeResponseRole';
 import type { PendingInvitation } from './pendingInvitation';
 
+/**
+ * Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.
+ */
 export interface OrgMeResponse {
+  /** The organization the user belongs to. Null if they are not a member. */
   org: Organization | null;
+  /** The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null. */
   role: OrgMeResponseRole;
+  /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
 }

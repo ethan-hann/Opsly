@@ -7,5 +7,8 @@
  */
 
 export type LogoutBrowserSessionParams = {
+/**
+ * Relative path to redirect to after logout. Must start with `/`. Defaults to `/`.
+ */
 returnTo?: string;
 };

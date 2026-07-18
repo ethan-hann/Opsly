@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Successful mobile token exchange response containing the opaque session token.
+ */
 export interface MobileTokenExchangeSuccess {
+  /** Opaque session ID (`sid`). Include this in the `Authorization: Bearer <token>` header on all subsequent authenticated requests. */
   token: string;
 }

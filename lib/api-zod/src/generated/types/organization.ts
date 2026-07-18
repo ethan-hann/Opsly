@@ -6,8 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * An organization record.
+ */
 export interface Organization {
+  /** UUID of the organization. */
   id: string;
+  /** Display name of the organization. */
   name: string;
+  /** ISO 8601 timestamp when the organization was created. */
   createdAt: string;
 }

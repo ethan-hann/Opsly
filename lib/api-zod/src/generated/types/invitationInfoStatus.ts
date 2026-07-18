@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Current state of the invitation. `pending` — awaiting a response; `accepted` — the invitee joined the org; `declined` — the invitee rejected it.
+ */
 export type InvitationInfoStatus = typeof InvitationInfoStatus[keyof typeof InvitationInfoStatus];
 
 

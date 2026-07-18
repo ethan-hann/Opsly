@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Controls who can see and edit a note within the organization. `private` — only the owner can read or write; `public_read` — all org members can read but only the owner can write; `public_write` — all org members can read and write (but only the owner can delete or change visibility).
+ */
 export type NoteVisibility = typeof NoteVisibility[keyof typeof NoteVisibility];
 
 

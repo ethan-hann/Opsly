@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * New IT operational category.
+ */
 export type TaskUpdateCategory = typeof TaskUpdateCategory[keyof typeof TaskUpdateCategory];
 
 

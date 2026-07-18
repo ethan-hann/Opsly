@@ -7,8 +7,20 @@
  */
 
 export type ListTasksParams = {
+/**
+ * Filter tasks by project ID. Returns only tasks linked to this project.
+ */
 projectId?: number;
+/**
+ * Filter by task status. One of `todo`, `in_progress`, `blocked`, or `done`.
+ */
 status?: string;
+/**
+ * Filter by task priority. One of `low`, `medium`, `high`, or `critical`.
+ */
 priority?: string;
+/**
+ * Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.
+ */
 category?: string;
 };

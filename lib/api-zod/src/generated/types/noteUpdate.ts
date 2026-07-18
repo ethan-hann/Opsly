@@ -7,13 +7,26 @@
  */
 import type { NoteVisibility } from './noteVisibility';
 
+/**
+ * Partial update for an existing note. All fields are optional.
+ */
 export interface NoteUpdate {
-  /** @minLength 1 */
+  /**
+     * New title for the note.
+     * @minLength 1
+     */
   title?: string;
+  /** Updated rich-text body. */
   content?: string;
   visibility?: NoteVisibility;
-  /** @nullable */
+  /**
+     * Updated project link. Pass `null` to remove the association. Must belong to the caller's org if non-null. Only the note owner can change this.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * Updated task link. Pass `null` to remove the association. Must belong to the caller's org if non-null. Only the note owner can change this.
+     * @nullable
+     */
   taskId?: number | null;
 }

@@ -6,15 +6,33 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * OIDC authorization code and associated PKCE parameters captured by the mobile app after the user completes the in-app browser login flow.
+ */
 export interface MobileTokenExchangeRequest {
-  /** @minLength 1 */
+  /**
+     * Authorization code returned by the OIDC provider.
+     * @minLength 1
+     */
   code: string;
-  /** @minLength 1 */
+  /**
+     * PKCE code verifier that was used to generate the code challenge.
+     * @minLength 1
+     */
   code_verifier: string;
-  /** @minLength 1 */
+  /**
+     * Redirect URI registered with the OIDC provider for this flow.
+     * @minLength 1
+     */
   redirect_uri: string;
-  /** @minLength 1 */
+  /**
+     * Opaque state value used for CSRF protection during the flow.
+     * @minLength 1
+     */
   state: string;
-  /** @minLength 1 */
+  /**
+     * Optional nonce included in the authorization request for replay protection.
+     * @minLength 1
+     */
   nonce?: string;
 }

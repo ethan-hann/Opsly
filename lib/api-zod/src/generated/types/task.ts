@@ -9,23 +9,49 @@ import type { TaskCategory } from './taskCategory';
 import type { TaskPriority } from './taskPriority';
 import type { TaskStatus } from './taskStatus';
 
+/**
+ * An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.
+ */
 export interface Task {
+  /** Auto-incremented primary key. */
   id: number;
-  /** @nullable */
+  /**
+     * ID of the linked project. Null if the task is not associated with a project.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.
+     * @nullable
+     */
   projectName?: string | null;
+  /** Short, descriptive title of the task. */
   title: string;
-  /** @nullable */
+  /**
+     * Optional detailed description of the work to be done.
+     * @nullable
+     */
   description?: string | null;
+  /** Current state of the task. `todo` — not yet started; `in_progress` — actively being worked on; `blocked` — waiting on an external dependency; `done` — work is complete. */
   status: TaskStatus;
+  /** Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred. */
   priority: TaskPriority;
+  /** IT operational category. `incident` — unplanned disruption; `change` — planned modification; `maintenance` — routine upkeep; `deployment` — software release; `support` — user-facing assistance; `other` — anything that doesn't fit. */
   category: TaskCategory;
-  /** @nullable */
+  /**
+     * Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.
+     * @nullable
+     */
   assignee?: string | null;
-  /** @nullable */
+  /**
+     * Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.
+     * @nullable
+     */
   dueDate?: string | null;
+  /** Number of comments attached to this task. */
   commentCount?: number;
+  /** ISO 8601 timestamp when the task was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the task was last updated. */
   updatedAt: string;
 }

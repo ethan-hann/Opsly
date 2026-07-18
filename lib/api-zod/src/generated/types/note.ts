@@ -7,18 +7,36 @@
  */
 import type { NoteVisibility } from './noteVisibility';
 
+/**
+ * A rich-text scratch-pad note scoped to an organization and optionally linked to a project or task.
+ */
 export interface Note {
+  /** Auto-incremented primary key. */
   id: number;
+  /** Short descriptive title for the note. */
   title: string;
+  /** Rich-text body of the note (typically stored as HTML or Markdown). */
   content: string;
   visibility: NoteVisibility;
+  /** True when the caller is the note owner (or the note has no owner, i.e. a legacy note). Controls whether the caller can change visibility or delete the note. */
   isOwner: boolean;
-  /** @nullable */
+  /**
+     * User ID of the note creator. Null for legacy notes created before ownership tracking was introduced.
+     * @nullable
+     */
   createdBy?: string | null;
-  /** @nullable */
+  /**
+     * ID of the linked project. Null if not associated with a project.
+     * @nullable
+     */
   projectId?: number | null;
-  /** @nullable */
+  /**
+     * ID of the linked task. Null if not associated with a task.
+     * @nullable
+     */
   taskId?: number | null;
+  /** ISO 8601 timestamp when the note was created. */
   createdAt: string;
+  /** ISO 8601 timestamp when the note was last updated. */
   updatedAt: string;
 }

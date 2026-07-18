@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Initial status of the task.
+ */
 export type TaskInputStatus = typeof TaskInputStatus[keyof typeof TaskInputStatus];
 
 

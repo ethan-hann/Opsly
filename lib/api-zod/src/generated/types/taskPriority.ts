@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.
+ */
 export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
 
 

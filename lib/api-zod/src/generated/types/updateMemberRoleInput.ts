@@ -7,6 +7,10 @@
  */
 import type { UpdateMemberRoleInputRole } from './updateMemberRoleInputRole';
 
+/**
+ * Request body for changing an org member's role.
+ */
 export interface UpdateMemberRoleInput {
+  /** New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks. */
   role: UpdateMemberRoleInputRole;
 }
