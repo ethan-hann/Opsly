@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
+import { EditTaskModal } from "@/components/ui/edit-task-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   
   const [commentText, setCommentText] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: task, isLoading: isLoadingTask } = useGetTask(taskId, {
     query: { enabled: !!taskId, queryKey: ["getTask", taskId] }
@@ -99,6 +101,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      <EditTaskModal open={editOpen} onOpenChange={setEditOpen} task={task} />
       {/* Navigation */}
       <div className="flex items-center gap-4 text-sm font-mono text-muted-foreground mb-2">
         <Link href="/tasks" className="hover:text-foreground flex items-center gap-1 transition-colors">
@@ -117,7 +120,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               <div className="flex justify-between items-start gap-4">
                 <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="icon" className="h-8 w-8" title="Edit Task">
+                  <Button variant="outline" size="icon" className="h-8 w-8" title="Edit Task" onClick={() => setEditOpen(true)}>
                     <Edit className="w-4 h-4" />
                   </Button>
                   <AlertDialog>

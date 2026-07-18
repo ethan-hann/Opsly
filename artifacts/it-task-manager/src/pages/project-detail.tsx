@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey } from "@workspace/api-client-react";
+import { EditProjectModal } from "@/components/ui/edit-project-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -7,6 +8,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { ArrowLeft, Calendar, Trash2, Edit, Plus, CheckSquare, Clock } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -26,6 +28,8 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: project, isLoading: isLoadingProject } = useGetProject(projectId, {
     query: { enabled: !!projectId, queryKey: ["getProject", projectId] }
@@ -60,6 +64,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      <EditProjectModal open={editOpen} onOpenChange={setEditOpen} project={project} />
       {/* Header / Nav */}
       <div className="flex items-center gap-4 text-sm font-mono text-muted-foreground mb-4">
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
@@ -120,7 +125,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           </div>
           
           <div className="flex justify-end gap-2 pt-4 border-t border-border/40">
-            <Button variant="outline" size="sm" className="gap-2 font-mono uppercase text-xs">
+            <Button variant="outline" size="sm" className="gap-2 font-mono uppercase text-xs" onClick={() => setEditOpen(true)}>
               <Edit className="w-3.5 h-3.5" /> Edit Project
             </Button>
             
