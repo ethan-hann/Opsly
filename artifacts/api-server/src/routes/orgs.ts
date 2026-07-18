@@ -195,6 +195,69 @@ router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   );
 });
 
+// GET /orgs/invitations — list pending invitations (admin only)
+router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+  const now = new Date();
+  const invitations = await db
+    .select({
+      id: invitationsTable.id,
+      orgId: invitationsTable.orgId,
+      invitedEmail: invitationsTable.invitedEmail,
+      invitedUserId: invitationsTable.invitedUserId,
+      token: invitationsTable.token,
+      status: invitationsTable.status,
+      expiresAt: invitationsTable.expiresAt,
+      createdAt: invitationsTable.createdAt,
+    })
+    .from(invitationsTable)
+    .where(
+      and(
+        eq(invitationsTable.orgId, req.orgId!),
+        eq(invitationsTable.status, 'pending'),
+        sql`${invitationsTable.expiresAt} > ${now.toISOString()}`,
+      ),
+    )
+    .orderBy(invitationsTable.createdAt);
+
+  res.json(
+    invitations.map((inv) => ({
+      id: inv.id,
+      orgId: inv.orgId,
+      invitedEmail: inv.invitedEmail ?? null,
+      invitedUserId: inv.invitedUserId ?? null,
+      token: inv.token,
+      status: inv.status,
+      expiresAt: inv.expiresAt.toISOString(),
+      createdAt: inv.createdAt.toISOString(),
+    })),
+  );
+});
+
+// DELETE /orgs/invitations/:id — cancel a pending invitation (admin only)
+router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+  const { id } = req.params;
+
+  const [invitation] = await db
+    .select({ id: invitationsTable.id, orgId: invitationsTable.orgId })
+    .from(invitationsTable)
+    .where(
+      and(
+        eq(invitationsTable.id, id),
+        eq(invitationsTable.orgId, req.orgId!),
+        eq(invitationsTable.status, 'pending'),
+      ),
+    )
+    .limit(1);
+
+  if (!invitation) {
+    res.status(404).json({ error: 'Invitation not found' });
+    return;
+  }
+
+  await db.delete(invitationsTable).where(eq(invitationsTable.id, id));
+  res.status(204).send();
+});
+
 // POST /orgs/invite — invite a member (admin only)
 router.post('/orgs/invite', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const schema = z.object({

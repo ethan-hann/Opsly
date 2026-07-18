@@ -662,6 +662,32 @@ export const InviteOrgMemberResponse = zod.object({
 
 
 /**
+ * @summary List pending invitations for the current organization (admin only)
+ */
+export const ListOrgInvitationsResponseItem = zod.object({
+  "id": zod.string(),
+  "orgId": zod.string(),
+  "invitedEmail": zod.string().nullish(),
+  "invitedUserId": zod.string().nullish(),
+  "token": zod.string(),
+  "status": zod.enum(['pending', 'accepted', 'declined']),
+  "expiresAt": zod.string(),
+  "createdAt": zod.string()
+})
+export const ListOrgInvitationsResponse = zod.array(ListOrgInvitationsResponseItem)
+
+
+/**
+ * @summary Cancel a pending invitation (admin only)
+ */
+export const CancelOrgInvitationParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const CancelOrgInvitationResponse = zod.void()
+
+
+/**
  * @summary Accept a pending invitation
  */
 export const AcceptOrgInvitationParams = zod.object({

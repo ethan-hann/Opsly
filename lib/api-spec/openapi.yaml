@@ -652,6 +652,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/InvitationInfo"
 
+  /orgs/invitations:
+    get:
+      operationId: listOrgInvitations
+      tags: [orgs]
+      summary: List pending invitations for the current organization (admin only)
+      responses:
+        "200":
+          description: Pending invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InvitationInfo"
+        "403":
+          description: Admin only
+
+  /orgs/invitations/{id}:
+    delete:
+      operationId: cancelOrgInvitation
+      tags: [orgs]
+      summary: Cancel a pending invitation (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Invitation cancelled
+        "403":
+          description: Admin only
+        "404":
+          description: Invitation not found
+
   /orgs/invitations/{token}/accept:
     post:
       operationId: acceptOrgInvitation

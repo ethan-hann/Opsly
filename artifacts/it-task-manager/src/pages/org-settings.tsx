@@ -1,7 +1,9 @@
 import { useState } from "react";
 import {
   useListOrgMembers,
+  useListOrgInvitations,
   useInviteOrgMember,
+  useCancelOrgInvitation,
   useRemoveOrgMember,
   useUpdateOrgMemberRole,
   useLeaveOrg,
@@ -9,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import type { OrgMemberInfo } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { AlertTriangle, Building2, Crown, LogOut, Mail, Pencil, Trash2, UserPlus, Shield } from "lucide-react";
+import { AlertTriangle, Building2, Clock, Crown, LogOut, Mail, Pencil, Trash2, UserPlus, Shield, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -219,6 +221,19 @@ export default function OrgSettings() {
   }
 
   const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
+  const { data: invitations = [], refetch: refetchInvitations } = useListOrgInvitations();
+
+  const { mutate: cancelInvitation } = useCancelOrgInvitation({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Invitation cancelled" });
+        refetchInvitations();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to cancel invitation", description: err.message, variant: "destructive" });
+      },
+    },
+  });
 
   const { mutate: inviteMember, isPending: isInviting } = useInviteOrgMember({
     mutation: {
@@ -456,6 +471,73 @@ export default function OrgSettings() {
           })}
         </CardContent>
       </Card>
+
+      {/* Pending invitations (admin only) */}
+      {isAdmin && invitations.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Clock className="w-4 h-4" />
+              Pending invitations
+            </CardTitle>
+            <CardDescription>{invitations.length} awaiting response</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {invitations.map((inv) => {
+              const recipient = inv.invitedEmail ?? inv.invitedUserId ?? "Unknown";
+              const expiresAt = new Date(inv.expiresAt);
+              const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000));
+              return (
+                <div
+                  key={inv.id}
+                  className="flex items-center gap-3 py-2 border-b border-border last:border-0"
+                >
+                  <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 font-mono text-xs font-bold text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{recipient}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs shrink-0">Pending</Badge>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                        title="Cancel invitation"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel invitation?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          The invitation sent to <strong>{recipient}</strong> will be cancelled.
+                          They will no longer be able to join using their invite link.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Keep invitation</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => cancelInvitation({ id: inv.id })}
+                        >
+                          Cancel invitation
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Invite (admin only) */}
       {isAdmin && (
