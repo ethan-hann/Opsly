@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateTask,
   useListProjects,
+  useListOrgMembers,
   getListTasksQueryKey,
   TaskInputStatus,
   TaskInputPriority,
@@ -27,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { AssigneeCombobox, validateAssignee } from "@/components/ui/assignee-combobox";
 
 interface Task {
   id: number;
@@ -73,6 +75,11 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const queryClient = useQueryClient();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { data: projects } = useListProjects();
+  const { data: members = [] } = useListOrgMembers();
+
+  const memberEmails = new Set(
+    members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
+  );
 
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
@@ -106,6 +113,8 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
     e.preventDefault();
     const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Task title is required.";
+    const assigneeErr = validateAssignee(assignee, memberEmails);
+    if (assigneeErr) errs.assignee = assigneeErr;
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     updateTask(
@@ -216,12 +225,12 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label htmlFor="edit-task-assignee">Assignee</Label>
-              <Input
-                id="edit-task-assignee"
-                placeholder="e.g. jane@corp.com"
+              <Label>Assignee</Label>
+              <AssigneeCombobox
                 value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
+                onChange={(v) => { setAssignee(v); setErrors(prev => ({ ...prev, assignee: "" })); }}
+                error={errors.assignee}
+                onErrorChange={(err) => setErrors(prev => ({ ...prev, assignee: err }))}
               />
             </div>
             <div className="space-y-1">

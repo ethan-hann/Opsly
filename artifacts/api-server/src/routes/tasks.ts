@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, lt } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable } from "@workspace/db";
+import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable } from "@workspace/db";
 import {
   CreateTaskBody,
   UpdateTaskBody,
@@ -69,6 +69,21 @@ async function projectBelongsToOrg(projectId: number, orgId: string): Promise<bo
   return !!row;
 }
 
+/**
+ * Verify an assignee email belongs to an org member. Returns false if not found.
+ * A null/undefined assignee is always considered valid (unassigned).
+ */
+async function assigneeBelongsToOrg(assignee: string | null | undefined, orgId: string): Promise<boolean> {
+  if (!assignee) return true;
+  const [row] = await db
+    .select({ userId: orgMembersTable.userId })
+    .from(orgMembersTable)
+    .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
+    .where(and(eq(orgMembersTable.orgId, orgId), eq(usersTable.email, assignee)))
+    .limit(1);
+  return !!row;
+}
+
 router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const today = new Date().toISOString().split("T")[0];
@@ -130,6 +145,15 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
+  // Validate that assignee (if provided) is an org member
+  if (parsed.data.assignee) {
+    const validAssignee = await assigneeBelongsToOrg(parsed.data.assignee, orgId);
+    if (!validAssignee) {
+      res.status(400).json({ error: "Assignee must be a member of your organization" });
+      return;
+    }
+  }
+
   const [task] = await db
     .insert(tasksTable)
     .values({ ...parsed.data, orgId })
@@ -181,6 +205,15 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
     if (!valid) {
       res.status(400).json({ error: "Invalid projectId" });
+      return;
+    }
+  }
+
+  // Validate that assignee (if being changed) is an org member
+  if (parsed.data.assignee) {
+    const validAssignee = await assigneeBelongsToOrg(parsed.data.assignee, orgId);
+    if (!validAssignee) {
+      res.status(400).json({ error: "Assignee must be a member of your organization" });
       return;
     }
   }
