@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import {
   LayoutDashboard, CheckSquare, FolderGit2, StickyNote,
   Menu, Moon, Sun, Activity, LogOut, Settings,
-  PanelLeftClose, PanelLeftOpen,
+  PanelLeftClose, PanelLeftOpen, BookOpen,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -21,6 +21,10 @@ const mainNavItems = [
   { href: "/tasks",   label: "Tasks",      icon: CheckSquare },
   { href: "/projects",label: "Projects",   icon: FolderGit2 },
   { href: "/notes",   label: "Scratch Pad",icon: StickyNote },
+];
+
+const externalNavItems = [
+  { href: "/api/docs", label: "API Docs", icon: BookOpen },
 ];
 
 function readCollapsed() {
@@ -154,6 +158,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 </Tooltip>
               ) : item;
             })}
+
+            {/* Divider + external links */}
+            <div className={`pt-2 mt-2 border-t border-sidebar-border/50 space-y-0.5`}>
+              {externalNavItems.map(({ href, label, icon: Icon }) => {
+                const item = (
+                  <a key={href} href={href} target="_blank" rel="noopener noreferrer">
+                    <div className={[
+                      "flex items-center rounded-md transition-colors cursor-pointer text-sm font-medium",
+                      collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2",
+                      "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                    ].join(" ")}>
+                      <Icon className="w-4 h-4 shrink-0" />
+                      {!collapsed && <span>{label}</span>}
+                    </div>
+                  </a>
+                );
+                return collapsed ? (
+                  <Tooltip key={href}>
+                    <TooltipTrigger asChild>{item}</TooltipTrigger>
+                    <TooltipContent side="right"><p>{label}</p></TooltipContent>
+                  </Tooltip>
+                ) : item;
+              })}
+            </div>
           </nav>
 
           {/* Bottom: theme + user */}

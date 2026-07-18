@@ -7,6 +7,7 @@ import tasksRouter from "./tasks";
 import commentsRouter from "./comments";
 import notesRouter from "./notes";
 import dashboardRouter from "./dashboard";
+import docsRouter from "./docs";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(tasksRouter);
 router.use(commentsRouter);
 router.use(notesRouter);
 router.use(dashboardRouter);
+router.use(docsRouter);
 
 export default router;
