@@ -1,6 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey } from "@workspace/api-client-react";
 import { EditProjectModal } from "@/components/ui/edit-project-modal";
+import { NewTaskModal } from "@/components/ui/new-task-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +31,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
 
   const [editOpen, setEditOpen] = useState(false);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
 
   const { data: project, isLoading: isLoadingProject } = useGetProject(projectId, {
     query: { enabled: !!projectId, queryKey: ["getProject", projectId] }
@@ -65,6 +67,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <EditProjectModal open={editOpen} onOpenChange={setEditOpen} project={project} />
+      <NewTaskModal open={newTaskOpen} onOpenChange={setNewTaskOpen} initialProjectId={projectId} />
       {/* Header / Nav */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
@@ -169,7 +172,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight">Project Tasks</h2>
-          <Button size="sm" className="gap-2">
+          <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
             <Plus className="w-4 h-4" /> Add Task
           </Button>
         </div>

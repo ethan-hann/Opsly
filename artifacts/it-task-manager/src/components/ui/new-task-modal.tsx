@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateTask,
@@ -33,6 +33,7 @@ import { AssigneeCombobox, validateAssignee } from "@/components/ui/assignee-com
 interface NewTaskModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialProjectId?: number;
 }
 
 const STATUS_OPTIONS: { value: TaskInputStatus; label: string }[] = [
@@ -58,7 +59,7 @@ const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-export function NewTaskModal({ open, onOpenChange }: NewTaskModalProps) {
+export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskModalProps) {
   const queryClient = useQueryClient();
   const { mutate: createTask, isPending } = useCreateTask();
   const { data: projects } = useListProjects();
@@ -70,7 +71,7 @@ export function NewTaskModal({ open, onOpenChange }: NewTaskModalProps) {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [projectId, setProjectId] = useState<string>("none");
+  const [projectId, setProjectId] = useState<string>(initialProjectId ? String(initialProjectId) : "none");
   const [status, setStatus] = useState<TaskInputStatus>("todo");
   const [priority, setPriority] = useState<TaskInputPriority>("medium");
   const [category, setCategory] = useState<TaskInputCategory>("other");
@@ -78,10 +79,17 @@ export function NewTaskModal({ open, onOpenChange }: NewTaskModalProps) {
   const [dueDate, setDueDate] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Sync projectId whenever the modal opens or initialProjectId changes
+  useEffect(() => {
+    if (open) {
+      setProjectId(initialProjectId ? String(initialProjectId) : "none");
+    }
+  }, [open, initialProjectId]);
+
   const resetForm = () => {
     setTitle("");
     setDescription("");
-    setProjectId("none");
+    setProjectId(initialProjectId ? String(initialProjectId) : "none");
     setStatus("todo");
     setPriority("medium");
     setCategory("other");
@@ -168,7 +176,7 @@ export function NewTaskModal({ open, onOpenChange }: NewTaskModalProps) {
 
           <div className="space-y-1">
             <Label>Project</Label>
-            <Select value={projectId} onValueChange={setProjectId}>
+            <Select value={projectId} onValueChange={setProjectId} disabled={!!initialProjectId}>
               <SelectTrigger>
                 <SelectValue placeholder="No project" />
               </SelectTrigger>
