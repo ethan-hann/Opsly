@@ -1,9 +1,13 @@
 import { Link } from "wouter";
 import { 
-  useGetDashboardSummary, 
-  useGetRecentActivity, 
+  useGetDashboardSummary,
+  getGetDashboardSummaryQueryKey,
+  useGetRecentActivity,
+  getGetRecentActivityQueryKey,
   useGetOverdueTasks,
-  useListProjects
+  getGetOverdueTasksQueryKey,
+  useListProjects,
+  getListProjectsQueryKey,
 } from "@workspace/api-client-react";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +18,20 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
-  const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary();
-  const { data: activity, isLoading: isLoadingActivity } = useGetRecentActivity();
-  const { data: overdueTasks, isLoading: isLoadingOverdue } = useGetOverdueTasks();
-  const { data: projects, isLoading: isLoadingProjects } = useListProjects();
+  // Dashboard queries poll every 30 s and refetch on window focus so the
+  // overview stays current without the user manually refreshing.
+  const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
+    query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
+  });
+  const { data: activity, isLoading: isLoadingActivity } = useGetRecentActivity({
+    query: { queryKey: getGetRecentActivityQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
+  });
+  const { data: overdueTasks, isLoading: isLoadingOverdue } = useGetOverdueTasks({
+    query: { queryKey: getGetOverdueTasksQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
+  });
+  const { data: projects, isLoading: isLoadingProjects } = useListProjects({
+    query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
