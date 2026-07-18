@@ -1,4 +1,5 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useSearch } from "wouter";
 import {
   Plus, StickyNote, Search, Link2Off,
   PanelBottom, PanelRight, ExternalLink, EyeOff, Eye,
@@ -40,7 +41,12 @@ const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.El
 
 export default function NotesPage() {
   const { toast } = useToast();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // Pre-select a note when navigated here via ?note=<id> (e.g. from "Edit in Scratch Pad")
+  const urlSearch = useSearch();
+  const noteParam = new URLSearchParams(urlSearch).get("note");
+  const preselectedId = noteParam ? parseInt(noteParam, 10) : null;
+
+  const [selectedId, setSelectedId] = useState<number | null>(preselectedId);
   const [search, setSearch] = useState("");
   const [filterProjectId, setFilterProjectId] = useState<number | "all">("all");
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
@@ -59,6 +65,17 @@ export default function NotesPage() {
   const deleteNote = useDeleteNote();
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // When navigated here with ?note=<id>, populate localContent once notes load
+  const didSyncPreselect = useRef(false);
+  useEffect(() => {
+    if (!preselectedId || didSyncPreselect.current || notes.length === 0) return;
+    const note = notes.find((n) => n.id === preselectedId);
+    if (note) {
+      setLocalContent(note.content ?? "");
+      didSyncPreselect.current = true;
+    }
+  }, [notes, preselectedId]);
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
