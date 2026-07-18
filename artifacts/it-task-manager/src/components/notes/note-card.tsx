@@ -11,6 +11,7 @@ interface NoteCardProps {
     projectId?: number | null;
     taskId?: number | null;
     updatedAt: string;
+    isOwner: boolean;
   };
   isSelected?: boolean;
   projectName?: string | null | undefined;
@@ -24,6 +25,7 @@ function stripHtml(html: string): string {
 }
 
 export function NoteCard({ note, isSelected, projectName, taskTitle, onClick, onDelete }: NoteCardProps) {
+  const canDelete = note.isOwner;
   const preview = stripHtml(note.content).slice(0, 120) || "No content yet";
   const linkedTo = taskTitle ?? projectName;
 
@@ -40,14 +42,16 @@ export function NoteCard({ note, isSelected, projectName, taskTitle, onClick, on
           <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
           <span className="font-medium text-sm truncate">{note.title}</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive"
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </Button>
+        {canDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </Button>
+        )}
       </div>
       <p className="text-xs text-muted-foreground line-clamp-2 pl-5">{preview}</p>
       <div className="flex items-center gap-2 pl-5">
