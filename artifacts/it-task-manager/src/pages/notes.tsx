@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from "react";
 import {
   Plus, StickyNote, Search, Link2Off,
   PanelBottom, PanelRight, ExternalLink, EyeOff, Eye,
-  CheckCheck, Lock, Users, ArrowLeft, Edit2,
+  CheckCheck, Lock, Users, ArrowLeft, Edit2, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,8 @@ export default function NotesPage() {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [filterProjectId, setFilterProjectId] = useState<number | "all">("all");
+  const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [dock, setDock] = useState<PreviewDock>("right");
   const [localContent, setLocalContent] = useState("");
@@ -60,11 +62,16 @@ export default function NotesPage() {
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
+  const filtersActive = filterProjectId !== "all" || filterTaskId !== "all";
+
   const filteredNotes = [...notes]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .filter((n) => {
       const q = search.toLowerCase();
-      return n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+      const matchesSearch = !q || n.title.toLowerCase().includes(q) || n.content.toLowerCase().includes(q);
+      const matchesProject = filterProjectId === "all" || n.projectId === filterProjectId;
+      const matchesTask = filterTaskId === "all" || n.taskId === filterTaskId;
+      return matchesSearch && matchesProject && matchesTask;
     });
 
   const flashSaved = () => {
@@ -246,29 +253,46 @@ export default function NotesPage() {
             </span>
           )}
 
-          {/* Link controls */}
-          <div className="flex flex-wrap items-center gap-2 ml-auto">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Project:</span>
-              <Select value={selectedNote.projectId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("projectId", v)}>
-                <SelectTrigger className="h-6 text-xs w-36"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
-                  {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+          {/* Link controls — editable for owners/public_write, read-only display otherwise */}
+          {canEdit ? (
+            <div className="flex flex-wrap items-center gap-2 ml-auto">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Project:</span>
+                <Select value={selectedNote.projectId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("projectId", v)}>
+                  <SelectTrigger className="h-6 text-xs w-36"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
+                    {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Task:</span>
+                <Select value={selectedNote.taskId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("taskId", v)}>
+                  <SelectTrigger className="h-6 text-xs w-44"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
+                    {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">Task:</span>
-              <Select value={selectedNote.taskId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("taskId", v)}>
-                <SelectTrigger className="h-6 text-xs w-44"><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
-                  {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
-                </SelectContent>
-              </Select>
+          ) : (selectedNote.projectId || selectedNote.taskId) ? (
+            <div className="flex flex-wrap items-center gap-3 ml-auto text-xs text-muted-foreground">
+              {selectedNote.projectId && (
+                <span className="flex items-center gap-1">
+                  <span className="opacity-60">Project:</span>
+                  <span className="text-foreground font-medium">{getProjectName(selectedNote.projectId) ?? "—"}</span>
+                </span>
+              )}
+              {selectedNote.taskId && (
+                <span className="flex items-center gap-1">
+                  <span className="opacity-60">Task:</span>
+                  <span className="text-foreground font-medium">{getTaskTitle(selectedNote.taskId) ?? "—"}</span>
+                </span>
+              )}
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -337,10 +361,39 @@ export default function NotesPage() {
           </Button>
         </div>
 
-        <div className="p-2 border-b border-border">
+        <div className="p-2 border-b border-border flex flex-col gap-1.5">
           <div className="relative">
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
             <Input placeholder="Search notes…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-7 text-xs bg-background" />
+          </div>
+          <Select value={filterProjectId === "all" ? "all" : filterProjectId.toString()} onValueChange={(v) => setFilterProjectId(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="h-7 text-xs bg-background w-full">
+              <SelectValue placeholder="All projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all"><span className="text-muted-foreground">All projects</span></SelectItem>
+              {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1">
+            <Select value={filterTaskId === "all" ? "all" : filterTaskId.toString()} onValueChange={(v) => setFilterTaskId(v === "all" ? "all" : Number(v))}>
+              <SelectTrigger className="h-7 text-xs bg-background flex-1">
+                <SelectValue placeholder="All tasks" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all"><span className="text-muted-foreground">All tasks</span></SelectItem>
+                {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
+              </SelectContent>
+            </Select>
+            {filtersActive && (
+              <button
+                onClick={() => { setFilterProjectId("all"); setFilterTaskId("all"); }}
+                className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                title="Clear filters"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
