@@ -71,11 +71,9 @@ function Router() {
 function OrgAwareApp() {
   return (
     <OrgGuard
-      onboarding={
-        <OrgOnboarding
-          onCreated={() => queryClient.invalidateQueries({ queryKey: ['getMyOrg'] })}
-        />
-      }
+      onboarding={(onCreated) => (
+        <OrgOnboarding onCreated={onCreated} />
+      )}
       invitation={(inv: PendingInvitation) => (
         <OrgInvitation
           invitation={inv}

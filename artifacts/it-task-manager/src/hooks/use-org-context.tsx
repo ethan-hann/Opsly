@@ -30,7 +30,10 @@ export function useOrgContext(): OrgContextValue {
 
 interface OrgGuardProps {
   children: ReactNode;
-  onboarding: ReactNode;
+  /** Render prop — receives a stable `onCreated` callback that triggers an
+   *  immediate refetch of the org query so the guard transitions without a
+   *  full page reload. */
+  onboarding: (onCreated: () => void) => ReactNode;
   invitation: (inv: PendingInvitation) => ReactNode;
 }
 
@@ -61,9 +64,10 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return <>{invitation(data.pendingInvitation)}</>;
   }
 
-  // No org — show onboarding
+  // No org — show onboarding; pass refetch as the onCreated callback so the
+  // guard transitions immediately without relying on query-key matching.
   if (!data?.org) {
-    return <>{onboarding}</>;
+    return <>{onboarding(refetch)}</>;
   }
 
   // Has org — render main app with context
