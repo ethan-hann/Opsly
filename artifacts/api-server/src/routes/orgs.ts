@@ -143,6 +143,28 @@ router.get('/orgs/me', requireAuth, async (req, res): Promise<void> => {
   res.json(data);
 });
 
+// PATCH /orgs/me — rename the current organization (admin only)
+router.patch('/orgs/me', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+  const schema = z.object({ name: z.string().min(1).max(200) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const [updated] = await db
+    .update(organizationsTable)
+    .set({ name: parsed.data.name })
+    .where(eq(organizationsTable.id, req.orgId!))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
 // GET /orgs/members — list org members with user info
 router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   const members = await db

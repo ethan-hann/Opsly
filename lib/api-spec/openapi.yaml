@@ -585,6 +585,27 @@ paths:
           description: Already belongs to an organization
 
   /orgs/me:
+    patch:
+      operationId: renameOrg
+      tags: [orgs]
+      summary: Rename the current organization (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenameOrgInput"
+      responses:
+        "200":
+          description: Updated organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: Invalid input
+        "403":
+          description: Admin only
     get:
       operationId: getMyOrg
       tags: [orgs]
@@ -1075,6 +1096,15 @@ components:
           type: string
         createdAt:
           type: string
+
+    RenameOrgInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
 
     Organization:
       type: object

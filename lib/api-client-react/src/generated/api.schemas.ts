@@ -363,6 +363,14 @@ export interface ActivityItem {
   createdAt: string;
 }
 
+export interface RenameOrgInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+}
+
 export interface Organization {
   id: string;
   name: string;

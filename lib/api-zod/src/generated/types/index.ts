@@ -47,6 +47,7 @@ export * from './projectStatus';
 export * from './projectUpdate';
 export * from './projectUpdatePriority';
 export * from './projectUpdateStatus';
+export * from './renameOrgInput';
 export * from './simpleSuccess';
 export * from './task';
 export * from './taskCategory';

@@ -589,6 +589,24 @@ export const CreateOrgResponse = zod.object({
 
 
 /**
+ * @summary Rename the current organization (admin only)
+ */
+export const renameOrgBodyNameMax = 200;
+
+
+
+export const RenameOrgBody = zod.object({
+  "name": zod.string().min(1).max(renameOrgBodyNameMax)
+})
+
+export const RenameOrgResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "createdAt": zod.string()
+})
+
+
+/**
  * @summary Get current org membership, role, and any pending invitation
  */
 export const GetMyOrgResponse = zod.object({

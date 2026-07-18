@@ -43,9 +43,11 @@ import type {
   OrgInput,
   OrgMeResponse,
   OrgMemberInfo,
+  Organization,
   Project,
   ProjectInput,
   ProjectUpdate,
+  RenameOrgInput,
   SimpleSuccess,
   Task,
   TaskInput,
@@ -2267,6 +2269,77 @@ export const useCreateOrg = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateOrgMutationOptions(options));
+    }
+
+export const getRenameOrgUrl = () => {
+
+
+
+
+  return `/api/orgs/me`
+}
+
+/**
+ * @summary Rename the current organization (admin only)
+ */
+export const renameOrg = async (renameOrgInput: RenameOrgInput, options?: RequestInit): Promise<Organization> => {
+
+  return customFetch<Organization>(getRenameOrgUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renameOrgInput)
+  }
+);}
+
+
+
+
+
+export const getRenameOrgMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameOrg>>, TError,{data: BodyType<RenameOrgInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameOrg>>, TError,{data: BodyType<RenameOrgInput>}, TContext> => {
+
+const mutationKey = ['renameOrg'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameOrg>>, {data: BodyType<RenameOrgInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  renameOrg(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameOrgMutationResult = NonNullable<Awaited<ReturnType<typeof renameOrg>>>
+    export type RenameOrgMutationBody = BodyType<RenameOrgInput>
+    export type RenameOrgMutationError = ErrorType<void>
+
+    /**
+ * @summary Rename the current organization (admin only)
+ */
+export const useRenameOrg = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameOrg>>, TError,{data: BodyType<RenameOrgInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof renameOrg>>,
+        TError,
+        {data: BodyType<RenameOrgInput>},
+        TContext
+      > => {
+      return useMutation(getRenameOrgMutationOptions(options));
     }
 
 export const getGetMyOrgUrl = () => {

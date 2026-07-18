@@ -5,10 +5,11 @@ import {
   useRemoveOrgMember,
   useUpdateOrgMemberRole,
   useLeaveOrg,
+  useRenameOrg,
 } from "@workspace/api-client-react";
 import type { OrgMemberInfo } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { AlertTriangle, Building2, Crown, LogOut, Mail, Trash2, UserPlus, Shield } from "lucide-react";
+import { AlertTriangle, Building2, Crown, LogOut, Mail, Pencil, Trash2, UserPlus, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,6 +184,40 @@ export default function OrgSettings() {
 
   const [inviteValue, setInviteValue] = useState("");
 
+  // ── Rename state ────────────────────────────────────────────────────────────
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(org?.name ?? "");
+
+  const { mutate: renameOrg, isPending: isRenaming } = useRenameOrg({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Organization renamed" });
+        refetchOrg();
+        setIsEditingName(false);
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to rename", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleRenameSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = nameValue.trim();
+    if (!trimmed || trimmed === org?.name) {
+      setIsEditingName(false);
+      return;
+    }
+    renameOrg({ data: { name: trimmed } });
+  }
+
+  function handleRenameKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      setNameValue(org?.name ?? "");
+      setIsEditingName(false);
+    }
+  }
+
   const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
 
   const { mutate: inviteMember, isPending: isInviting } = useInviteOrgMember({
@@ -267,12 +302,51 @@ export default function OrgSettings() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
               <Building2 className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <p className="font-semibold">{org?.name}</p>
-              <p className="text-xs text-muted-foreground font-mono">{org?.id}</p>
+            <div className="flex-1 min-w-0">
+              {isAdmin && isEditingName ? (
+                <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
+                  <Input
+                    value={nameValue}
+                    onChange={(e) => setNameValue(e.target.value)}
+                    onKeyDown={handleRenameKeyDown}
+                    autoFocus
+                    maxLength={200}
+                    className="h-8 text-sm font-semibold"
+                    disabled={isRenaming}
+                  />
+                  <Button type="submit" size="sm" disabled={isRenaming || !nameValue.trim()}>
+                    {isRenaming ? "Saving…" : "Save"}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(false); }}
+                    disabled={isRenaming}
+                  >
+                    Cancel
+                  </Button>
+                </form>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="font-semibold truncate">{org?.name}</p>
+                  {isAdmin && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                      onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}
+                      title="Rename organization"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground font-mono mt-0.5">{org?.id}</p>
             </div>
           </div>
         </CardContent>
