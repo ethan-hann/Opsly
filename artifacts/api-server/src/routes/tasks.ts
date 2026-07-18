@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt } from "drizzle-orm";
+import { eq, sql, and, lt, or } from "drizzle-orm";
 import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -92,8 +92,11 @@ router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
     .from(tasksTable)
     .where(and(
       eq(tasksTable.orgId, orgId),
-      lt(tasksTable.dueDate, today),
       sql`${tasksTable.status} != 'done'`,
+      or(
+        lt(tasksTable.dueDate, today),
+        eq(tasksTable.priority, "critical"),
+      ),
     ))
     .orderBy(tasksTable.dueDate);
 
