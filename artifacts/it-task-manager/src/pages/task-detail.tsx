@@ -75,6 +75,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     }
   });
 
+  const { data: projects = [] } = useListProjects();
+
   if (isLoadingTask) {
     return <div className="space-y-6 max-w-4xl mx-auto p-4"><Skeleton className="h-64 w-full" /></div>;
   }
@@ -82,8 +84,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   if (!task) {
     return <div className="text-center py-12">Task not found</div>;
   }
-
-  const { data: projects = [] } = useListProjects();
 
   const handleStatusChange = (newStatus: any) => {
     updateMutation.mutate({ id: taskId, data: { status: newStatus } });
