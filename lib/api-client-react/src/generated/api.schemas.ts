@@ -363,6 +363,11 @@ export interface ActivityItem {
   createdAt: string;
 }
 
+export interface InvitationPreview {
+  orgName: string;
+  expiresAt: string;
+}
+
 export interface RenameOrgInput {
   /**
      * @minLength 1

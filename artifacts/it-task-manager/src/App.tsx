@@ -19,6 +19,7 @@ import LoginPage from '@/pages/login';
 import OrgOnboarding from '@/pages/org-onboarding';
 import OrgInvitation from '@/pages/org-invitation';
 import OrgSettings from '@/pages/org-settings';
+import InvitePage from '@/pages/invite-page';
 import type { PendingInvitation } from '@workspace/api-client-react';
 
 const queryClient = new QueryClient({
@@ -93,9 +94,16 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <AuthGuard>
-              <OrgAwareApp />
-            </AuthGuard>
+            <Switch>
+              {/* Invite acceptance — outside AuthGuard/OrgGuard so unauthenticated
+                  users can see the invite details before being asked to log in */}
+              <Route path="/invite/:token" component={InvitePage} />
+              <Route>
+                <AuthGuard>
+                  <OrgAwareApp />
+                </AuthGuard>
+              </Route>
+            </Switch>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

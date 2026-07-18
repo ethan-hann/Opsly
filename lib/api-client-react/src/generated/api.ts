@@ -30,6 +30,7 @@ import type {
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   InvitationInfo,
+  InvitationPreview,
   InviteMemberInput,
   ListNotesParams,
   ListTasksParams,
@@ -2566,6 +2567,83 @@ export const useInviteOrgMember = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getInviteOrgMemberMutationOptions(options));
     }
+
+export const getGetInvitationPreviewUrl = (token: string,) => {
+
+
+
+
+  return `/api/orgs/invitation-preview/${token}`
+}
+
+/**
+ * @summary Get public preview info for an invitation token (no auth required)
+ */
+export const getInvitationPreview = async (token: string, options?: RequestInit): Promise<InvitationPreview> => {
+
+  return customFetch<InvitationPreview>(getGetInvitationPreviewUrl(token),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetInvitationPreviewQueryKey = (token: string,) => {
+    return [
+    `/api/orgs/invitation-preview/${token}`
+    ] as const;
+    }
+
+
+export const getGetInvitationPreviewQueryOptions = <TData = Awaited<ReturnType<typeof getInvitationPreview>>, TError = ErrorType<void>>(token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvitationPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetInvitationPreviewQueryKey(token);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getInvitationPreview>>> = ({ signal }) => getInvitationPreview(token, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: token !== null && token !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getInvitationPreview>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetInvitationPreviewQueryResult = NonNullable<Awaited<ReturnType<typeof getInvitationPreview>>>
+export type GetInvitationPreviewQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get public preview info for an invitation token (no auth required)
+ */
+
+export function useGetInvitationPreview<TData = Awaited<ReturnType<typeof getInvitationPreview>>, TError = ErrorType<void>>(
+ token: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getInvitationPreview>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetInvitationPreviewQueryOptions(token,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListOrgInvitationsUrl = () => {
 

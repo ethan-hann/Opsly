@@ -652,6 +652,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/InvitationInfo"
 
+  /orgs/invitation-preview/{token}:
+    get:
+      operationId: getInvitationPreview
+      tags: [orgs]
+      summary: Get public preview info for an invitation token (no auth required)
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation preview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationPreview"
+        "404":
+          description: Invitation not found or expired
+
   /orgs/invitations:
     get:
       operationId: listOrgInvitations
@@ -1131,6 +1152,15 @@ components:
         entityType:
           type: string
         createdAt:
+          type: string
+
+    InvitationPreview:
+      type: object
+      required: [orgName, expiresAt]
+      properties:
+        orgName:
+          type: string
+        expiresAt:
           type: string
 
     RenameOrgInput:

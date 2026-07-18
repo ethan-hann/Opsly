@@ -662,6 +662,19 @@ export const InviteOrgMemberResponse = zod.object({
 
 
 /**
+ * @summary Get public preview info for an invitation token (no auth required)
+ */
+export const GetInvitationPreviewParams = zod.object({
+  "token": zod.coerce.string()
+})
+
+export const GetInvitationPreviewResponse = zod.object({
+  "orgName": zod.string(),
+  "expiresAt": zod.string()
+})
+
+
+/**
  * @summary List pending invitations for the current organization (admin only)
  */
 export const ListOrgInvitationsResponseItem = zod.object({

@@ -195,6 +195,30 @@ router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   );
 });
 
+// GET /orgs/invitation-preview/:token — public; returns org name for the invite page
+router.get('/orgs/invitation-preview/:token', async (req, res): Promise<void> => {
+  const { token } = req.params;
+  const now = new Date();
+
+  const [row] = await db
+    .select({
+      orgName: organizationsTable.name,
+      expiresAt: invitationsTable.expiresAt,
+      status: invitationsTable.status,
+    })
+    .from(invitationsTable)
+    .innerJoin(organizationsTable, eq(invitationsTable.orgId, organizationsTable.id))
+    .where(eq(invitationsTable.token, token))
+    .limit(1);
+
+  if (!row || row.status !== 'pending' || row.expiresAt <= now) {
+    res.status(404).json({ error: 'Invitation not found or expired' });
+    return;
+  }
+
+  res.json({ orgName: row.orgName, expiresAt: row.expiresAt.toISOString() });
+});
+
 // GET /orgs/invitations — list pending invitations (admin only)
 router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const now = new Date();

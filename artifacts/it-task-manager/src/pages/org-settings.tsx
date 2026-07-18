@@ -11,7 +11,7 @@ import {
 } from "@workspace/api-client-react";
 import type { OrgMemberInfo } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { AlertTriangle, Building2, Clock, Crown, LogOut, Mail, Pencil, Trash2, UserPlus, Shield, X } from "lucide-react";
+import { AlertTriangle, Building2, Clock, Crown, Link2, LogOut, Mail, Pencil, Trash2, UserPlus, Shield, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +30,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function buildInviteLink(token: string): string {
+  // BASE_URL ends with "/" e.g. "/it-task-manager/"
+  return `${window.location.origin}${import.meta.env.BASE_URL}invite/${token}`;
+}
 
 // ─── LeaveOrgSection ─────────────────────────────────────────────────────────
 
@@ -237,9 +244,16 @@ export default function OrgSettings() {
 
   const { mutate: inviteMember, isPending: isInviting } = useInviteOrgMember({
     mutation: {
-      onSuccess: () => {
-        toast({ title: "Invitation sent", description: `Invitation sent to ${inviteValue}.` });
+      onSuccess: (data) => {
+        const link = buildInviteLink(data.token);
+        navigator.clipboard.writeText(link).catch(() => {});
+        toast({
+          title: "Invite link copied to clipboard!",
+          description:
+            "Send this link to the invitee. They can also log in directly and accept automatically if their email or Replit user ID matches.",
+        });
         setInviteValue("");
+        refetchInvitations();
       },
       onError: (err: Error) => {
         toast({ title: "Failed to send invitation", description: err.message, variant: "destructive" });
@@ -502,6 +516,18 @@ export default function OrgSettings() {
                     </p>
                   </div>
                   <Badge variant="outline" className="text-xs shrink-0">Pending</Badge>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                    title="Copy invite link"
+                    onClick={() => {
+                      navigator.clipboard.writeText(buildInviteLink(inv.token)).catch(() => {});
+                      toast({ title: "Invite link copied" });
+                    }}
+                  >
+                    <Link2 className="w-4 h-4" />
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button

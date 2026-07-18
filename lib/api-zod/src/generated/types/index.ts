@@ -21,6 +21,7 @@ export * from './handleBrowserLoginCallbackParams';
 export * from './healthStatus';
 export * from './invitationInfo';
 export * from './invitationInfoStatus';
+export * from './invitationPreview';
 export * from './inviteMemberInput';
 export * from './listNotesParams';
 export * from './listTasksParams';
