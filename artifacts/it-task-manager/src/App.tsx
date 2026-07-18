@@ -13,6 +13,7 @@ import ProjectsList from '@/pages/projects';
 import ProjectDetail from '@/pages/project-detail';
 import TasksList from '@/pages/tasks';
 import TaskDetail from '@/pages/task-detail';
+import NotesPage from '@/pages/notes';
 import LoginPage from '@/pages/login';
 
 const queryClient = new QueryClient({
@@ -54,6 +55,7 @@ function Router() {
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/tasks" component={TasksList} />
         <Route path="/tasks/:id" component={TaskDetail} />
+        <Route path="/notes" component={NotesPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

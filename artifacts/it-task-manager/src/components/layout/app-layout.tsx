@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, CheckSquare, FolderGit2, Menu, Moon, Sun, Activity, LogOut } from "lucide-react";
+import { LayoutDashboard, CheckSquare, FolderGit2, StickyNote, Menu, Moon, Sun, Activity, LogOut } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/projects", label: "Projects", icon: FolderGit2 },
+  { href: "/notes", label: "Scratch Pad", icon: StickyNote },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {

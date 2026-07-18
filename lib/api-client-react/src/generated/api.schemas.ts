@@ -301,6 +301,36 @@ export interface CommentInput {
   author?: string;
 }
 
+export interface Note {
+  id: number;
+  title: string;
+  content: string;
+  /** @nullable */
+  projectId?: number | null;
+  /** @nullable */
+  taskId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoteInput {
+  /** @minLength 1 */
+  title?: string;
+  content?: string;
+  projectId?: number;
+  taskId?: number;
+}
+
+export interface NoteUpdate {
+  /** @minLength 1 */
+  title?: string;
+  content?: string;
+  /** @nullable */
+  projectId?: number | null;
+  /** @nullable */
+  taskId?: number | null;
+}
+
 export type DashboardSummaryTasksByStatus = {
   todo: number;
   in_progress: number;
@@ -357,5 +387,10 @@ projectId?: number;
 status?: string;
 priority?: string;
 category?: string;
+};
+
+export type ListNotesParams = {
+projectId?: number;
+taskId?: number;
 };
 

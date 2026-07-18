@@ -403,6 +403,106 @@ export const DeleteCommentResponse = zod.void()
 
 
 /**
+ * @summary List all notes, optionally filtered by project or task
+ */
+export const ListNotesQueryParams = zod.object({
+  "projectId": zod.coerce.number().optional(),
+  "taskId": zod.coerce.number().optional()
+})
+
+export const ListNotesResponseItem = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "projectId": zod.number().nullish(),
+  "taskId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+export const ListNotesResponse = zod.array(ListNotesResponseItem)
+
+
+/**
+ * @summary Create a new note
+ */
+
+
+
+export const CreateNoteBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "content": zod.string().optional(),
+  "projectId": zod.number().optional(),
+  "taskId": zod.number().optional()
+})
+
+export const CreateNoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "projectId": zod.number().nullish(),
+  "taskId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Get a note by ID
+ */
+export const GetNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetNoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "projectId": zod.number().nullish(),
+  "taskId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update a note
+ */
+export const UpdateNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateNoteBody = zod.object({
+  "title": zod.string().min(1).optional(),
+  "content": zod.string().optional(),
+  "projectId": zod.number().nullish(),
+  "taskId": zod.number().nullish()
+})
+
+export const UpdateNoteResponse = zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "content": zod.string(),
+  "projectId": zod.number().nullish(),
+  "taskId": zod.number().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a note
+ */
+export const DeleteNoteParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteNoteResponse = zod.void()
+
+
+/**
  * @summary Get dashboard summary stats
  */
 export const GetDashboardSummaryResponse = zod.object({

@@ -18,6 +18,8 @@ tags:
     description: Task operations
   - name: comments
     description: Comment operations
+  - name: notes
+    description: Rich-text scratch pad notes
   - name: dashboard
     description: Dashboard and analytics
 
@@ -414,6 +416,108 @@ paths:
         "204":
           description: Deleted
 
+  /notes:
+    get:
+      operationId: listNotes
+      tags: [notes]
+      summary: List all notes, optionally filtered by project or task
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: taskId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of notes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Note"
+    post:
+      operationId: createNote
+      tags: [notes]
+      summary: Create a new note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteInput"
+      responses:
+        "201":
+          description: Created note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+
+  /notes/{id}:
+    get:
+      operationId: getNote
+      tags: [notes]
+      summary: Get a note by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateNote
+      tags: [notes]
+      summary: Update a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NoteUpdate"
+      responses:
+        "200":
+          description: Updated note
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteNote
+      tags: [notes]
+      summary: Delete a note
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
   /dashboard/summary:
     get:
       operationId: getDashboardSummary
@@ -711,6 +815,51 @@ components:
           minLength: 1
         author:
           type: string
+
+    Note:
+      type: object
+      required: [id, title, content, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        content:
+          type: string
+        projectId:
+          type: ["integer", "null"]
+        taskId:
+          type: ["integer", "null"]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    NoteInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        projectId:
+          type: integer
+        taskId:
+          type: integer
+
+    NoteUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        content:
+          type: string
+        projectId:
+          type: ["integer", "null"]
+        taskId:
+          type: ["integer", "null"]
 
     DashboardSummary:
       type: object

@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import projectsRouter from "./projects";
 import tasksRouter from "./tasks";
 import commentsRouter from "./comments";
+import notesRouter from "./notes";
 import dashboardRouter from "./dashboard";
 
 const router: IRouter = Router();
@@ -13,6 +14,7 @@ router.use(authRouter);
 router.use(projectsRouter);
 router.use(tasksRouter);
 router.use(commentsRouter);
+router.use(notesRouter);
 router.use(dashboardRouter);
 
 export default router;

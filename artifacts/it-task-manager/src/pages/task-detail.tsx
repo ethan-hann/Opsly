@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar, FolderGit2, AlertTriangle, Activity } from "lucide-react";
+import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
@@ -91,7 +92,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const handlePostComment = () => {
     if (!commentText.trim()) return;
     commentMutation.mutate({
-      data: { content: commentText, author: "Current User" } // hardcoded author for now
+      id: taskId,
+      data: { content: commentText, author: "Current User" }
     });
   };
 
@@ -219,6 +221,15 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
         {/* Sidebar Column */}
         <div className="space-y-6">
+          <Card className="border-border shadow-sm">
+            <CardHeader className="bg-muted/20 border-b border-border py-3">
+              <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Notes</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <InlineNotes taskId={taskId} />
+            </CardContent>
+          </Card>
+
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-muted/20 border-b border-border py-3">
               <CardTitle className="text-sm font-mono uppercase tracking-wider text-muted-foreground">Properties</CardTitle>

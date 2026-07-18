@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { ArrowLeft, Calendar, Trash2, Edit, Plus, CheckSquare, Clock } from "lucide-react";
+import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -149,6 +150,13 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               </AlertDialogContent>
             </AlertDialog>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Notes Section */}
+      <Card className="border-border/60 shadow-sm">
+        <CardContent className="pt-6">
+          <InlineNotes projectId={projectId} />
         </CardContent>
       </Card>
 

@@ -1,0 +1,1 @@
+- [Notes feature architecture](notes-feature.md) — monorepo entity add sequence; api-server must use @workspace/api-zod not raw zod; useToast path; TipTap install approach.
