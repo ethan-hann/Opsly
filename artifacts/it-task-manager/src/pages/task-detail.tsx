@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, getListTasksQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, getListTasksQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -83,12 +83,18 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     return <div className="text-center py-12">Task not found</div>;
   }
 
+  const { data: projects = [] } = useListProjects();
+
   const handleStatusChange = (newStatus: any) => {
     updateMutation.mutate({ id: taskId, data: { status: newStatus } });
   };
 
   const handlePriorityChange = (newPriority: any) => {
     updateMutation.mutate({ id: taskId, data: { priority: newPriority } });
+  };
+
+  const handleProjectChange = (value: string) => {
+    updateMutation.mutate({ id: taskId, data: { projectId: value === "none" ? null : Number(value) } });
   };
 
   const handlePostComment = () => {
@@ -240,20 +246,22 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
             <CardContent className="p-0">
               <div className="divide-y divide-border text-sm">
                 
-                {/* Project */}
+                {/* Project - Interactive */}
                 <div className="p-3 flex flex-col gap-1.5 hover:bg-muted/20 transition-colors">
                   <span className="text-muted-foreground flex items-center gap-2">
                     <FolderGit2 className="w-4 h-4" /> Project
                   </span>
-                  {task.projectId ? (
-                    <Link href={`/projects/${task.projectId}`}>
-                      <span className="font-medium hover:text-primary transition-colors cursor-pointer block truncate">
-                        {task.projectName}
-                      </span>
-                    </Link>
-                  ) : (
-                    <span className="italic text-muted-foreground">Unassigned</span>
-                  )}
+                  <Select value={task.projectId?.toString() ?? "none"} onValueChange={handleProjectChange}>
+                    <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
+                      <SelectValue placeholder="None" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                      {projects.map((p) => (
+                        <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Status - Interactive */}
