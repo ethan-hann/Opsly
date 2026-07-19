@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
+import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 
 const router: IRouter = Router();
 
@@ -271,7 +272,8 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     .returning();
 
   const enriched = await buildTaskWithProject(task, orgId);
-  dispatchTaskCreated(orgId, task.projectId, enriched);
+  const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
+  dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
   res.status(201).json(CreateTaskResponse.parse(enriched));
 });
 
@@ -377,7 +379,8 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   }
 
   const enriched = await buildTaskWithProject(task, orgId);
-  dispatchTaskUpdated(orgId, task.projectId, enriched, prev?.status, prev?.assignee);
+  const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
+  dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields }, prev?.status, prev?.assignee);
   res.json(UpdateTaskResponse.parse(enriched));
 });
 

@@ -12,6 +12,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
+import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 
 const router: IRouter = Router();
 
@@ -92,8 +93,13 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
   void (async () => {
     const [fullTask] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id)).limit(1);
     if (fullTask) {
+      const webhookCustomFields = await resolveCustomFieldNames(
+        fullTask.customFields as Record<string, unknown> ?? {},
+        req.orgId!,
+      );
       dispatchTaskCommented(req.orgId!, fullTask.projectId, {
         ...fullTask,
+        customFields: webhookCustomFields,
         createdAt: fullTask.createdAt.toISOString(),
         updatedAt: fullTask.updatedAt.toISOString(),
       }, serializedComment);
