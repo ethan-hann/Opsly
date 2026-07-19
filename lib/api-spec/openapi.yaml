@@ -559,6 +559,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/Comment"
 
+  /tasks/{id}/events:
+    get:
+      operationId: listTaskEvents
+      tags: [tasks]
+      summary: List change events for a task
+      description: >
+        Returns the full audit trail for a task: one event per field change,
+        ordered by creation date ascending (oldest first). Includes a synthetic
+        "created" event emitted when the task was first inserted. The task must
+        belong to the caller's organization; returns 404 if not found.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Numeric ID of the task whose events to list.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of task events ordered oldest-first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskEvent"
+        "404":
+          description: Task not found or belongs to a different org.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+
   /comments/{id}:
     delete:
       operationId: deleteComment
@@ -2102,6 +2139,45 @@ components:
           description: >
             Field definition IDs in the desired display order. Each ID must
             belong to the caller's org.
+
+    TaskEvent:
+      description: >
+        An immutable record of a single field-level change to a task.
+        One event is emitted per changed field on every PATCH, plus a synthetic
+        "created" event when the task is first inserted.
+      type: object
+      required: [id, taskId, orgId, field, createdAt]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key.
+        taskId:
+          type: integer
+          description: ID of the task this event belongs to.
+        orgId:
+          type: string
+          description: Org the task belongs to.
+        actorId:
+          type: ["string", "null"]
+          description: User ID of the actor who triggered the change. Null for system events.
+        actorName:
+          type: ["string", "null"]
+          description: Display name of the actor at the time of the change.
+        field:
+          type: string
+          description: >
+            Which field changed. "created" for task creation; otherwise one of
+            "status", "priority", "assignee", "category", "title", "dueDate",
+            "projectId".
+        oldValue:
+          type: ["string", "null"]
+          description: Serialized previous value. Null when the field had no prior value.
+        newValue:
+          type: ["string", "null"]
+          description: Serialized new value. Null when the field was cleared.
+        createdAt:
+          type: string
+          description: ISO 8601 timestamp when the event was recorded.
 
     Comment:
       description: A comment attached to a task.

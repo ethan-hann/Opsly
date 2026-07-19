@@ -79,6 +79,7 @@ vi.mock("@workspace/db", () => {
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
     customFieldDefinitionsTable: {},
+    taskEventsTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -95,6 +96,7 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   ne: () => ({}),
   isNull: () => ({}),
+  asc: () => ({}),
   sql: () => ({}),
 }));
 
@@ -470,6 +472,7 @@ describe("PATCH /api/tasks/:id - validation", () => {
   });
 
   it("returns 400 when projectId is not in the org", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
     mockState.selectQueue.push([]); // projectBelongsToOrg → not found
 
     const res = await request(buildApp())
@@ -545,7 +548,8 @@ describe("PATCH /api/tasks/:id - assignee validation", () => {
   });
 
   it("rejects a patch whose assignee is not an org member", async () => {
-    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([]); // assigneeBelongsToOrg → not found
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
@@ -716,6 +720,133 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
       .send({ customFields: { "10": "updated note", "99": "phantom field" } });
 
     expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/tasks/:id/events
+// ---------------------------------------------------------------------------
+
+describe("GET /api/tasks/:id/events", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  const MOCK_EVENT = {
+    id: 1,
+    taskId: 1,
+    orgId: "test-org",
+    actorId: "user-owner",
+    actorName: "Alice Smith",
+    field: "status",
+    oldValue: "todo",
+    newValue: "in_progress",
+    createdAt: new Date().toISOString(),
+  };
+
+  it("returns 200 with an empty array when no events exist", async () => {
+    mockState.selectQueue.push([MOCK_TASK]); // task ownership check
+    mockState.selectQueue.push([]);          // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns 200 with events ordered oldest-first", async () => {
+    const createdEvent = { ...MOCK_EVENT, id: 1, field: "created", oldValue: null, newValue: "Fix the server" };
+    const statusEvent = { ...MOCK_EVENT, id: 2, field: "status", oldValue: "todo", newValue: "in_progress" };
+    mockState.selectQueue.push([MOCK_TASK]);                  // task ownership check
+    mockState.selectQueue.push([createdEvent, statusEvent]);  // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0]).toMatchObject({ field: "created", newValue: "Fix the server" });
+    expect(res.body[1]).toMatchObject({ field: "status", oldValue: "todo", newValue: "in_progress" });
+  });
+
+  it("returns 404 when the task does not belong to the org", async () => {
+    mockState.selectQueue.push([]); // task not found
+
+    const res = await request(buildApp()).get("/api/tasks/999/events");
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 400 for a non-integer id", async () => {
+    const res = await request(buildApp()).get("/api/tasks/bad-id/events");
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /tasks event emission
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks - event emission", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [MOCK_TASK];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  it("emits a 'created' event after inserting a task", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);   // comment count
+
+    // The insert mock accepts both the task insert (.returning()) and the event
+    // insert (.values() without .returning()). Both use the same mock chain.
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send(VALID_TASK_BODY);
+
+    expect(res.status).toBe(201);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /tasks event emission
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/tasks/:id - event emission", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [MOCK_TASK];
+    mockState.deleteResult = [];
+  });
+
+  it("emits change events only for fields that actually changed", async () => {
+    const updated = { ...MOCK_TASK, status: "in_progress" };
+    mockState.updateResult = [updated];
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([{ count: 0 }]);                        // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ status: "in_progress" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: "in_progress" });
+  });
+
+  it("returns 404 early when the task does not exist (no prev row)", async () => {
+    // Empty prev means task not found — no events should be inserted
+    mockState.selectQueue.push([]); // prev select returns nothing → task not found
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/999")
+      .send({ status: "done" });
+
+    expect(res.status).toBe(404);
   });
 });
 

@@ -1,11 +1,11 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar, FolderGit2, AlertTriangle, Activity } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar, FolderGit2, AlertTriangle, Activity, History } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +27,79 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@workspace/replit-auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
 
+// ─── Field change label helpers ───────────────────────────────────────────────
+
+const STATUS_LABELS: Record<string, string> = {
+  todo: "To Do",
+  in_progress: "In Progress",
+  blocked: "Blocked",
+  done: "Done",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  critical: "Critical",
+};
+
+function labelFor(field: string, value: string | null | undefined): string {
+  if (value == null || value === "") return "—";
+  if (field === "status") return STATUS_LABELS[value] ?? value;
+  if (field === "priority") return PRIORITY_LABELS[value] ?? value;
+  return value;
+}
+
+function eventDescription(field: string, oldValue: string | null | undefined, newValue: string | null | undefined): string {
+  if (field === "created") {
+    return `Task created: "${newValue ?? ""}"`;
+  }
+
+  const fieldLabel: Record<string, string> = {
+    status: "Status",
+    priority: "Priority",
+    assignee: "Assignee",
+    category: "Category",
+    title: "Title",
+    dueDate: "Due date",
+    projectId: "Project",
+  };
+
+  const label = fieldLabel[field] ?? field;
+  const oldStr = labelFor(field, oldValue);
+  const newStr = labelFor(field, newValue);
+
+  if (!oldValue && newValue) return `${label} set to ${newStr}`;
+  if (oldValue && !newValue) return `${label} cleared (was ${oldStr})`;
+  return `${label} changed from ${oldStr} → ${newStr}`;
+}
+
+// ─── Unified feed item types ──────────────────────────────────────────────────
+
+type FeedComment = {
+  kind: "comment";
+  id: number;
+  author: string | null;
+  content: string;
+  userId: string | null;
+  createdAt: string;
+};
+
+type FeedEvent = {
+  kind: "event";
+  id: number;
+  actorId: string | null;
+  actorName: string | null;
+  field: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+};
+
+type FeedItem = FeedComment | FeedEvent;
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function TaskDetail({ params }: { params: { id: string } }) {
   const taskId = parseInt(params.id, 10);
   const [, setLocation] = useLocation();
@@ -43,6 +116,10 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   const { data: comments, isLoading: isLoadingComments } = useListComments(taskId, {
     query: { enabled: !!taskId, queryKey: ["listComments", taskId] }
+  });
+
+  const { data: events, isLoading: isLoadingEvents } = useListTaskEvents(taskId, {
+    query: { enabled: !!taskId, queryKey: ["listTaskEvents", taskId] }
   });
 
   const deleteMutation = useDeleteTask({
@@ -68,6 +145,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["listTaskEvents", taskId] });
       }
     }
   });
@@ -126,6 +204,30 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       data: { content: commentText, author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? "Unknown")) : "Unknown" }
     });
   };
+
+  // Build unified chronological feed (comments + events, newest first)
+  const feedItems: FeedItem[] = [
+    ...(comments ?? []).map((c): FeedComment => ({
+      kind: "comment",
+      id: c.id,
+      author: c.author ?? null,
+      content: c.content,
+      userId: (c as any).userId ?? null,
+      createdAt: c.createdAt,
+    })),
+    ...(events ?? []).map((e): FeedEvent => ({
+      kind: "event",
+      id: e.id,
+      actorId: e.actorId ?? null,
+      actorName: e.actorName ?? null,
+      field: e.field,
+      oldValue: e.oldValue ?? null,
+      newValue: e.newValue ?? null,
+      createdAt: e.createdAt,
+    })),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const isActivityLoading = isLoadingComments || isLoadingEvents;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
@@ -192,68 +294,111 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
 
-          {/* Activity/Comments Thread */}
+          {/* Unified Activity & History Feed */}
           <Card className="border-border shadow-sm">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-muted-foreground" />
-                Activity Thread
+                Activity &amp; History
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              {isLoadingComments ? (
+            <CardContent className="space-y-1">
+              {isActivityLoading ? (
                 <div className="space-y-4">
                   <Skeleton className="h-20 w-full" />
                   <Skeleton className="h-20 w-full" />
                 </div>
-              ) : comments && comments.length > 0 ? (
-                <div className="space-y-4">
-                  {[...comments].reverse().map((comment) => {
-                    const currentUserName = user
-                      ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? ""))
-                      : "";
-                    const isCurrentUser = !!currentUserName && comment.author === currentUserName;
-                    const initials = (comment.author ?? "?")
-                      .split(" ")
-                      .filter(Boolean)
-                      .map((w: string) => w[0].toUpperCase())
-                      .slice(0, 2)
-                      .join("");
-                    const canDelete = isCurrentUser || hasPermission('manage_org_settings');
-                    return (
-                    <div key={comment.id} className="flex gap-4">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 mt-1 flex items-center justify-center">
-                        {isCurrentUser && user?.profileImageUrl
-                          ? <img src={user.profileImageUrl} alt={comment.author ?? ""} className="w-full h-full object-cover" />
-                          : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
-                        }
-                      </div>
-                      <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg p-3">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium">{comment.author || 'System'}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
-                            {canDelete && (
-                              <button
-                                onClick={() => deleteCommentMutation.mutate({ id: comment.id })}
-                                disabled={deleteCommentMutation.isPending}
-                                className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
-                                title="Delete comment"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+              ) : feedItems.length > 0 ? (
+                <div className="relative">
+                  {/* Vertical timeline line */}
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-border" aria-hidden="true" />
+                  <div className="space-y-0">
+                    {feedItems.map((item) => {
+                      if (item.kind === "comment") {
+                        const currentUserName = user
+                          ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? ""))
+                          : "";
+                        const isCurrentUser = !!currentUserName && item.author === currentUserName;
+                        const initials = (item.author ?? "?")
+                          .split(" ")
+                          .filter(Boolean)
+                          .map((w: string) => w[0].toUpperCase())
+                          .slice(0, 2)
+                          .join("");
+                        const canDelete = isCurrentUser || hasPermission('manage_org_settings');
+                        return (
+                          <div key={`comment-${item.id}`} className="flex gap-3 py-3 pl-1">
+                            {/* Avatar dot on timeline */}
+                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 flex items-center justify-center z-10">
+                              {isCurrentUser && user?.profileImageUrl
+                                ? <img src={user.profileImageUrl} alt={item.author ?? ""} className="w-full h-full object-cover" />
+                                : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
+                              }
+                            </div>
+                            <div className="flex-1 min-w-0 bg-muted/30 border border-border/50 rounded-lg p-3">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-medium">{item.author || "System"}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">{formatTimeAgo(item.createdAt)}</span>
+                                  {canDelete && (
+                                    <button
+                                      onClick={() => deleteCommentMutation.mutate({ id: item.id })}
+                                      disabled={deleteCommentMutation.isPending}
+                                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
+                                      title="Delete comment"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-sm text-foreground/80 whitespace-pre-wrap">{item.content}</p>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // Change event
+                      const isCreatedEvent = item.field === "created";
+                      const actorInitials = (item.actorName ?? "?")
+                        .split(" ")
+                        .filter(Boolean)
+                        .map((w: string) => w[0].toUpperCase())
+                        .slice(0, 2)
+                        .join("");
+
+                      return (
+                        <div key={`event-${item.id}`} className="flex gap-3 py-2 pl-1 items-center">
+                          {/* Icon dot on timeline */}
+                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border ${
+                            isCreatedEvent
+                              ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+                              : "bg-muted border-border text-muted-foreground"
+                          }`}>
+                            {isCreatedEvent
+                              ? <Activity className="w-3.5 h-3.5" />
+                              : <History className="w-3.5 h-3.5" />
+                            }
+                          </div>
+                          <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                            {item.actorName && (
+                              <span className="text-xs font-medium text-foreground/80">{item.actorName}</span>
                             )}
+                            <span className="text-xs text-muted-foreground">
+                              {eventDescription(item.field, item.oldValue, item.newValue)}
+                            </span>
+                            <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
+                              {formatTimeAgo(item.createdAt)}
+                            </span>
                           </div>
                         </div>
-                        <p className="text-sm text-foreground/80 whitespace-pre-wrap">{comment.content}</p>
-                      </div>
-                    </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
-                  No comments yet. Start the conversation below.
+                  No activity yet. Start the conversation below.
                 </div>
               )}
             </CardContent>

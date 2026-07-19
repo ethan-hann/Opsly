@@ -590,6 +590,42 @@ export interface CustomFieldReorderInput {
 }
 
 /**
+ * An immutable record of a single field-level change to a task. One event is emitted per changed field on every PATCH, plus a synthetic "created" event when the task is first inserted.
+ */
+export interface TaskEvent {
+  /** Auto-incremented primary key. */
+  id: number;
+  /** ID of the task this event belongs to. */
+  taskId: number;
+  /** Org the task belongs to. */
+  orgId: string;
+  /**
+     * User ID of the actor who triggered the change. Null for system events.
+     * @nullable
+     */
+  actorId?: string | null;
+  /**
+     * Display name of the actor at the time of the change.
+     * @nullable
+     */
+  actorName?: string | null;
+  /** Which field changed. "created" for task creation; otherwise one of "status", "priority", "assignee", "category", "title", "dueDate", "projectId". */
+  field: string;
+  /**
+     * Serialized previous value. Null when the field had no prior value.
+     * @nullable
+     */
+  oldValue?: string | null;
+  /**
+     * Serialized new value. Null when the field was cleared.
+     * @nullable
+     */
+  newValue?: string | null;
+  /** ISO 8601 timestamp when the event was recorded. */
+  createdAt: string;
+}
+
+/**
  * A comment attached to a task.
  */
 export interface Comment {
@@ -1433,6 +1469,10 @@ dateFrom?: string;
  * Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.
  */
 dateTo?: string;
+};
+
+export type ListTaskEvents404 = {
+  error: string;
 };
 
 export type DeleteComment403 = {

@@ -15,7 +15,8 @@
     "migrate:add-inbound-webhook-rate-limit": "pnpm dlx tsx src/migrations/add-inbound-webhook-rate-limit.ts",
     "migrate:add-outbound-webhook-deliveries": "pnpm dlx tsx src/migrations/add-outbound-webhook-deliveries.ts",
     "migrate:add-roles-and-permissions": "pnpm dlx tsx src/migrations/add-roles-and-permissions.ts",
-    "migrate:add-custom-fields": "pnpm dlx tsx src/migrations/add-custom-fields.ts"
+    "migrate:add-custom-fields": "pnpm dlx tsx src/migrations/add-custom-fields.ts",
+    "migrate:create-task-events": "pnpm dlx tsx src/migrations/create-task-events.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

@@ -42,6 +42,7 @@ import type {
   InvitationPreview,
   InviteMemberInput,
   ListNotesParams,
+  ListTaskEvents404,
   ListTasksParams,
   LogoutBrowserSessionParams,
   LogoutSuccess,
@@ -65,6 +66,7 @@ import type {
   Role,
   SimpleSuccess,
   Task,
+  TaskEvent,
   TaskInput,
   TaskUpdate,
   UpdateMemberRoleInput,
@@ -1558,6 +1560,84 @@ export const useCreateComment = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateCommentMutationOptions(options));
     }
+
+export const getListTaskEventsUrl = (id: number,) => {
+
+
+
+
+  return `/api/tasks/${id}/events`
+}
+
+/**
+ * Returns the full audit trail for a task: one event per field change, ordered by creation date ascending (oldest first). Includes a synthetic "created" event emitted when the task was first inserted. The task must belong to the caller's organization; returns 404 if not found.
+ * @summary List change events for a task
+ */
+export const listTaskEvents = async (id: number, options?: RequestInit): Promise<TaskEvent[]> => {
+
+  return customFetch<TaskEvent[]>(getListTaskEventsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTaskEventsQueryKey = (id: number,) => {
+    return [
+    `/api/tasks/${id}/events`
+    ] as const;
+    }
+
+
+export const getListTaskEventsQueryOptions = <TData = Awaited<ReturnType<typeof listTaskEvents>>, TError = ErrorType<ListTaskEvents404>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTaskEventsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTaskEvents>>> = ({ signal }) => listTaskEvents(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTaskEvents>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTaskEventsQueryResult = NonNullable<Awaited<ReturnType<typeof listTaskEvents>>>
+export type ListTaskEventsQueryError = ErrorType<ListTaskEvents404>
+
+
+/**
+ * @summary List change events for a task
+ */
+
+export function useListTaskEvents<TData = Awaited<ReturnType<typeof listTaskEvents>>, TError = ErrorType<ListTaskEvents404>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskEvents>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTaskEventsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getDeleteCommentUrl = (id: number,) => {
 

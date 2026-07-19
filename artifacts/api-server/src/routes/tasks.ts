@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, lte, gte, or, isNull } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable } from "@workspace/db";
+import { eq, sql, and, lt, lte, gte, or, isNull, asc } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable, taskEventsTable } from "@workspace/db";
 import {
   CreateTaskBody,
   UpdateTaskBody,
@@ -13,12 +13,16 @@ import {
   GetTaskResponse,
   UpdateTaskResponse,
   GetOverdueTasksResponse,
+  ListTaskEventsParams,
+  ListTaskEventsResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 
 const router: IRouter = Router();
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
  * Build enriched task payload.
@@ -164,6 +168,63 @@ async function assigneeBelongsToOrg(assignee: string | null | undefined, orgId: 
   return !!row;
 }
 
+/**
+ * Derive a human-readable display name from a user object.
+ */
+function displayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null }): string {
+  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  return full || user.email || "Unknown";
+}
+
+/** Fields we track in the audit log and their serializers. */
+const TRACKED_FIELDS = ["status", "priority", "assignee", "category", "title", "dueDate", "projectId"] as const;
+type TrackedField = typeof TRACKED_FIELDS[number];
+
+type TaskSnapshot = Pick<typeof tasksTable.$inferSelect, TrackedField>;
+
+/**
+ * Insert one task_events row per field that changed between prev and next.
+ * Must be called inside the same logical operation as the update (no separate tx needed
+ * since we do these as sequential inserts in the same request handler).
+ */
+async function insertChangeEvents(
+  taskId: number,
+  orgId: string,
+  actorId: string | null,
+  actorName: string | null,
+  prev: TaskSnapshot,
+  next: TaskSnapshot,
+): Promise<void> {
+  const events: Array<typeof taskEventsTable.$inferInsert> = [];
+
+  for (const field of TRACKED_FIELDS) {
+    const oldVal = prev[field];
+    const newVal = next[field];
+
+    // Normalize null/undefined to null for comparison
+    const oldNorm = oldVal ?? null;
+    const newNorm = newVal ?? null;
+
+    if (oldNorm === newNorm) continue;
+
+    events.push({
+      taskId,
+      orgId,
+      actorId,
+      actorName,
+      field,
+      oldValue: oldNorm !== null ? String(oldNorm) : null,
+      newValue: newNorm !== null ? String(newNorm) : null,
+    });
+  }
+
+  if (events.length > 0) {
+    await db.insert(taskEventsTable).values(events);
+  }
+}
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
 router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const today = new Date().toISOString().split("T")[0];
@@ -271,6 +332,19 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     })
     .returning();
 
+  // Emit a "created" event for the new task
+  const actorId = req.user?.id ?? null;
+  const actorNameStr = req.user ? displayName(req.user) : null;
+  await db.insert(taskEventsTable).values({
+    taskId: task.id,
+    orgId,
+    actorId,
+    actorName: actorNameStr,
+    field: "created",
+    oldValue: null,
+    newValue: task.title,
+  });
+
   const enriched = await buildTaskWithProject(task, orgId);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
@@ -314,12 +388,25 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Capture previous values for outbound dispatch
+  // Capture previous values for change-event diffing and outbound webhook dispatch
   const [prev] = await db
-    .select({ status: tasksTable.status, assignee: tasksTable.assignee })
+    .select({
+      status: tasksTable.status,
+      priority: tasksTable.priority,
+      assignee: tasksTable.assignee,
+      category: tasksTable.category,
+      title: tasksTable.title,
+      dueDate: tasksTable.dueDate,
+      projectId: tasksTable.projectId,
+    })
     .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .limit(1);
+
+  if (!prev) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
 
   // Validate that projectId (if being changed) belongs to this org
   if (parsed.data.projectId != null) {
@@ -378,9 +465,29 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
+  // Diff prev vs updated values and emit one event per changed tracked field
+  const actorId = req.user?.id ?? null;
+  const actorNameStr = req.user ? displayName(req.user) : null;
+  await insertChangeEvents(
+    task.id,
+    orgId,
+    actorId,
+    actorNameStr,
+    prev,
+    {
+      status: task.status,
+      priority: task.priority,
+      assignee: task.assignee,
+      category: task.category,
+      title: task.title,
+      dueDate: task.dueDate,
+      projectId: task.projectId,
+    },
+  );
+
   const enriched = await buildTaskWithProject(task, orgId);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
-  dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields }, prev?.status, prev?.assignee);
+  dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields }, prev.status, prev.assignee);
   res.json(UpdateTaskResponse.parse(enriched));
 });
 
@@ -403,6 +510,47 @@ router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   }
 
   res.sendStatus(204);
+});
+
+router.get("/tasks/:id/events", requireOrg, async (req, res): Promise<void> => {
+  const params = ListTaskEventsParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  // Verify task belongs to the org
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+
+  const events = await db
+    .select()
+    .from(taskEventsTable)
+    .where(and(eq(taskEventsTable.taskId, params.data.id), eq(taskEventsTable.orgId, orgId)))
+    .orderBy(asc(taskEventsTable.createdAt));
+
+  res.json(
+    ListTaskEventsResponse.parse(
+      events.map((e) => ({
+        ...e,
+        actorId: e.actorId ?? null,
+        actorName: e.actorName ?? null,
+        oldValue: e.oldValue ?? null,
+        newValue: e.newValue ?? null,
+        createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : e.createdAt,
+      })),
+    ),
+  );
 });
 
 export default router;

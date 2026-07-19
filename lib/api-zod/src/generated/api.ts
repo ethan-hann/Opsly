@@ -424,6 +424,28 @@ export const CreateCommentResponse = zod.object({
 
 
 /**
+ * Returns the full audit trail for a task: one event per field change, ordered by creation date ascending (oldest first). Includes a synthetic "created" event emitted when the task was first inserted. The task must belong to the caller's organization; returns 404 if not found.
+ * @summary List change events for a task
+ */
+export const ListTaskEventsParams = zod.object({
+  "id": zod.coerce.number().describe('Numeric ID of the task whose events to list.')
+})
+
+export const ListTaskEventsResponseItem = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('ID of the task this event belongs to.'),
+  "orgId": zod.string().describe('Org the task belongs to.'),
+  "actorId": zod.string().nullish().describe('User ID of the actor who triggered the change. Null for system events.'),
+  "actorName": zod.string().nullish().describe('Display name of the actor at the time of the change.'),
+  "field": zod.string().describe('Which field changed. \"created\" for task creation; otherwise one of \"status\", \"priority\", \"assignee\", \"category\", \"title\", \"dueDate\", \"projectId\".\n'),
+  "oldValue": zod.string().nullish().describe('Serialized previous value. Null when the field had no prior value.'),
+  "newValue": zod.string().nullish().describe('Serialized new value. Null when the field was cleared.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the event was recorded.')
+}).describe('An immutable record of a single field-level change to a task. One event is emitted per changed field on every PATCH, plus a synthetic \"created\" event when the task is first inserted.\n')
+export const ListTaskEventsResponse = zod.array(ListTaskEventsResponseItem)
+
+
+/**
  * Permanently deletes a comment by its numeric ID. Only the comment's original author or an org admin (manage_org_settings permission) may delete a comment. Returns 404 if the comment is not found or belongs to a different org. Returns 403 if the caller is neither the author nor an org admin. Returns 204 on success.
  * @summary Delete a comment
  */
