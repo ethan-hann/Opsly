@@ -521,10 +521,7 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                         <SelectContent>
                           {MAPPING_TARGET_OPTIONS.map((o) => (
                             <SelectItem key={o.value} value={o.value}>
-                              <span className="flex flex-col">
-                                <span>{o.label}</span>
-                                <span className="text-[10px] text-muted-foreground">{o.hint}</span>
-                              </span>
+                              {o.label}
                             </SelectItem>
                           ))}
                         </SelectContent>
