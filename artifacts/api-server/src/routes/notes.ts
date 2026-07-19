@@ -56,6 +56,25 @@ async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
   return !!row;
 }
 
+/**
+ * Returns the effective project ID for webhook dispatch.
+ * Uses note.projectId when set; falls back to the linked task's projectId so
+ * that project-filtered webhooks fire even when a note is linked only via a task.
+ */
+async function resolveEffectiveProjectId(note: {
+  projectId: number | null;
+  taskId: number | null;
+}): Promise<number | null> {
+  if (note.projectId != null) return note.projectId;
+  if (note.taskId == null) return null;
+  const [row] = await db
+    .select({ projectId: tasksTable.projectId })
+    .from(tasksTable)
+    .where(eq(tasksTable.id, note.taskId))
+    .limit(1);
+  return row?.projectId ?? null;
+}
+
 // GET /notes/events - SSE stream for real-time note change notifications.
 // Must be registered before /notes/:id so Express doesn't treat "events" as an id.
 router.get("/notes/events", requireOrg, (req, res) => {
@@ -140,7 +159,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .returning();
 
   broadcastNoteChange(orgId);
-  dispatchNoteCreated(orgId, note.projectId, serializeNote(note, userId));
+  dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note), serializeNote(note, userId));
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -233,7 +252,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   }
 
   broadcastNoteChange(orgId);
-  dispatchNoteUpdated(orgId, note.projectId, serializeNote(note, userId));
+  dispatchNoteUpdated(orgId, await resolveEffectiveProjectId(note), serializeNote(note, userId));
   return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -265,7 +284,7 @@ router.delete("/notes/:id", requireOrg, async (req, res) => {
     .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
   broadcastNoteChange(req.orgId!);
-  dispatchNoteDeleted(req.orgId!, existing.projectId, serializeNote(existing, userId));
+  dispatchNoteDeleted(req.orgId!, await resolveEffectiveProjectId(existing), serializeNote(existing, userId));
   return res.sendStatus(204);
 });
 

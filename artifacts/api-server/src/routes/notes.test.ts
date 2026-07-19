@@ -16,6 +16,7 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
+import type { Mock } from "vitest";
 
 // ---------------------------------------------------------------------------
 // Shared mock state
@@ -113,6 +114,11 @@ vi.mock("../lib/notes-sse", () => ({
 }));
 
 import notesRouter from "./notes.js";
+import {
+  dispatchNoteCreated,
+  dispatchNoteUpdated,
+  dispatchNoteDeleted,
+} from "../lib/webhook-dispatcher";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,6 +163,15 @@ const OTHER_PUBLIC_WRITE_NOTE = {
   content: "Collaborate here",
   createdBy: "other-user",
   visibility: "public_write",
+};
+
+/** A note linked to a task (no direct project link). */
+const TASK_LINKED_NOTE = {
+  ...OWNER_NOTE,
+  id: 5,
+  title: "Task-linked note",
+  taskId: 7,
+  projectId: null,
 };
 
 /** A note owned by someone else, read-only public. */
@@ -252,6 +267,25 @@ describe("POST /api/notes", () => {
       title: "My private note",
       isOwner: true,
     });
+  });
+
+  it("dispatches note.created with the task's projectId when note has taskId but no projectId", async () => {
+    // validateTaskId → task found
+    mockState.selectQueue.push([{ id: 7 }]);
+    mockState.insertResult = [TASK_LINKED_NOTE];
+    // resolveEffectiveProjectId → task has projectId 42
+    mockState.selectQueue.push([{ projectId: 42 }]);
+
+    const res = await request(buildApp())
+      .post("/api/notes")
+      .send({ title: "Task-linked note", content: "Body", taskId: 7 });
+
+    expect(res.status).toBe(201);
+    expect(vi.mocked(dispatchNoteCreated as Mock)).toHaveBeenCalledWith(
+      "test-org",
+      42,
+      expect.objectContaining({ taskId: 7 }),
+    );
   });
 });
 
@@ -397,6 +431,26 @@ describe("PATCH /api/notes/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1, visibility: "public_read", isOwner: true });
   });
+
+  it("dispatches note.updated with the task's projectId when updated note has taskId but no projectId", async () => {
+    // find existing note
+    mockState.selectQueue.push([TASK_LINKED_NOTE]);
+    const updated = { ...TASK_LINKED_NOTE, title: "Retitled" };
+    mockState.updateResult = [updated];
+    // resolveEffectiveProjectId → task has projectId 42
+    mockState.selectQueue.push([{ projectId: 42 }]);
+
+    const res = await request(buildApp())
+      .patch("/api/notes/5")
+      .send({ title: "Retitled" });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(dispatchNoteUpdated as Mock)).toHaveBeenCalledWith(
+      "test-org",
+      42,
+      expect.objectContaining({ taskId: 7 }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -442,6 +496,22 @@ describe("DELETE /api/notes/:id", () => {
     const res = await request(buildApp()).delete("/api/notes/1");
 
     expect(res.status).toBe(204);
+  });
+
+  it("dispatches note.deleted with the task's projectId when note has taskId but no projectId", async () => {
+    // find existing note
+    mockState.selectQueue.push([TASK_LINKED_NOTE]);
+    // resolveEffectiveProjectId → task has projectId 42
+    mockState.selectQueue.push([{ projectId: 42 }]);
+
+    const res = await request(buildApp()).delete("/api/notes/5");
+
+    expect(res.status).toBe(204);
+    expect(vi.mocked(dispatchNoteDeleted as Mock)).toHaveBeenCalledWith(
+      "test-org",
+      42,
+      expect.objectContaining({ taskId: 7 }),
+    );
   });
 
   it("returns 400 for a non-integer note id", async () => {
