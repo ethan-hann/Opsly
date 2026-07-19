@@ -241,6 +241,10 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   if ("projectId" in body.data) updates.projectId = body.data.projectId ?? null;
   if ("taskId" in body.data) updates.taskId = body.data.taskId ?? null;
 
+  // Capture the effective project before the update so we can notify webhooks
+  // that were watching the old project if the note is being re-assigned.
+  const oldEffectiveProjectId = await resolveEffectiveProjectId(existing);
+
   const [note] = await db
     .update(notesTable)
     .set(updates)
@@ -251,9 +255,22 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
+  const newEffectiveProjectId = await resolveEffectiveProjectId(note);
+  const serialized = serializeNote(note, userId);
+
   broadcastNoteChange(orgId);
-  dispatchNoteUpdated(orgId, await resolveEffectiveProjectId(note), serializeNote(note, userId));
-  return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
+
+  // If the note moved between projects, also notify webhooks watching the old
+  // project so they learn the note left their scope.
+  if (
+    oldEffectiveProjectId !== newEffectiveProjectId &&
+    oldEffectiveProjectId != null
+  ) {
+    dispatchNoteUpdated(orgId, oldEffectiveProjectId, serialized);
+  }
+  dispatchNoteUpdated(orgId, newEffectiveProjectId, serialized);
+
+  return res.json(UpdateNoteResponse.parse(serialized));
 });
 
 // DELETE /notes/:id - owner only
