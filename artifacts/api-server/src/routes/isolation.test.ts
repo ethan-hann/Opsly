@@ -579,6 +579,14 @@ describe("Task isolation — DELETE /api/tasks/:id", () => {
     const res = await request(buildApp()).delete("/api/tasks/42");
     expect(res.status).toBe(404);
   });
+
+  it("returns 403 when the caller does not have delete_tasks permission", async () => {
+    // Simulate a role where delete_tasks has been revoked (default for members) —
+    // the server must enforce this regardless of what the frontend shows.
+    mockState.permissions = { ...mockState.permissions, delete_tasks: false };
+    const res = await request(buildApp()).delete("/api/tasks/1");
+    expect(res.status).toBe(403);
+  });
 });
 
 // ===========================================================================

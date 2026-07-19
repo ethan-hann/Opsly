@@ -582,6 +582,13 @@ router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   }
 
   const orgId = req.orgId!;
+
+  // Enforce delete_tasks permission server-side (frontend gate alone is insufficient)
+  if (!req.orgPermissions?.delete_tasks) {
+    res.status(403).json({ error: "You do not have permission to delete tasks" });
+    return;
+  }
+
   const [task] = await db
     .delete(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
