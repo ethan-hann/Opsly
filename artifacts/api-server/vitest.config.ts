@@ -16,6 +16,7 @@ const yamlAsString = {
 
 export default defineConfig({
   plugins: [yamlAsString],
+  cacheDir: `/tmp/vitest-cache-api-server-${process.pid}`,
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],

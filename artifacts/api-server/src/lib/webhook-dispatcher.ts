@@ -72,6 +72,10 @@ async function dispatch(
   event: OutboundWebhookEvent,
   projectId: number | null | undefined,
   payload: Record<string, unknown>,
+  /** When true, only project-specific webhooks are notified (org-wide webhooks
+   *  are skipped). Use this when notifying about a note leaving an old project
+   *  so that org-wide subscribers receive exactly one delivery for the action. */
+  projectSpecificOnly = false,
 ): Promise<void> {
   try {
     // Match webhooks subscribed to this event, in this org, optionally filtered
@@ -84,12 +88,16 @@ async function dispatch(
         and(
           eq(outboundWebhooksTable.orgId, orgId),
           eq(outboundWebhooksTable.enabled, true),
-          or(
-            isNull(outboundWebhooksTable.projectId),
-            projectId != null
+          projectSpecificOnly
+            ? projectId != null
               ? eq(outboundWebhooksTable.projectId, projectId)
-              : isNull(outboundWebhooksTable.projectId),
-          ),
+              : isNull(outboundWebhooksTable.projectId)
+            : or(
+                isNull(outboundWebhooksTable.projectId),
+                projectId != null
+                  ? eq(outboundWebhooksTable.projectId, projectId)
+                  : isNull(outboundWebhooksTable.projectId),
+              ),
         ),
       );
 
@@ -163,8 +171,9 @@ export function dispatchNoteUpdated(
   orgId: string,
   projectId: number | null | undefined,
   note: Record<string, unknown>,
+  projectSpecificOnly = false,
 ): void {
-  void dispatch(orgId, "note.updated", projectId, { note });
+  void dispatch(orgId, "note.updated", projectId, { note }, projectSpecificOnly);
 }
 
 export function dispatchNoteDeleted(

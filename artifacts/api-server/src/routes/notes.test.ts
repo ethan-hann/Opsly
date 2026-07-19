@@ -350,6 +350,7 @@ describe("PATCH /api/notes/:id", () => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
     mockState.updateResult = [];
+    vi.clearAllMocks();
   });
 
   it("returns 404 when the note does not exist", async () => {
@@ -437,8 +438,10 @@ describe("PATCH /api/notes/:id", () => {
     mockState.selectQueue.push([TASK_LINKED_NOTE]);
     const updated = { ...TASK_LINKED_NOTE, title: "Retitled" };
     mockState.updateResult = [updated];
-    // resolveEffectiveProjectId → task has projectId 42
-    mockState.selectQueue.push([{ projectId: 42 }]);
+    // resolveEffectiveProjectId is called twice: once for the old note, once for
+    // the updated note. Both have taskId=7 so both need the same task row.
+    mockState.selectQueue.push([{ projectId: 42 }]); // old note resolve
+    mockState.selectQueue.push([{ projectId: 42 }]); // updated note resolve
 
     const res = await request(buildApp())
       .patch("/api/notes/5")
@@ -450,6 +453,42 @@ describe("PATCH /api/notes/:id", () => {
       42,
       expect.objectContaining({ taskId: 7 }),
     );
+  });
+
+  it("dispatches to old project with projectSpecificOnly=true when note moves projects", async () => {
+    // Note starts linked to project 10 directly
+    const noteInProject10 = { ...OWNER_NOTE, id: 9, projectId: 10, taskId: null };
+    mockState.selectQueue.push([noteInProject10]);
+    // validateProjectId(20) needs to return a truthy row
+    mockState.selectQueue.push([{ id: 20 }]);
+    // updated note moves to project 20
+    const updatedNote = { ...noteInProject10, projectId: 20 };
+    mockState.updateResult = [updatedNote];
+    // resolveEffectiveProjectId for both: projectId is set directly on the note,
+    // so it returns early without a DB call.
+
+    const res = await request(buildApp())
+      .patch("/api/notes/9")
+      .send({ projectId: 20 });
+
+    expect(res.status).toBe(200);
+
+    const calls = vi.mocked(dispatchNoteUpdated as Mock).mock.calls;
+    // Old project call: projectSpecificOnly=true so org-wide subscribers are skipped
+    const oldProjectCall = calls.find(
+      ([, pid, , specificOnly]) => pid === 10 && specificOnly === true,
+    );
+    expect(oldProjectCall).toBeDefined();
+    // New project call: normal dispatch (org-wide subscribers get exactly one delivery)
+    const newProjectCall = calls.find(
+      ([, pid, , specificOnly]) => pid === 20 && !specificOnly,
+    );
+    expect(newProjectCall).toBeDefined();
+    // Org-wide webhooks should NOT receive a call with the old project id
+    const orgWideOldProjectCall = calls.find(
+      ([, pid, , specificOnly]) => pid === 10 && !specificOnly,
+    );
+    expect(orgWideOldProjectCall).toBeUndefined();
   });
 });
 

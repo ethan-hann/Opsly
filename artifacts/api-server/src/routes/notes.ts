@@ -260,13 +260,16 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
 
   broadcastNoteChange(orgId);
 
-  // If the note moved between projects, also notify webhooks watching the old
-  // project so they learn the note left their scope.
+  // If the note moved between projects, also notify project-specific webhooks
+  // watching the old project so they learn the note left their scope.
+  // We use projectSpecificOnly=true here so that org-wide webhooks are skipped
+  // for this "leaving" notification — they will receive exactly one delivery
+  // from the second dispatch below (for the new project).
   if (
     oldEffectiveProjectId !== newEffectiveProjectId &&
     oldEffectiveProjectId != null
   ) {
-    dispatchNoteUpdated(orgId, oldEffectiveProjectId, serialized);
+    dispatchNoteUpdated(orgId, oldEffectiveProjectId, serialized, true);
   }
   dispatchNoteUpdated(orgId, newEffectiveProjectId, serialized);
 

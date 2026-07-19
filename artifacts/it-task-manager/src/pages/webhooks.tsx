@@ -80,6 +80,8 @@ import {
   XCircle,
   Clock,
   Activity,
+  Info,
+  AlertTriangle,
 } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -107,6 +109,36 @@ const ALL_EVENTS = [
 ] as const;
 
 type EventValue = (typeof ALL_EVENTS)[number]["value"];
+
+// Parent-child event relationships — selecting a parent alongside its child
+// means both will fire for the same action, causing double processing.
+// Note events can have multiple potential parents depending on runtime context:
+//   note.* on a task  → also fires task.updated
+//   note.* on a project → also fires project.updated
+const EVENT_PARENTS: Partial<Record<EventValue, EventValue[]>> = {
+  "task.status_changed": ["task.updated"],
+  "task.assigned": ["task.updated"],
+  "task.commented": ["task.updated"],
+  "note.created": ["task.updated", "project.updated"],
+  "note.updated": ["task.updated", "project.updated"],
+  "note.deleted": ["task.updated", "project.updated"],
+};
+
+/** Returns pairs of [parent, child] that are both present in `selected`. */
+function getOverlappingPairs(selected: EventValue[]): Array<[EventValue, EventValue]> {
+  const pairs: Array<[EventValue, EventValue]> = [];
+  for (const ev of selected) {
+    const parents = EVENT_PARENTS[ev];
+    if (parents) {
+      for (const parent of parents) {
+        if (selected.includes(parent)) {
+          pairs.push([parent, ev]);
+        }
+      }
+    }
+  }
+  return pairs;
+}
 
 function buildFullIngestUrl(path: string): string {
   return `${window.location.origin}${path}`;
@@ -713,6 +745,21 @@ function InboundDialog({
               }
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             />
+          </div>
+
+          {/* Outbound echo notice */}
+          <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-medium">Inbound tasks fire outbound events</p>
+              <p>
+                When an external system POSTs to this ingest URL, Opsly creates a task and
+                immediately fires a <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">task.created</code> outbound
+                event. If that external system also subscribes to your outbound webhooks, it
+                will receive an echo of its own action — which can cause loops. Make sure
+                your external system ignores events it originally triggered.
+              </p>
+            </div>
           </div>
 
           <TemplateBuilder template={template} onChange={setTemplate} />
@@ -1342,9 +1389,29 @@ function OutboundDialog({
 
           <div className="space-y-2">
             <Label>Events</Label>
+
+            {/* Event hierarchy guidance callout */}
+            <div className="flex gap-2.5 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-3 py-2.5 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <div className="space-y-1">
+                <p className="font-medium">One action can fire multiple events</p>
+                <p>
+                  Some events are sub-events of a broader parent. For example, changing
+                  a task's status fires both <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.updated</code> and{" "}
+                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.status_changed</code>. Similarly, note events
+                  also fire a parent event depending on what the note is attached to — a note on a task fires{" "}
+                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.updated</code>, and a note on a project fires{" "}
+                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">project.updated</code>. If you subscribe
+                  to both a parent and its sub-event, your endpoint will receive two requests for the same action.
+                  Select only the broadest event you need.
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               {ALL_EVENTS.map((ev) => {
                 const checked = events.includes(ev.value);
+                const isChild = ev.value in EVENT_PARENTS;
                 return (
                   <label
                     key={ev.value}
@@ -1361,11 +1428,44 @@ function OutboundDialog({
                       onChange={() => toggleEvent(ev.value)}
                       className="accent-primary"
                     />
-                    {ev.label}
+                    <span className="flex flex-col min-w-0">
+                      <span>{ev.label}</span>
+                      {isChild && (
+                        <span className="text-[10px] text-muted-foreground font-normal">
+                          also fires {EVENT_PARENTS[ev.value]!.join(" / ")}
+                        </span>
+                      )}
+                    </span>
                   </label>
                 );
               })}
             </div>
+
+            {/* Dynamic overlap warning */}
+            {(() => {
+              const overlaps = getOverlappingPairs(events);
+              if (overlaps.length === 0) return null;
+              return (
+                <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-medium">Overlapping events selected</p>
+                    <ul className="list-disc list-inside space-y-0.5">
+                      {overlaps.map(([parent, child]) => (
+                        <li key={child}>
+                          <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{parent}</code>
+                          {" "}already includes{" "}
+                          <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{child}</code>
+                          {" "}— your endpoint will receive two requests per action.
+                        </li>
+                      ))}
+                    </ul>
+                    <p>Consider removing the sub-event(s) to avoid double-processing.</p>
+                  </div>
+                </div>
+              );
+            })()}
+
             {events.length === 0 && (
               <p className="text-xs text-destructive">
                 Select at least one event.
