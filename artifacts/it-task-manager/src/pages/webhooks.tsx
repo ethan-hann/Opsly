@@ -129,6 +129,12 @@ interface TemplateBuilderProps {
   onChange: (t: WebhookTaskTemplate) => void;
 }
 
+// Valid task fields that fieldMapping can target (mirrors applyTemplate on the server).
+const MAPPING_TARGET_OPTIONS = [
+  { value: "priority", label: "Priority", hint: "low · medium · high · critical" },
+  { value: "category", label: "Category", hint: "incident · change · maintenance · deployment · support · other" },
+] as const;
+
 function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
   const [expanded, setExpanded] = useState(false);
   const [rows, setRows] = useState<FieldMappingRow[]>(() =>
@@ -170,145 +176,216 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+        className="flex w-full items-center justify-between text-sm font-medium hover:text-foreground transition-colors group"
       >
+        <span className="flex flex-col items-start gap-0.5">
+          <span className="text-foreground">Payload mapping</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {expanded
+              ? "Collapse field settings"
+              : "Optional — customize how incoming JSON becomes a task"}
+          </span>
+        </span>
         {expanded ? (
-          <ChevronUp className="w-4 h-4" />
+          <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
         ) : (
-          <ChevronDown className="w-4 h-4" />
+          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
         )}
-        Task template
       </button>
 
       {expanded && (
-        <div className="pl-3 border-l border-border space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Title field (payload path)</Label>
-              <Input
-                placeholder="alertname"
-                value={template.titleField ?? ""}
-                onChange={(e) =>
-                  update({ titleField: e.target.value || undefined })
-                }
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Default title (fallback)</Label>
-              <Input
-                placeholder="Untitled Alert"
-                value={template.defaultTitle ?? ""}
-                onChange={(e) =>
-                  update({ defaultTitle: e.target.value || undefined })
-                }
-                className="h-8 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">
-                Description field (payload path)
-              </Label>
-              <Input
-                placeholder="annotations.summary"
-                value={template.descriptionField ?? ""}
-                onChange={(e) =>
-                  update({ descriptionField: e.target.value || undefined })
-                }
-                className="h-8 text-sm"
-              />
-            </div>
+        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-5">
+
+          {/* How it works callout */}
+          <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
+            <p className="font-medium text-foreground">How payload mapping works</p>
+            <p>
+              When an external system POSTs JSON to your ingest URL, Opsly reads
+              specific keys from that JSON and uses them to fill in the task fields.
+              These settings tell Opsly <em>where</em> to look in the JSON body.
+            </p>
+            <p>
+              Use <strong>dot-notation</strong> to reach nested keys —{" "}
+              <code className="bg-background px-1 rounded">labels.severity</code> reads{" "}
+              <code className="bg-background px-1 rounded">{`{ "labels": { "severity": "high" } }`}</code>.
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs">Default priority</Label>
-              <Select
-                value={template.defaultPriority ?? ""}
-                onValueChange={(v) =>
-                  update({
-                    defaultPriority: (v ||
-                      undefined) as WebhookTaskTemplate["defaultPriority"],
-                  })
-                }
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="medium" />
-                </SelectTrigger>
-                <SelectContent>
-                  {["low", "medium", "high", "critical"].map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Default category</Label>
-              <Select
-                value={template.defaultCategory ?? ""}
-                onValueChange={(v) =>
-                  update({
-                    defaultCategory: (v ||
-                      undefined) as WebhookTaskTemplate["defaultCategory"],
-                  })
-                }
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="incident" />
-                </SelectTrigger>
-                <SelectContent>
-                  {[
-                    "incident",
-                    "change",
-                    "maintenance",
-                    "deployment",
-                    "support",
-                    "other",
-                  ].map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {c}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Field mapping */}
-          <div className="space-y-2">
-            <Label className="text-xs">
-              Field mapping (payload path → task field)
-            </Label>
-            {rows.map((row) => (
-              <div key={row.id} className="flex items-center gap-2">
+          {/* Title */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">Task title</Label>
+            <p className="text-xs text-muted-foreground">
+              Which JSON key holds the title? Leave blank and Opsly looks for a{" "}
+              <code className="bg-muted px-1 rounded">title</code> key automatically.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Read title from</span>
                 <Input
-                  placeholder="labels.severity"
-                  value={row.key}
-                  onChange={(e) => updateRow(row.id, "key", e.target.value)}
-                  className="h-7 text-xs flex-1"
+                  placeholder="e.g. alertname"
+                  value={template.titleField ?? ""}
+                  onChange={(e) =>
+                    update({ titleField: e.target.value || undefined })
+                  }
+                  className="h-8 text-sm"
                 />
-                <span className="text-muted-foreground text-xs shrink-0">
-                  →
-                </span>
-                <Input
-                  placeholder="priority"
-                  value={row.value}
-                  onChange={(e) => updateRow(row.id, "value", e.target.value)}
-                  className="h-7 text-xs flex-1"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={() => removeRow(row.id)}
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
               </div>
-            ))}
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Fallback when key is missing</span>
+                <Input
+                  placeholder="Untitled Alert"
+                  value={template.defaultTitle ?? ""}
+                  onChange={(e) =>
+                    update({ defaultTitle: e.target.value || undefined })
+                  }
+                  className="h-8 text-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">Task description <span className="font-normal text-muted-foreground">(optional)</span></Label>
+            <p className="text-xs text-muted-foreground">
+              Which JSON key holds the description? Leave blank and Opsly looks for a{" "}
+              <code className="bg-muted px-1 rounded">description</code> key. Supports dot-notation.
+            </p>
+            <Input
+              placeholder="e.g. annotations.summary"
+              value={template.descriptionField ?? ""}
+              onChange={(e) =>
+                update({ descriptionField: e.target.value || undefined })
+              }
+              className="h-8 text-sm"
+            />
+          </div>
+
+          {/* Defaults */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">Defaults</Label>
+            <p className="text-xs text-muted-foreground">
+              Applied when the incoming payload doesn't include a{" "}
+              <code className="bg-muted px-1 rounded">priority</code> or{" "}
+              <code className="bg-muted px-1 rounded">category</code> key.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Default priority</span>
+                <Select
+                  value={template.defaultPriority ?? "__none__"}
+                  onValueChange={(v) =>
+                    update({
+                      defaultPriority: (v === "__none__"
+                        ? undefined
+                        : v) as WebhookTaskTemplate["defaultPriority"],
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="medium (system default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">
+                      <span className="text-muted-foreground">medium (system default)</span>
+                    </SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <span className="text-xs text-muted-foreground">Default category</span>
+                <Select
+                  value={template.defaultCategory ?? "__none__"}
+                  onValueChange={(v) =>
+                    update({
+                      defaultCategory: (v === "__none__"
+                        ? undefined
+                        : v) as WebhookTaskTemplate["defaultCategory"],
+                    })
+                  }
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="incident (system default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">
+                      <span className="text-muted-foreground">incident (system default)</span>
+                    </SelectItem>
+                    {["incident", "change", "maintenance", "deployment", "support", "other"].map(
+                      (c) => (
+                        <SelectItem key={c} value={c}>
+                          {c.charAt(0).toUpperCase() + c.slice(1)}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {/* Field remapping */}
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label className="text-sm">Remap payload fields <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <p className="text-xs text-muted-foreground">
+                When your system uses different field names, map them here. For example, if your
+                payload sends severity as{" "}
+                <code className="bg-muted px-1 rounded">labels.severity</code>, map it to{" "}
+                <strong>Priority</strong>. These take precedence over payload defaults.
+              </p>
+            </div>
+            {rows.length > 0 && (
+              <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 gap-y-1.5 items-center">
+                <span className="text-xs font-medium text-muted-foreground">From payload key</span>
+                <span />
+                <span className="text-xs font-medium text-muted-foreground">Maps to task field</span>
+                <span />
+                {rows.map((row) => (
+                  <>
+                    <Input
+                      key={`key-${row.id}`}
+                      placeholder="e.g. labels.severity"
+                      value={row.key}
+                      onChange={(e) => updateRow(row.id, "key", e.target.value)}
+                      className="h-7 text-xs"
+                    />
+                    <span className="text-muted-foreground text-xs text-center">→</span>
+                    <Select
+                      value={row.value}
+                      onValueChange={(v) => updateRow(row.id, "value", v)}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue placeholder="choose field…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MAPPING_TARGET_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            <span className="flex flex-col">
+                              <span>{o.label}</span>
+                              <span className="text-[10px] text-muted-foreground">{o.hint}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeRow(row.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </>
+                ))}
+              </div>
+            )}
             <Button
               type="button"
               variant="outline"
@@ -316,7 +393,7 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               onClick={addRow}
               className="h-7 text-xs gap-1"
             >
-              <Plus className="w-3 h-3" /> Add mapping
+              <Plus className="w-3 h-3" /> Add field mapping
             </Button>
           </div>
         </div>
