@@ -163,6 +163,8 @@ vi.mock("@workspace/db", () => {
     invitationsTable: {},
     savedViewsTable: {},
     slaPoliciesTable: {},
+    taskEventsTable: {},
+    customFieldDefinitionsTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -554,6 +556,31 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
       .patch("/api/tasks/1")
       .send({ status: "done" });
     expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when setting status to done without close_tasks permission", async () => {
+    // edit_tasks alone must not be sufficient to close a task
+    mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ status: "done" });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/close/i) });
+  });
+
+  it("allows a non-status field change without close_tasks permission", async () => {
+    mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
+    mockState.selectQueue.push([orgATask]); // prev snapshot found
+    mockState.updateResult = [{ ...orgATask, title: "Renamed" }];
+    // projectId is null → project lookup skipped; next select is comment count
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ title: "Renamed" });
+    expect(res.status).toBe(200);
+    expect(res.body.title).toBe("Renamed");
   });
 });
 

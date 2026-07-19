@@ -471,6 +471,13 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
+  // Closing a task (setting status to "done") is governed by the distinct
+  // close_tasks permission, not edit_tasks.
+  if (parsed.data.status === "done" && !req.orgPermissions?.close_tasks) {
+    res.status(403).json({ error: "You do not have permission to close tasks" });
+    return;
+  }
+
   // Capture previous values for change-event diffing and outbound webhook dispatch
   const [prev] = await db
     .select({
