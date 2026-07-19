@@ -848,6 +848,10 @@ export default function WebhookInboundEditPage({
                     ))}
                   </tbody>
                 </table>
+                <p className="mt-2.5 text-xs text-muted-foreground">
+                  Custom fields are also accepted — configure which payload keys map to them in the{" "}
+                  <span className="font-medium text-foreground">Field mappings</span> section below.
+                </p>
               </div>
             </details>
           </CardContent>
