@@ -93,6 +93,13 @@ export const inboundWebhooksTable = pgTable("inbound_webhooks", {
     .notNull()
     .default("private"),
   enabled: boolean("enabled").notNull().default(true),
+  /**
+   * Maximum tasks this webhook may create per rolling 60-second window.
+   * Requests that would exceed this return 429 Too Many Requests.
+   * Default: 60 (1/second average). Set to a higher value for trusted
+   * high-volume senders, or lower it to protect against misbehaving sources.
+   */
+  rateLimitPerMinute: integer("rate_limit_per_minute").notNull().default(60),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

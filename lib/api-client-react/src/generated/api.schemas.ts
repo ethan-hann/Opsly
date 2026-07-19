@@ -942,11 +942,16 @@ export interface InboundWebhook {
   projectId?: number | null;
   createdBy: string;
   name: string;
-  /** 64-character hex token. Embedded in the ingest URL and used as the HMAC key. */
+  /** 64-character hex token embedded in the ingest URL. */
   token: string;
   taskTemplate: WebhookTaskTemplate;
   visibility: WebhookVisibility;
   enabled: boolean;
+  /**
+     * Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.
+     * @minimum 1
+     */
+  rateLimitPerMinute: number;
   /** True when the authenticated user is the creator. */
   isOwner: boolean;
   /** Relative path for the public ingest endpoint. Prepend the API origin to get the full URL. */
@@ -969,6 +974,12 @@ export interface InboundWebhookInput {
   visibility?: WebhookVisibility;
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
+  /**
+     * Maximum tasks per 60-second rolling window. Default is 60.
+     * @minimum 1
+     * @maximum 10000
+     */
+  rateLimitPerMinute?: number;
 }
 
 /**
@@ -985,6 +996,11 @@ export interface InboundWebhookUpdate {
   visibility?: WebhookVisibility;
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
+  /**
+     * @minimum 1
+     * @maximum 10000
+     */
+  rateLimitPerMinute?: number;
 }
 
 export type OutboundWebhookEventsItem = typeof OutboundWebhookEventsItem[keyof typeof OutboundWebhookEventsItem];

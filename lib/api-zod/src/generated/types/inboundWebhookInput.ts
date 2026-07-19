@@ -22,4 +22,10 @@ export interface InboundWebhookInput {
   visibility?: WebhookVisibility;
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
+  /**
+     * Maximum tasks per 60-second rolling window. Default is 60.
+     * @minimum 1
+     * @maximum 10000
+     */
+  rateLimitPerMinute?: number;
 }

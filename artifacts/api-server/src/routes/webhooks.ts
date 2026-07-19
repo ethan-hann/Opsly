@@ -202,6 +202,8 @@ const CreateInboundSchema = z.object({
   visibility: WebhookVisibilityEnum.optional().default("private"),
   enabled: z.boolean().optional().default(true),
   taskTemplate: WebhookTaskTemplateSchema,
+  /** Max tasks per 60-second rolling window. Default 60. */
+  rateLimitPerMinute: z.number().int().min(1).max(10_000).optional().default(60),
 });
 
 const UpdateInboundSchema = z.object({
@@ -210,6 +212,7 @@ const UpdateInboundSchema = z.object({
   visibility: WebhookVisibilityEnum.optional(),
   enabled: z.boolean().optional(),
   taskTemplate: WebhookTaskTemplateSchema,
+  rateLimitPerMinute: z.number().int().min(1).max(10_000).optional(),
 });
 
 const CreateOutboundSchema = z.object({
@@ -251,6 +254,33 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
 
   if (!hook.enabled) {
     res.status(403).json({ error: "Webhook is disabled" });
+    return;
+  }
+
+  // Rate-limit: count tasks created by this hook in the last 60 seconds.
+  // We use a raw sql fragment so this works against the real DB and the
+  // unit-test mock equally (both handle sql`` via the selectQueue).
+  const [{ recentCount }] = await db
+    .select({ recentCount: sql<number>`COUNT(*)::int` })
+    .from(tasksTable)
+    .where(
+      and(
+        eq(tasksTable.sourceWebhookId, hook.id),
+        sql`${tasksTable.createdAt} > NOW() - INTERVAL '1 minute'`,
+      ),
+    );
+
+  const limit = hook.rateLimitPerMinute;
+  const remaining = Math.max(0, limit - recentCount);
+  res.setHeader("X-RateLimit-Limit", String(limit));
+  res.setHeader("X-RateLimit-Remaining", String(remaining));
+  res.setHeader("X-RateLimit-Window", "60s");
+
+  if (recentCount >= limit) {
+    res.setHeader("Retry-After", "60");
+    res.status(429).json({
+      error: `Rate limit exceeded. This webhook may create at most ${limit} tasks per minute.`,
+    });
     return;
   }
 

@@ -2183,7 +2183,7 @@ components:
     InboundWebhook:
       description: An inbound webhook that accepts external payloads and creates tasks.
       type: object
-      required: [id, orgId, createdBy, name, token, taskTemplate, visibility, enabled, isOwner, ingestUrl, createdAt, updatedAt]
+      required: [id, orgId, createdBy, name, token, taskTemplate, visibility, enabled, rateLimitPerMinute, isOwner, ingestUrl, createdAt, updatedAt]
       properties:
         id:
           type: integer
@@ -2198,13 +2198,17 @@ components:
           type: string
         token:
           type: string
-          description: 64-character hex token. Embedded in the ingest URL and used as the HMAC key.
+          description: 64-character hex token embedded in the ingest URL.
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
           type: boolean
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          description: Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.
         isOwner:
           type: boolean
           description: True when the authenticated user is the creator.
@@ -2235,6 +2239,12 @@ components:
           default: true
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          maximum: 10000
+          default: 60
+          description: Maximum tasks per 60-second rolling window. Default is 60.
 
     InboundWebhookUpdate:
       description: Partial update for an inbound webhook.
@@ -2252,6 +2262,10 @@ components:
           type: boolean
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
+        rateLimitPerMinute:
+          type: integer
+          minimum: 1
+          maximum: 10000
 
     OutboundWebhook:
       description: An outbound webhook that POSTs signed event payloads to an external URL.

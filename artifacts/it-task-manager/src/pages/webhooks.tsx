@@ -25,7 +25,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -72,26 +78,29 @@ import {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const VISIBILITY_LABELS: Record<WebhookVisibility, { label: string; Icon: typeof Lock }> = {
-  private:      { label: "Private",     Icon: Lock },
-  public_read:  { label: "Shared (read-only)", Icon: Eye },
-  public_write: { label: "Public",      Icon: Globe },
+const VISIBILITY_LABELS: Record<
+  WebhookVisibility,
+  { label: string; Icon: typeof Lock }
+> = {
+  private: { label: "Private", Icon: Lock },
+  public_read: { label: "Shared (read-only)", Icon: Eye },
+  public_write: { label: "Public", Icon: Globe },
 };
 
 const ALL_EVENTS = [
-  { value: "task.created",       label: "Task created" },
-  { value: "task.updated",       label: "Task updated" },
-  { value: "task.status_changed",label: "Task status changed" },
-  { value: "task.assigned",      label: "Task assigned" },
-  { value: "task.commented",     label: "Task commented" },
-  { value: "project.created",    label: "Project created" },
-  { value: "project.updated",    label: "Project updated" },
-  { value: "note.created",       label: "Note created" },
-  { value: "note.updated",       label: "Note updated" },
-  { value: "note.deleted",       label: "Note deleted" },
+  { value: "task.created", label: "Task created" },
+  { value: "task.updated", label: "Task updated" },
+  { value: "task.status_changed", label: "Task status changed" },
+  { value: "task.assigned", label: "Task assigned" },
+  { value: "task.commented", label: "Task commented" },
+  { value: "project.created", label: "Project created" },
+  { value: "project.updated", label: "Project updated" },
+  { value: "note.created", label: "Note created" },
+  { value: "note.updated", label: "Note updated" },
+  { value: "note.deleted", label: "Note deleted" },
 ] as const;
 
-type EventValue = typeof ALL_EVENTS[number]["value"];
+type EventValue = (typeof ALL_EVENTS)[number]["value"];
 
 function buildFullIngestUrl(path: string): string {
   return `${window.location.origin}${path}`;
@@ -104,7 +113,11 @@ function copyText(text: string, toast: ReturnType<typeof useToast>["toast"]) {
 
 function VisibilityBadge({ v }: { v: WebhookVisibility }) {
   const { label } = VISIBILITY_LABELS[v] ?? VISIBILITY_LABELS.private;
-  return <Badge variant="outline" className="text-xs gap-1">{label}</Badge>;
+  return (
+    <Badge variant="outline" className="text-xs gap-1">
+      {label}
+    </Badge>
+  );
 }
 
 // ─── Task Template Builder ───────────────────────────────────────────────────
@@ -119,7 +132,11 @@ interface TemplateBuilderProps {
 function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
   const [expanded, setExpanded] = useState(false);
   const [rows, setRows] = useState<FieldMappingRow[]>(() =>
-    Object.entries(template.fieldMapping ?? {}).map(([key, value], id) => ({ id, key, value }))
+    Object.entries(template.fieldMapping ?? {}).map(([key, value], id) => ({
+      id,
+      key,
+      value,
+    })),
   );
 
   function update(patch: Partial<WebhookTaskTemplate>) {
@@ -129,7 +146,9 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
   function syncMapping(r: FieldMappingRow[]) {
     setRows(r);
     const m: Record<string, string> = {};
-    r.forEach(({ key, value }) => { if (key && value) m[key] = value; });
+    r.forEach(({ key, value }) => {
+      if (key && value) m[key] = value;
+    });
     update({ fieldMapping: Object.keys(m).length ? m : undefined });
   }
 
@@ -153,7 +172,11 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        {expanded ? (
+          <ChevronUp className="w-4 h-4" />
+        ) : (
+          <ChevronDown className="w-4 h-4" />
+        )}
         Task template
       </button>
 
@@ -165,7 +188,9 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               <Input
                 placeholder="alertname"
                 value={template.titleField ?? ""}
-                onChange={(e) => update({ titleField: e.target.value || undefined })}
+                onChange={(e) =>
+                  update({ titleField: e.target.value || undefined })
+                }
                 className="h-8 text-sm"
               />
             </div>
@@ -174,16 +199,22 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               <Input
                 placeholder="Untitled Alert"
                 value={template.defaultTitle ?? ""}
-                onChange={(e) => update({ defaultTitle: e.target.value || undefined })}
+                onChange={(e) =>
+                  update({ defaultTitle: e.target.value || undefined })
+                }
                 className="h-8 text-sm"
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">Description field (payload path)</Label>
+              <Label className="text-xs">
+                Description field (payload path)
+              </Label>
               <Input
                 placeholder="annotations.summary"
                 value={template.descriptionField ?? ""}
-                onChange={(e) => update({ descriptionField: e.target.value || undefined })}
+                onChange={(e) =>
+                  update({ descriptionField: e.target.value || undefined })
+                }
                 className="h-8 text-sm"
               />
             </div>
@@ -194,14 +225,21 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               <Label className="text-xs">Default priority</Label>
               <Select
                 value={template.defaultPriority ?? ""}
-                onValueChange={(v) => update({ defaultPriority: (v || undefined) as WebhookTaskTemplate["defaultPriority"] })}
+                onValueChange={(v) =>
+                  update({
+                    defaultPriority: (v ||
+                      undefined) as WebhookTaskTemplate["defaultPriority"],
+                  })
+                }
               >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="medium" />
                 </SelectTrigger>
                 <SelectContent>
                   {["low", "medium", "high", "critical"].map((p) => (
-                    <SelectItem key={p} value={p}>{p}</SelectItem>
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -210,14 +248,28 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               <Label className="text-xs">Default category</Label>
               <Select
                 value={template.defaultCategory ?? ""}
-                onValueChange={(v) => update({ defaultCategory: (v || undefined) as WebhookTaskTemplate["defaultCategory"] })}
+                onValueChange={(v) =>
+                  update({
+                    defaultCategory: (v ||
+                      undefined) as WebhookTaskTemplate["defaultCategory"],
+                  })
+                }
               >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="incident" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["incident", "change", "maintenance", "deployment", "support", "other"].map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  {[
+                    "incident",
+                    "change",
+                    "maintenance",
+                    "deployment",
+                    "support",
+                    "other",
+                  ].map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -226,7 +278,9 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
 
           {/* Field mapping */}
           <div className="space-y-2">
-            <Label className="text-xs">Field mapping (payload path → task field)</Label>
+            <Label className="text-xs">
+              Field mapping (payload path → task field)
+            </Label>
             {rows.map((row) => (
               <div key={row.id} className="flex items-center gap-2">
                 <Input
@@ -235,7 +289,9 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                   onChange={(e) => updateRow(row.id, "key", e.target.value)}
                   className="h-7 text-xs flex-1"
                 />
-                <span className="text-muted-foreground text-xs shrink-0">→</span>
+                <span className="text-muted-foreground text-xs shrink-0">
+                  →
+                </span>
                 <Input
                   placeholder="priority"
                   value={row.value}
@@ -253,7 +309,13 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                 </Button>
               </div>
             ))}
-            <Button type="button" variant="outline" size="sm" onClick={addRow} className="h-7 text-xs gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              className="h-7 text-xs gap-1"
+            >
               <Plus className="w-3 h-3" /> Add mapping
             </Button>
           </div>
@@ -272,25 +334,43 @@ interface InboundDialogProps {
   projectOptions: { id: number; name: string }[];
 }
 
-function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialogProps) {
+function InboundDialog({
+  open,
+  onClose,
+  existing,
+  projectOptions,
+}: InboundDialogProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const [name, setName] = useState(existing?.name ?? "");
-  const [projectId, setProjectId] = useState<number | null>(existing?.projectId ?? null);
-  const [visibility, setVisibility] = useState<WebhookVisibility>(existing?.visibility ?? "private");
+  const [projectId, setProjectId] = useState<number | null>(
+    existing?.projectId ?? null,
+  );
+  const [visibility, setVisibility] = useState<WebhookVisibility>(
+    existing?.visibility ?? "private",
+  );
   const [enabled, setEnabled] = useState(existing?.enabled ?? true);
-  const [template, setTemplate] = useState<WebhookTaskTemplate>(existing?.taskTemplate ?? {});
+  const [rateLimitPerMinute, setRateLimitPerMinute] = useState(
+    existing?.rateLimitPerMinute ?? 60,
+  );
+  const [template, setTemplate] = useState<WebhookTaskTemplate>(
+    existing?.taskTemplate ?? {},
+  );
 
   function reset() {
     setName(existing?.name ?? "");
     setProjectId(existing?.projectId ?? null);
     setVisibility(existing?.visibility ?? "private");
     setEnabled(existing?.enabled ?? true);
+    setRateLimitPerMinute(existing?.rateLimitPerMinute ?? 60);
     setTemplate(existing?.taskTemplate ?? {});
   }
 
-  function handleClose() { reset(); onClose(); }
+  function handleClose() {
+    reset();
+    onClose();
+  }
 
   const { mutate: create, isPending: isCreating } = useCreateInboundWebhook({
     mutation: {
@@ -299,7 +379,12 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
         toast({ title: "Inbound webhook created" });
         handleClose();
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
@@ -310,7 +395,12 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
         toast({ title: "Webhook updated" });
         handleClose();
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
@@ -325,6 +415,7 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
       visibility,
       enabled,
       taskTemplate: template,
+      rateLimitPerMinute,
     };
     if (existing) {
       update({ id: existing.id, data: { ...data, projectId: projectId } });
@@ -337,27 +428,38 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existing ? "Edit inbound webhook" : "New inbound webhook"}</DialogTitle>
+          <DialogTitle>
+            {existing ? "Edit inbound webhook" : "New inbound webhook"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1">
             <Label>Name</Label>
-            <Input placeholder="Datadog alerts" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input
+              placeholder="Datadog alerts"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </div>
 
           <div className="space-y-1">
             <Label>Project (optional)</Label>
             <Select
               value={projectId?.toString() ?? "__none__"}
-              onValueChange={(v) => setProjectId(v === "__none__" ? null : Number(v))}
+              onValueChange={(v) =>
+                setProjectId(v === "__none__" ? null : Number(v))
+              }
             >
               <SelectTrigger>
-                <SelectValue placeholder="No project — tasks are unlinked" />
+                <SelectValue placeholder="No project - tasks are unlinked" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">No project</SelectItem>
                 {projectOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -365,27 +467,73 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
 
           <div className="space-y-1">
             <Label>Visibility</Label>
-            <Select value={visibility} onValueChange={(v) => setVisibility(v as WebhookVisibility)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={visibility}
+              onValueChange={(v) => setVisibility(v as WebhookVisibility)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="private">Private (only me)</SelectItem>
-                <SelectItem value="public_read">Shared — org members can view</SelectItem>
-                <SelectItem value="public_write">Public — org members can use &amp; view</SelectItem>
+                <SelectItem value="public_read">
+                  Shared - org members can view
+                </SelectItem>
+                <SelectItem value="public_write">
+                  Public - org members can use &amp; view
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center gap-3">
-            <Switch checked={enabled} onCheckedChange={setEnabled} id="enabled" />
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              id="enabled"
+            />
             <Label htmlFor="enabled">Enabled</Label>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="rateLimit">Rate limit (tasks / minute)</Label>
+            <p className="text-xs text-muted-foreground">
+              Requests that exceed this cap return&nbsp;
+              <code className="bg-muted px-1 rounded text-xs">429</code> with a
+              &nbsp;<code className="bg-muted px-1 rounded text-xs">Retry-After: 60</code>&nbsp;
+              header. Default&nbsp;60.
+            </p>
+            <input
+              id="rateLimit"
+              type="number"
+              min={1}
+              max={10000}
+              step={1}
+              value={rateLimitPerMinute}
+              onChange={(e) =>
+                setRateLimitPerMinute(Math.max(1, Math.min(10000, Number(e.target.value) || 60)))
+              }
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            />
           </div>
 
           <TemplateBuilder template={template} onChange={setTemplate} />
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={handleClose} disabled={isPending}>Cancel</Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClose}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
             <Button type="submit" disabled={isPending || !name.trim()}>
-              {isPending ? "Saving…" : existing ? "Save changes" : "Create webhook"}
+              {isPending
+                ? "Saving…"
+                : existing
+                  ? "Save changes"
+                  : "Create webhook"}
             </Button>
           </DialogFooter>
         </form>
@@ -397,11 +545,36 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
 // ─── Payload field reference ──────────────────────────────────────────────────
 
 const PAYLOAD_FIELDS = [
-  { name: "title",       type: "string",  required: true,  note: 'Task title. Falls back to the webhook\'s "Default title" or "Untitled Alert".' },
-  { name: "description", type: "string",  required: false, note: "Task description." },
-  { name: "priority",    type: "string",  required: false, note: "low · medium · high · critical. Defaults to medium (or template default)." },
-  { name: "category",    type: "string",  required: false, note: "incident · change · maintenance · deployment · support · other. Defaults to incident." },
-  { name: "dueDate",     type: "string",  required: false, note: "Due date in YYYY-MM-DD format." },
+  {
+    name: "title",
+    type: "string",
+    required: true,
+    note: 'Task title. Falls back to the webhook\'s "Default title" or "Untitled Alert".',
+  },
+  {
+    name: "description",
+    type: "string",
+    required: false,
+    note: "Task description.",
+  },
+  {
+    name: "priority",
+    type: "string",
+    required: false,
+    note: "low · medium · high · critical. Defaults to medium (or template default).",
+  },
+  {
+    name: "category",
+    type: "string",
+    required: false,
+    note: "incident · change · maintenance · deployment · support · other. Defaults to incident.",
+  },
+  {
+    name: "dueDate",
+    type: "string",
+    required: false,
+    note: "Due date in YYYY-MM-DD format.",
+  },
 ] as const;
 
 function buildCurlCommand(fullUrl: string): string {
@@ -421,7 +594,14 @@ interface InboundHookCardProps {
   onRotate: () => void;
 }
 
-function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: InboundHookCardProps) {
+function InboundHookCard({
+  h,
+  proj,
+  onEdit,
+  onDelete,
+  onToggle,
+  onRotate,
+}: InboundHookCardProps) {
   const { toast } = useToast();
   const [docsOpen, setDocsOpen] = useState(false);
   const fullUrl = buildFullIngestUrl(h.ingestUrl);
@@ -436,13 +616,26 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-sm">{h.name}</span>
               <VisibilityBadge v={h.visibility} />
-              {proj && <Badge variant="secondary" className="text-xs">{proj.name}</Badge>}
-              {!h.enabled && <Badge variant="outline" className="text-xs text-muted-foreground">Disabled</Badge>}
+              {proj && (
+                <Badge variant="secondary" className="text-xs">
+                  {proj.name}
+                </Badge>
+              )}
+              {!h.enabled && (
+                <Badge
+                  variant="outline"
+                  className="text-xs text-muted-foreground"
+                >
+                  Disabled
+                </Badge>
+              )}
             </div>
 
             {/* Ingest URL */}
             <div className="flex items-center gap-2 mt-2">
-              <code className="text-xs bg-muted px-2 py-1 rounded-md truncate max-w-sm">{fullUrl}</code>
+              <code className="text-xs bg-muted px-2 py-1 rounded-md truncate max-w-sm">
+                {fullUrl}
+              </code>
               <Button
                 variant="ghost"
                 size="icon"
@@ -455,15 +648,31 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
             </div>
 
             {/* Template summary */}
-            {(h.taskTemplate?.defaultPriority || h.taskTemplate?.defaultCategory || h.taskTemplate?.titleField) && (
+            {(h.taskTemplate?.defaultPriority ||
+              h.taskTemplate?.defaultCategory ||
+              h.taskTemplate?.titleField) && (
               <p className="text-xs text-muted-foreground mt-1">
-                Template: {[
-                  h.taskTemplate.titleField && `title from "${h.taskTemplate.titleField}"`,
-                  h.taskTemplate.defaultPriority && `${h.taskTemplate.defaultPriority} priority`,
-                  h.taskTemplate.defaultCategory && `${h.taskTemplate.defaultCategory} category`,
-                ].filter(Boolean).join(" · ")}
+                Template:{" "}
+                {[
+                  h.taskTemplate.titleField &&
+                    `title from "${h.taskTemplate.titleField}"`,
+                  h.taskTemplate.defaultPriority &&
+                    `${h.taskTemplate.defaultPriority} priority`,
+                  h.taskTemplate.defaultCategory &&
+                    `${h.taskTemplate.defaultCategory} category`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </p>
             )}
+
+            {/* Rate-limit badge */}
+            <p className="text-xs text-muted-foreground mt-1">
+              Rate limit:{" "}
+              <span className="font-medium text-foreground">
+                {h.rateLimitPerMinute} tasks / min
+              </span>
+            </p>
 
             {/* How-to toggle */}
             <button
@@ -473,7 +682,11 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
             >
               <Terminal className="w-3.5 h-3.5" />
               How to send data
-              {docsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {docsOpen ? (
+                <ChevronUp className="w-3 h-3" />
+              ) : (
+                <ChevronDown className="w-3 h-3" />
+              )}
             </button>
           </div>
 
@@ -501,13 +714,16 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
                   <AlertDialogHeader>
                     <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      The current ingest URL will stop working immediately. Any external system using it
-                      must be updated to the new URL. The new URL is automatically copied to your clipboard.
+                      The current ingest URL will stop working immediately. Any
+                      external system using it must be updated to the new URL.
+                      The new URL is automatically copied to your clipboard.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onRotate}>Rotate &amp; copy</AlertDialogAction>
+                    <AlertDialogAction onClick={onRotate}>
+                      Rotate &amp; copy
+                    </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -535,7 +751,8 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      The ingest URL will stop working. Tasks already created by this webhook are kept.
+                      The ingest URL will stop working. Tasks already created by
+                      this webhook are kept.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -558,7 +775,9 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
           <div className="border border-border rounded-md bg-muted/30 p-3 space-y-3 text-xs">
             {/* Payload fields */}
             <div>
-              <p className="font-medium text-foreground mb-2">Accepted payload fields</p>
+              <p className="font-medium text-foreground mb-2">
+                Accepted payload fields
+              </p>
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="text-muted-foreground">
@@ -571,26 +790,41 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
                 <tbody>
                   {PAYLOAD_FIELDS.map((f) => (
                     <tr key={f.name} className="border-t border-border/50">
-                      <td className="pr-3 py-1 font-mono text-foreground">{f.name}</td>
-                      <td className="pr-3 py-1 text-muted-foreground">{f.type}</td>
-                      <td className="pr-3 py-1">
-                        {f.required
-                          ? <span className="text-amber-600 font-medium">required</span>
-                          : <span className="text-muted-foreground">optional</span>}
+                      <td className="pr-3 py-1 font-mono text-foreground">
+                        {f.name}
                       </td>
-                      <td className="py-1 text-muted-foreground leading-relaxed">{f.note}</td>
+                      <td className="pr-3 py-1 text-muted-foreground">
+                        {f.type}
+                      </td>
+                      <td className="pr-3 py-1">
+                        {f.required ? (
+                          <span className="text-amber-600 font-medium">
+                            required
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">
+                            optional
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1 text-muted-foreground leading-relaxed">
+                        {f.note}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <p className="mt-2 text-muted-foreground">
-                Any additional fields are ignored. No authentication header is required — the URL itself is secret.
+                Any additional fields are ignored. No authentication header is
+                required - the URL itself is secret.
               </p>
             </div>
 
             {/* Curl example */}
             <div>
-              <p className="font-medium text-foreground mb-1.5">Example request</p>
+              <p className="font-medium text-foreground mb-1.5">
+                Example request
+              </p>
               <div className="relative">
                 <pre className="bg-muted rounded-md p-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed">
                   {curlCmd}
@@ -611,10 +845,14 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
             <div>
               <p className="font-medium text-foreground mb-1">Response</p>
               <p className="text-muted-foreground">
-                On success the endpoint returns <span className="font-mono text-foreground">201</span> with{" "}
-                <span className="font-mono text-foreground">{"{ taskId, orgTaskNumber, title }"}</span>.
-                An empty payload (<span className="font-mono text-foreground">{"{}"}</span>) is accepted and
-                creates a task titled "Untitled Alert".
+                On success the endpoint returns{" "}
+                <span className="font-mono text-foreground">201</span> with{" "}
+                <span className="font-mono text-foreground">
+                  {"{ taskId, orgTaskNumber, title }"}
+                </span>
+                . An empty payload (
+                <span className="font-mono text-foreground">{"{}"}</span>) is
+                accepted and creates a task titled "Untitled Alert".
               </p>
             </div>
           </div>
@@ -626,7 +864,11 @@ function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: Inbo
 
 // ─── Inbound tab ─────────────────────────────────────────────────────────────
 
-function InboundTab({ projectOptions }: { projectOptions: { id: number; name: string }[] }) {
+function InboundTab({
+  projectOptions,
+}: {
+  projectOptions: { id: number; name: string }[];
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListInboundWebhooks();
@@ -639,13 +881,19 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
         toast({ title: "Webhook deleted" });
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
   const { mutate: toggleEnabled } = useUpdateInboundWebhook({
     mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() }),
+      onSuccess: () =>
+        qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() }),
     },
   });
 
@@ -654,9 +902,17 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
       onSuccess: (data) => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
         copyText(buildFullIngestUrl(data.ingestUrl), toast);
-        toast({ title: "Secret rotated", description: "New ingest URL copied to clipboard." });
+        toast({
+          title: "Secret rotated",
+          description: "New ingest URL copied to clipboard.",
+        });
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
@@ -664,9 +920,13 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          POST any JSON to an ingest URL and Opsly creates a task automatically. No signature required — the URL is the secret.
+          POST any JSON to an ingest URL and Opsly creates a task automatically.
         </p>
-        <Button size="sm" className="gap-2 shrink-0" onClick={() => setCreateOpen(true)}>
+        <Button
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={() => setCreateOpen(true)}
+        >
           <Plus className="w-4 h-4" /> New webhook
         </Button>
       </div>
@@ -675,8 +935,15 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowDownLeft className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No inbound webhooks yet.</p>
-            <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)} className="gap-2">
+            <p className="text-sm text-muted-foreground">
+              No inbound webhooks yet.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+              className="gap-2"
+            >
               <Plus className="w-4 h-4" /> Create your first
             </Button>
           </CardContent>
@@ -690,14 +957,20 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
               proj={projectOptions.find((p) => p.id === h.projectId)}
               onEdit={() => setEditing(h)}
               onDelete={() => deleteHook({ id: h.id })}
-              onToggle={(v) => toggleEnabled({ id: h.id, data: { enabled: v } })}
+              onToggle={(v) =>
+                toggleEnabled({ id: h.id, data: { enabled: v } })
+              }
               onRotate={() => rotate({ id: h.id })}
             />
           ))}
         </div>
       )}
 
-      <InboundDialog open={createOpen} onClose={() => setCreateOpen(false)} projectOptions={projectOptions} />
+      <InboundDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        projectOptions={projectOptions}
+      />
       {editing && (
         <InboundDialog
           open={!!editing}
@@ -719,15 +992,26 @@ interface OutboundDialogProps {
   projectOptions: { id: number; name: string }[];
 }
 
-function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDialogProps) {
+function OutboundDialog({
+  open,
+  onClose,
+  existing,
+  projectOptions,
+}: OutboundDialogProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const [name, setName] = useState(existing?.name ?? "");
   const [url, setUrl] = useState(existing?.url ?? "");
-  const [projectId, setProjectId] = useState<number | null>(existing?.projectId ?? null);
-  const [events, setEvents] = useState<EventValue[]>((existing?.events as EventValue[]) ?? []);
-  const [visibility, setVisibility] = useState<WebhookVisibility>(existing?.visibility ?? "private");
+  const [projectId, setProjectId] = useState<number | null>(
+    existing?.projectId ?? null,
+  );
+  const [events, setEvents] = useState<EventValue[]>(
+    (existing?.events as EventValue[]) ?? [],
+  );
+  const [visibility, setVisibility] = useState<WebhookVisibility>(
+    existing?.visibility ?? "private",
+  );
   const [enabled, setEnabled] = useState(existing?.enabled ?? true);
 
   function reset() {
@@ -739,10 +1023,15 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
     setEnabled(existing?.enabled ?? true);
   }
 
-  function handleClose() { reset(); onClose(); }
+  function handleClose() {
+    reset();
+    onClose();
+  }
 
   function toggleEvent(ev: EventValue) {
-    setEvents((prev) => prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev]);
+    setEvents((prev) =>
+      prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev],
+    );
   }
 
   const { mutate: create, isPending: isCreating } = useCreateOutboundWebhook({
@@ -752,7 +1041,12 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
         toast({ title: "Outbound webhook created" });
         handleClose();
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
@@ -763,7 +1057,12 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
         toast({ title: "Webhook updated" });
         handleClose();
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
@@ -791,12 +1090,19 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{existing ? "Edit outbound webhook" : "New outbound webhook"}</DialogTitle>
+          <DialogTitle>
+            {existing ? "Edit outbound webhook" : "New outbound webhook"}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1">
             <Label>Name</Label>
-            <Input placeholder="Slack notifications" value={name} onChange={(e) => setName(e.target.value)} required />
+            <Input
+              placeholder="Slack notifications"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </div>
 
           <div className="space-y-1">
@@ -809,7 +1115,8 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
               required
             />
             <p className="text-xs text-muted-foreground">
-              Opsly signs each POST with <code>X-Opsly-Signature</code> (HMAC-SHA256).
+              Opsly signs each POST with <code>X-Opsly-Signature</code>{" "}
+              (HMAC-SHA256).
             </p>
           </div>
 
@@ -817,7 +1124,9 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
             <Label>Project filter (optional)</Label>
             <Select
               value={projectId?.toString() ?? "__none__"}
-              onValueChange={(v) => setProjectId(v === "__none__" ? null : Number(v))}
+              onValueChange={(v) =>
+                setProjectId(v === "__none__" ? null : Number(v))
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder="All projects" />
@@ -825,7 +1134,9 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
               <SelectContent>
                 <SelectItem value="__none__">All projects</SelectItem>
                 {projectOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+                  <SelectItem key={p.id} value={p.id.toString()}>
+                    {p.name}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -841,7 +1152,9 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
                     key={ev.value}
                     className={[
                       "flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors",
-                      checked ? "border-primary/60 bg-primary/5" : "border-border hover:bg-accent",
+                      checked
+                        ? "border-primary/60 bg-primary/5"
+                        : "border-border hover:bg-accent",
                     ].join(" ")}
                   >
                     <input
@@ -856,31 +1169,62 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
               })}
             </div>
             {events.length === 0 && (
-              <p className="text-xs text-destructive">Select at least one event.</p>
+              <p className="text-xs text-destructive">
+                Select at least one event.
+              </p>
             )}
           </div>
 
           <div className="space-y-1">
             <Label>Visibility</Label>
-            <Select value={visibility} onValueChange={(v) => setVisibility(v as WebhookVisibility)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select
+              value={visibility}
+              onValueChange={(v) => setVisibility(v as WebhookVisibility)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="private">Private (only me)</SelectItem>
-                <SelectItem value="public_read">Shared — org members can view</SelectItem>
-                <SelectItem value="public_write">Public — org members can view &amp; use</SelectItem>
+                <SelectItem value="public_read">
+                  Shared - org members can view
+                </SelectItem>
+                <SelectItem value="public_write">
+                  Public - org members can view &amp; use
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
 
           <div className="flex items-center gap-3">
-            <Switch checked={enabled} onCheckedChange={setEnabled} id="out-enabled" />
+            <Switch
+              checked={enabled}
+              onCheckedChange={setEnabled}
+              id="out-enabled"
+            />
             <Label htmlFor="out-enabled">Enabled</Label>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={handleClose} disabled={isPending}>Cancel</Button>
-            <Button type="submit" disabled={isPending || !name.trim() || !url.trim() || events.length === 0}>
-              {isPending ? "Saving…" : existing ? "Save changes" : "Create webhook"}
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClose}
+              disabled={isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                isPending || !name.trim() || !url.trim() || events.length === 0
+              }
+            >
+              {isPending
+                ? "Saving…"
+                : existing
+                  ? "Save changes"
+                  : "Create webhook"}
             </Button>
           </DialogFooter>
         </form>
@@ -891,7 +1235,11 @@ function OutboundDialog({ open, onClose, existing, projectOptions }: OutboundDia
 
 // ─── Outbound tab ─────────────────────────────────────────────────────────────
 
-function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: string }[] }) {
+function OutboundTab({
+  projectOptions,
+}: {
+  projectOptions: { id: number; name: string }[];
+}) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListOutboundWebhooks();
@@ -904,13 +1252,19 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
         qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
         toast({ title: "Webhook deleted" });
       },
-      onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+      onError: (e: Error) =>
+        toast({
+          title: "Error",
+          description: e.message,
+          variant: "destructive",
+        }),
     },
   });
 
   const { mutate: toggleEnabled } = useUpdateOutboundWebhook({
     mutation: {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() }),
+      onSuccess: () =>
+        qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() }),
     },
   });
 
@@ -918,9 +1272,14 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Opsly POSTs signed event payloads to your endpoints when tasks or projects change.
+          Opsly POSTs signed event payloads to your endpoints when tasks or
+          projects change.
         </p>
-        <Button size="sm" className="gap-2 shrink-0" onClick={() => setCreateOpen(true)}>
+        <Button
+          size="sm"
+          className="gap-2 shrink-0"
+          onClick={() => setCreateOpen(true)}
+        >
           <Plus className="w-4 h-4" /> New webhook
         </Button>
       </div>
@@ -929,8 +1288,15 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowUpRight className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No outbound webhooks yet.</p>
-            <Button variant="outline" size="sm" onClick={() => setCreateOpen(true)} className="gap-2">
+            <p className="text-sm text-muted-foreground">
+              No outbound webhooks yet.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCreateOpen(true)}
+              className="gap-2"
+            >
               <Plus className="w-4 h-4" /> Create your first
             </Button>
           </CardContent>
@@ -947,18 +1313,42 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-sm">{h.name}</span>
                         <VisibilityBadge v={h.visibility} />
-                        {proj && <Badge variant="secondary" className="text-xs">{proj.name}</Badge>}
-                        {!proj && <Badge variant="outline" className="text-xs text-muted-foreground">All projects</Badge>}
-                        {!h.enabled && <Badge variant="outline" className="text-xs text-muted-foreground">Disabled</Badge>}
+                        {proj && (
+                          <Badge variant="secondary" className="text-xs">
+                            {proj.name}
+                          </Badge>
+                        )}
+                        {!proj && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs text-muted-foreground"
+                          >
+                            All projects
+                          </Badge>
+                        )}
+                        {!h.enabled && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs text-muted-foreground"
+                          >
+                            Disabled
+                          </Badge>
+                        )}
                       </div>
                       {/* Target URL */}
                       <div className="flex items-center gap-2 mt-1">
-                        <code className="text-xs text-muted-foreground truncate max-w-sm">{h.url}</code>
+                        <code className="text-xs text-muted-foreground truncate max-w-sm">
+                          {h.url}
+                        </code>
                       </div>
                       {/* Signing secret */}
                       <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">Secret:</span>
-                        <code className="text-xs bg-muted px-2 py-0.5 rounded-md truncate max-w-[200px]">{h.secret}</code>
+                        <span className="text-xs text-muted-foreground">
+                          Secret:
+                        </span>
+                        <code className="text-xs bg-muted px-2 py-0.5 rounded-md truncate max-w-[200px]">
+                          {h.secret}
+                        </code>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -972,7 +1362,9 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
                       {/* Events */}
                       <div className="flex flex-wrap gap-1 mt-2">
                         {(h.events as string[]).map((ev) => (
-                          <Badge key={ev} variant="outline" className="text-xs">{ev}</Badge>
+                          <Badge key={ev} variant="outline" className="text-xs">
+                            {ev}
+                          </Badge>
                         ))}
                       </div>
                     </div>
@@ -982,7 +1374,9 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
                       <div className="flex items-center gap-1 shrink-0">
                         <Switch
                           checked={h.enabled}
-                          onCheckedChange={(v) => toggleEnabled({ id: h.id, data: { enabled: v } })}
+                          onCheckedChange={(v) =>
+                            toggleEnabled({ id: h.id, data: { enabled: v } })
+                          }
                           className="scale-75"
                         />
                         <Button
@@ -1007,9 +1401,12 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Delete webhook?
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Opsly will stop sending events to <strong>{h.url}</strong>.
+                                Opsly will stop sending events to{" "}
+                                <strong>{h.url}</strong>.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -1033,7 +1430,11 @@ function OutboundTab({ projectOptions }: { projectOptions: { id: number; name: s
         </div>
       )}
 
-      <OutboundDialog open={createOpen} onClose={() => setCreateOpen(false)} projectOptions={projectOptions} />
+      <OutboundDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        projectOptions={projectOptions}
+      />
       {editing && (
         <OutboundDialog
           open={!!editing}
@@ -1060,7 +1461,8 @@ export default function WebhooksPage() {
           Webhooks
         </h1>
         <p className="text-muted-foreground mt-1">
-          Connect Opsly to external systems. Receive alerts as tasks or push events to any URL.
+          Connect Opsly to external systems. Receive alerts as tasks or push
+          events to any URL.
         </p>
       </div>
 

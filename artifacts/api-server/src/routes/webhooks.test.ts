@@ -139,6 +139,7 @@ function makeHook(overrides: Record<string, unknown> = {}) {
     visibility: "private",
     enabled: true,
     taskTemplate: {},
+    rateLimitPerMinute: 60,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -197,9 +198,10 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
       createdAt: new Date(), updatedAt: new Date(),
     };
 
-    mockState.selectQueue.push([hook]);            // hook lookup by token
+    mockState.selectQueue.push([hook]);               // hook lookup
+    mockState.selectQueue.push([{ recentCount: 0 }]); // rate-limit count
     // no projectId → skip project validation
-    mockState.selectQueue.push([{ nextNum: 7 }]); // orgTaskNumber computation
+    mockState.selectQueue.push([{ nextNum: 7 }]);     // orgTaskNumber
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -222,6 +224,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     };
 
     mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
@@ -235,6 +238,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
   });
 
   it("returns 404 for an unknown token", async () => {
+    // Exits before rate-limit check — no extra queue entry needed.
     mockState.selectQueue.push([]); // no hook found
 
     const res = await request(buildApp())
@@ -245,6 +249,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
   });
 
   it("returns 403 for a disabled webhook", async () => {
+    // Exits before rate-limit check — no extra queue entry needed.
     mockState.selectQueue.push([makeHook({ enabled: false })]);
 
     const res = await request(buildApp())
@@ -252,6 +257,46 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
       .send({ title: "x" });
 
     expect(res.status).toBe(403);
+  });
+
+  it("returns 429 when the per-minute rate limit is reached", async () => {
+    const hook = makeHook({ rateLimitPerMinute: 5 });
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 5 }]); // already at limit
+
+    const res = await request(buildApp())
+      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
+      .send({ title: "Flood" });
+
+    expect(res.status).toBe(429);
+    expect(res.headers["x-ratelimit-limit"]).toBe("5");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("0");
+    expect(res.headers["retry-after"]).toBe("60");
+  });
+
+  it("includes X-RateLimit headers in a successful response", async () => {
+    const hook = makeHook({ rateLimitPerMinute: 10 });
+    const task = {
+      id: 1, orgId: "test-org", orgTaskNumber: 1,
+      title: "ok", priority: "medium", category: "incident",
+      status: "todo", projectId: null, description: null,
+      assignee: null, dueDate: null, sourceWebhookId: 1,
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 3 }]); // 3 of 10 used
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.insertResult = [task];
+
+    const res = await request(buildApp())
+      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
+      .send({ title: "ok" });
+
+    expect(res.status).toBe(201);
+    expect(res.headers["x-ratelimit-limit"]).toBe("10");
+    expect(res.headers["x-ratelimit-remaining"]).toBe("7");
+    expect(res.headers["x-ratelimit-window"]).toBe("60s");
   });
 
   it("applies task template field mapping (titleField + fieldMapping)", async () => {
@@ -271,6 +316,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     };
 
     mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
@@ -295,6 +341,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     };
 
     mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([{ nextNum: 2 }]);
     mockState.insertResult = [task];
 

@@ -22,4 +22,9 @@ export interface InboundWebhookUpdate {
   visibility?: WebhookVisibility;
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
+  /**
+     * @minimum 1
+     * @maximum 10000
+     */
+  rateLimitPerMinute?: number;
 }

@@ -861,13 +861,16 @@ export const IngestWebhookPayloadResponse = zod.object({
 /**
  * @summary List inbound webhooks visible to the caller
  */
+
+
+
 export const ListInboundWebhooksResponseItem = zod.object({
   "id": zod.number(),
   "orgId": zod.string(),
   "projectId": zod.number().nullish().describe('Optional project the created tasks are filed under.'),
   "createdBy": zod.string(),
   "name": zod.string(),
-  "token": zod.string().describe('64-character hex token. Embedded in the ingest URL and used as the HMAC key.'),
+  "token": zod.string().describe('64-character hex token embedded in the ingest URL.'),
   "taskTemplate": zod.object({
   "titleField": zod.string().optional().describe('Dot-notation JSON path in the payload used as the task title (e.g. \"alertname\").'),
   "defaultTitle": zod.string().optional().describe('Static title fallback when the payload has no title field.'),
@@ -878,6 +881,7 @@ export const ListInboundWebhooksResponseItem = zod.object({
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
+  "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
   "isOwner": zod.boolean().describe('True when the authenticated user is the creator.'),
   "ingestUrl": zod.string().describe('Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.'),
   "createdAt": zod.string(),
@@ -892,6 +896,10 @@ export const ListInboundWebhooksResponse = zod.array(ListInboundWebhooksResponse
 export const createInboundWebhookBodyNameMax = 200;
 
 export const createInboundWebhookBodyEnabledDefault = true;
+export const createInboundWebhookBodyRateLimitPerMinuteDefault = 60;
+export const createInboundWebhookBodyRateLimitPerMinuteMax = 10000;
+
+
 
 export const CreateInboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(createInboundWebhookBodyNameMax),
@@ -905,8 +913,12 @@ export const CreateInboundWebhookBody = zod.object({
   "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('Priority applied when the payload doesn\'t specify one.'),
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
-}).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n')
+}).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "rateLimitPerMinute": zod.number().min(1).max(createInboundWebhookBodyRateLimitPerMinuteMax).default(createInboundWebhookBodyRateLimitPerMinuteDefault).describe('Maximum tasks per 60-second rolling window. Default is 60.')
 }).describe('Fields for creating an inbound webhook.')
+
+
+
 
 export const CreateInboundWebhookResponse = zod.object({
   "id": zod.number(),
@@ -914,7 +926,7 @@ export const CreateInboundWebhookResponse = zod.object({
   "projectId": zod.number().nullish().describe('Optional project the created tasks are filed under.'),
   "createdBy": zod.string(),
   "name": zod.string(),
-  "token": zod.string().describe('64-character hex token. Embedded in the ingest URL and used as the HMAC key.'),
+  "token": zod.string().describe('64-character hex token embedded in the ingest URL.'),
   "taskTemplate": zod.object({
   "titleField": zod.string().optional().describe('Dot-notation JSON path in the payload used as the task title (e.g. \"alertname\").'),
   "defaultTitle": zod.string().optional().describe('Static title fallback when the payload has no title field.'),
@@ -925,6 +937,7 @@ export const CreateInboundWebhookResponse = zod.object({
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
+  "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
   "isOwner": zod.boolean().describe('True when the authenticated user is the creator.'),
   "ingestUrl": zod.string().describe('Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.'),
   "createdAt": zod.string(),
@@ -939,13 +952,16 @@ export const GetInboundWebhookParams = zod.object({
   "id": zod.coerce.number()
 })
 
+
+
+
 export const GetInboundWebhookResponse = zod.object({
   "id": zod.number(),
   "orgId": zod.string(),
   "projectId": zod.number().nullish().describe('Optional project the created tasks are filed under.'),
   "createdBy": zod.string(),
   "name": zod.string(),
-  "token": zod.string().describe('64-character hex token. Embedded in the ingest URL and used as the HMAC key.'),
+  "token": zod.string().describe('64-character hex token embedded in the ingest URL.'),
   "taskTemplate": zod.object({
   "titleField": zod.string().optional().describe('Dot-notation JSON path in the payload used as the task title (e.g. \"alertname\").'),
   "defaultTitle": zod.string().optional().describe('Static title fallback when the payload has no title field.'),
@@ -956,6 +972,7 @@ export const GetInboundWebhookResponse = zod.object({
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
+  "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
   "isOwner": zod.boolean().describe('True when the authenticated user is the creator.'),
   "ingestUrl": zod.string().describe('Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.'),
   "createdAt": zod.string(),
@@ -972,6 +989,8 @@ export const UpdateInboundWebhookParams = zod.object({
 
 export const updateInboundWebhookBodyNameMax = 200;
 
+export const updateInboundWebhookBodyRateLimitPerMinuteMax = 10000;
+
 
 
 export const UpdateInboundWebhookBody = zod.object({
@@ -986,8 +1005,12 @@ export const UpdateInboundWebhookBody = zod.object({
   "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('Priority applied when the payload doesn\'t specify one.'),
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
-}).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n')
+}).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "rateLimitPerMinute": zod.number().min(1).max(updateInboundWebhookBodyRateLimitPerMinuteMax).optional()
 }).describe('Partial update for an inbound webhook.')
+
+
+
 
 export const UpdateInboundWebhookResponse = zod.object({
   "id": zod.number(),
@@ -995,7 +1018,7 @@ export const UpdateInboundWebhookResponse = zod.object({
   "projectId": zod.number().nullish().describe('Optional project the created tasks are filed under.'),
   "createdBy": zod.string(),
   "name": zod.string(),
-  "token": zod.string().describe('64-character hex token. Embedded in the ingest URL and used as the HMAC key.'),
+  "token": zod.string().describe('64-character hex token embedded in the ingest URL.'),
   "taskTemplate": zod.object({
   "titleField": zod.string().optional().describe('Dot-notation JSON path in the payload used as the task title (e.g. \"alertname\").'),
   "defaultTitle": zod.string().optional().describe('Static title fallback when the payload has no title field.'),
@@ -1006,6 +1029,7 @@ export const UpdateInboundWebhookResponse = zod.object({
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
+  "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
   "isOwner": zod.boolean().describe('True when the authenticated user is the creator.'),
   "ingestUrl": zod.string().describe('Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.'),
   "createdAt": zod.string(),
@@ -1031,13 +1055,16 @@ export const RotateInboundWebhookSecretParams = zod.object({
   "id": zod.coerce.number()
 })
 
+
+
+
 export const RotateInboundWebhookSecretResponse = zod.object({
   "id": zod.number(),
   "orgId": zod.string(),
   "projectId": zod.number().nullish().describe('Optional project the created tasks are filed under.'),
   "createdBy": zod.string(),
   "name": zod.string(),
-  "token": zod.string().describe('64-character hex token. Embedded in the ingest URL and used as the HMAC key.'),
+  "token": zod.string().describe('64-character hex token embedded in the ingest URL.'),
   "taskTemplate": zod.object({
   "titleField": zod.string().optional().describe('Dot-notation JSON path in the payload used as the task title (e.g. \"alertname\").'),
   "defaultTitle": zod.string().optional().describe('Static title fallback when the payload has no title field.'),
@@ -1048,6 +1075,7 @@ export const RotateInboundWebhookSecretResponse = zod.object({
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
+  "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
   "isOwner": zod.boolean().describe('True when the authenticated user is the creator.'),
   "ingestUrl": zod.string().describe('Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.'),
   "createdAt": zod.string(),
