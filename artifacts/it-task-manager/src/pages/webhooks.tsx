@@ -82,6 +82,7 @@ import {
   Activity,
   Info,
   AlertTriangle,
+  Search,
 } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1128,6 +1129,15 @@ function InboundTab({
   const { data: hooks = [] } = useListInboundWebhooks();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<InboundWebhook | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = search.trim()
+    ? hooks.filter((h) => {
+        const q = search.toLowerCase();
+        const projName = projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
+        return h.name.toLowerCase().includes(q) || projName.toLowerCase().includes(q);
+      })
+    : hooks;
 
   const { mutate: deleteHook } = useDeleteInboundWebhook({
     mutation: {
@@ -1203,21 +1213,38 @@ function InboundTab({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {hooks.map((h) => (
-            <InboundHookCard
-              key={h.id}
-              h={h}
-              proj={projectOptions.find((p) => p.id === h.projectId)}
-              onEdit={() => setEditing(h)}
-              onDelete={() => deleteHook({ id: h.id })}
-              onToggle={(v) =>
-                toggleEnabled({ id: h.id, data: { enabled: v } })
-              }
-              onRotate={() => rotate({ id: h.id })}
+        <>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search webhooks…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
             />
-          ))}
-        </div>
+          </div>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No webhooks match <span className="font-medium">"{search}"</span>.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((h) => (
+                <InboundHookCard
+                  key={h.id}
+                  h={h}
+                  proj={projectOptions.find((p) => p.id === h.projectId)}
+                  onEdit={() => setEditing(h)}
+                  onDelete={() => deleteHook({ id: h.id })}
+                  onToggle={(v) =>
+                    toggleEnabled({ id: h.id, data: { enabled: v } })
+                  }
+                  onRotate={() => rotate({ id: h.id })}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <InboundDialog
@@ -1552,6 +1579,19 @@ function OutboundTab({
   const { data: hooks = [] } = useListOutboundWebhooks();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<OutboundWebhook | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filtered = search.trim()
+    ? hooks.filter((h) => {
+        const q = search.toLowerCase();
+        const projName = projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
+        return (
+          h.name.toLowerCase().includes(q) ||
+          h.url.toLowerCase().includes(q) ||
+          projName.toLowerCase().includes(q)
+        );
+      })
+    : hooks;
 
   const { mutate: deleteHook } = useDeleteOutboundWebhook({
     mutation: {
@@ -1609,8 +1649,23 @@ function OutboundTab({
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {hooks.map((h) => {
+        <>
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Search webhooks…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-8 text-sm"
+            />
+          </div>
+          {filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No webhooks match <span className="font-medium">"{search}"</span>.
+            </p>
+          ) : (
+          <div className="space-y-3">
+          {filtered.map((h) => {
             const proj = projectOptions.find((p) => p.id === h.projectId);
             return (
               <Card key={h.id} className={h.enabled ? "" : "opacity-60"}>
@@ -1737,7 +1792,9 @@ function OutboundTab({
               </Card>
             );
           })}
-        </div>
+          </div>
+          )}
+        </>
       )}
 
       <OutboundDialog
