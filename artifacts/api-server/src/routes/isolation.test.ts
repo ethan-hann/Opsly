@@ -33,6 +33,9 @@
  *  - GET  /dashboard/activity — empty list when no data in caller's org
  *  - GET  /orgs/members      — only members of the caller's org
  *  - GET  /orgs/invitations  — only invitations of the caller's org
+ *  - GET  /views             — list scoped to caller org; org-b views not leaked
+ *  - PATCH /views/:id        — 404 for another org's view (prevents ID enumeration), 403 for non-owner in same org
+ *  - DELETE /views/:id       — 404 for another org's view (prevents ID enumeration), 403 for non-owner in same org
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -47,6 +50,16 @@ const mockState = vi.hoisted(() => ({
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
+  // Per-test middleware overrides — reset() restores the defaults.
+  userId: "user-a1",
+  userEmail: "user-a1@org-a.example",
+  permissions: {
+    view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+    delete_tasks: true, manage_projects: true, manage_org_settings: true,
+    manage_members: true, manage_webhooks: true, manage_api_keys: true,
+    manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+    manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+  } as Record<string, boolean>,
 }));
 
 // ---------------------------------------------------------------------------
@@ -84,6 +97,10 @@ vi.mock("@workspace/api-zod", () => {
     DeleteNoteParams: p,
     // dashboard
     GetDashboardSummaryResponse: p, GetRecentActivityResponse: p,
+    // saved views
+    ListViewsResponse: p, CreateViewBody: p, CreateViewResponse: p,
+    UpdateViewParams: p, UpdateViewBody: p, UpdateViewResponse: p,
+    DeleteViewParams: p,
   };
 });
 
@@ -144,6 +161,7 @@ vi.mock("@workspace/db", () => {
     rolesTable: {},
     usersTable: {},
     invitationsTable: {},
+    savedViewsTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -167,6 +185,7 @@ vi.mock("drizzle-orm", () => ({
 // requireOrgMiddleware — caller is authenticated as a member of "org-a"
 // The org id is derived server-side; clients cannot override it.
 // ---------------------------------------------------------------------------
+// ALL_PERMS is kept for reference inside the member-list fixture (line ~760).
 const ALL_PERMS = {
   view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
   delete_tasks: true, manage_projects: true, manage_org_settings: true,
@@ -177,12 +196,12 @@ const ALL_PERMS = {
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "org-a";
-    req.orgRole = "admin";
+    req.orgRole = mockState.permissions.manage_org_settings ? "admin" : "member";
     req.orgRoleId = "role-owner";
-    req.orgRoleName = "Owner";
-    req.isOrgOwner = true;
-    req.orgPermissions = ALL_PERMS;
-    req.user = { id: "user-a1", email: "user-a1@org-a.example" };
+    req.orgRoleName = mockState.permissions.manage_org_settings ? "Owner" : "Member";
+    req.isOrgOwner = mockState.userId === "user-a1";
+    req.orgPermissions = mockState.permissions;
+    req.user = { id: mockState.userId, email: mockState.userEmail };
     next();
   },
   requireAuth: (req: any, _res: any, next: any) => {
@@ -215,6 +234,7 @@ import commentsRouter from "./comments.js";
 import notesRouter from "./notes.js";
 import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
+import savedViewsRouter from "./saved-views.js";
 
 // ---------------------------------------------------------------------------
 // App factory
@@ -228,6 +248,7 @@ function buildApp(): Express {
   app.use("/api", notesRouter);
   app.use("/api", dashboardRouter);
   app.use("/api", orgsRouter);
+  app.use("/api", savedViewsRouter);
   // Log unhandled errors so test failures give actionable output
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
@@ -289,6 +310,18 @@ const ORG_B_NOTE = {
   updatedAt: new Date().toISOString(),
 };
 
+const ORG_B_VIEW = {
+  id: 200,
+  orgId: "org-b",
+  createdBy: "user-b1",
+  name: "Org B secret view",
+  filters: { projectFilter: { projectIds: [99] } },
+  isOrgWide: false,
+  isDefault: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 // ---------------------------------------------------------------------------
 // Reset helpers
 // ---------------------------------------------------------------------------
@@ -297,6 +330,16 @@ function reset() {
   mockState.insertResult = [];
   mockState.updateResult = [];
   mockState.deleteResult = [];
+  // Restore default caller identity
+  mockState.userId = "user-a1";
+  mockState.userEmail = "user-a1@org-a.example";
+  mockState.permissions = {
+    view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+    delete_tasks: true, manage_projects: true, manage_org_settings: true,
+    manage_members: true, manage_webhooks: true, manage_api_keys: true,
+    manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+    manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+  };
 }
 
 // ===========================================================================
@@ -812,5 +855,99 @@ describe("Org isolation — DELETE /api/orgs/members/:userId", () => {
 
     const res = await request(buildApp()).delete("/api/orgs/members/org-b-user");
     expect(res.status).toBe(404);
+  });
+});
+
+// ===========================================================================
+// SAVED VIEWS
+// ===========================================================================
+
+describe("Saved view isolation — GET /api/views", () => {
+  beforeEach(reset);
+
+  it("returns empty list when org-a has no views (org-b views not leaked)", async () => {
+    // DB returns [] — AND(orgId='org-a', createdBy='user-a1' OR isOrgWide=true)
+    // excludes all of org-b's views.
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns org-a personal and org-wide views for the caller", async () => {
+    const personalView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1", isOrgWide: false };
+    const orgWideView  = { ...ORG_B_VIEW, id: 2, orgId: "org-a", createdBy: "user-a2", isOrgWide: true };
+    mockState.selectQueue.push([personalView, orgWideView]);
+
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body.every((v: any) => v.orgId === "org-a")).toBe(true);
+  });
+});
+
+describe("Saved view isolation — PATCH /api/views/:id", () => {
+  beforeEach(reset);
+
+  it("returns 404 (not 403) when patching an org-b view ID — prevents ID enumeration", async () => {
+    // AND(id=200, orgId='org-a') finds nothing; cross-org view is invisible.
+    const res = await request(buildApp())
+      .patch("/api/views/200")
+      .send({ name: "Hacked" });
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 when the owner updates their own view", async () => {
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]);
+    mockState.updateResult = [{ ...orgAView, name: "Renamed" }];
+
+    const res = await request(buildApp()).patch("/api/views/1").send({ name: "Renamed" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Renamed");
+  });
+
+  it("returns 403 when a non-owner member in the same org tries to edit", async () => {
+    // Caller is user-a2 (member, no manage_org_settings) — view owned by user-a1.
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+    mockState.permissions = { ...mockState.permissions, manage_org_settings: false };
+
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]);
+
+    const res = await request(buildApp()).patch("/api/views/1").send({ name: "Hacked" });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("Saved view isolation — DELETE /api/views/:id", () => {
+  beforeEach(reset);
+
+  it("returns 404 (not 403) when deleting an org-b view ID — prevents ID enumeration", async () => {
+    // AND(id=200, orgId='org-a') finds nothing.
+    const res = await request(buildApp()).delete("/api/views/200");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 204 when the owner deletes their own view", async () => {
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]);
+    mockState.deleteResult = [{ id: 1 }];
+
+    const res = await request(buildApp()).delete("/api/views/1");
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 403 when a non-owner member in the same org tries to delete", async () => {
+    // Caller is user-a2 (member, no manage_org_settings) — view owned by user-a1.
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+    mockState.permissions = { ...mockState.permissions, manage_org_settings: false };
+
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]);
+
+    const res = await request(buildApp()).delete("/api/views/1");
+    expect(res.status).toBe(403);
   });
 });
