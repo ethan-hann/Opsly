@@ -53,7 +53,7 @@ export default function NotesPage() {
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const isMobile = useIsMobile();
-  const [dock, setDock] = useState<PreviewDock>("right");
+  const [dock, setDock] = useState<PreviewDock>("bottom");
   const [localContent, setLocalContent] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
