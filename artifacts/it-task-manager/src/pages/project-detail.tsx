@@ -99,6 +99,34 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge status={project.status} className="text-sm px-3 py-1" />
               <PriorityBadge priority={project.priority} className="text-sm px-3 py-1" />
+              <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
+                <Edit className="w-3.5 h-3.5" /> Edit Project
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete Project" data-testid="btn-delete-project">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will permanently delete the project "{project.name}" and all associated tasks.
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => deleteMutation.mutate({ id: project.id })}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      {deleteMutation.isPending ? "Deleting..." : "Delete Project"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </CardHeader>
@@ -127,37 +155,6 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             </div>
           </div>
           
-          <div className="flex justify-end gap-2 pt-4 border-t border-border/40">
-            <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-              <Edit className="w-3.5 h-3.5" /> Edit Project
-            </Button>
-            
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="gap-2 text-xs" data-testid="btn-delete-project">
-                  <Trash2 className="w-3.5 h-3.5" /> Delete
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This will permanently delete the project "{project.name}" and all associated tasks.
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction 
-                    onClick={() => deleteMutation.mutate({ id: project.id })}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  >
-                    {deleteMutation.isPending ? "Deleting..." : "Delete Project"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
         </CardContent>
       </Card>
 
