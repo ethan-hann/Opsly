@@ -347,6 +347,11 @@ export interface Task {
   createdAt: string;
   /** ISO 8601 timestamp when the task was last updated. */
   updatedAt: string;
+  /**
+     * ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.
+     * @nullable
+     */
+  slaBreachedAt?: string | null;
 }
 
 /**
@@ -1233,6 +1238,7 @@ export const OutboundWebhookEventsItem = {
   taskstatus_changed: 'task.status_changed',
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
+  tasksla_breached: 'task.sla_breached',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1300,6 +1306,7 @@ export const OutboundWebhookInputEventsItem = {
   taskstatus_changed: 'task.status_changed',
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
+  tasksla_breached: 'task.sla_breached',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1335,6 +1342,7 @@ export const OutboundWebhookUpdateEventsItem = {
   taskstatus_changed: 'task.status_changed',
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
+  tasksla_breached: 'task.sla_breached',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1395,6 +1403,72 @@ export interface WebhookIngestPayload {
   dueDate?: string;
   [key: string]: unknown;
  }
+
+export type SlaPolicyPriority = typeof SlaPolicyPriority[keyof typeof SlaPolicyPriority];
+
+
+export const SlaPolicyPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+/**
+ * SLA response and resolution targets for a single priority level.
+ */
+export interface SlaPolicy {
+  id: number;
+  orgId: string;
+  priority: SlaPolicyPriority;
+  /**
+     * Maximum minutes before a first response is required. Null means no target.
+     * @nullable
+     */
+  responseMinutes?: number | null;
+  /**
+     * Maximum minutes before the task must be resolved. Null means no target.
+     * @nullable
+     */
+  resolutionMinutes?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type SLAPolicyEntryPriority = typeof SLAPolicyEntryPriority[keyof typeof SLAPolicyEntryPriority];
+
+
+export const SLAPolicyEntryPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+/**
+ * One priority's SLA targets in the PUT request body.
+ */
+export interface SLAPolicyEntry {
+  priority: SLAPolicyEntryPriority;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  responseMinutes?: number | null;
+  /**
+     * @minimum 1
+     * @nullable
+     */
+  resolutionMinutes?: number | null;
+}
+
+/**
+ * Full set of SLA policies for the org (up to four entries, one per priority).
+ */
+export interface SLAPoliciesInput {
+  /** @maxItems 4 */
+  policies: SLAPolicyEntry[];
+}
 
 /**
  * Project presence filter.

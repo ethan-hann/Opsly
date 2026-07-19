@@ -162,6 +162,7 @@ vi.mock("@workspace/db", () => {
     usersTable: {},
     invitationsTable: {},
     savedViewsTable: {},
+    slaPoliciesTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -360,6 +361,7 @@ describe("Task isolation — GET /api/tasks", () => {
   it("returns only org-a tasks when org-a has data", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
     mockState.selectQueue.push([orgATask]); // tasks list
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks");
@@ -395,6 +397,7 @@ describe("Task filter isolation — assignee filter", () => {
   it("returns only org-a's task when both orgs have tasks with the same assignee", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE };
     mockState.selectQueue.push([orgATask]); // DB returns only the org-a task (orgId scoped)
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get(`/api/tasks?assignee=${SHARED_ASSIGNEE}`);
@@ -417,6 +420,7 @@ describe("Task filter isolation — dateFrom filter", () => {
   it("returns only org-a's task when both orgs have tasks on or after dateFrom", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: SHARED_DATE };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get(`/api/tasks?dateFrom=${SHARED_DATE}`);
@@ -438,6 +442,7 @@ describe("Task filter isolation — dateTo filter", () => {
   it("returns only org-a's task when both orgs have tasks before dateTo", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: "2025-03-10" };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get(`/api/tasks?dateTo=${SHARED_DATE}`);
@@ -461,6 +466,7 @@ describe("Task filter isolation — combined assignee + dateFrom + dateTo", () =
   it("returns only org-a's task when both orgs match all combined filter criteria", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get(
@@ -486,6 +492,7 @@ describe("Task filter isolation — combined assignee + dateFrom + dateTo", () =
       assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE,
     };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get(
@@ -519,6 +526,7 @@ describe("Task isolation — GET /api/tasks/:id", () => {
   it("returns 200 for a task that belongs to org-a", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
     mockState.selectQueue.push([orgATask]); // task found
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");

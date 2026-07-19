@@ -1,0 +1,90 @@
+import type { SlaPolicy } from "@workspace/api-client-react";
+
+export type SlaStatus = "on_track" | "warning" | "breached" | "none";
+
+export interface SlaResult {
+  resolutionStatus: SlaStatus;
+  responseStatus: SlaStatus;
+  resolutionMinutesRemaining: number | null;
+  responseMinutesRemaining: number | null;
+  isResolutionBreached: boolean;
+}
+
+/**
+ * Pure SLA calculation — mirrors the server-side helper.
+ * No network calls; safe to run on every render.
+ */
+export function getSlaStatus(
+  createdAt: Date | string,
+  status: string,
+  priority: string,
+  policy: SlaPolicy | null | undefined,
+): SlaResult {
+  if (!policy || (policy.responseMinutes == null && policy.resolutionMinutes == null)) {
+    return {
+      resolutionStatus: "none",
+      responseStatus: "none",
+      resolutionMinutesRemaining: null,
+      responseMinutesRemaining: null,
+      isResolutionBreached: false,
+    };
+  }
+
+  const isDone = status === "done";
+  const now = Date.now();
+  const created = new Date(createdAt).getTime();
+  const elapsedMinutes = (now - created) / 60_000;
+
+  // --- Response SLA ---
+  let responseStatus: SlaStatus = "none";
+  let responseMinutesRemaining: number | null = null;
+  if (policy.responseMinutes != null) {
+    const remaining = policy.responseMinutes - elapsedMinutes;
+    responseMinutesRemaining = Math.round(remaining);
+    if (isDone) {
+      responseStatus = "on_track";
+    } else if (remaining < 0) {
+      responseStatus = "breached";
+    } else if (remaining / policy.responseMinutes <= 0.25) {
+      responseStatus = "warning";
+    } else {
+      responseStatus = "on_track";
+    }
+  }
+
+  // --- Resolution SLA ---
+  let resolutionStatus: SlaStatus = "none";
+  let resolutionMinutesRemaining: number | null = null;
+  let isResolutionBreached = false;
+  if (policy.resolutionMinutes != null) {
+    const remaining = policy.resolutionMinutes - elapsedMinutes;
+    resolutionMinutesRemaining = Math.round(remaining);
+    if (isDone) {
+      resolutionStatus = "on_track";
+    } else if (remaining < 0) {
+      resolutionStatus = "breached";
+      isResolutionBreached = true;
+    } else if (remaining / policy.resolutionMinutes <= 0.25) {
+      resolutionStatus = "warning";
+    } else {
+      resolutionStatus = "on_track";
+    }
+  }
+
+  return {
+    resolutionStatus,
+    responseStatus,
+    resolutionMinutesRemaining,
+    responseMinutesRemaining,
+    isResolutionBreached,
+  };
+}
+
+/** Format a minute count (possibly negative) into "Xh Ym" or "Ym". */
+export function formatSlaMinutes(minutes: number): string {
+  const abs = Math.abs(Math.round(minutes));
+  if (abs < 60) return `${abs}m`;
+  const h = Math.floor(abs / 60);
+  const m = abs % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}

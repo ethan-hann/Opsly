@@ -8,12 +8,15 @@ import {
   getGetOverdueTasksQueryKey,
   useListProjects,
   getListProjectsQueryKey,
+  useGetSLAPolicies,
 } from "@workspace/api-client-react";
 import {
-  Briefcase, CheckCircle2, AlertCircle, Clock,
+  Briefcase, CheckCircle2, AlertCircle, Clock, ShieldAlert,
   Activity, LayoutGrid, ArrowRight,
 } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
+import { SlaBadge } from "@/components/ui/sla-badge";
+import { getSlaStatus } from "@/lib/sla";
 import { formatTimeAgo, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -31,11 +34,20 @@ export default function Dashboard() {
   const { data: projects, isLoading: isLoadingProjects } = useListProjects({
     query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
+  const { data: slaPolicies } = useGetSLAPolicies();
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   const activeProjects = projects?.filter(p => p.status === "active") ?? [];
+
+  // Compute SLA-breached tasks from the overdue list (fire once policies are available)
+  const slaBreachedTasks = (overdueTasks ?? []).filter((task) => {
+    if (task.status === "done") return false;
+    const policy = slaPolicies?.find((p) => p.priority === task.priority) ?? null;
+    const result = getSlaStatus(task.createdAt, task.status, task.priority, policy);
+    return result.isResolutionBreached;
+  });
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -155,6 +167,53 @@ export default function Dashboard() {
 
         {/* Left 2 columns */}
         <div className="lg:col-span-2 space-y-8">
+
+          {/* SLA Breached Tasks */}
+          {slaBreachedTasks.length > 0 && (
+            <div className="bg-white dark:bg-stone-900 rounded-2xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden">
+              <div className="px-6 py-5 border-b border-red-100 dark:border-red-900/60 flex items-center justify-between bg-red-50/40 dark:bg-red-950/20">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                  <h2 className="text-lg font-semibold text-red-900 dark:text-red-300">SLA Breached</h2>
+                  <span className="ml-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400">
+                    {slaBreachedTasks.length}
+                  </span>
+                </div>
+                <p className="text-sm text-stone-400 dark:text-stone-500">Resolution time exceeded</p>
+              </div>
+              <div className="divide-y divide-stone-100 dark:divide-stone-800">
+                {slaBreachedTasks.slice(0, 5).map(task => (
+                  <div key={task.id} className="p-5 hover:bg-red-50/30 dark:hover:bg-red-950/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="mt-0.5 p-2 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 shrink-0">
+                        <ShieldAlert className="w-4 h-4" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <Link href={`/tasks/${task.id}`}>
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer truncate">
+                            {task.title}
+                          </h3>
+                        </Link>
+                        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                          <span>{task.projectName || "Unassigned"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <SlaBadge
+                        createdAt={task.createdAt}
+                        status={task.status}
+                        priority={task.priority}
+                        policies={slaPolicies}
+                      />
+                      <StatusBadge status={task.status} />
+                      <PriorityBadge priority={task.priority} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Attention Required */}
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm overflow-hidden">

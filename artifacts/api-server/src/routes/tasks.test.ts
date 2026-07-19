@@ -80,10 +80,12 @@ vi.mock("@workspace/db", () => {
     outboundWebhooksTable: {},
     customFieldDefinitionsTable: {},
     taskEventsTable: {},
+    slaPoliciesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
     lt: () => ({}),
+    isNull: () => ({}),
   };
 });
 
@@ -144,10 +146,11 @@ const VALID_TASK_BODY = {
   category: "incident",
 };
 
-// buildTaskWithProject for a task with no projectId makes 1 select (comment count).
+// Push queue entries for GET /tasks/:id (task found, no projectId).
+// Order: task lookup → SLA policies → comment count.
 function pushEnrichedTask(task = MOCK_TASK) {
-  // The route first selects the task, then buildTaskWithProject makes 1 comment-count select.
   mockState.selectQueue.push([task]);
+  mockState.selectQueue.push([]); // SLA policies (empty = no configured targets)
   mockState.selectQueue.push([{ count: 0 }]);
 }
 
@@ -208,6 +211,7 @@ describe("GET /api/tasks", () => {
 
   it("returns 200 with enriched tasks", async () => {
     mockState.selectQueue.push([MOCK_TASK]); // task list
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks");
@@ -219,6 +223,7 @@ describe("GET /api/tasks", () => {
 
   it("accepts projectId, status, priority, and category query filters", async () => {
     mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 1 }]);
 
     const res = await request(buildApp()).get(
@@ -240,6 +245,7 @@ describe("GET /api/tasks", () => {
   it("accepts an assignee filter and returns 200", async () => {
     const assignedTask = { ...MOCK_TASK, assignee: "alice@example.com" };
     mockState.selectQueue.push([assignedTask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get("/api/tasks?assignee=alice%40example.com");
@@ -261,6 +267,7 @@ describe("GET /api/tasks", () => {
   it("accepts a dateFrom filter and returns tasks on or after that date", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get("/api/tasks?dateFrom=2025-06-01");
@@ -272,6 +279,7 @@ describe("GET /api/tasks", () => {
   it("accepts a dateTo filter and returns tasks on or before that date", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-05-10" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get("/api/tasks?dateTo=2025-05-31");
@@ -283,6 +291,7 @@ describe("GET /api/tasks", () => {
   it("accepts dateFrom and dateTo together as a date-range filter", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get("/api/tasks?dateFrom=2025-06-01&dateTo=2025-06-30");
@@ -294,6 +303,7 @@ describe("GET /api/tasks", () => {
   it("accepts all filters combined: assignee + dateFrom + dateTo + status + priority", async () => {
     const fullTask = { ...MOCK_TASK, assignee: "alice@example.com", dueDate: "2025-06-15" };
     mockState.selectQueue.push([fullTask]);
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).get(
@@ -319,6 +329,7 @@ describe("GET /api/tasks/:id", () => {
 
   it("returns 200 with the enriched task when found", async () => {
     mockState.selectQueue.push([MOCK_TASK]); // task lookup
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 3 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");
@@ -344,6 +355,7 @@ describe("GET /api/tasks/:id", () => {
   it("enriches the task with project name when projectId is set", async () => {
     const taskWithProject = { ...MOCK_TASK, projectId: 5 };
     mockState.selectQueue.push([taskWithProject]); // task lookup
+    mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project lookup
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 

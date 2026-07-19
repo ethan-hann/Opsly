@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, lt, lte, gte, or, isNull, asc } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable, taskEventsTable } from "@workspace/db";
+import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable } from "@workspace/db";
 import {
   CreateTaskBody,
   UpdateTaskBody,
@@ -17,10 +17,66 @@ import {
   ListTaskEventsResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
-import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
+import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskSlaBreached } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
+import { getSlaStatus } from "../lib/sla";
 
 const router: IRouter = Router();
+
+// ─── SLA breach detection ─────────────────────────────────────────────────────
+
+/**
+ * For a list of tasks, detect any that have breached their resolution SLA but
+ * haven't had slaBreachedAt set yet. Sets the timestamp and fires the webhook.
+ *
+ * Policies must be pre-fetched by the caller (deterministic queue position for tests).
+ * Atomic: uses WHERE sla_breached_at IS NULL so only the first concurrent reader fires.
+ * Fire-and-forget: errors are swallowed so they don't affect the response.
+ */
+async function detectAndMarkSlaBreaches(
+  tasks: (typeof tasksTable.$inferSelect)[],
+  orgId: string,
+  policies: (typeof slaPoliciesTable.$inferSelect)[],
+): Promise<void> {
+  try {
+    // Only evaluate open tasks that haven't been flagged yet
+    const candidates = tasks.filter(
+      (t) => t.status !== "done" && t.slaBreachedAt == null,
+    );
+    if (candidates.length === 0) return;
+
+    const policyMap = new Map(policies.map((p) => [p.priority, p]));
+
+    for (const task of candidates) {
+      const policy = policyMap.get(task.priority) ?? null;
+      const slaResult = getSlaStatus(task.createdAt, task.status, task.priority, policy);
+
+      if (slaResult.isResolutionBreached) {
+        const now = new Date();
+        // Atomic: only dispatch if this process is the first to set slaBreachedAt
+        const [updated] = await db
+          .update(tasksTable)
+          .set({ slaBreachedAt: now })
+          .where(and(eq(tasksTable.id, task.id), eq(tasksTable.orgId, orgId), isNull(tasksTable.slaBreachedAt)))
+          .returning({ id: tasksTable.id });
+
+        if (updated) {
+          const minutesOverdue = Math.abs(slaResult.resolutionMinutesRemaining ?? 0);
+          dispatchTaskSlaBreached(orgId, task.projectId, {
+            id: task.id,
+            orgTaskNumber: task.orgTaskNumber,
+            title: task.title,
+            priority: task.priority,
+            status: task.status,
+            slaBreachedAt: now.toISOString(),
+          }, minutesOverdue);
+        }
+      }
+    }
+  } catch {
+    // Never let SLA breach detection fail a response
+  }
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +115,7 @@ async function buildTaskWithProject(
     dueDate: task.dueDate ?? null,
     commentCount: count ?? 0,
     customFields: task.customFields ?? {},
+    slaBreachedAt: task.slaBreachedAt instanceof Date ? task.slaBreachedAt.toISOString() : (task.slaBreachedAt ?? null),
     createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : task.createdAt,
     updatedAt: task.updatedAt instanceof Date ? task.updatedAt.toISOString() : task.updatedAt,
   };
@@ -270,6 +327,14 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
     .where(and(...conditions))
     .orderBy(tasksTable.createdAt);
 
+  // Pre-fetch SLA policies for breach detection (deterministic queue position, only when needed)
+  const slaPolicies = tasks.length > 0
+    ? await db.select().from(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId))
+    : [];
+
+  // Detect and mark newly breached SLA tasks (fire-and-forget, non-blocking)
+  void detectAndMarkSlaBreaches(tasks, orgId, slaPolicies);
+
   const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId)));
   res.json(ListTasksResponse.parse(result));
 });
@@ -368,6 +433,12 @@ router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Task not found" });
     return;
   }
+
+  // Pre-fetch SLA policies for breach detection (awaited for deterministic queue position)
+  const slaPolicies = await db.select().from(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId));
+
+  // Detect and mark breach on single-task reads too (fire-and-forget, non-blocking)
+  void detectAndMarkSlaBreaches([task], orgId, slaPolicies);
 
   const enriched = await buildTaskWithProject(task, orgId);
   res.json(GetTaskResponse.parse(enriched));

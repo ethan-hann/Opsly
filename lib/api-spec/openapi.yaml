@@ -1376,6 +1376,50 @@ paths:
         "404":
           description: Target user or role not found in this organization.
 
+  /org/sla-policies:
+    get:
+      operationId: getSLAPolicies
+      tags: [orgs]
+      summary: Get SLA policies for the current org
+      description: >
+        Returns the SLA response and resolution targets for each priority level.
+        Priorities with no configured policy are omitted from the response.
+      responses:
+        "200":
+          description: Array of SLA policies for this org.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlaPolicy"
+    put:
+      operationId: upsertSLAPolicies
+      tags: [orgs]
+      summary: Set SLA policies for the current org (admin only)
+      description: >
+        Replaces all SLA policies for the org. Accepts up to four entries (one
+        per priority). Omitted priorities are cleared. Requires admin permissions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SLAPoliciesInput"
+      responses:
+        "200":
+          description: Updated SLA policies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlaPolicy"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Admin permission required.
+
   /orgs/leave:
     post:
       operationId: leaveOrg
@@ -2061,6 +2105,9 @@ components:
         updatedAt:
           type: string
           description: ISO 8601 timestamp when the task was last updated.
+        slaBreachedAt:
+          type: ["string", "null"]
+          description: ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.
 
     TaskInput:
       description: Fields required to create a new task.
@@ -2991,7 +3038,7 @@ components:
           type: array
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
           description: Event types this webhook subscribes to.
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
@@ -3052,7 +3099,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3076,7 +3123,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3104,6 +3151,55 @@ components:
           type: string
           description: Task deadline in YYYY-MM-DD format.
       additionalProperties: true
+
+    SlaPolicy:
+      description: SLA response and resolution targets for a single priority level.
+      type: object
+      required: [id, orgId, priority]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        responseMinutes:
+          type: ["integer", "null"]
+          description: Maximum minutes before a first response is required. Null means no target.
+        resolutionMinutes:
+          type: ["integer", "null"]
+          description: Maximum minutes before the task must be resolved. Null means no target.
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    SLAPolicyEntry:
+      description: One priority's SLA targets in the PUT request body.
+      type: object
+      required: [priority]
+      properties:
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        responseMinutes:
+          type: ["integer", "null"]
+          minimum: 1
+        resolutionMinutes:
+          type: ["integer", "null"]
+          minimum: 1
+
+    SLAPoliciesInput:
+      description: Full set of SLA policies for the org (up to four entries, one per priority).
+      type: object
+      required: [policies]
+      properties:
+        policies:
+          type: array
+          items:
+            $ref: "#/components/schemas/SLAPolicyEntry"
+          maxItems: 4
 
     SavedViewFilters:
       description: Filter state stored in a saved view.

@@ -64,10 +64,12 @@ import type {
   ProjectUpdate,
   RenameOrgInput,
   Role,
+  SLAPoliciesInput,
   SavedView,
   SavedViewInput,
   SavedViewUpdate,
   SimpleSuccess,
+  SlaPolicy,
   Task,
   TaskEvent,
   TaskInput,
@@ -3877,6 +3879,156 @@ export const useUpdateOrgMemberRole = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateOrgMemberRoleMutationOptions(options));
+    }
+
+export const getGetSLAPoliciesUrl = () => {
+
+
+
+
+  return `/api/org/sla-policies`
+}
+
+/**
+ * Returns the SLA response and resolution targets for each priority level. Priorities with no configured policy are omitted from the response.
+ * @summary Get SLA policies for the current org
+ */
+export const getSLAPolicies = async ( options?: RequestInit): Promise<SlaPolicy[]> => {
+
+  return customFetch<SlaPolicy[]>(getGetSLAPoliciesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetSLAPoliciesQueryKey = () => {
+    return [
+    `/api/org/sla-policies`
+    ] as const;
+    }
+
+
+export const getGetSLAPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof getSLAPolicies>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSLAPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetSLAPoliciesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getSLAPolicies>>> = ({ signal }) => getSLAPolicies({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getSLAPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetSLAPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof getSLAPolicies>>>
+export type GetSLAPoliciesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get SLA policies for the current org
+ */
+
+export function useGetSLAPolicies<TData = Awaited<ReturnType<typeof getSLAPolicies>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getSLAPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetSLAPoliciesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertSLAPoliciesUrl = () => {
+
+
+
+
+  return `/api/org/sla-policies`
+}
+
+/**
+ * Replaces all SLA policies for the org. Accepts up to four entries (one per priority). Omitted priorities are cleared. Requires admin permissions.
+ * @summary Set SLA policies for the current org (admin only)
+ */
+export const upsertSLAPolicies = async (sLAPoliciesInput: SLAPoliciesInput, options?: RequestInit): Promise<SlaPolicy[]> => {
+
+  return customFetch<SlaPolicy[]>(getUpsertSLAPoliciesUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sLAPoliciesInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertSLAPoliciesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSLAPolicies>>, TError,{data: BodyType<SLAPoliciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertSLAPolicies>>, TError,{data: BodyType<SLAPoliciesInput>}, TContext> => {
+
+const mutationKey = ['upsertSLAPolicies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertSLAPolicies>>, {data: BodyType<SLAPoliciesInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  upsertSLAPolicies(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertSLAPoliciesMutationResult = NonNullable<Awaited<ReturnType<typeof upsertSLAPolicies>>>
+    export type UpsertSLAPoliciesMutationBody = BodyType<SLAPoliciesInput>
+    export type UpsertSLAPoliciesMutationError = ErrorType<void>
+
+    /**
+ * @summary Set SLA policies for the current org (admin only)
+ */
+export const useUpsertSLAPolicies = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertSLAPolicies>>, TError,{data: BodyType<SLAPoliciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertSLAPolicies>>,
+        TError,
+        {data: BodyType<SLAPoliciesInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertSLAPoliciesMutationOptions(options));
     }
 
 export const getLeaveOrgUrl = () => {

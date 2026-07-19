@@ -8,6 +8,7 @@ import {
   invitationsTable,
   usersTable,
   rolesTable,
+  slaPoliciesTable,
   OWNER_PERMISSIONS,
   ADMIN_PERMISSIONS,
   MEMBER_PERMISSIONS,
@@ -757,6 +758,86 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
     );
 
   res.json({ success: true });
+});
+
+// ─── SLA Policies ─────────────────────────────────────────────────────────────
+
+const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
+
+// GET /org/sla-policies - get SLA policies for the current org
+router.get('/org/sla-policies', requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
+  const policies = await db
+    .select()
+    .from(slaPoliciesTable)
+    .where(eq(slaPoliciesTable.orgId, orgId));
+  res.json(
+    policies.map((p) => ({
+      ...p,
+      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+      updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+    })),
+  );
+});
+
+// PUT /org/sla-policies - upsert SLA policies (admin only)
+router.put('/org/sla-policies', requireOrg, requirePermission('manage_sla_policies'), async (req, res): Promise<void> => {
+  const schema = z.object({
+    policies: z
+      .array(
+        z.object({
+          priority: z.enum(['low', 'medium', 'high', 'critical']),
+          responseMinutes: z.number().int().min(1).nullable().optional(),
+          resolutionMinutes: z.number().int().min(1).nullable().optional(),
+        }),
+      )
+      .max(4),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Validate no duplicate priorities in the request body
+  const priorities = parsed.data.policies.map((p) => p.priority);
+  if (new Set(priorities).size !== priorities.length) {
+    res.status(400).json({ error: 'Duplicate priority values are not allowed. Each priority must appear at most once.' });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  // Delete all existing policies then re-insert (simpler than per-priority upsert)
+  await db.delete(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId));
+
+  const toInsert = parsed.data.policies.filter(
+    (p) => p.responseMinutes != null || p.resolutionMinutes != null,
+  );
+
+  let result: typeof slaPoliciesTable.$inferSelect[] = [];
+  if (toInsert.length > 0) {
+    result = await db
+      .insert(slaPoliciesTable)
+      .values(
+        toInsert.map((p) => ({
+          orgId,
+          priority: p.priority,
+          responseMinutes: p.responseMinutes ?? null,
+          resolutionMinutes: p.resolutionMinutes ?? null,
+        })),
+      )
+      .returning();
+  }
+
+  res.json(
+    result.map((p) => ({
+      ...p,
+      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+      updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+    })),
+  );
 });
 
 export default router;

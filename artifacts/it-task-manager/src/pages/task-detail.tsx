@@ -1,10 +1,11 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
+import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
 import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
@@ -496,6 +497,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { data: projects = [] } = useListProjects();
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
   const { data: members = [] } = useListOrgMembers();
+  const { data: slaPolicies } = useGetSLAPolicies();
 
   // Gate all inline editing on edit_tasks permission
   const canEdit = hasPermission('edit_tasks');
@@ -626,6 +628,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 <span className="text-xs font-mono uppercase bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border">
                   {task.category}
                 </span>
+                <SlaBadge
+                  createdAt={task.createdAt}
+                  status={task.status}
+                  priority={task.priority}
+                  policies={slaPolicies}
+                />
               </div>
             </CardHeader>
             <CardContent className="pt-6">

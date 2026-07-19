@@ -184,6 +184,15 @@ export function dispatchNoteDeleted(
   void dispatch(orgId, "note.deleted", projectId, { note });
 }
 
+export function dispatchTaskSlaBreached(
+  orgId: string,
+  projectId: number | null | undefined,
+  task: Record<string, unknown>,
+  minutesOverdue: number,
+): void {
+  void dispatch(orgId, "task.sla_breached", projectId, { task, minutesOverdue });
+}
+
 export function dispatchProjectCreated(
   orgId: string,
   project: Record<string, unknown>,

@@ -1,9 +1,10 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView } from "@workspace/api-client-react";
+import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
+import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
 import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -439,6 +440,7 @@ export default function TasksList() {
   );
   const { data: members } = useListOrgMembers();
   const { data: views } = useListViews();
+  const { data: slaPolicies } = useGetSLAPolicies();
 
   // Default view loading: on mount, if no filters in URL, apply the user's default view
   useEffect(() => {
@@ -719,7 +721,13 @@ export default function TasksList() {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 pl-14 md:pl-0">
+                    <div className="flex items-center gap-2 pl-14 md:pl-0 flex-wrap justify-end">
+                      <SlaBadge
+                        createdAt={task.createdAt}
+                        status={task.status}
+                        priority={task.priority}
+                        policies={slaPolicies}
+                      />
                       <StatusBadge status={task.status} />
                       <PriorityBadge priority={task.priority} />
                     </div>

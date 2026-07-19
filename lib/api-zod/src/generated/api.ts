@@ -257,7 +257,8 @@ export const ListTasksResponseItem = zod.object({
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
-  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 export const ListTasksResponse = zod.array(ListTasksResponseItem)
 
@@ -296,7 +297,8 @@ export const CreateTaskResponse = zod.object({
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
-  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
@@ -323,7 +325,8 @@ export const GetTaskResponse = zod.object({
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
-  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
@@ -365,7 +368,8 @@ export const UpdateTaskResponse = zod.object({
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
-  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 
 
@@ -765,7 +769,8 @@ export const GetOverdueTasksResponseItem = zod.object({
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
-  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
@@ -1183,6 +1188,52 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "email": zod.string().nullish().describe('Member\'s email address. Null if not set in their profile.'),
   "profileImageUrl": zod.string().nullish().describe('URL of the member\'s profile picture. Null if not set.')
 }).describe('Profile and membership information for a single org member.')
+
+
+/**
+ * Returns the SLA response and resolution targets for each priority level. Priorities with no configured policy are omitted from the response.
+ * @summary Get SLA policies for the current org
+ */
+export const GetSLAPoliciesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
+  "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('SLA response and resolution targets for a single priority level.')
+export const GetSLAPoliciesResponse = zod.array(GetSLAPoliciesResponseItem)
+
+
+/**
+ * Replaces all SLA policies for the org. Accepts up to four entries (one per priority). Omitted priorities are cleared. Requires admin permissions.
+ * @summary Set SLA policies for the current org (admin only)
+ */
+
+
+export const upsertSLAPoliciesBodyPoliciesMax = 4;
+
+
+
+export const UpsertSLAPoliciesBody = zod.object({
+  "policies": zod.array(zod.object({
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().min(1).nullish(),
+  "resolutionMinutes": zod.number().min(1).nullish()
+}).describe('One priority\'s SLA targets in the PUT request body.')).max(upsertSLAPoliciesBodyPoliciesMax)
+}).describe('Full set of SLA policies for the org (up to four entries, one per priority).')
+
+export const UpsertSLAPoliciesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
+  "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('SLA response and resolution targets for a single priority level.')
+export const UpsertSLAPoliciesResponse = zod.array(UpsertSLAPoliciesResponseItem)
 
 
 /**
@@ -1617,7 +1668,7 @@ export const ListOutboundWebhooksResponseItem = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1639,7 +1690,7 @@ export const CreateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(createOutboundWebhookBodyNameMax),
   "url": zod.string().describe('Target URL for event delivery.'),
   "projectId": zod.number().optional().describe('Optional project filter.'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().default(createOutboundWebhookBodyEnabledDefault)
 }).describe('Fields for creating an outbound webhook.')
@@ -1652,7 +1703,7 @@ export const CreateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1697,7 +1748,7 @@ export const GetOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1722,7 +1773,7 @@ export const UpdateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(updateOutboundWebhookBodyNameMax).optional(),
   "url": zod.string().optional(),
   "projectId": zod.number().nullish(),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1).optional(),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1).optional(),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().optional()
 }).describe('Partial update for an outbound webhook.')
@@ -1735,7 +1786,7 @@ export const UpdateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),

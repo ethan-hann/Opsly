@@ -59,4 +59,9 @@ export interface Task {
   createdAt: string;
   /** ISO 8601 timestamp when the task was last updated. */
   updatedAt: string;
+  /**
+     * ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.
+     * @nullable
+     */
+  slaBreachedAt?: string | null;
 }

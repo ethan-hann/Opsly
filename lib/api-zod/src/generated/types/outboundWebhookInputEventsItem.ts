@@ -15,6 +15,7 @@ export const OutboundWebhookInputEventsItem = {
   taskstatus_changed: 'task.status_changed',
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
+  tasksla_breached: 'task.sla_breached',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',

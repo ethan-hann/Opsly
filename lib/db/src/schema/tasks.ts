@@ -20,6 +20,8 @@ export const tasksTable = pgTable("tasks", {
   dueDate: date("due_date", { mode: "string" }),
   /** JSONB bag of custom field values keyed by field definition ID. */
   customFields: jsonb("custom_fields").$type<Record<string, unknown>>().notNull().default({}),
+  /** Set once when a resolution SLA breach is first detected; null until then. */
+  slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
