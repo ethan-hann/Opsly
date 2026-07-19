@@ -34,8 +34,8 @@ export interface TaskUpdate {
   category?: TaskUpdateCategory;
   /** Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged. */
   assignee?: string | null;
-  /** Updated deadline in `YYYY-MM-DD` format. */
-  dueDate?: string;
+  /** Updated deadline in `YYYY-MM-DD` format. Pass `null` to clear. */
+  dueDate?: string | null;
   /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
   customFields?: TaskUpdateCustomFields;
 }

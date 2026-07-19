@@ -2142,7 +2142,8 @@ components:
             unassign; omit to leave unchanged.
         dueDate:
           type: string
-          description: Updated deadline in `YYYY-MM-DD` format.
+          nullable: true
+          description: Updated deadline in `YYYY-MM-DD` format. Pass `null` to clear.
         customFields:
           type: object
           additionalProperties: true

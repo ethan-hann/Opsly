@@ -1,18 +1,20 @@
 ---
 name: api-client-react dist rebuild
-description: After orval codegen, tsc incremental compilation skips api-client-react because it is not in the root tsconfig.json references; stale .d.ts files then cause typecheck failures in it-task-manager.
+description: api-client-react resolves types from compiled dist/.d.ts files, not source — schema changes must update both src and dist.
 ---
 
-## The rule
-After running orval codegen, always rebuild `lib/api-client-react` explicitly before running the full typecheck.
+# api-client-react dist rebuild
 
-**Why:** `lib/api-client-react` is NOT listed in the root `tsconfig.json` references (only `lib/db`, `lib/api-zod`, `lib/replit-auth-web` are). So `pnpm run typecheck:libs` (`tsc --build` at root) does NOT rebuild `api-client-react`. But `it-task-manager/tsconfig.json` lists it in its own `references`, so `tsc --noEmit` for the frontend uses the stale compiled `.d.ts` files in `lib/api-client-react/dist/generated/`. The `.tsbuildinfo` makes incremental tsc skip rebuilding even when sources changed.
+## Rule
+When editing generated schema types in `lib/api-client-react/src/generated/api.schemas.ts`, you MUST also edit the corresponding declaration file at `lib/api-client-react/dist/generated/api.schemas.d.ts`. The frontend artifact (`it-task-manager`) resolves types from the **dist** folder, not from source.
 
-**How to apply:**
-1. After `pnpm --filter @workspace/api-spec run codegen`, run:
-   ```
-   cd lib/api-client-react && npx tsc -p tsconfig.json
-   ```
-   This regenerates `dist/generated/api.schemas.d.ts` etc. with the new types.
-2. If tsc --build still uses stale files, delete `lib/api-client-react/tsconfig.tsbuildinfo` and/or `lib/api-client-react/dist/generated/` and rebuild.
-3. Only after this step will `typecheck` for `it-task-manager` pass with the new generated types.
+**Why:** `lib/api-client-react/package.json` exports from `dist/`, so TypeScript resolves declaration files from `dist/generated/api.schemas.d.ts` at typecheck time. Editing only the source will pass a read of the source file but fail the actual tsc run with "Type 'X' is not assignable to type 'Y'" pointing to the dist .d.ts.
+
+**How to apply:** Any time orval regenerates sources or you manually patch a generated type (e.g., adding `| null` to a field in `TaskUpdate`, `Task`, etc.), apply the same change to both:
+- `lib/api-client-react/src/generated/api.schemas.ts` — source of truth
+- `lib/api-client-react/dist/generated/api.schemas.d.ts` — what tsc actually reads for the frontend
+
+Also update `lib/api-zod/src/generated/api.ts` for the Zod schema (which the API server uses) and `lib/api-spec/openapi.yaml` (the canonical source) to keep all four in sync.
+
+## Observed instance
+Adding `dueDate?: string | null` to `TaskUpdate` for the "clear due date" inline edit feature required edits to all four files above. The typecheck error pointed at `dist/generated/api.schemas.d.ts:442` with "Type 'string | null' is not assignable to type 'string | undefined'" even after the source was updated.
