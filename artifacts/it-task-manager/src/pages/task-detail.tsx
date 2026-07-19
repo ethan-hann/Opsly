@@ -214,7 +214,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg p-3">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-medium">{comment.author || 'System'}</span>
-                          <span className="text-xs text-muted-foreground font-mono">{formatTimeAgo(comment.createdAt)}</span>
+                          <span className="text-xs text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
                         </div>
                         <p className="text-sm text-foreground/80 whitespace-pre-wrap">{comment.content}</p>
                       </div>
@@ -342,7 +342,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   <span className="text-muted-foreground flex items-center gap-2">
                     <Clock className="w-4 h-4" /> Created
                   </span>
-                  <span className="font-mono text-xs">{formatDate(task.createdAt)}</span>
+                  <span className="text-xs">{formatDate(task.createdAt)}</span>
                 </div>
               </div>
             </CardContent>

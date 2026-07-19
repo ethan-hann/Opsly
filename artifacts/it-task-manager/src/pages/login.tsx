@@ -46,7 +46,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground font-mono">
+        <p className="text-xs text-muted-foreground">
           IT Task Manager — v1.0
         </p>
       </div>

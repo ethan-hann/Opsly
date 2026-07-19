@@ -76,7 +76,7 @@ function TaskCard({ task, overlay }: TaskCardProps) {
         </Link>
         <PriorityBadge priority={task.priority} />
       </div>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground font-mono">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
         <span className="px-1 py-0.5 rounded border border-border uppercase">{task.category}</span>
         {task.projectName && (
           <span className="text-foreground/70 truncate max-w-[120px]">{task.projectName}</span>
@@ -137,7 +137,7 @@ function KanbanColumn({ columnId, label, borderClass, tasks, isOver }: KanbanCol
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="flex items-center justify-center h-full py-8 text-xs text-muted-foreground/50 font-mono">
+          <div className="flex items-center justify-center h-full py-8 text-xs text-muted-foreground/50">
             Drop here
           </div>
         )}

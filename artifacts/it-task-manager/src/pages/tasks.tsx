@@ -126,7 +126,7 @@ export default function TasksList() {
                           </span>
                         </Link>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground font-mono pl-14 md:pl-0">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pl-14 md:pl-0">
                         {task.projectName && (
                           <span className="text-foreground/80">{task.projectName}</span>
                         )}

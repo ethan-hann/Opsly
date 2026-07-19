@@ -399,7 +399,7 @@ export default function OrgSettings() {
                 className="flex items-center gap-3 py-2 border-b border-border last:border-0"
               >
                 {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 font-mono text-xs font-bold text-primary">
+                <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-primary">
                   {m.firstName?.[0] ?? m.email?.[0] ?? "?"}
                 </div>
                 {/* Info */}
@@ -508,7 +508,7 @@ export default function OrgSettings() {
                   key={inv.id}
                   className="flex items-center gap-3 py-2 border-b border-border last:border-0"
                 >
-                  <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 font-mono text-xs font-bold text-muted-foreground">
+                  <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-muted-foreground">
                     <Mail className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">

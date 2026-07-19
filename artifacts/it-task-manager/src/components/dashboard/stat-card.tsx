@@ -25,13 +25,13 @@ export function StatCard({ title, value, icon, description, href, trend, classNa
       className,
     )}>
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider font-mono">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
         {icon && <div className="text-muted-foreground">{icon}</div>}
       </CardHeader>
       <CardContent>
-        <div className="text-3xl font-bold tracking-tight font-mono">{value}</div>
+        <div className="text-3xl font-bold tracking-tight">{value}</div>
         {(description || trend) && (
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
             {trend && (

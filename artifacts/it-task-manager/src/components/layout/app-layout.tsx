@@ -347,7 +347,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full bg-sidebar-accent flex items-center justify-center font-mono text-xs font-bold text-primary">
+                            <div className="w-full h-full bg-sidebar-accent flex items-center justify-center text-xs font-bold text-primary">
                               {user?.firstName?.[0] ?? user?.email?.[0] ?? "?"}
                             </div>
                           )}
@@ -379,7 +379,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     className="w-8 h-8 rounded-full border border-sidebar-border object-cover shrink-0"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center border border-sidebar-border font-mono text-xs font-bold text-primary shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-sidebar-accent flex items-center justify-center border border-sidebar-border text-xs font-bold text-primary shrink-0">
                     {user?.firstName?.[0] ?? user?.email?.[0] ?? "?"}
                   </div>
                 )}

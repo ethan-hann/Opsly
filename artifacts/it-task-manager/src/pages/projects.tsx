@@ -59,7 +59,7 @@ export default function ProjectsList() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <div className="flex justify-between text-xs font-mono">
+                      <div className="flex justify-between text-xs">
                         <span className="text-muted-foreground">Progress</span>
                         <span className="font-medium">{progress}%</span>
                       </div>
@@ -69,7 +69,7 @@ export default function ProjectsList() {
                           style={{ width: `${progress}%` }}
                         />
                       </div>
-                      <div className="text-[10px] text-muted-foreground font-mono mt-1 text-right">
+                      <div className="text-[10px] text-muted-foreground mt-1 text-right">
                         {project.completedTaskCount || 0} / {project.taskCount || 0} TASKS
                       </div>
                     </div>

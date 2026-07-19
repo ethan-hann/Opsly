@@ -186,7 +186,7 @@ export default function Dashboard() {
                           </h3>
                         </Link>
                         <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                          <span className="font-mono text-xs">{task.projectName || "Unassigned"}</span>
+                          <span className="text-xs">{task.projectName || "Unassigned"}</span>
                           <span>·</span>
                           {task.dueDate ? (
                             <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
@@ -262,7 +262,7 @@ export default function Dashboard() {
                             />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50 font-mono">
+                        <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50">
                           <span>{project.completedTaskCount || 0}/{project.taskCount || 0} tasks</span>
                           <span>{progress}% complete</span>
                         </div>

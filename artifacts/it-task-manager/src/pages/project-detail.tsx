@@ -113,9 +113,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             <div className="flex justify-between items-end mb-2">
               <div className="space-y-1">
                 <span className="text-sm font-medium text-muted-foreground">Project Progress</span>
-                <div className="text-2xl font-bold font-mono">{progress}%</div>
+                <div className="text-2xl font-bold">{progress}%</div>
               </div>
-              <div className="text-sm text-muted-foreground font-mono mb-1">
+              <div className="text-sm text-muted-foreground mb-1">
                 {project.completedTaskCount || 0} of {project.taskCount || 0} Tasks Completed
               </div>
             </div>
@@ -199,7 +199,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                             {task.title}
                           </span>
                         </Link>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-mono">
+                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                           <span className="uppercase">{task.category}</span>
                           {task.assignee && (
                             <>

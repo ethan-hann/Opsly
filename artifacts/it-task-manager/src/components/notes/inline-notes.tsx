@@ -80,7 +80,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
           <StickyNote className="w-4 h-4 text-primary" />
           Notes
           {notes.length > 0 && (
-            <span className="text-xs text-muted-foreground font-mono bg-accent px-1.5 py-0.5 rounded">
+            <span className="text-xs text-muted-foreground bg-accent px-1.5 py-0.5 rounded">
               {notes.length}
             </span>
           )}
@@ -104,7 +104,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
             placeholder="Write a note using Markdown…"
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
-            className="min-h-[100px] text-sm resize-none font-mono"
+            className="min-h-[100px] text-sm resize-none"
           />
           <div className="flex gap-2 justify-end">
             <Button

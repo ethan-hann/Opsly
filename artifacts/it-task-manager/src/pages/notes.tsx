@@ -331,7 +331,7 @@ export default function NotesPage() {
           <Panel defaultSize={45} minSize={20}>
             <div className="h-full overflow-y-auto border-l border-border">
               <div className="px-2 py-1 border-b border-border bg-card">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Preview</span>
+                <span className="text-xs text-muted-foreground">Preview</span>
               </div>
               <MarkdownPreview content={localContent} />
             </div>
@@ -346,7 +346,7 @@ export default function NotesPage() {
           <Panel defaultSize={45} minSize={15}>
             <div className="h-full overflow-y-auto border-t border-border">
               <div className="px-3 py-1 border-b border-border bg-card">
-                <span className="text-xs font-mono text-muted-foreground uppercase tracking-wider">Preview</span>
+                <span className="text-xs text-muted-foreground">Preview</span>
               </div>
               <MarkdownPreview content={localContent} />
             </div>
