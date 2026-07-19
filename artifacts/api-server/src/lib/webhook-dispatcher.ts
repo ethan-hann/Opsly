@@ -130,6 +130,30 @@ export function dispatchTaskCommented(
   void dispatch(orgId, "task.commented", projectId, { task, comment });
 }
 
+export function dispatchNoteCreated(
+  orgId: string,
+  projectId: number | null | undefined,
+  note: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "note.created", projectId, { note });
+}
+
+export function dispatchNoteUpdated(
+  orgId: string,
+  projectId: number | null | undefined,
+  note: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "note.updated", projectId, { note });
+}
+
+export function dispatchNoteDeleted(
+  orgId: string,
+  projectId: number | null | undefined,
+  note: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "note.deleted", projectId, { note });
+}
+
 export function dispatchProjectCreated(
   orgId: string,
   project: Record<string, unknown>,

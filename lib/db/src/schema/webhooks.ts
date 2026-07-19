@@ -50,7 +50,10 @@ export type OutboundWebhookEvent =
   | "task.assigned"
   | "task.commented"
   | "project.created"
-  | "project.updated";
+  | "project.updated"
+  | "note.created"
+  | "note.updated"
+  | "note.deleted";
 
 export const ALL_OUTBOUND_EVENTS: OutboundWebhookEvent[] = [
   "task.created",
@@ -60,6 +63,9 @@ export const ALL_OUTBOUND_EVENTS: OutboundWebhookEvent[] = [
   "task.commented",
   "project.created",
   "project.updated",
+  "note.created",
+  "note.updated",
+  "note.deleted",
 ];
 
 // ---------------------------------------------------------------------------

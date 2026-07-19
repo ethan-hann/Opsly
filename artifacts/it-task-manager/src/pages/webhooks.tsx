@@ -85,6 +85,9 @@ const ALL_EVENTS = [
   { value: "task.commented",     label: "Task commented" },
   { value: "project.created",    label: "Project created" },
   { value: "project.updated",    label: "Project updated" },
+  { value: "note.created",       label: "Note created" },
+  { value: "note.updated",       label: "Note updated" },
+  { value: "note.deleted",       label: "Note deleted" },
 ] as const;
 
 type EventValue = typeof ALL_EVENTS[number]["value"];

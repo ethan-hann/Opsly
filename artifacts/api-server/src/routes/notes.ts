@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { addSseClient, broadcastNoteChange } from "../lib/notes-sse";
+import { dispatchNoteCreated, dispatchNoteUpdated, dispatchNoteDeleted } from "../lib/webhook-dispatcher";
 
 const router = Router();
 
@@ -139,6 +140,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .returning();
 
   broadcastNoteChange(orgId);
+  dispatchNoteCreated(orgId, note.projectId, serializeNote(note, userId));
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -231,6 +233,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   }
 
   broadcastNoteChange(orgId);
+  dispatchNoteUpdated(orgId, note.projectId, serializeNote(note, userId));
   return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -262,6 +265,7 @@ router.delete("/notes/:id", requireOrg, async (req, res) => {
     .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
   broadcastNoteChange(req.orgId!);
+  dispatchNoteDeleted(req.orgId!, existing.projectId, serializeNote(existing, userId));
   return res.sendStatus(204);
 });
 

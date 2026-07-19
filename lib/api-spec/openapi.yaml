@@ -2278,7 +2278,7 @@ components:
           type: array
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
           description: Event types this webhook subscribes to.
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
@@ -2311,7 +2311,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -2335,7 +2335,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:

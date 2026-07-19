@@ -1066,7 +1066,7 @@ export const ListOutboundWebhooksResponseItem = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1088,7 +1088,7 @@ export const CreateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(createOutboundWebhookBodyNameMax),
   "url": zod.string().describe('Target URL for event delivery.'),
   "projectId": zod.number().optional().describe('Optional project filter.'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).min(1),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().default(createOutboundWebhookBodyEnabledDefault)
 }).describe('Fields for creating an outbound webhook.')
@@ -1101,7 +1101,7 @@ export const CreateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1125,7 +1125,7 @@ export const GetOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1150,7 +1150,7 @@ export const UpdateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(updateOutboundWebhookBodyNameMax).optional(),
   "url": zod.string().optional(),
   "projectId": zod.number().nullish(),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).min(1).optional(),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1).optional(),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().optional()
 }).describe('Partial update for an outbound webhook.')
@@ -1163,7 +1163,7 @@ export const UpdateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),

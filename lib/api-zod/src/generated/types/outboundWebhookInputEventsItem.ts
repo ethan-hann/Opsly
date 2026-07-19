@@ -17,4 +17,7 @@ export const OutboundWebhookInputEventsItem = {
   taskcommented: 'task.commented',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
+  notecreated: 'note.created',
+  noteupdated: 'note.updated',
+  notedeleted: 'note.deleted',
 } as const;

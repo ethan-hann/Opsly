@@ -99,6 +99,19 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   },
 }));
 
+// Dispatch helpers are fire-and-forget; mock them so they don't hit the DB.
+vi.mock("../lib/webhook-dispatcher", () => ({
+  dispatchNoteCreated: vi.fn(),
+  dispatchNoteUpdated: vi.fn(),
+  dispatchNoteDeleted: vi.fn(),
+}));
+
+// SSE broadcaster — no-op in tests.
+vi.mock("../lib/notes-sse", () => ({
+  addSseClient: vi.fn(),
+  broadcastNoteChange: vi.fn(),
+}));
+
 import notesRouter from "./notes.js";
 
 // ---------------------------------------------------------------------------
