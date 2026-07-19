@@ -76,10 +76,10 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
     return;
   }
 
-  // All newly created comments always have org_id set (no NULL for new rows)
+  // All newly created comments always have org_id and user_id set.
   const [comment] = await db
     .insert(commentsTable)
-    .values({ ...parsed.data, taskId: params.data.id, orgId })
+    .values({ ...parsed.data, taskId: params.data.id, orgId, userId: req.user!.id })
     .returning();
 
   const serializedComment = {
@@ -113,13 +113,25 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
   const [comment] = await db
-    .select({ id: commentsTable.id })
+    .select({ id: commentsTable.id, userId: commentsTable.userId })
     .from(commentsTable)
     .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
     .limit(1);
 
   if (!comment) {
     res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  const currentUserId = req.user!.id;
+  const isAdmin = req.orgPermissions?.manage_org_settings === true;
+  const isOwner = comment.userId != null && comment.userId === currentUserId;
+
+  // Allow deletion if: the requester created the comment, OR they are an org admin.
+  // Comments with no userId (created before this column was added) may only be
+  // deleted by org admins.
+  if (!isOwner && !isAdmin) {
+    res.status(403).json({ error: "You do not have permission to delete this comment" });
     return;
   }
 

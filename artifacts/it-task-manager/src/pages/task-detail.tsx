@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, useListCustomFieldDefinitions, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useOrgContext } from "@/hooks/use-org-context";
 
 export default function TaskDetail({ params }: { params: { id: string } }) {
   const taskId = parseInt(params.id, 10);
@@ -80,6 +81,20 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       }
     }
   });
+
+  const deleteCommentMutation = useDeleteComment({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Comment deleted" });
+        queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
+      },
+      onError: () => {
+        toast({ title: "Failed to delete comment", variant: "destructive" });
+      }
+    }
+  });
+
+  const { hasPermission } = useOrgContext();
 
   const { data: projects = [] } = useListProjects();
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
@@ -204,6 +219,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       .map((w: string) => w[0].toUpperCase())
                       .slice(0, 2)
                       .join("");
+                    const canDelete = isCurrentUser || hasPermission('manage_org_settings');
                     return (
                     <div key={comment.id} className="flex gap-4">
                       <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 mt-1 flex items-center justify-center">
@@ -215,7 +231,19 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       <div className="flex-1 bg-muted/30 border border-border/50 rounded-lg p-3">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-sm font-medium">{comment.author || 'System'}</span>
-                          <span className="text-xs text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground">{formatTimeAgo(comment.createdAt)}</span>
+                            {canDelete && (
+                              <button
+                                onClick={() => deleteCommentMutation.mutate({ id: comment.id })}
+                                disabled={deleteCommentMutation.isPending}
+                                className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
+                                title="Delete comment"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <p className="text-sm text-foreground/80 whitespace-pre-wrap">{comment.content}</p>
                       </div>

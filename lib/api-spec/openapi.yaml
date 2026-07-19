@@ -565,11 +565,11 @@ paths:
       tags: [comments]
       summary: Delete a comment
       description: >
-        Permanently deletes a comment by its numeric ID. The server first
-        verifies that the comment's parent task belongs to the caller's org;
-        returns 404 if the comment is not found or if the parent task belongs to
-        a different org (both cases use the same 404 to avoid leaking task
-        existence). Returns 204 on success.
+        Permanently deletes a comment by its numeric ID. Only the comment's
+        original author or an org admin (manage_org_settings permission) may
+        delete a comment. Returns 404 if the comment is not found or belongs to
+        a different org. Returns 403 if the caller is neither the author nor an
+        org admin. Returns 204 on success.
       parameters:
         - name: id
           in: path
@@ -580,6 +580,18 @@ paths:
       responses:
         "204":
           description: Comment deleted successfully. No body returned.
+        "403":
+          description: >
+            The caller is not the comment author and does not have org admin
+            (manage_org_settings) permission.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
 
   /notes:
     get:

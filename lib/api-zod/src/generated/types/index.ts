@@ -23,6 +23,7 @@ export * from './customFieldReorderInput';
 export * from './dashboardSummary';
 export * from './dashboardSummaryTasksByPriority';
 export * from './dashboardSummaryTasksByStatus';
+export * from './deleteComment403';
 export * from './errorEnvelope';
 export * from './handleBrowserLoginCallbackParams';
 export * from './healthStatus';

@@ -1435,6 +1435,10 @@ dateFrom?: string;
 dateTo?: string;
 };
 
+export type DeleteComment403 = {
+  error: string;
+};
+
 export type ListNotesParams = {
 /**
  * Return only notes linked to this project ID.

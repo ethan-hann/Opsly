@@ -20,6 +20,8 @@ import express from "express";
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertResult: [] as any[],
+  currentUserId: "user-1",
+  manageOrgSettings: false,
 }));
 
 // ---------------------------------------------------------------------------
@@ -75,6 +77,8 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
+    req.user = { id: mockState.currentUserId };
+    req.orgPermissions = { manage_org_settings: mockState.manageOrgSettings };
     next();
   },
 }));
@@ -100,6 +104,7 @@ const MOCK_COMMENT = {
   orgId: "test-org",
   content: "Looks good to me",
   author: "alice@example.com",
+  userId: "user-1", // matches mockState.currentUserId default
   createdAt: "2024-01-01T00:00:00.000Z",
 };
 
@@ -220,10 +225,11 @@ describe("DELETE /api/comments/:id", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
+    mockState.currentUserId = "user-1";
+    mockState.manageOrgSettings = false;
   });
 
   it("returns 404 when the comment does not exist", async () => {
-    // comment lookup returns empty
     mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).delete("/api/comments/1");
@@ -240,13 +246,53 @@ describe("DELETE /api/comments/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 204 when comment orgId matches the caller's org", async () => {
-    // Combined query finds the comment because both id and orgId match
-    mockState.selectQueue.push([MOCK_COMMENT]); // orgId: "test-org"
+  it("returns 204 when the caller is the comment author", async () => {
+    // userId matches currentUserId — author deleting their own comment
+    mockState.selectQueue.push([MOCK_COMMENT]); // userId: "user-1"
 
     const res = await request(buildApp()).delete("/api/comments/1");
 
     expect(res.status).toBe(204);
+  });
+
+  it("returns 403 when the caller is not the author and not an admin", async () => {
+    mockState.currentUserId = "user-2"; // different user
+    mockState.manageOrgSettings = false;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]);
+
+    const res = await request(buildApp()).delete("/api/comments/1");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 204 when the caller is an org admin deleting another user's comment", async () => {
+    mockState.currentUserId = "admin-user";
+    mockState.manageOrgSettings = true;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]); // comment by different user
+
+    const res = await request(buildApp()).delete("/api/comments/1");
+
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 204 when the caller is an admin deleting a legacy comment with no userId", async () => {
+    mockState.currentUserId = "admin-user";
+    mockState.manageOrgSettings = true;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: null }]);
+
+    const res = await request(buildApp()).delete("/api/comments/1");
+
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 403 when a non-admin tries to delete a legacy comment with no userId", async () => {
+    mockState.currentUserId = "user-2";
+    mockState.manageOrgSettings = false;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: null }]);
+
+    const res = await request(buildApp()).delete("/api/comments/1");
+
+    expect(res.status).toBe(403);
   });
 
   it("returns 400 for a non-integer comment id", async () => {

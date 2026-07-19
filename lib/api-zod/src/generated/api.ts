@@ -424,7 +424,7 @@ export const CreateCommentResponse = zod.object({
 
 
 /**
- * Permanently deletes a comment by its numeric ID. The server first verifies that the comment's parent task belongs to the caller's org; returns 404 if the comment is not found or if the parent task belongs to a different org (both cases use the same 404 to avoid leaking task existence). Returns 204 on success.
+ * Permanently deletes a comment by its numeric ID. Only the comment's original author or an org admin (manage_org_settings permission) may delete a comment. Returns 404 if the comment is not found or belongs to a different org. Returns 403 if the caller is neither the author nor an org admin. Returns 204 on success.
  * @summary Delete a comment
  */
 export const DeleteCommentParams = zod.object({
