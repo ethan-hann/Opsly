@@ -12,6 +12,7 @@ import docsRouter from "./docs";
 import webhooksRouter from "./webhooks";
 import customFieldsRouter from "./custom-fields";
 import savedViewsRouter from "./saved-views";
+import taskTemplatesRouter from "./task-templates";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(docsRouter);
 router.use(webhooksRouter);
 router.use(customFieldsRouter);
 router.use(savedViewsRouter);
+router.use(taskTemplatesRouter);
 
 export default router;

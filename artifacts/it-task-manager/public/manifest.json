@@ -1,6 +1,6 @@
 {
-  "name": "Mission Control",
-  "short_name": "Mission Control",
+  "name": "Opsly",
+  "short_name": "Opsly",
   "description": "IT operations, tasks, and incident management",
   "start_url": "./",
   "scope": "./",

@@ -1385,6 +1385,94 @@ paths:
         "404":
           description: Target user or role not found in this organization.
 
+  /task-templates:
+    get:
+      operationId: listTaskTemplates
+      tags: [tasks]
+      summary: List task templates for the current org
+      description: Returns all task templates for the org, ordered by creation date.
+      responses:
+        "200":
+          description: Array of task templates.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskTemplate"
+    post:
+      operationId: createTaskTemplate
+      tags: [tasks]
+      summary: Create a task template (admin only)
+      description: Creates a new task template for the org. Requires manage_task_templates permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskTemplateInput"
+      responses:
+        "201":
+          description: Created task template.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskTemplate"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Admin permission required.
+
+  /task-templates/{id}:
+    patch:
+      operationId: updateTaskTemplate
+      tags: [tasks]
+      summary: Update a task template (admin only)
+      description: Updates name or default field values on an existing template. Requires manage_task_templates permission.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskTemplateUpdate"
+      responses:
+        "200":
+          description: Updated task template.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskTemplate"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Admin permission required.
+        "404":
+          description: Template not found.
+    delete:
+      operationId: deleteTaskTemplate
+      tags: [tasks]
+      summary: Delete a task template (admin only)
+      description: Permanently deletes a task template. Requires manage_task_templates permission.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Template deleted.
+        "403":
+          description: Admin permission required.
+        "404":
+          description: Template not found.
+
   /org/sla-policies:
     get:
       operationId: getSLAPolicies
@@ -3181,6 +3269,86 @@ components:
           type: string
           description: Task deadline in YYYY-MM-DD format.
       additionalProperties: true
+
+    TaskTemplate:
+      description: A reusable task template that pre-fills the task creation form.
+      type: object
+      required: [id, orgId, createdBy, name, defaultTitle, defaultPriority, defaultCategory, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: string
+        createdBy:
+          type: string
+        name:
+          type: string
+          description: Display name for the template (e.g. "Database Outage Response").
+        defaultTitle:
+          type: string
+          description: Default task title pre-filled from this template.
+        defaultPriority:
+          type: string
+          enum: [low, medium, high, critical]
+        defaultCategory:
+          type: string
+          enum: [incident, change, maintenance, deployment, support, other]
+        defaultDescription:
+          type: ["string", "null"]
+          description: Default task description / runbook steps. Null when not set.
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    TaskTemplateInput:
+      description: Fields for creating a new task template.
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        defaultTitle:
+          type: string
+          maxLength: 500
+        defaultPriority:
+          type: string
+          enum: [low, medium, high, critical]
+        defaultCategory:
+          type: string
+          enum: [incident, change, maintenance, deployment, support, other]
+        defaultDescription:
+          type: string
+
+    TaskTemplateUpdate:
+      description: Partial update for a task template.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        defaultTitle:
+          type: string
+          maxLength: 500
+        defaultPriority:
+          type: string
+          enum: [low, medium, high, critical]
+        defaultCategory:
+          type: string
+          enum: [incident, change, maintenance, deployment, support, other]
+        defaultDescription:
+          type: ["string", "null"]
+
+    TaskTemplateParams:
+      description: Path parameter for task template routes.
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: integer
 
     SlaPolicy:
       description: SLA response and resolution targets for a single priority level.

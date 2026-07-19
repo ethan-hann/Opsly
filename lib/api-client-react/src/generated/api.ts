@@ -74,6 +74,9 @@ import type {
   Task,
   TaskEvent,
   TaskInput,
+  TaskTemplate,
+  TaskTemplateInput,
+  TaskTemplateUpdate,
   TaskUpdate,
   UpdateMemberRoleInput,
   UpdateRoleInput,
@@ -3880,6 +3883,301 @@ export const useUpdateOrgMemberRole = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateOrgMemberRoleMutationOptions(options));
+    }
+
+export const getListTaskTemplatesUrl = () => {
+
+
+
+
+  return `/api/task-templates`
+}
+
+/**
+ * Returns all task templates for the org, ordered by creation date.
+ * @summary List task templates for the current org
+ */
+export const listTaskTemplates = async ( options?: RequestInit): Promise<TaskTemplate[]> => {
+
+  return customFetch<TaskTemplate[]>(getListTaskTemplatesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListTaskTemplatesQueryKey = () => {
+    return [
+    `/api/task-templates`
+    ] as const;
+    }
+
+
+export const getListTaskTemplatesQueryOptions = <TData = Awaited<ReturnType<typeof listTaskTemplates>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListTaskTemplatesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listTaskTemplates>>> = ({ signal }) => listTaskTemplates({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listTaskTemplates>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListTaskTemplatesQueryResult = NonNullable<Awaited<ReturnType<typeof listTaskTemplates>>>
+export type ListTaskTemplatesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List task templates for the current org
+ */
+
+export function useListTaskTemplates<TData = Awaited<ReturnType<typeof listTaskTemplates>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listTaskTemplates>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListTaskTemplatesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTaskTemplateUrl = () => {
+
+
+
+
+  return `/api/task-templates`
+}
+
+/**
+ * Creates a new task template for the org. Requires manage_task_templates permission.
+ * @summary Create a task template (admin only)
+ */
+export const createTaskTemplate = async (taskTemplateInput: TaskTemplateInput, options?: RequestInit): Promise<TaskTemplate> => {
+
+  return customFetch<TaskTemplate>(getCreateTaskTemplateUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskTemplateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTaskTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskTemplate>>, TError,{data: BodyType<TaskTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTaskTemplate>>, TError,{data: BodyType<TaskTemplateInput>}, TContext> => {
+
+const mutationKey = ['createTaskTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTaskTemplate>>, {data: BodyType<TaskTemplateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTaskTemplate(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTaskTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof createTaskTemplate>>>
+    export type CreateTaskTemplateMutationBody = BodyType<TaskTemplateInput>
+    export type CreateTaskTemplateMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a task template (admin only)
+ */
+export const useCreateTaskTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskTemplate>>, TError,{data: BodyType<TaskTemplateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTaskTemplate>>,
+        TError,
+        {data: BodyType<TaskTemplateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTaskTemplateMutationOptions(options));
+    }
+
+export const getUpdateTaskTemplateUrl = (id: number,) => {
+
+
+
+
+  return `/api/task-templates/${id}`
+}
+
+/**
+ * Updates name or default field values on an existing template. Requires manage_task_templates permission.
+ * @summary Update a task template (admin only)
+ */
+export const updateTaskTemplate = async (id: number,
+    taskTemplateUpdate: TaskTemplateUpdate, options?: RequestInit): Promise<TaskTemplate> => {
+
+  return customFetch<TaskTemplate>(getUpdateTaskTemplateUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskTemplateUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateTaskTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTaskTemplate>>, TError,{id: number;data: BodyType<TaskTemplateUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateTaskTemplate>>, TError,{id: number;data: BodyType<TaskTemplateUpdate>}, TContext> => {
+
+const mutationKey = ['updateTaskTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateTaskTemplate>>, {id: number;data: BodyType<TaskTemplateUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateTaskTemplate(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateTaskTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof updateTaskTemplate>>>
+    export type UpdateTaskTemplateMutationBody = BodyType<TaskTemplateUpdate>
+    export type UpdateTaskTemplateMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a task template (admin only)
+ */
+export const useUpdateTaskTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateTaskTemplate>>, TError,{id: number;data: BodyType<TaskTemplateUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateTaskTemplate>>,
+        TError,
+        {id: number;data: BodyType<TaskTemplateUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateTaskTemplateMutationOptions(options));
+    }
+
+export const getDeleteTaskTemplateUrl = (id: number,) => {
+
+
+
+
+  return `/api/task-templates/${id}`
+}
+
+/**
+ * Permanently deletes a task template. Requires manage_task_templates permission.
+ * @summary Delete a task template (admin only)
+ */
+export const deleteTaskTemplate = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTaskTemplateUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTaskTemplateMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTaskTemplate>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTaskTemplate>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteTaskTemplate'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTaskTemplate>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTaskTemplate(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTaskTemplateMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTaskTemplate>>>
+
+    export type DeleteTaskTemplateMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a task template (admin only)
+ */
+export const useDeleteTaskTemplate = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTaskTemplate>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTaskTemplate>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTaskTemplateMutationOptions(options));
     }
 
 export const getGetSLAPoliciesUrl = () => {

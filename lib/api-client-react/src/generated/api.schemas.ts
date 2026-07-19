@@ -1416,6 +1416,134 @@ export interface WebhookIngestPayload {
   [key: string]: unknown;
  }
 
+export type TaskTemplateDefaultPriority = typeof TaskTemplateDefaultPriority[keyof typeof TaskTemplateDefaultPriority];
+
+
+export const TaskTemplateDefaultPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type TaskTemplateDefaultCategory = typeof TaskTemplateDefaultCategory[keyof typeof TaskTemplateDefaultCategory];
+
+
+export const TaskTemplateDefaultCategory = {
+  incident: 'incident',
+  change: 'change',
+  maintenance: 'maintenance',
+  deployment: 'deployment',
+  support: 'support',
+  other: 'other',
+} as const;
+
+/**
+ * A reusable task template that pre-fills the task creation form.
+ */
+export interface TaskTemplate {
+  id: number;
+  orgId: string;
+  createdBy: string;
+  /** Display name for the template (e.g. "Database Outage Response"). */
+  name: string;
+  /** Default task title pre-filled from this template. */
+  defaultTitle: string;
+  defaultPriority: TaskTemplateDefaultPriority;
+  defaultCategory: TaskTemplateDefaultCategory;
+  /**
+     * Default task description / runbook steps. Null when not set.
+     * @nullable
+     */
+  defaultDescription?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type TaskTemplateInputDefaultPriority = typeof TaskTemplateInputDefaultPriority[keyof typeof TaskTemplateInputDefaultPriority];
+
+
+export const TaskTemplateInputDefaultPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type TaskTemplateInputDefaultCategory = typeof TaskTemplateInputDefaultCategory[keyof typeof TaskTemplateInputDefaultCategory];
+
+
+export const TaskTemplateInputDefaultCategory = {
+  incident: 'incident',
+  change: 'change',
+  maintenance: 'maintenance',
+  deployment: 'deployment',
+  support: 'support',
+  other: 'other',
+} as const;
+
+/**
+ * Fields for creating a new task template.
+ */
+export interface TaskTemplateInput {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /** @maxLength 500 */
+  defaultTitle?: string;
+  defaultPriority?: TaskTemplateInputDefaultPriority;
+  defaultCategory?: TaskTemplateInputDefaultCategory;
+  defaultDescription?: string;
+}
+
+export type TaskTemplateUpdateDefaultPriority = typeof TaskTemplateUpdateDefaultPriority[keyof typeof TaskTemplateUpdateDefaultPriority];
+
+
+export const TaskTemplateUpdateDefaultPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type TaskTemplateUpdateDefaultCategory = typeof TaskTemplateUpdateDefaultCategory[keyof typeof TaskTemplateUpdateDefaultCategory];
+
+
+export const TaskTemplateUpdateDefaultCategory = {
+  incident: 'incident',
+  change: 'change',
+  maintenance: 'maintenance',
+  deployment: 'deployment',
+  support: 'support',
+  other: 'other',
+} as const;
+
+/**
+ * Partial update for a task template.
+ */
+export interface TaskTemplateUpdate {
+  /**
+     * @minLength 1
+     * @maxLength 200
+     */
+  name?: string;
+  /** @maxLength 500 */
+  defaultTitle?: string;
+  defaultPriority?: TaskTemplateUpdateDefaultPriority;
+  defaultCategory?: TaskTemplateUpdateDefaultCategory;
+  /** @nullable */
+  defaultDescription?: string | null;
+}
+
+/**
+ * Path parameter for task template routes.
+ */
+export interface TaskTemplateParams {
+  id: number;
+}
+
 export type SlaPolicyPriority = typeof SlaPolicyPriority[keyof typeof SlaPolicyPriority];
 
 

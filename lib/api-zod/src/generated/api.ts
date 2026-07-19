@@ -1192,6 +1192,104 @@ export const UpdateOrgMemberRoleResponse = zod.object({
 
 
 /**
+ * Returns all task templates for the org, ordered by creation date.
+ * @summary List task templates for the current org
+ */
+export const ListTaskTemplatesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "createdBy": zod.string(),
+  "name": zod.string().describe('Display name for the template (e.g. \"Database Outage Response\").'),
+  "defaultTitle": zod.string().describe('Default task title pre-filled from this template.'),
+  "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
+  "defaultDescription": zod.string().nullish().describe('Default task description \/ runbook steps. Null when not set.'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('A reusable task template that pre-fills the task creation form.')
+export const ListTaskTemplatesResponse = zod.array(ListTaskTemplatesResponseItem)
+
+
+/**
+ * Creates a new task template for the org. Requires manage_task_templates permission.
+ * @summary Create a task template (admin only)
+ */
+export const createTaskTemplateBodyNameMax = 200;
+
+export const createTaskTemplateBodyDefaultTitleMax = 500;
+
+
+
+export const CreateTaskTemplateBody = zod.object({
+  "name": zod.string().min(1).max(createTaskTemplateBodyNameMax),
+  "defaultTitle": zod.string().max(createTaskTemplateBodyDefaultTitleMax).optional(),
+  "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
+  "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional(),
+  "defaultDescription": zod.string().optional()
+}).describe('Fields for creating a new task template.')
+
+export const CreateTaskTemplateResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "createdBy": zod.string(),
+  "name": zod.string().describe('Display name for the template (e.g. \"Database Outage Response\").'),
+  "defaultTitle": zod.string().describe('Default task title pre-filled from this template.'),
+  "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
+  "defaultDescription": zod.string().nullish().describe('Default task description \/ runbook steps. Null when not set.'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('A reusable task template that pre-fills the task creation form.')
+
+
+/**
+ * Updates name or default field values on an existing template. Requires manage_task_templates permission.
+ * @summary Update a task template (admin only)
+ */
+export const UpdateTaskTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const updateTaskTemplateBodyNameMax = 200;
+
+export const updateTaskTemplateBodyDefaultTitleMax = 500;
+
+
+
+export const UpdateTaskTemplateBody = zod.object({
+  "name": zod.string().min(1).max(updateTaskTemplateBodyNameMax).optional(),
+  "defaultTitle": zod.string().max(updateTaskTemplateBodyDefaultTitleMax).optional(),
+  "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
+  "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional(),
+  "defaultDescription": zod.string().nullish()
+}).describe('Partial update for a task template.')
+
+export const UpdateTaskTemplateResponse = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "createdBy": zod.string(),
+  "name": zod.string().describe('Display name for the template (e.g. \"Database Outage Response\").'),
+  "defaultTitle": zod.string().describe('Default task title pre-filled from this template.'),
+  "defaultPriority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']),
+  "defaultDescription": zod.string().nullish().describe('Default task description \/ runbook steps. Null when not set.'),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+}).describe('A reusable task template that pre-fills the task creation form.')
+
+
+/**
+ * Permanently deletes a task template. Requires manage_task_templates permission.
+ * @summary Delete a task template (admin only)
+ */
+export const DeleteTaskTemplateParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteTaskTemplateResponse = zod.void()
+
+
+/**
  * Returns the SLA response and resolution targets for each priority level. Priorities with no configured policy are omitted from the response.
  * @summary Get SLA policies for the current org
  */

@@ -5,6 +5,7 @@ import {
   useListProjects,
   useListOrgMembers,
   useListCustomFieldDefinitions,
+  useListTaskTemplates,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -12,6 +13,7 @@ import {
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
+import type { TaskTemplate } from "@workspace/api-client-react";
 import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -33,11 +35,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { AssigneeCombobox, validateAssignee } from "@/components/ui/assignee-combobox";
+import { FileText, ChevronDown, X } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 
 interface NewTaskModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialProjectId?: number;
+  initialTemplate?: TaskTemplate;
 }
 
 const STATUS_OPTIONS: { value: TaskInputStatus; label: string }[] = [
@@ -63,16 +69,98 @@ const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
   { value: "other", label: "Other" },
 ];
 
-export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskModalProps) {
+// ─── Template picker ──────────────────────────────────────────────────────────
+
+interface TemplatePickerProps {
+  templates: TaskTemplate[];
+  activeTemplate: TaskTemplate | null;
+  onSelect: (t: TaskTemplate) => void;
+  onClear: () => void;
+}
+
+function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: TemplatePickerProps) {
+  const [open, setOpen] = useState(false);
+
+  if (templates.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-2 py-1 border-b border-border pb-3 mb-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className={`flex items-center gap-1.5 px-3 h-7 text-xs rounded-l-md font-medium border transition-colors ${
+              activeTemplate
+                ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/15"
+                : "bg-background text-muted-foreground border-border hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <FileText className="w-3 h-3" />
+            {activeTemplate ? activeTemplate.name : "Use template"}
+            <ChevronDown className="w-3 h-3 opacity-60" />
+          </button>
+        </PopoverTrigger>
+        {activeTemplate && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex items-center justify-center w-6 h-7 rounded-r-md border border-l-0 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            aria-label="Clear template"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        )}
+        <PopoverContent className="w-64 p-1" align="start">
+          <div className="flex flex-col gap-0.5">
+            {templates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => { onSelect(t); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-xs rounded-sm transition-colors ${
+                  activeTemplate?.id === t.id
+                    ? "bg-primary text-primary-foreground"
+                    : "hover:bg-muted"
+                }`}
+              >
+                <p className="font-medium">{t.name}</p>
+                <div className="flex gap-1.5 mt-0.5 opacity-70">
+                  <Badge variant="outline" className="text-[10px] py-0 capitalize border-current">
+                    {t.defaultPriority}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] py-0 capitalize border-current">
+                    {t.defaultCategory}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+      {!activeTemplate && (
+        <span className="text-xs text-muted-foreground">Pre-fill from a saved template</span>
+      )}
+      {activeTemplate && (
+        <span className="text-xs text-muted-foreground">Fields pre-filled — edit freely</span>
+      )}
+    </div>
+  );
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+
+export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemplate }: NewTaskModalProps) {
   const queryClient = useQueryClient();
   const { mutate: createTask, isPending } = useCreateTask();
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
+  const { data: templates = [] } = useListTaskTemplates();
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
   );
 
+  const [appliedTemplate, setAppliedTemplate] = useState<TaskTemplate | null>(initialTemplate ?? null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState<string>(initialProjectId ? String(initialProjectId) : "none");
@@ -93,7 +181,27 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
     }
   }, [open, initialProjectId]);
 
+  // Apply initialTemplate when modal opens
+  useEffect(() => {
+    if (open && initialTemplate) {
+      applyTemplate(initialTemplate);
+    }
+  }, [open, initialTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyTemplate(t: TaskTemplate) {
+    setAppliedTemplate(t);
+    if (t.defaultTitle) setTitle(t.defaultTitle);
+    setPriority(t.defaultPriority as TaskInputPriority);
+    setCategory(t.defaultCategory as TaskInputCategory);
+    if (t.defaultDescription) setDescription(t.defaultDescription);
+  }
+
+  function clearTemplate() {
+    setAppliedTemplate(null);
+  }
+
   const resetForm = () => {
+    setAppliedTemplate(null);
     setTitle("");
     setDescription("");
     setProjectId(initialProjectId ? String(initialProjectId) : "none");
@@ -163,6 +271,14 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
           <DialogTitle>New Task</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          {/* Template picker */}
+          <TemplatePicker
+            templates={templates}
+            activeTemplate={appliedTemplate}
+            onSelect={applyTemplate}
+            onClear={clearTemplate}
+          />
+
           <div className="space-y-1">
             <Label htmlFor="task-title">Title <span className="text-destructive">*</span></Label>
             <Input

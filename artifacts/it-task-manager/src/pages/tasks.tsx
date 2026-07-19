@@ -1,4 +1,5 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies } from "@workspace/api-client-react";
+import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates } from "@workspace/api-client-react";
+import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -419,6 +420,8 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
 export default function TasksList() {
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [showNewTask, setShowNewTask] = useState(false);
+  const [templateForModal, setTemplateForModal] = useState<TaskTemplate | undefined>(undefined);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const defaultApplied = useRef(false);
 
   const { filters, setFilter, setSearch, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
@@ -441,6 +444,7 @@ export default function TasksList() {
   const { data: members } = useListOrgMembers();
   const { data: views } = useListViews();
   const { data: slaPolicies } = useGetSLAPolicies();
+  const { data: templates = [] } = useListTaskTemplates();
 
   // Default view loading: on mount, if no filters in URL, apply the user's default view
   useEffect(() => {
@@ -504,10 +508,42 @@ export default function TasksList() {
           <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
           <p className="text-muted-foreground mt-1">Manage incidents, changes, and operational work.</p>
         </div>
-        <Button className="gap-2" data-testid="button-create-task" onClick={() => setShowNewTask(true)}>
-          <Plus className="w-4 h-4" />
-          New Task
-        </Button>
+        <div className="flex items-center gap-2">
+          {templates.length > 0 && (
+            <Popover open={showTemplatePicker} onOpenChange={setShowTemplatePicker}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <FileText className="w-4 h-4" />
+                  From template
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-1" align="end">
+                <div className="flex flex-col gap-0.5">
+                  {templates.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setTemplateForModal(t);
+                        setShowTemplatePicker(false);
+                        setShowNewTask(true);
+                      }}
+                      className="w-full text-left px-3 py-2 text-xs rounded-sm hover:bg-muted transition-colors"
+                    >
+                      <p className="font-medium">{t.name}</p>
+                      <p className="text-muted-foreground mt-0.5 capitalize">
+                        {t.defaultPriority} · {t.defaultCategory}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+          <Button className="gap-2" data-testid="button-create-task" onClick={() => { setTemplateForModal(undefined); setShowNewTask(true); }}>
+            <Plus className="w-4 h-4" />
+            New Task
+          </Button>
+        </div>
       </div>
 
       {/* Toolbar */}
@@ -745,7 +781,14 @@ export default function TasksList() {
         )}
       </div>
 
-      <NewTaskModal open={showNewTask} onOpenChange={setShowNewTask} />
+      <NewTaskModal
+        open={showNewTask}
+        onOpenChange={(open) => {
+          setShowNewTask(open);
+          if (!open) setTemplateForModal(undefined);
+        }}
+        initialTemplate={templateForModal}
+      />
     </div>
   );
 }

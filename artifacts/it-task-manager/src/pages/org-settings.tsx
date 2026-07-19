@@ -14,11 +14,15 @@ import {
   useDeleteRole,
   useGetSLAPolicies,
   useUpsertSLAPolicies,
+  useListTaskTemplates,
+  useCreateTaskTemplate,
+  useUpdateTaskTemplate,
+  useDeleteTaskTemplate,
 } from "@workspace/api-client-react";
-import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy } from "@workspace/api-client-react";
+import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Crown, Link2, LogOut,
+  AlertTriangle, Building2, Clock, Crown, FileText, Link2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -372,6 +376,414 @@ function RoleCard({ role, canEdit, onUpdated, onDeleted }: RoleCardProps) {
         ))}
       </div>
     </div>
+  );
+}
+
+// ─── TaskTemplatesCard ────────────────────────────────────────────────────────
+
+const TEMPLATE_PRIORITY_OPTIONS = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+] as const;
+
+const TEMPLATE_CATEGORY_OPTIONS = [
+  { value: "incident", label: "Incident" },
+  { value: "change", label: "Change" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "deployment", label: "Deployment" },
+  { value: "support", label: "Support" },
+  { value: "other", label: "Other" },
+] as const;
+
+interface TemplateFormState {
+  name: string;
+  defaultTitle: string;
+  defaultPriority: string;
+  defaultCategory: string;
+  defaultDescription: string;
+}
+
+const EMPTY_TEMPLATE_FORM: TemplateFormState = {
+  name: "",
+  defaultTitle: "",
+  defaultPriority: "medium",
+  defaultCategory: "other",
+  defaultDescription: "",
+};
+
+function TemplateRow({
+  template,
+  canEdit,
+  onUpdated,
+  onDeleted,
+}: {
+  template: TaskTemplate;
+  canEdit: boolean;
+  onUpdated: () => void;
+  onDeleted: () => void;
+}) {
+  const { toast } = useToast();
+  const [isEditing, setIsEditing] = useState(false);
+  const [form, setForm] = useState<TemplateFormState>({
+    name: template.name,
+    defaultTitle: template.defaultTitle,
+    defaultPriority: template.defaultPriority,
+    defaultCategory: template.defaultCategory,
+    defaultDescription: template.defaultDescription ?? "",
+  });
+
+  const { mutate: updateTemplate, isPending: isUpdating } = useUpdateTaskTemplate({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Template updated" });
+        setIsEditing(false);
+        onUpdated();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to update template", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: deleteTemplate, isPending: isDeleting } = useDeleteTaskTemplate({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Template deleted" });
+        onDeleted();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to delete template", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    updateTemplate({
+      id: template.id,
+      data: {
+        name: form.name.trim(),
+        defaultTitle: form.defaultTitle.trim(),
+        defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
+        defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
+        defaultDescription: form.defaultDescription.trim() || null,
+      },
+    });
+  }
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSave} className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+        <div className="space-y-1">
+          <Label className="text-xs">Template name <span className="text-destructive">*</span></Label>
+          <Input
+            value={form.name}
+            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            placeholder="e.g. Database Outage Response"
+            maxLength={200}
+            autoFocus
+            className="h-8 text-sm"
+            disabled={isUpdating}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Default title</Label>
+          <Input
+            value={form.defaultTitle}
+            onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
+            placeholder="e.g. [SERVICE] outage — investigate and restore"
+            maxLength={500}
+            className="h-8 text-sm"
+            disabled={isUpdating}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Default priority</Label>
+            <Select
+              value={form.defaultPriority}
+              onValueChange={(v) => setForm((f) => ({ ...f, defaultPriority: v }))}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_PRIORITY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Default category</Label>
+            <Select
+              value={form.defaultCategory}
+              onValueChange={(v) => setForm((f) => ({ ...f, defaultCategory: v }))}
+              disabled={isUpdating}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TEMPLATE_CATEGORY_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Default description / runbook steps</Label>
+          <textarea
+            value={form.defaultDescription}
+            onChange={(e) => setForm((f) => ({ ...f, defaultDescription: e.target.value }))}
+            placeholder="Checklist or steps to follow when this template is used..."
+            rows={3}
+            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            disabled={isUpdating}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button type="submit" size="sm" disabled={isUpdating || !form.name.trim()}>
+            {isUpdating ? "Saving…" : "Save"}
+          </Button>
+          <Button type="button" size="sm" variant="ghost" disabled={isUpdating}
+            onClick={() => setIsEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3 py-3 border-b border-border last:border-0">
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm">{template.name}</p>
+        {template.defaultTitle && (
+          <p className="text-xs text-muted-foreground mt-0.5">Title: {template.defaultTitle}</p>
+        )}
+        <div className="flex items-center gap-2 mt-1">
+          <Badge variant="outline" className="text-[10px] py-0 capitalize">{template.defaultPriority}</Badge>
+          <Badge variant="outline" className="text-[10px] py-0 capitalize">{template.defaultCategory}</Badge>
+        </div>
+      </div>
+      {canEdit && (
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost" size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            onClick={() => setIsEditing(true)}
+            title="Edit template"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost" size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                disabled={isDeleting}
+                title="Delete template"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{template.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This template will be permanently deleted. Tasks created from it won't be affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => deleteTemplate({ id: template.id })}
+                >
+                  Delete
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskTemplatesCard() {
+  const { toast } = useToast();
+  const { data: templates = [], isLoading, refetch } = useListTaskTemplates();
+  const [isCreating, setIsCreating] = useState(false);
+  const [form, setForm] = useState<TemplateFormState>(EMPTY_TEMPLATE_FORM);
+
+  const { mutate: createTemplate, isPending: isCreatingReq } = useCreateTaskTemplate({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Template created" });
+        setIsCreating(false);
+        setForm(EMPTY_TEMPLATE_FORM);
+        refetch();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to create template", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    createTemplate({
+      data: {
+        name: form.name.trim(),
+        defaultTitle: form.defaultTitle.trim() || undefined,
+        defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
+        defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
+        defaultDescription: form.defaultDescription.trim() || undefined,
+      },
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              Task Templates
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Define reusable starting points for common tasks. Members can pick a template when
+              creating a task to pre-fill the title, priority, category, and description.
+            </CardDescription>
+          </div>
+          {!isCreating && (
+            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setIsCreating(true)}>
+              <Plus className="w-3.5 h-3.5" />
+              New template
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isCreating && (
+          <form onSubmit={handleCreate} className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5 mb-4">
+            <p className="text-sm font-medium">New template</p>
+            <div className="space-y-1">
+              <Label className="text-xs">Template name <span className="text-destructive">*</span></Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Database Outage Response"
+                maxLength={200}
+                autoFocus
+                className="h-8 text-sm"
+                disabled={isCreatingReq}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default title</Label>
+              <Input
+                value={form.defaultTitle}
+                onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
+                placeholder="e.g. [SERVICE] outage — investigate and restore"
+                maxLength={500}
+                className="h-8 text-sm"
+                disabled={isCreatingReq}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Default priority</Label>
+                <Select
+                  value={form.defaultPriority}
+                  onValueChange={(v) => setForm((f) => ({ ...f, defaultPriority: v }))}
+                  disabled={isCreatingReq}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_PRIORITY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Default category</Label>
+                <Select
+                  value={form.defaultCategory}
+                  onValueChange={(v) => setForm((f) => ({ ...f, defaultCategory: v }))}
+                  disabled={isCreatingReq}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TEMPLATE_CATEGORY_OPTIONS.map((o) => (
+                      <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Default description / runbook steps</Label>
+              <textarea
+                value={form.defaultDescription}
+                onChange={(e) => setForm((f) => ({ ...f, defaultDescription: e.target.value }))}
+                placeholder="Checklist or steps to follow when this template is used..."
+                rows={3}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                disabled={isCreatingReq}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" size="sm" disabled={isCreatingReq || !form.name.trim()}>
+                {isCreatingReq ? "Creating…" : "Create template"}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" disabled={isCreatingReq}
+                onClick={() => { setIsCreating(false); setForm(EMPTY_TEMPLATE_FORM); }}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : templates.length === 0 && !isCreating ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            No templates yet. Create one to help your team start tasks faster.
+          </p>
+        ) : (
+          <div>
+            {templates.map((t) => (
+              <TemplateRow
+                key={t.id}
+                template={t}
+                canEdit={true}
+                onUpdated={refetch}
+                onDeleted={refetch}
+              />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1010,6 +1422,9 @@ export default function OrgSettings() {
 
       {/* SLA Policies (admin only) */}
       {isAdmin && <SlaPoliciesCard />}
+
+      {/* Task Templates (admin only) */}
+      {isAdmin && <TaskTemplatesCard />}
 
       {/* Custom Fields (admin only) */}
       {isAdmin && (
