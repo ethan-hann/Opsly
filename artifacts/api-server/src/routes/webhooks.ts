@@ -726,4 +726,64 @@ router.delete("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<vo
   res.sendStatus(204);
 });
 
+// ---------------------------------------------------------------------------
+// Test endpoints — no DB writes; connectivity/template checks only
+// ---------------------------------------------------------------------------
+
+const TestOutboundSchema = z.object({ url: z.url() });
+
+// POST /webhooks/outbound/test — fire a signed test event to any URL
+router.post("/webhooks/outbound/test", requireOrg, async (req, res): Promise<void> => {
+  const parsed = TestOutboundSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const testSecret = generateToken();
+  const body = JSON.stringify({
+    event: "test",
+    timestamp: new Date().toISOString(),
+    data: { message: "Test delivery from Opsly. If you received this, your endpoint is reachable." },
+  });
+  const sig = "sha256=" + crypto.createHmac("sha256", testSecret).update(body).digest("hex");
+
+  const start = Date.now();
+  try {
+    const response = await fetch(parsed.data.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "Opsly-Webhook/1.0",
+        "X-Opsly-Signature": sig,
+        "X-Opsly-Event": "test",
+      },
+      body,
+      signal: AbortSignal.timeout(10_000),
+    });
+    res.json({ success: response.ok, statusCode: response.status, durationMs: Date.now() - start });
+  } catch (err) {
+    res.json({
+      success: false,
+      durationMs: Date.now() - start,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+const TestInboundSchema = z.object({
+  payload: z.record(z.string(), z.unknown()),
+  template: WebhookTaskTemplateSchema,
+});
+
+// POST /webhooks/inbound/test — dry-run a payload through applyTemplate
+router.post("/webhooks/inbound/test", requireOrg, async (req, res): Promise<void> => {
+  const parsed = TestInboundSchema.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
+
+  const result = applyTemplate(
+    parsed.data.payload as Record<string, unknown>,
+    parsed.data.template as WebhookTaskTemplate,
+    null,
+  );
+  res.json(result);
+});
+
 export default router;

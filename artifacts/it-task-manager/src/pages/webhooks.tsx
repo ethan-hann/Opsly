@@ -25,6 +25,7 @@ import { useListProjects } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -83,6 +84,7 @@ import {
   Info,
   AlertTriangle,
   Search,
+  Loader2,
 } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -598,6 +600,16 @@ function InboundDialog({
     existing?.taskTemplate ?? {},
   );
 
+  const DEFAULT_TEST_PAYLOAD = '{\n  "title": "CPU spike on prod",\n  "priority": "high",\n  "category": "incident",\n  "description": "P99 latency exceeded 2s on api-server"\n}';
+  const [testOpen, setTestOpen] = useState(false);
+  const [testPayload, setTestPayload] = useState(DEFAULT_TEST_PAYLOAD);
+  type InboundTestState =
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "success"; result: { title: string; description?: string; priority: string; category: string; dueDate?: string } }
+    | { status: "error"; error: string };
+  const [inboundTestState, setInboundTestState] = useState<InboundTestState>({ status: "idle" });
+
   function reset() {
     setName(existing?.name ?? "");
     setProjectId(existing?.projectId ?? null);
@@ -605,6 +617,39 @@ function InboundDialog({
     setEnabled(existing?.enabled ?? true);
     setRateLimitPerMinute(existing?.rateLimitPerMinute ?? 60);
     setTemplate(existing?.taskTemplate ?? {});
+    setTestOpen(false);
+    setTestPayload(DEFAULT_TEST_PAYLOAD);
+    setInboundTestState({ status: "idle" });
+  }
+
+  async function handleInboundTest() {
+    setInboundTestState({ status: "loading" });
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(testPayload);
+    } catch {
+      setInboundTestState({ status: "error", error: "Invalid JSON — fix the syntax and try again." });
+      return;
+    }
+    try {
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/webhooks/inbound/test`.replace(/\/\//g, "/"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ payload, template }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setInboundTestState({ status: "error", error: data.error ?? "Request failed" });
+      } else {
+        setInboundTestState({ status: "success", result: data });
+      }
+    } catch (err) {
+      setInboundTestState({ status: "error", error: err instanceof Error ? err.message : "Network error" });
+    }
   }
 
   function handleClose() {
@@ -773,6 +818,70 @@ function InboundDialog({
           </div>
 
           <TemplateBuilder template={template} onChange={setTemplate} />
+
+          {/* Test payload */}
+          <div className="rounded-md border">
+            <button
+              type="button"
+              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-left hover:bg-accent rounded-md transition-colors"
+              onClick={() => setTestOpen((v) => !v)}
+            >
+              <span className="flex items-center gap-2">
+                <Terminal className="w-3.5 h-3.5" />
+                Test with sample payload
+              </span>
+              {testOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {testOpen && (
+              <div className="px-3 pb-3 space-y-2 border-t pt-2">
+                <p className="text-xs text-muted-foreground">
+                  Paste a JSON payload to preview what task fields this webhook would create, given your current template settings.
+                </p>
+                <Textarea
+                  value={testPayload}
+                  onChange={(e) => { setTestPayload(e.target.value); setInboundTestState({ status: "idle" }); }}
+                  className="font-mono text-xs min-h-[110px] resize-y"
+                  spellCheck={false}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs gap-1.5"
+                  onClick={handleInboundTest}
+                  disabled={inboundTestState.status === "loading"}
+                >
+                  {inboundTestState.status === "loading" ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Terminal className="w-3 h-3" />
+                  )}
+                  Parse payload
+                </Button>
+                {inboundTestState.status === "error" && (
+                  <p className="text-xs text-destructive">{inboundTestState.error}</p>
+                )}
+                {inboundTestState.status === "success" && (
+                  <div className="rounded-md border bg-muted/40 divide-y text-xs">
+                    {(
+                      [
+                        ["Title", inboundTestState.result.title],
+                        ["Priority", inboundTestState.result.priority],
+                        ["Category", inboundTestState.result.category],
+                        ...(inboundTestState.result.description ? [["Description", inboundTestState.result.description]] : []),
+                        ...(inboundTestState.result.dueDate ? [["Due date", inboundTestState.result.dueDate]] : []),
+                      ] as [string, string][]
+                    ).map(([label, value]) => (
+                      <div key={label} className="flex px-3 py-1.5 gap-3">
+                        <span className="text-muted-foreground w-20 shrink-0">{label}</span>
+                        <span className="font-medium break-all">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <DialogFooter>
             <Button
@@ -1295,6 +1404,13 @@ function OutboundDialog({
   );
   const [enabled, setEnabled] = useState(existing?.enabled ?? true);
 
+  type OutboundTestState =
+    | { status: "idle" }
+    | { status: "loading" }
+    | { status: "success"; statusCode: number; durationMs: number }
+    | { status: "error"; durationMs: number; error: string; statusCode?: number };
+  const [testState, setTestState] = useState<OutboundTestState>({ status: "idle" });
+
   function reset() {
     setName(existing?.name ?? "");
     setUrl(existing?.url ?? "");
@@ -1302,6 +1418,34 @@ function OutboundDialog({
     setEvents((existing?.events as EventValue[]) ?? []);
     setVisibility(existing?.visibility ?? "private");
     setEnabled(existing?.enabled ?? true);
+    setTestState({ status: "idle" });
+  }
+
+  async function handleTest() {
+    const trimmedUrl = url.trim();
+    if (!trimmedUrl) return;
+    setTestState({ status: "loading" });
+    try {
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/webhooks/outbound/test`.replace(/\/\//g, "/"),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: trimmedUrl }),
+          credentials: "include",
+        },
+      );
+      const data = await res.json();
+      if (!res.ok) {
+        setTestState({ status: "error", durationMs: 0, error: data.error ?? "Request failed" });
+      } else if (data.success) {
+        setTestState({ status: "success", statusCode: data.statusCode, durationMs: data.durationMs });
+      } else {
+        setTestState({ status: "error", durationMs: data.durationMs ?? 0, error: data.error ?? `HTTP ${data.statusCode}`, statusCode: data.statusCode });
+      }
+    } catch (err) {
+      setTestState({ status: "error", durationMs: 0, error: err instanceof Error ? err.message : "Network error" });
+    }
   }
 
   function handleClose() {
@@ -1391,14 +1535,44 @@ function OutboundDialog({
             <Input
               placeholder="https://hooks.slack.com/services/..."
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
+              onChange={(e) => { setUrl(e.target.value); setTestState({ status: "idle" }); }}
               type="url"
               required
             />
-            <p className="text-xs text-muted-foreground">
-              Opsly signs each POST with <code>X-Opsly-Signature</code>{" "}
-              (HMAC-SHA256).
-            </p>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-xs text-muted-foreground">
+                Opsly signs each POST with <code>X-Opsly-Signature</code>{" "}
+                (HMAC-SHA256).
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs gap-1.5 shrink-0"
+                disabled={!url.trim() || testState.status === "loading"}
+                onClick={handleTest}
+              >
+                {testState.status === "loading" ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <ArrowUpRight className="w-3 h-3" />
+                )}
+                Send test request
+              </Button>
+            </div>
+            {testState.status === "success" && (
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {testState.statusCode} · {testState.durationMs}ms — endpoint reachable
+              </p>
+            )}
+            {testState.status === "error" && (
+              <p className="text-xs text-destructive flex items-center gap-1">
+                <XCircle className="w-3.5 h-3.5" />
+                {testState.statusCode ? `${testState.statusCode} · ` : ""}
+                {testState.error}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1">
