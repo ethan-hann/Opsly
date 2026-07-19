@@ -27,6 +27,18 @@ const mockState = vi.hoisted(() => ({
   isAdmin: true,
 }));
 
+/** Hoisted sql stub — must be created before vi.mock factories run. */
+const mockSql = vi.hoisted(() =>
+  Object.assign(
+    (_strings: any, ..._values: any[]) => ({ _isSql: true }),
+    {
+      join: (_items: any[], _sep?: any) => ({ _isSql: true }),
+      raw: (_s: string) => ({ _isSql: true }),
+      param: (_v: any) => ({ _isSql: true }),
+    },
+  ),
+);
+
 // ---------------------------------------------------------------------------
 // Mock @workspace/db
 // ---------------------------------------------------------------------------
@@ -53,6 +65,7 @@ vi.mock("@workspace/db", () => {
   return {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
+      execute: () => Promise.resolve([]),
       insert: () => ({
         values: () => ({
           returning: () => Promise.resolve(mockState.insertResult),
@@ -67,6 +80,7 @@ vi.mock("@workspace/db", () => {
       }),
     },
     customFieldDefinitionsTable: {},
+    tasksTable: {},
   };
 });
 
@@ -75,6 +89,7 @@ vi.mock("drizzle-orm", () => ({
   and: () => ({}),
   isNull: () => ({}),
   asc: () => ({}),
+  sql: mockSql,
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -305,7 +320,8 @@ describe("PATCH /api/custom-fields/:id", () => {
     expect(res.body).toMatchObject({ id: 1, name: "Updated Name" });
   });
 
-  it("returns 200 when updating options on a select field", async () => {
+  it("returns 200 when updating options on a select field (no removals)", async () => {
+    // currentDef is not found → conflict check skipped; test just verifies main update path
     mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging", "qa"] }];
 
     const res = await request(buildApp())
@@ -314,6 +330,83 @@ describe("PATCH /api/custom-fields/:id", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.options).toEqual(["prod", "staging", "qa"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/custom-fields/:id — option removal conflict guard
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/custom-fields/:id — option removal conflict guard", () => {
+  const SINGLE_SELECT_DEF = { type: "single_select", options: ["prod", "staging", "dev"] };
+  const MULTI_SELECT_DEF  = { type: "multi_select",  options: ["A", "B", "C"] };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.isAdmin = true;
+  });
+
+  it("returns 409 with affectedTaskCount when a removed single_select option is in use", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
+    mockState.selectQueue.push([{ count: 3 }]);       // affected-task count
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"] }); // removing "dev"
+
+    expect(res.status).toBe(409);
+    expect(res.body.affectedTaskCount).toBe(3);
+    expect(typeof res.body.error).toBe("string");
+  });
+
+  it("returns 409 with affectedTaskCount when a removed multi_select option is in use", async () => {
+    mockState.selectQueue.push([MULTI_SELECT_DEF]); // currentDef lookup
+    mockState.selectQueue.push([{ count: 5 }]);      // affected-task count
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["A"] }); // removing "B" and "C"
+
+    expect(res.status).toBe(409);
+    expect(res.body.affectedTaskCount).toBe(5);
+  });
+
+  it("returns 200 and clears stale values when force=true", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
+    mockState.selectQueue.push([{ count: 3 }]);       // affected-task count
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"], force: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toEqual(["prod", "staging"]);
+  });
+
+  it("returns 200 when removed options are not stored in any task", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
+    mockState.selectQueue.push([{ count: 0 }]);       // zero affected tasks
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"] }); // removing "dev" but no tasks use it
+
+    expect(res.status).toBe(200);
+  });
+
+  it("skips conflict check and returns 200 when no options are removed (only additions)", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup — no count query follows
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging", "dev", "qa"] }];
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging", "dev", "qa"] }); // adding "qa", nothing removed
+
+    expect(res.status).toBe(200);
   });
 });
 

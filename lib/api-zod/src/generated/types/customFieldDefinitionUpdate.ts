@@ -17,4 +17,6 @@ export interface CustomFieldDefinitionUpdate {
   name?: string;
   /** Replacement options list for select fields. */
   options?: string[];
+  /** When true, the options update proceeds even if some removed options are still stored in existing task records. Stale values are cleared from those tasks automatically. Omit or pass false to receive a 409 conflict response instead. */
+  force?: boolean;
 }

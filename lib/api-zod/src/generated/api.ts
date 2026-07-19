@@ -843,7 +843,8 @@ export const UpdateCustomFieldDefinitionParams = zod.object({
 
 export const UpdateCustomFieldDefinitionBody = zod.object({
   "name": zod.string().min(1).optional().describe('New display name for the field.'),
-  "options": zod.array(zod.string()).optional().describe('Replacement options list for select fields.')
+  "options": zod.array(zod.string()).optional().describe('Replacement options list for select fields.'),
+  "force": zod.boolean().optional().describe('When true, the options update proceeds even if some removed options are still stored in existing task records. Stale values are cleared from those tasks automatically. Omit or pass false to receive a 409 conflict response instead.\n')
 }).describe('Partial update for a custom field definition.')
 
 export const UpdateCustomFieldDefinitionResponse = zod.object({

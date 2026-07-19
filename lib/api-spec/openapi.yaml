@@ -1039,6 +1039,15 @@ paths:
           description: Admin access required.
         "404":
           description: Custom field not found or already deleted.
+        "409":
+          description: >
+            One or more options being removed are still stored in existing task
+            records. Retry with `force: true` in the request body to clear those
+            values automatically.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldOptionConflict"
     delete:
       operationId: deleteCustomFieldDefinition
       tags: [custom-fields]
@@ -2275,6 +2284,27 @@ components:
           items:
             type: string
           description: Replacement options list for select fields.
+        force:
+          type: boolean
+          description: >
+            When true, the options update proceeds even if some removed options
+            are still stored in existing task records. Stale values are cleared
+            from those tasks automatically. Omit or pass false to receive a 409
+            conflict response instead.
+
+    CustomFieldOptionConflict:
+      description: >
+        Returned when a PATCH to a select field's options would orphan values
+        already stored in task records.
+      type: object
+      required: [error, affectedTaskCount]
+      properties:
+        error:
+          type: string
+          description: Human-readable explanation of the conflict.
+        affectedTaskCount:
+          type: integer
+          description: Number of tasks that store one or more of the removed option values.
 
     CustomFieldReorderInput:
       description: Ordered list of field definition IDs for reordering.

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, asc } from "drizzle-orm";
-import { db, customFieldDefinitionsTable } from "@workspace/db";
+import { eq, and, isNull, asc, sql } from "drizzle-orm";
+import { db, customFieldDefinitionsTable, tasksTable } from "@workspace/db";
 import {
   ListCustomFieldDefinitionsResponse,
   CreateCustomFieldDefinitionBody,
@@ -83,6 +83,111 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
   }
 
   const orgId = req.orgId!;
+
+  // ── Option-removal conflict guard ─────────────────────────────────────────
+  // When options are being updated for a single_select or multi_select field,
+  // detect whether any tasks still store a value that would be orphaned. Reject
+  // with 409 unless `force: true` is supplied, in which case stale task values
+  // are cleared atomically before the options list is updated.
+  if (parsed.data.options !== undefined) {
+    const [currentDef] = await db
+      .select({ type: customFieldDefinitionsTable.type, options: customFieldDefinitionsTable.options })
+      .from(customFieldDefinitionsTable)
+      .where(
+        and(
+          eq(customFieldDefinitionsTable.id, params.data.id),
+          eq(customFieldDefinitionsTable.orgId, orgId),
+          isNull(customFieldDefinitionsTable.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (currentDef && (currentDef.type === "single_select" || currentDef.type === "multi_select")) {
+      const currentOptions = (currentDef.options as string[]) ?? [];
+      const removedOptions = currentOptions.filter((o) => !parsed.data.options!.includes(o));
+
+      if (removedOptions.length > 0) {
+        const fieldId = String(params.data.id);
+        // Build a safe parameterised ARRAY[...] expression for the removed values.
+        const removedArr = sql`ARRAY[${sql.join(removedOptions.map((o) => sql`${o}`), sql`, `)}]`;
+
+        let affectedCount = 0;
+
+        if (currentDef.type === "single_select") {
+          const [row] = await db
+            .select({ count: sql<number>`COUNT(*)::int` })
+            .from(tasksTable)
+            .where(
+              and(
+                eq(tasksTable.orgId, orgId),
+                sql`${tasksTable.customFields}->>${fieldId} = ANY(${removedArr})`,
+              ),
+            );
+          affectedCount = row?.count ?? 0;
+        } else {
+          // multi_select: check if the stored JSON array overlaps with removed options.
+          const [row] = await db
+            .select({ count: sql<number>`COUNT(*)::int` })
+            .from(tasksTable)
+            .where(
+              and(
+                eq(tasksTable.orgId, orgId),
+                sql`${tasksTable.customFields} ? ${fieldId}`,
+                sql`jsonb_typeof(${tasksTable.customFields}->${fieldId}) = 'array'`,
+                sql`EXISTS (
+                  SELECT 1 FROM jsonb_array_elements_text(${tasksTable.customFields}->${fieldId}) AS elem
+                  WHERE elem = ANY(${removedArr})
+                )`,
+              ),
+            );
+          affectedCount = row?.count ?? 0;
+        }
+
+        if (affectedCount > 0) {
+          if (!parsed.data.force) {
+            res.status(409).json({
+              error: "One or more removed options are still in use by existing tasks",
+              affectedTaskCount: affectedCount,
+            });
+            return;
+          }
+
+          // force=true: clear stale values from affected tasks before saving.
+          if (currentDef.type === "single_select") {
+            await db.execute(sql`
+              UPDATE tasks
+              SET custom_fields = custom_fields - ${fieldId}
+              WHERE org_id = ${orgId}
+                AND custom_fields->>${fieldId} = ANY(${removedArr})
+            `);
+          } else {
+            // Filter each task's multi_select array to only retain valid options.
+            await db.execute(sql`
+              UPDATE tasks
+              SET custom_fields = jsonb_set(
+                custom_fields,
+                ${`{${fieldId}}`},
+                COALESCE(
+                  (SELECT jsonb_agg(elem)
+                   FROM jsonb_array_elements_text(custom_fields->${fieldId}) AS elem
+                   WHERE elem != ALL(${removedArr})),
+                  '[]'::jsonb
+                )
+              )
+              WHERE org_id = ${orgId}
+                AND custom_fields ? ${fieldId}
+                AND jsonb_typeof(custom_fields->${fieldId}) = 'array'
+                AND EXISTS (
+                  SELECT 1 FROM jsonb_array_elements_text(custom_fields->${fieldId}) AS elem
+                  WHERE elem = ANY(${removedArr})
+                )
+            `);
+          }
+        }
+      }
+    }
+  }
+  // ── End conflict guard ────────────────────────────────────────────────────
 
   const updates: Partial<typeof customFieldDefinitionsTable.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;

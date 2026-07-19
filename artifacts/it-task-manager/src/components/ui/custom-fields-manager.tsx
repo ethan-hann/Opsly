@@ -80,6 +80,8 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
   const [nameVal, setNameVal] = useState(field.name);
   const [editingOptions, setEditingOptions] = useState(false);
   const [optionsText, setOptionsText] = useState((field.options ?? []).join("\n"));
+  /** Set when the API returns 409 — holds pending opts + count of affected tasks. */
+  const [optionConflict, setOptionConflict] = useState<{ opts: string[]; affectedCount: number } | null>(null);
 
   const isSelect = field.type === "single_select" || field.type === "multi_select";
 
@@ -89,8 +91,16 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
         queryClient.invalidateQueries({ queryKey: getListCustomFieldDefinitionsQueryKey() });
         setEditingName(false);
         setEditingOptions(false);
+        setOptionConflict(null);
       },
       onError: (err: Error) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const apiErr = err as any;
+        if (apiErr?.status === 409 && typeof apiErr?.data?.affectedTaskCount === "number") {
+          const opts = optionsText.split("\n").map((s: string) => s.trim()).filter(Boolean);
+          setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount });
+          return;
+        }
         toast({ title: "Update failed", description: err.message, variant: "destructive" });
       },
     },
@@ -116,7 +126,13 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
 
   function saveOptions() {
     const opts = optionsText.split("\n").map((s) => s.trim()).filter(Boolean);
+    setOptionConflict(null);
     updateField({ id: field.id, data: { options: opts } });
+  }
+
+  function saveOptionsForce() {
+    if (!optionConflict) return;
+    updateField({ id: field.id, data: { options: optionConflict.opts, force: true } });
   }
 
   return (
@@ -224,24 +240,58 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
       {/* Inline options editor */}
       {isSelect && editingOptions && (
         <div className="border-t border-border px-4 pb-3 pt-2 space-y-2">
-          <p className="text-xs text-muted-foreground">One option per line</p>
-          <textarea
-            className="w-full min-h-[96px] text-sm border border-border rounded-md p-2 bg-background resize-y focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            value={optionsText}
-            onChange={(e) => setOptionsText(e.target.value)}
-            placeholder={"Option A\nOption B\nOption C"}
-          />
-          <div className="flex gap-2 justify-end">
-            <Button
-              size="sm" variant="ghost"
-              onClick={() => { setOptionsText((field.options ?? []).join("\n")); setEditingOptions(false); }}
-            >
-              Cancel
-            </Button>
-            <Button size="sm" onClick={saveOptions} disabled={isUpdating}>
-              {isUpdating ? "Saving…" : "Save options"}
-            </Button>
-          </div>
+          {optionConflict ? (
+            /* Conflict warning — shown after a 409 response */
+            <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-3 space-y-2">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                {optionConflict.affectedCount === 1
+                  ? "1 task uses a removed option"
+                  : `${optionConflict.affectedCount} tasks use a removed option`}
+              </p>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Saving will clear the stale value from{" "}
+                {optionConflict.affectedCount === 1 ? "that task" : "those tasks"} automatically.
+                This cannot be undone.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <Button
+                  size="sm" variant="ghost"
+                  onClick={() => setOptionConflict(null)}
+                >
+                  Go back
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={saveOptionsForce}
+                  disabled={isUpdating}
+                >
+                  {isUpdating ? "Saving…" : "Save and clear stale values"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground">One option per line</p>
+              <textarea
+                className="w-full min-h-[96px] text-sm border border-border rounded-md p-2 bg-background resize-y focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                value={optionsText}
+                onChange={(e) => setOptionsText(e.target.value)}
+                placeholder={"Option A\nOption B\nOption C"}
+              />
+              <div className="flex gap-2 justify-end">
+                <Button
+                  size="sm" variant="ghost"
+                  onClick={() => { setOptionsText((field.options ?? []).join("\n")); setEditingOptions(false); }}
+                >
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={saveOptions} disabled={isUpdating}>
+                  {isUpdating ? "Saving…" : "Save options"}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

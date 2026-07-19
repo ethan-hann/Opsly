@@ -584,6 +584,18 @@ export interface CustomFieldDefinitionUpdate {
   name?: string;
   /** Replacement options list for select fields. */
   options?: string[];
+  /** When true, the options update proceeds even if some removed options are still stored in existing task records. Stale values are cleared from those tasks automatically. Omit or pass false to receive a 409 conflict response instead. */
+  force?: boolean;
+}
+
+/**
+ * Returned when a PATCH to a select field's options would orphan values already stored in task records.
+ */
+export interface CustomFieldOptionConflict {
+  /** Human-readable explanation of the conflict. */
+  error: string;
+  /** Number of tasks that store one or more of the removed option values. */
+  affectedTaskCount: number;
 }
 
 /**

@@ -29,6 +29,7 @@ import type {
   CustomFieldDefinition,
   CustomFieldDefinitionInput,
   CustomFieldDefinitionUpdate,
+  CustomFieldOptionConflict,
   CustomFieldReorderInput,
   DashboardSummary,
   DeleteComment403,
@@ -2875,7 +2876,7 @@ export const updateCustomFieldDefinition = async (id: number,
 
 
 
-export const getUpdateCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+export const getUpdateCustomFieldDefinitionMutationOptions = <TError = ErrorType<void | CustomFieldOptionConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext> => {
 
@@ -2904,12 +2905,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type UpdateCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCustomFieldDefinition>>>
     export type UpdateCustomFieldDefinitionMutationBody = BodyType<CustomFieldDefinitionUpdate>
-    export type UpdateCustomFieldDefinitionMutationError = ErrorType<void>
+    export type UpdateCustomFieldDefinitionMutationError = ErrorType<void | CustomFieldOptionConflict>
 
     /**
  * @summary Update a custom field definition (admin only)
  */
-export const useUpdateCustomFieldDefinition = <TError = ErrorType<void>,
+export const useUpdateCustomFieldDefinition = <TError = ErrorType<void | CustomFieldOptionConflict>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof updateCustomFieldDefinition>>,

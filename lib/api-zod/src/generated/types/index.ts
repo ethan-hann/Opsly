@@ -19,6 +19,7 @@ export * from './customFieldDefinitionInput';
 export * from './customFieldDefinitionInputType';
 export * from './customFieldDefinitionType';
 export * from './customFieldDefinitionUpdate';
+export * from './customFieldOptionConflict';
 export * from './customFieldReorderInput';
 export * from './dashboardSummary';
 export * from './dashboardSummaryTasksByPriority';
