@@ -103,6 +103,9 @@ function applyTemplate(
   category: string;
   dueDate: string | undefined;
   projectId: number | null;
+  /** Custom field values keyed by definition ID (string). Populated when
+   *  fieldMapping entries target "cf:<id>" (e.g. "cf:3"). */
+  customFields: Record<string, unknown>;
 } {
   // Title resolution
   const titleFromField = template.titleField
@@ -127,15 +130,18 @@ function applyTemplate(
   if (payload["priority"]) priority = String(payload["priority"]);
   if (payload["category"]) category = String(payload["category"]);
 
-  // fieldMapping overrides everything (most specific)
+  // fieldMapping overrides everything (most specific).
+  // Targets of the form "cf:<id>" populate custom fields by definition ID.
+  const customFields: Record<string, unknown> = {};
   if (template.fieldMapping) {
     for (const [payloadPath, taskField] of Object.entries(template.fieldMapping)) {
       const val = getPath(payload, payloadPath);
       if (val === undefined) continue;
       if (taskField === "priority") priority = String(val);
       else if (taskField === "category") category = String(val);
-      else if (taskField === "description" && !description) {
-        // handled separately
+      else if (taskField.startsWith("cf:")) {
+        const cfId = taskField.slice(3);
+        if (cfId) customFields[cfId] = val;
       }
     }
   }
@@ -149,7 +155,7 @@ function applyTemplate(
   const dueDate =
     typeof payload["dueDate"] === "string" ? payload["dueDate"] : undefined;
 
-  return { title, description, priority, category, dueDate, projectId };
+  return { title, description, priority, category, dueDate, projectId, customFields };
 }
 
 // ---------------------------------------------------------------------------
@@ -329,6 +335,9 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
       category: taskFields.category,
       dueDate: taskFields.dueDate,
       status: "todo",
+      ...(Object.keys(taskFields.customFields).length > 0
+        ? { customFields: taskFields.customFields }
+        : {}),
     })
     .returning();
 

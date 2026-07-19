@@ -21,7 +21,8 @@ import type {
   WebhookTaskTemplate,
   WebhookVisibility,
 } from "@workspace/api-client-react";
-import { useListProjects } from "@workspace/api-client-react";
+import { useListProjects, useListCustomFieldDefinitions } from "@workspace/api-client-react";
+import type { CustomFieldDefinition } from "@workspace/api-client-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -283,15 +284,18 @@ type FieldMappingRow = { id: number; key: string; value: string };
 interface TemplateBuilderProps {
   template: WebhookTaskTemplate;
   onChange: (t: WebhookTaskTemplate) => void;
+  /** Active custom field definitions for the org. Used to populate the
+   *  "Maps to" dropdown with custom field targets (stored as "cf:<id>"). */
+  customFieldDefs?: CustomFieldDefinition[];
 }
 
-// Valid task fields that fieldMapping can target (mirrors applyTemplate on the server).
-const MAPPING_TARGET_OPTIONS = [
+// Static task fields that fieldMapping can target (mirrors applyTemplate on the server).
+const STATIC_MAPPING_OPTIONS = [
   { value: "priority", label: "Priority", hint: "low · medium · high · critical" },
   { value: "category", label: "Category", hint: "incident · change · maintenance · deployment · support · other" },
-] as const;
+];
 
-function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
+function TemplateBuilder({ template, onChange, customFieldDefs = [] }: TemplateBuilderProps) {
   const [expanded, setExpanded] = useState(false);
   const [rows, setRows] = useState<FieldMappingRow[]>(() =>
     Object.entries(template.fieldMapping ?? {}).map(([key, value], id) => ({
@@ -305,11 +309,35 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
     onChange({ ...template, ...patch });
   }
 
+  // Build the full list of mapping targets: standard fields + org custom fields.
+  // Custom fields are stored as "cf:<id>" so the server can identify them.
+  const mappingOptions = [
+    ...STATIC_MAPPING_OPTIONS,
+    ...(customFieldDefs.length > 0
+      ? [
+          { value: "__separator__", label: "── Custom fields ──", hint: "" },
+          ...customFieldDefs.map((f) => ({
+            value: `cf:${f.id}`,
+            label: f.name,
+            hint: f.type === "multi_select"
+              ? "multi-select — send an array: [\"A\", \"B\"]"
+              : f.type === "single_select"
+              ? `single-select — one of: ${(f.options ?? []).join(" · ") || "any string"}`
+              : f.type === "number"
+              ? "number"
+              : f.type === "date"
+              ? "date — ISO string e.g. 2025-06-01"
+              : "text",
+          })),
+        ]
+      : []),
+  ];
+
   function syncMapping(r: FieldMappingRow[]) {
     setRows(r);
     const m: Record<string, string> = {};
     r.forEach(({ key, value }) => {
-      if (key && value) m[key] = value;
+      if (key && value && !value.startsWith("__")) m[key] = value;
     });
     update({ fieldMapping: Object.keys(m).length ? m : undefined });
   }
@@ -495,6 +523,29 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                 <strong>Priority</strong>. These take precedence over payload defaults.
               </p>
             </div>
+
+            {/* Custom fields callout */}
+            {customFieldDefs.length > 0 && (
+              <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
+                <p className="font-medium text-foreground">Setting custom fields from a payload</p>
+                <p>
+                  Your org has custom fields. You can populate them from webhook payloads by mapping
+                  any payload key to a custom field target below.
+                </p>
+                <p>
+                  <strong>Text / number / date</strong> — send a plain value:{" "}
+                  <code className="bg-background px-1 rounded">{`"env": "production"`}</code>
+                </p>
+                <p>
+                  <strong>Single-select</strong> — send one string matching an option label.
+                </p>
+                <p>
+                  <strong>Multi-select</strong> — send a JSON array:{" "}
+                  <code className="bg-background px-1 rounded">{`"tags": ["API", "P1"]`}</code>
+                </p>
+              </div>
+            )}
+
             {rows.length > 0 && (
               <div className="space-y-1.5">
                 <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
@@ -504,7 +555,8 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                   <span />
                 </div>
                 {rows.map((row) => {
-                  const hint = MAPPING_TARGET_OPTIONS.find((o) => o.value === row.value)?.hint;
+                  const opt = mappingOptions.find((o) => o.value === row.value);
+                  const hint = opt && opt.value !== "__separator__" ? opt.hint : undefined;
                   return (
                     <div key={row.id} className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
                       <Input
@@ -516,17 +568,29 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                       <span className="text-muted-foreground text-xs text-center">→</span>
                       <Select
                         value={row.value}
-                        onValueChange={(v) => updateRow(row.id, "value", v)}
+                        onValueChange={(v) => {
+                          if (v === "__separator__") return;
+                          updateRow(row.id, "value", v);
+                        }}
                       >
                         <SelectTrigger className="h-7 text-xs">
                           <SelectValue placeholder="choose field…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {MAPPING_TARGET_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
+                          {mappingOptions.map((o) =>
+                            o.value === "__separator__" ? (
+                              <div
+                                key="separator"
+                                className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider select-none"
+                              >
+                                Custom fields
+                              </div>
+                            ) : (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            )
+                          )}
                         </SelectContent>
                       </Select>
                       <Button
@@ -600,13 +664,18 @@ function InboundDialog({
     existing?.taskTemplate ?? {},
   );
 
+  // Fetch active custom field definitions so the template builder can offer
+  // them as mapping targets.
+  const { data: allCustomFieldDefs = [] } = useListCustomFieldDefinitions();
+  const activeCustomFieldDefs = allCustomFieldDefs.filter((f) => !f.deletedAt);
+
   const DEFAULT_TEST_PAYLOAD = '{\n  "title": "CPU spike on prod",\n  "priority": "high",\n  "category": "incident",\n  "description": "P99 latency exceeded 2s on api-server"\n}';
   const [testOpen, setTestOpen] = useState(false);
   const [testPayload, setTestPayload] = useState(DEFAULT_TEST_PAYLOAD);
   type InboundTestState =
     | { status: "idle" }
     | { status: "loading" }
-    | { status: "success"; result: { title: string; description?: string; priority: string; category: string; dueDate?: string } }
+    | { status: "success"; result: { title: string; description?: string; priority: string; category: string; dueDate?: string; customFields?: Record<string, unknown> } }
     | { status: "error"; error: string };
   const [inboundTestState, setInboundTestState] = useState<InboundTestState>({ status: "idle" });
 
@@ -817,7 +886,11 @@ function InboundDialog({
             </div>
           </div>
 
-          <TemplateBuilder template={template} onChange={setTemplate} />
+          <TemplateBuilder
+            template={template}
+            onChange={setTemplate}
+            customFieldDefs={activeCustomFieldDefs}
+          />
 
           {/* Test payload */}
           <div className="rounded-md border">
@@ -877,6 +950,18 @@ function InboundDialog({
                         <span className="font-medium break-all">{value}</span>
                       </div>
                     ))}
+                    {/* Custom field values extracted by the server */}
+                    {Object.entries(inboundTestState.result.customFields ?? {}).map(([cfId, val]) => {
+                      const def = activeCustomFieldDefs.find((f) => String(f.id) === cfId);
+                      const label = def ? def.name : `Custom field #${cfId}`;
+                      const display = Array.isArray(val) ? val.join(", ") : String(val ?? "");
+                      return (
+                        <div key={cfId} className="flex px-3 py-1.5 gap-3">
+                          <span className="text-muted-foreground w-20 shrink-0">{label}</span>
+                          <span className="font-medium break-all">{display}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
