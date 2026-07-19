@@ -1,16 +1,16 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useListInboundWebhooks,
-  useCreateInboundWebhook,
-  useUpdateInboundWebhook,
   useDeleteInboundWebhook,
+  useUpdateInboundWebhook,
   useRotateInboundWebhookSecret,
   useListOutboundWebhooks,
-  useCreateOutboundWebhook,
-  useUpdateOutboundWebhook,
   useDeleteOutboundWebhook,
+  useUpdateOutboundWebhook,
   useListOutboundWebhookDeliveries,
+  useListProjects,
   getListInboundWebhooksQueryKey,
   getListOutboundWebhooksQueryKey,
 } from "@workspace/api-client-react";
@@ -18,38 +18,17 @@ import type {
   InboundWebhook,
   OutboundWebhook,
   OutboundWebhookDelivery,
-  WebhookTaskTemplate,
   WebhookVisibility,
 } from "@workspace/api-client-react";
-import { useListProjects, useListCustomFieldDefinitions } from "@workspace/api-client-react";
-import type { CustomFieldDefinition } from "@workspace/api-client-react";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -82,13 +61,11 @@ import {
   XCircle,
   Clock,
   Activity,
-  Info,
   AlertTriangle,
   Search,
-  Loader2,
 } from "lucide-react";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const VISIBILITY_LABELS: Record<
   WebhookVisibility,
@@ -98,51 +75,6 @@ const VISIBILITY_LABELS: Record<
   public_read: { label: "Shared (read-only)", Icon: Eye },
   public_write: { label: "Public", Icon: Globe },
 };
-
-const ALL_EVENTS = [
-  { value: "task.created", label: "Task created" },
-  { value: "task.updated", label: "Task updated" },
-  { value: "task.status_changed", label: "Task status changed" },
-  { value: "task.assigned", label: "Task assigned" },
-  { value: "task.commented", label: "Task commented" },
-  { value: "project.created", label: "Project created" },
-  { value: "project.updated", label: "Project updated" },
-  { value: "note.created", label: "Note created" },
-  { value: "note.updated", label: "Note updated" },
-  { value: "note.deleted", label: "Note deleted" },
-] as const;
-
-type EventValue = (typeof ALL_EVENTS)[number]["value"];
-
-// Parent-child event relationships — selecting a parent alongside its child
-// means both will fire for the same action, causing double processing.
-// Note events can have multiple potential parents depending on runtime context:
-//   note.* on a task  → also fires task.updated
-//   note.* on a project → also fires project.updated
-const EVENT_PARENTS: Partial<Record<EventValue, EventValue[]>> = {
-  "task.status_changed": ["task.updated"],
-  "task.assigned": ["task.updated"],
-  "task.commented": ["task.updated"],
-  "note.created": ["task.updated", "project.updated"],
-  "note.updated": ["task.updated", "project.updated"],
-  "note.deleted": ["task.updated", "project.updated"],
-};
-
-/** Returns pairs of [parent, child] that are both present in `selected`. */
-function getOverlappingPairs(selected: EventValue[]): Array<[EventValue, EventValue]> {
-  const pairs: Array<[EventValue, EventValue]> = [];
-  for (const ev of selected) {
-    const parents = EVENT_PARENTS[ev];
-    if (parents) {
-      for (const parent of parents) {
-        if (selected.includes(parent)) {
-          pairs.push([parent, ev]);
-        }
-      }
-    }
-  }
-  return pairs;
-}
 
 function buildFullIngestUrl(path: string): string {
   return `${window.location.origin}${path}`;
@@ -162,7 +94,7 @@ function VisibilityBadge({ v }: { v: WebhookVisibility }) {
   );
 }
 
-// ─── Delivery Log ───────────────────────────────────────────────────────────
+// ─── Delivery Log (collapsed, for list cards) ─────────────────────────────────
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -181,7 +113,6 @@ function formatTimeAgoShort(iso: string): string {
 
 function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
   const [expanded, setExpanded] = useState(false);
-
   return (
     <div className="text-xs border-b border-border/30 last:border-0">
       <button
@@ -225,7 +156,9 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
           )}
           <div className="flex gap-2">
             <span className="font-medium text-foreground/60 w-16 shrink-0">Status</span>
-            <span>{d.success ? "Success" : "Failed"} · {formatDuration(d.durationMs)}</span>
+            <span>
+              {d.success ? "Success" : "Failed"} · {formatDuration(d.durationMs)}
+            </span>
           </div>
         </div>
       )}
@@ -235,14 +168,13 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
 
 function DeliveryLogContent({ webhookId }: { webhookId: number }) {
   const { data: deliveries, isFetching } = useListOutboundWebhookDeliveries(webhookId);
-
   return (
     <div className="mt-2 rounded-md border border-border/50 overflow-hidden bg-card">
       {isFetching && !deliveries ? (
         <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
       ) : !deliveries || deliveries.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">
-          No deliveries recorded yet. They appear here after the next matching event fires.
+          No deliveries yet. They appear here after the next matching event fires.
         </p>
       ) : (
         <div>
@@ -257,7 +189,6 @@ function DeliveryLogContent({ webhookId }: { webhookId: number }) {
 
 function DeliveryLog({ webhookId }: { webhookId: number }) {
   const [open, setOpen] = useState(false);
-
   return (
     <div className="border-t border-border/40 mt-3 pt-3">
       <button
@@ -268,771 +199,19 @@ function DeliveryLog({ webhookId }: { webhookId: number }) {
         <Activity className="w-3.5 h-3.5" />
         <span className="font-medium">Recent deliveries</span>
         <span className="ml-auto">
-          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {open ? (
+            <ChevronUp className="w-3.5 h-3.5" />
+          ) : (
+            <ChevronDown className="w-3.5 h-3.5" />
+          )}
         </span>
       </button>
-
       {open && <DeliveryLogContent webhookId={webhookId} />}
     </div>
   );
 }
 
-// ─── Task Template Builder ───────────────────────────────────────────────────
-
-type FieldMappingRow = { id: number; key: string; value: string };
-
-interface TemplateBuilderProps {
-  template: WebhookTaskTemplate;
-  onChange: (t: WebhookTaskTemplate) => void;
-  /** Active custom field definitions for the org. Used to populate the
-   *  "Maps to" dropdown with custom field targets (stored as "cf:<id>"). */
-  customFieldDefs?: CustomFieldDefinition[];
-}
-
-// Static task fields that fieldMapping can target (mirrors applyTemplate on the server).
-const STATIC_MAPPING_OPTIONS = [
-  { value: "priority", label: "Priority", hint: "low · medium · high · critical" },
-  { value: "category", label: "Category", hint: "incident · change · maintenance · deployment · support · other" },
-];
-
-function TemplateBuilder({ template, onChange, customFieldDefs = [] }: TemplateBuilderProps) {
-  const [expanded, setExpanded] = useState(false);
-  const [rows, setRows] = useState<FieldMappingRow[]>(() =>
-    Object.entries(template.fieldMapping ?? {}).map(([key, value], id) => ({
-      id,
-      key,
-      value,
-    })),
-  );
-
-  function update(patch: Partial<WebhookTaskTemplate>) {
-    onChange({ ...template, ...patch });
-  }
-
-  // Build the full list of mapping targets: standard fields + org custom fields.
-  // Custom fields are stored as "cf:<id>" so the server can identify them.
-  const mappingOptions = [
-    ...STATIC_MAPPING_OPTIONS,
-    ...(customFieldDefs.length > 0
-      ? [
-          { value: "__separator__", label: "── Custom fields ──", hint: "" },
-          ...customFieldDefs.map((f) => ({
-            value: `cf:${f.id}`,
-            label: f.name,
-            hint: f.type === "multi_select"
-              ? "multi-select — send an array: [\"A\", \"B\"]"
-              : f.type === "single_select"
-              ? `single-select — one of: ${(f.options ?? []).join(" · ") || "any string"}`
-              : f.type === "number"
-              ? "number"
-              : f.type === "date"
-              ? "date — ISO string e.g. 2025-06-01"
-              : "text",
-          })),
-        ]
-      : []),
-  ];
-
-  function syncMapping(r: FieldMappingRow[]) {
-    setRows(r);
-    const m: Record<string, string> = {};
-    r.forEach(({ key, value }) => {
-      if (key && value && !value.startsWith("__")) m[key] = value;
-    });
-    update({ fieldMapping: Object.keys(m).length ? m : undefined });
-  }
-
-  function addRow() {
-    syncMapping([...rows, { id: Date.now(), key: "", value: "" }]);
-  }
-
-  function removeRow(id: number) {
-    syncMapping(rows.filter((r) => r.id !== id));
-  }
-
-  function updateRow(id: number, field: "key" | "value", val: string) {
-    const next = rows.map((r) => (r.id === id ? { ...r, [field]: val } : r));
-    syncMapping(next);
-  }
-
-  return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between text-sm font-medium hover:text-foreground transition-colors group"
-      >
-        <span className="flex flex-col items-start gap-0.5">
-          <span className="text-foreground">Payload mapping</span>
-          <span className="text-xs font-normal text-muted-foreground">
-            {expanded
-              ? "Collapse field settings"
-              : "Optional — customize how incoming JSON becomes a task"}
-          </span>
-        </span>
-        {expanded ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-        )}
-      </button>
-
-      {expanded && (
-        <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-5">
-
-          {/* How it works callout */}
-          <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
-            <p className="font-medium text-foreground">How payload mapping works</p>
-            <p>
-              When an external system POSTs JSON to your ingest URL, Opsly reads
-              specific keys from that JSON and uses them to fill in the task fields.
-              These settings tell Opsly <em>where</em> to look in the JSON body.
-            </p>
-            <p>
-              Use <strong>dot-notation</strong> to reach nested keys —{" "}
-              <code className="bg-background px-1 rounded">labels.severity</code> reads{" "}
-              <code className="bg-background px-1 rounded">{`{ "labels": { "severity": "high" } }`}</code>.
-            </p>
-          </div>
-
-          {/* Title */}
-          <div className="space-y-1.5">
-            <Label className="text-sm">Task title</Label>
-            <p className="text-xs text-muted-foreground">
-              Which JSON key holds the title? Leave blank and Opsly looks for a{" "}
-              <code className="bg-muted px-1 rounded">title</code> key automatically.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Read title from</span>
-                <Input
-                  placeholder="e.g. alertname"
-                  value={template.titleField ?? ""}
-                  onChange={(e) =>
-                    update({ titleField: e.target.value || undefined })
-                  }
-                  className="h-8 text-sm"
-                />
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Fallback when key is missing</span>
-                <Input
-                  placeholder="Untitled Alert"
-                  value={template.defaultTitle ?? ""}
-                  onChange={(e) =>
-                    update({ defaultTitle: e.target.value || undefined })
-                  }
-                  className="h-8 text-sm"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Description */}
-          <div className="space-y-1.5">
-            <Label className="text-sm">Task description <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <p className="text-xs text-muted-foreground">
-              Which JSON key holds the description? Leave blank and Opsly looks for a{" "}
-              <code className="bg-muted px-1 rounded">description</code> key. Supports dot-notation.
-            </p>
-            <Input
-              placeholder="e.g. annotations.summary"
-              value={template.descriptionField ?? ""}
-              onChange={(e) =>
-                update({ descriptionField: e.target.value || undefined })
-              }
-              className="h-8 text-sm"
-            />
-          </div>
-
-          {/* Defaults */}
-          <div className="space-y-1.5">
-            <Label className="text-sm">Defaults</Label>
-            <p className="text-xs text-muted-foreground">
-              Applied when the incoming payload doesn't include a{" "}
-              <code className="bg-muted px-1 rounded">priority</code> or{" "}
-              <code className="bg-muted px-1 rounded">category</code> key.
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Default priority</span>
-                <Select
-                  value={template.defaultPriority ?? "__none__"}
-                  onValueChange={(v) =>
-                    update({
-                      defaultPriority: (v === "__none__"
-                        ? undefined
-                        : v) as WebhookTaskTemplate["defaultPriority"],
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="medium (system default)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">
-                      <span className="text-muted-foreground">medium (system default)</span>
-                    </SelectItem>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
-                    <SelectItem value="critical">Critical</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <span className="text-xs text-muted-foreground">Default category</span>
-                <Select
-                  value={template.defaultCategory ?? "__none__"}
-                  onValueChange={(v) =>
-                    update({
-                      defaultCategory: (v === "__none__"
-                        ? undefined
-                        : v) as WebhookTaskTemplate["defaultCategory"],
-                    })
-                  }
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="incident (system default)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">
-                      <span className="text-muted-foreground">incident (system default)</span>
-                    </SelectItem>
-                    {["incident", "change", "maintenance", "deployment", "support", "other"].map(
-                      (c) => (
-                        <SelectItem key={c} value={c}>
-                          {c.charAt(0).toUpperCase() + c.slice(1)}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-
-          {/* Field remapping */}
-          <div className="space-y-2">
-            <div className="space-y-1">
-              <Label className="text-sm">Remap payload fields <span className="font-normal text-muted-foreground">(optional)</span></Label>
-              <p className="text-xs text-muted-foreground">
-                When your system uses different field names, map them here. For example, if your
-                payload sends severity as{" "}
-                <code className="bg-muted px-1 rounded">labels.severity</code>, map it to{" "}
-                <strong>Priority</strong>. These take precedence over payload defaults.
-              </p>
-            </div>
-
-            {/* Custom fields callout */}
-            {customFieldDefs.length > 0 && (
-              <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
-                <p className="font-medium text-foreground">Setting custom fields from a payload</p>
-                <p>
-                  Your org has custom fields. You can populate them from webhook payloads by mapping
-                  any payload key to a custom field target below.
-                </p>
-                <p>
-                  <strong>Text / number / date</strong> — send a plain value:{" "}
-                  <code className="bg-background px-1 rounded">{`"env": "production"`}</code>
-                </p>
-                <p>
-                  <strong>Single-select</strong> — send one string matching an option label.
-                </p>
-                <p>
-                  <strong>Multi-select</strong> — send a JSON array:{" "}
-                  <code className="bg-background px-1 rounded">{`"tags": ["API", "P1"]`}</code>
-                </p>
-              </div>
-            )}
-
-            {rows.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
-                  <span className="text-xs font-medium text-muted-foreground">From payload key</span>
-                  <span />
-                  <span className="text-xs font-medium text-muted-foreground">Maps to task field</span>
-                  <span />
-                </div>
-                {rows.map((row) => {
-                  const opt = mappingOptions.find((o) => o.value === row.value);
-                  const hint = opt && opt.value !== "__separator__" ? opt.hint : undefined;
-                  return (
-                    <div key={row.id} className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
-                      <Input
-                        placeholder="e.g. labels.severity"
-                        value={row.key}
-                        onChange={(e) => updateRow(row.id, "key", e.target.value)}
-                        className="h-7 text-xs"
-                      />
-                      <span className="text-muted-foreground text-xs text-center">→</span>
-                      <Select
-                        value={row.value}
-                        onValueChange={(v) => {
-                          if (v === "__separator__") return;
-                          updateRow(row.id, "value", v);
-                        }}
-                      >
-                        <SelectTrigger className="h-7 text-xs">
-                          <SelectValue placeholder="choose field…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {mappingOptions.map((o) =>
-                            o.value === "__separator__" ? (
-                              <div
-                                key="separator"
-                                className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider select-none"
-                              >
-                                Custom fields
-                              </div>
-                            ) : (
-                              <SelectItem key={o.value} value={o.value}>
-                                {o.label}
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={() => removeRow(row.id)}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                      {hint && (
-                        <>
-                          <span />
-                          <span />
-                          <p className="text-[10px] text-muted-foreground leading-tight pb-0.5">{hint}</p>
-                          <span />
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addRow}
-              className="h-7 text-xs gap-1"
-            >
-              <Plus className="w-3 h-3" /> Add field mapping
-            </Button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Inbound Webhook Dialog ──────────────────────────────────────────────────
-
-interface InboundDialogProps {
-  open: boolean;
-  onClose: () => void;
-  existing?: InboundWebhook;
-  projectOptions: { id: number; name: string }[];
-}
-
-function InboundDialog({
-  open,
-  onClose,
-  existing,
-  projectOptions,
-}: InboundDialogProps) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-
-  const [name, setName] = useState(existing?.name ?? "");
-  const [projectId, setProjectId] = useState<number | null>(
-    existing?.projectId ?? null,
-  );
-  const [visibility, setVisibility] = useState<WebhookVisibility>(
-    existing?.visibility ?? "private",
-  );
-  const [enabled, setEnabled] = useState(existing?.enabled ?? true);
-  const [rateLimitPerMinute, setRateLimitPerMinute] = useState(
-    existing?.rateLimitPerMinute ?? 60,
-  );
-  const [template, setTemplate] = useState<WebhookTaskTemplate>(
-    existing?.taskTemplate ?? {},
-  );
-
-  // Fetch active custom field definitions so the template builder can offer
-  // them as mapping targets.
-  const { data: allCustomFieldDefs = [] } = useListCustomFieldDefinitions();
-  const activeCustomFieldDefs = allCustomFieldDefs.filter((f) => !f.deletedAt);
-
-  const DEFAULT_TEST_PAYLOAD = '{\n  "title": "CPU spike on prod",\n  "priority": "high",\n  "category": "incident",\n  "description": "P99 latency exceeded 2s on api-server"\n}';
-  const [testOpen, setTestOpen] = useState(false);
-  const [testPayload, setTestPayload] = useState(DEFAULT_TEST_PAYLOAD);
-  type InboundTestState =
-    | { status: "idle" }
-    | { status: "loading" }
-    | { status: "success"; result: { title: string; description?: string; priority: string; category: string; dueDate?: string; customFields?: Record<string, unknown> } }
-    | { status: "error"; error: string };
-  const [inboundTestState, setInboundTestState] = useState<InboundTestState>({ status: "idle" });
-
-  function reset() {
-    setName(existing?.name ?? "");
-    setProjectId(existing?.projectId ?? null);
-    setVisibility(existing?.visibility ?? "private");
-    setEnabled(existing?.enabled ?? true);
-    setRateLimitPerMinute(existing?.rateLimitPerMinute ?? 60);
-    setTemplate(existing?.taskTemplate ?? {});
-    setTestOpen(false);
-    setTestPayload(DEFAULT_TEST_PAYLOAD);
-    setInboundTestState({ status: "idle" });
-  }
-
-  async function handleInboundTest() {
-    setInboundTestState({ status: "loading" });
-    let payload: Record<string, unknown>;
-    try {
-      payload = JSON.parse(testPayload);
-    } catch {
-      setInboundTestState({ status: "error", error: "Invalid JSON — fix the syntax and try again." });
-      return;
-    }
-    try {
-      const res = await fetch(
-        `${import.meta.env.BASE_URL}api/webhooks/inbound/test`.replace(/\/\//g, "/"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payload, template }),
-          credentials: "include",
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setInboundTestState({ status: "error", error: data.error ?? "Request failed" });
-      } else {
-        setInboundTestState({ status: "success", result: data });
-      }
-    } catch (err) {
-      setInboundTestState({ status: "error", error: err instanceof Error ? err.message : "Network error" });
-    }
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
-
-  const { mutate: create, isPending: isCreating } = useCreateInboundWebhook({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Inbound webhook created" });
-        handleClose();
-      },
-      onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
-    },
-  });
-
-  const { mutate: update, isPending: isUpdating } = useUpdateInboundWebhook({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Webhook updated" });
-        handleClose();
-      },
-      onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
-    },
-  });
-
-  const isPending = isCreating || isUpdating;
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    const data = {
-      name: name.trim(),
-      projectId: projectId ?? undefined,
-      visibility,
-      enabled,
-      taskTemplate: template,
-      rateLimitPerMinute,
-    };
-    if (existing) {
-      update({ id: existing.id, data: { ...data, projectId: projectId } });
-    } else {
-      create({ data });
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {existing ? "Edit inbound webhook" : "New inbound webhook"}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="space-y-1">
-            <Label>Name</Label>
-            <Input
-              placeholder="Datadog alerts"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project (optional)</Label>
-            <Select
-              value={projectId?.toString() ?? "__none__"}
-              onValueChange={(v) =>
-                setProjectId(v === "__none__" ? null : Number(v))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="No project - tasks are unlinked" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">No project</SelectItem>
-                {projectOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Visibility</Label>
-            <Select
-              value={visibility}
-              onValueChange={(v) => setVisibility(v as WebhookVisibility)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">Private (only me)</SelectItem>
-                <SelectItem value="public_read">
-                  Shared - org members can view
-                </SelectItem>
-                <SelectItem value="public_write">
-                  Public - org members can use &amp; view
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={enabled}
-              onCheckedChange={setEnabled}
-              id="enabled"
-            />
-            <Label htmlFor="enabled">Enabled</Label>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor="rateLimit">Rate limit (tasks / minute)</Label>
-            <p className="text-xs text-muted-foreground">
-              Requests that exceed this cap return&nbsp;
-              <code className="bg-muted px-1 rounded text-xs">429</code> with a
-              &nbsp;<code className="bg-muted px-1 rounded text-xs">Retry-After: 60</code>&nbsp;
-              header. Default&nbsp;60.
-            </p>
-            <input
-              id="rateLimit"
-              type="number"
-              min={1}
-              max={10000}
-              step={1}
-              value={rateLimitPerMinute}
-              onChange={(e) =>
-                setRateLimitPerMinute(Math.max(1, Math.min(10000, Number(e.target.value) || 60)))
-              }
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-          </div>
-
-          {/* Outbound echo notice */}
-          <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-            <div className="space-y-1">
-              <p className="font-medium">Inbound tasks fire outbound events</p>
-              <p>
-                When an external system POSTs to this ingest URL, Opsly creates a task and
-                immediately fires a <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">task.created</code> outbound
-                event. If that external system also subscribes to your outbound webhooks, it
-                will receive an echo of its own action — which can cause loops. Make sure
-                your external system ignores events it originally triggered.
-              </p>
-            </div>
-          </div>
-
-          <TemplateBuilder
-            template={template}
-            onChange={setTemplate}
-            customFieldDefs={activeCustomFieldDefs}
-          />
-
-          {/* Test payload */}
-          <div className="rounded-md border">
-            <button
-              type="button"
-              className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium text-left hover:bg-accent rounded-md transition-colors"
-              onClick={() => setTestOpen((v) => !v)}
-            >
-              <span className="flex items-center gap-2">
-                <Terminal className="w-3.5 h-3.5" />
-                Test with sample payload
-              </span>
-              {testOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
-            {testOpen && (
-              <div className="px-3 pb-3 space-y-2 border-t pt-2">
-                <p className="text-xs text-muted-foreground">
-                  Paste a JSON payload to preview what task fields this webhook would create, given your current template settings.
-                </p>
-                <Textarea
-                  value={testPayload}
-                  onChange={(e) => { setTestPayload(e.target.value); setInboundTestState({ status: "idle" }); }}
-                  className="font-mono text-xs min-h-[110px] resize-y"
-                  spellCheck={false}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs gap-1.5"
-                  onClick={handleInboundTest}
-                  disabled={inboundTestState.status === "loading"}
-                >
-                  {inboundTestState.status === "loading" ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Terminal className="w-3 h-3" />
-                  )}
-                  Parse payload
-                </Button>
-                {inboundTestState.status === "error" && (
-                  <p className="text-xs text-destructive">{inboundTestState.error}</p>
-                )}
-                {inboundTestState.status === "success" && (
-                  <div className="rounded-md border bg-muted/40 divide-y text-xs">
-                    {(
-                      [
-                        ["Title", inboundTestState.result.title],
-                        ["Priority", inboundTestState.result.priority],
-                        ["Category", inboundTestState.result.category],
-                        ...(inboundTestState.result.description ? [["Description", inboundTestState.result.description]] : []),
-                        ...(inboundTestState.result.dueDate ? [["Due date", inboundTestState.result.dueDate]] : []),
-                      ] as [string, string][]
-                    ).map(([label, value]) => (
-                      <div key={label} className="flex px-3 py-1.5 gap-3">
-                        <span className="text-muted-foreground w-20 shrink-0">{label}</span>
-                        <span className="font-medium break-all">{value}</span>
-                      </div>
-                    ))}
-                    {/* Custom field values extracted by the server */}
-                    {Object.entries(inboundTestState.result.customFields ?? {}).map(([cfId, val]) => {
-                      const def = activeCustomFieldDefs.find((f) => String(f.id) === cfId);
-                      const label = def ? def.name : `Custom field #${cfId}`;
-                      const display = Array.isArray(val) ? val.join(", ") : String(val ?? "");
-                      return (
-                        <div key={cfId} className="flex px-3 py-1.5 gap-3">
-                          <span className="text-muted-foreground w-20 shrink-0">{label}</span>
-                          <span className="font-medium break-all">{display}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isPending || !name.trim()}>
-              {isPending
-                ? "Saving…"
-                : existing
-                  ? "Save changes"
-                  : "Create webhook"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Payload field reference ──────────────────────────────────────────────────
-
-const PAYLOAD_FIELDS = [
-  {
-    name: "title",
-    type: "string",
-    required: true,
-    note: 'Task title. Falls back to the webhook\'s "Default title" or "Untitled Alert".',
-  },
-  {
-    name: "description",
-    type: "string",
-    required: false,
-    note: "Task description.",
-  },
-  {
-    name: "priority",
-    type: "string",
-    required: false,
-    note: "low · medium · high · critical. Defaults to medium (or template default).",
-  },
-  {
-    name: "category",
-    type: "string",
-    required: false,
-    note: "incident · change · maintenance · deployment · support · other. Defaults to incident.",
-  },
-  {
-    name: "dueDate",
-    type: "string",
-    required: false,
-    note: "Due date in YYYY-MM-DD format.",
-  },
-] as const;
-
-function buildCurlCommand(fullUrl: string): string {
-  return (
-    `curl -X POST "${fullUrl}" \\\n` +
-    `  -H "Content-Type: application/json" \\\n` +
-    `  -d '{"title":"CPU spike on prod","priority":"high","category":"incident"}'`
-  );
-}
+// ─── Inbound hook card ────────────────────────────────────────────────────────
 
 interface HookActivity {
   tasksLastMinute: number;
@@ -1061,12 +240,10 @@ function InboundHookCard({
   const { toast } = useToast();
   const [docsOpen, setDocsOpen] = useState(false);
   const fullUrl = buildFullIngestUrl(h.ingestUrl);
-  const curlCmd = buildCurlCommand(fullUrl);
 
   return (
     <Card className={h.enabled ? "" : "opacity-60"}>
       <CardContent className="py-4 space-y-3">
-        {/* Header row */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 flex-wrap">
@@ -1078,16 +255,12 @@ function InboundHookCard({
                 </Badge>
               )}
               {!h.enabled && (
-                <Badge
-                  variant="outline"
-                  className="text-xs text-muted-foreground"
-                >
+                <Badge variant="outline" className="text-xs text-muted-foreground">
                   Disabled
                 </Badge>
               )}
             </div>
 
-            {/* Ingest URL */}
             <div className="flex items-center gap-2 mt-2">
               <code className="text-xs bg-muted px-2 py-1 rounded-md truncate max-w-sm">
                 {fullUrl}
@@ -1103,7 +276,6 @@ function InboundHookCard({
               </Button>
             </div>
 
-            {/* Template summary */}
             {(h.taskTemplate?.defaultPriority ||
               h.taskTemplate?.defaultCategory ||
               h.taskTemplate?.titleField) && (
@@ -1122,7 +294,6 @@ function InboundHookCard({
               </p>
             )}
 
-            {/* Rate-limit badge */}
             <p className="text-xs text-muted-foreground mt-1">
               Rate limit:{" "}
               <span className="font-medium text-foreground">
@@ -1130,48 +301,56 @@ function InboundHookCard({
               </span>
             </p>
 
-            {/* Activity indicator — loop detection */}
-            {activity && (activity.tasksLastMinute > 0 || activity.tasksLastHour > 0) && (() => {
-              const atLimit = activity.tasksLastMinute >= h.rateLimitPerMinute;
-              const highRate = !atLimit && activity.tasksLastMinute > Math.floor(h.rateLimitPerMinute * 0.5);
-              return (
-                <div className={[
-                  "flex items-center gap-1.5 text-xs mt-1 font-medium",
-                  atLimit
-                    ? "text-destructive"
-                    : highRate
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-muted-foreground font-normal",
-                ].join(" ")}>
-                  {atLimit ? (
-                    <>
-                      <span className="relative flex h-2 w-2 shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
-                      </span>
-                      Rate limit hit — {activity.tasksLastMinute}/{h.rateLimitPerMinute} tasks/min · possible loop
-                    </>
-                  ) : highRate ? (
-                    <>
-                      <Activity className="w-3 h-3 shrink-0" />
-                      High rate — {activity.tasksLastMinute} tasks/min
-                      {activity.tasksLastHour > activity.tasksLastMinute && (
-                        <span className="font-normal text-muted-foreground">· {activity.tasksLastHour} in last hr</span>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <Activity className="w-3 h-3 shrink-0" />
-                      {activity.tasksLastMinute > 0
-                        ? `${activity.tasksLastMinute} task${activity.tasksLastMinute === 1 ? "" : "s"} this minute`
-                        : `${activity.tasksLastHour} task${activity.tasksLastHour === 1 ? "" : "s"} in last hour`}
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            {activity &&
+              (activity.tasksLastMinute > 0 || activity.tasksLastHour > 0) &&
+              (() => {
+                const atLimit =
+                  activity.tasksLastMinute >= h.rateLimitPerMinute;
+                const highRate =
+                  !atLimit &&
+                  activity.tasksLastMinute > Math.floor(h.rateLimitPerMinute * 0.5);
+                return (
+                  <div
+                    className={[
+                      "flex items-center gap-1.5 text-xs mt-1 font-medium",
+                      atLimit
+                        ? "text-destructive"
+                        : highRate
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-muted-foreground font-normal",
+                    ].join(" ")}
+                  >
+                    {atLimit ? (
+                      <>
+                        <span className="relative flex h-2 w-2 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
+                        </span>
+                        Rate limit hit — {activity.tasksLastMinute}/
+                        {h.rateLimitPerMinute} tasks/min · possible loop
+                      </>
+                    ) : highRate ? (
+                      <>
+                        <Activity className="w-3 h-3 shrink-0" />
+                        High rate — {activity.tasksLastMinute} tasks/min
+                        {activity.tasksLastHour > activity.tasksLastMinute && (
+                          <span className="font-normal text-muted-foreground">
+                            · {activity.tasksLastHour} in last hr
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <Activity className="w-3 h-3 shrink-0" />
+                        {activity.tasksLastMinute > 0
+                          ? `${activity.tasksLastMinute} task${activity.tasksLastMinute === 1 ? "" : "s"} this minute`
+                          : `${activity.tasksLastHour} task${activity.tasksLastHour === 1 ? "" : "s"} in last hour`}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
-            {/* How-to toggle */}
             <button
               type="button"
               onClick={() => setDocsOpen((v) => !v)}
@@ -1187,7 +366,7 @@ function InboundHookCard({
             </button>
           </div>
 
-          {/* Actions */}
+          {/* Actions — owner only */}
           {h.isOwner && (
             <div className="flex items-center gap-1 shrink-0">
               <Switch
@@ -1267,91 +446,21 @@ function InboundHookCard({
           )}
         </div>
 
-        {/* Expandable docs */}
+        {/* Quick-reference docs */}
         {docsOpen && (
-          <div className="border border-border rounded-md bg-muted/30 p-3 space-y-3 text-xs">
-            {/* Payload fields */}
-            <div>
-              <p className="font-medium text-foreground mb-2">
-                Accepted payload fields
-              </p>
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="text-muted-foreground">
-                    <th className="pr-3 pb-1 font-medium w-24">Field</th>
-                    <th className="pr-3 pb-1 font-medium w-16">Type</th>
-                    <th className="pr-3 pb-1 font-medium w-16">Required</th>
-                    <th className="pb-1 font-medium">Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {PAYLOAD_FIELDS.map((f) => (
-                    <tr key={f.name} className="border-t border-border/50">
-                      <td className="pr-3 py-1 font-mono text-foreground">
-                        {f.name}
-                      </td>
-                      <td className="pr-3 py-1 text-muted-foreground">
-                        {f.type}
-                      </td>
-                      <td className="pr-3 py-1">
-                        {f.required ? (
-                          <span className="text-amber-600 font-medium">
-                            required
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">
-                            optional
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-1 text-muted-foreground leading-relaxed">
-                        {f.note}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-muted-foreground">
-                Any additional fields are ignored. No authentication header is
-                required - the URL itself is secret.
-              </p>
-            </div>
-
-            {/* Curl example */}
-            <div>
-              <p className="font-medium text-foreground mb-1.5">
-                Example request
-              </p>
-              <div className="relative">
-                <pre className="bg-muted rounded-md p-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed">
-                  {curlCmd}
-                </pre>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute top-1.5 right-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
-                  onClick={() => copyText(curlCmd, toast)}
-                  title="Copy curl command"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Response info */}
-            <div>
-              <p className="font-medium text-foreground mb-1">Response</p>
-              <p className="text-muted-foreground">
-                On success the endpoint returns{" "}
-                <span className="font-mono text-foreground">201</span> with{" "}
-                <span className="font-mono text-foreground">
-                  {"{ taskId, orgTaskNumber, title }"}
-                </span>
-                . An empty payload (
-                <span className="font-mono text-foreground">{"{}"}</span>) is
-                accepted and creates a task titled "Untitled Alert".
-              </p>
-            </div>
+          <div className="border border-border rounded-md bg-muted/30 p-3 space-y-2 text-xs">
+            <p className="text-muted-foreground">
+              POST JSON to the ingest URL. No authentication header required — the URL
+              itself is the secret.
+            </p>
+            <pre className="bg-muted rounded-md px-3 py-2 font-mono overflow-x-auto whitespace-pre leading-relaxed">
+              {`curl -X POST "${fullUrl}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"title":"CPU spike","priority":"high"}'`}
+            </pre>
+            <p className="text-muted-foreground">
+              Open the webhook to see the full payload reference and test your template.
+            </p>
           </div>
         )}
       </CardContent>
@@ -1359,22 +468,20 @@ function InboundHookCard({
   );
 }
 
-// ─── Inbound tab ─────────────────────────────────────────────────────────────
+// ─── Inbound tab ──────────────────────────────────────────────────────────────
 
 function InboundTab({
   projectOptions,
 }: {
   projectOptions: { id: number; name: string }[];
 }) {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListInboundWebhooks();
   const { data: outboundHooks = [] } = useListOutboundWebhooks();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<InboundWebhook | null>(null);
   const [search, setSearch] = useState("");
 
-  // Poll task-creation rates per hook every 30 s to catch live loops.
   const { data: activity = {} } = useQuery<Record<number, HookActivity>>({
     queryKey: ["webhooks/inbound/activity"],
     queryFn: async () => {
@@ -1387,7 +494,6 @@ function InboundTab({
     refetchInterval: 30_000,
   });
 
-  // Cross-reference: outbound hooks that fire on task.created while inbound hooks are active.
   const outboundRiskHooks = outboundHooks.filter(
     (oh) => oh.enabled && Array.isArray(oh.events) && oh.events.includes("task.created"),
   );
@@ -1396,8 +502,11 @@ function InboundTab({
   const filtered = search.trim()
     ? hooks.filter((h) => {
         const q = search.toLowerCase();
-        const projName = projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
-        return h.name.toLowerCase().includes(q) || projName.toLowerCase().includes(q);
+        const projName =
+          projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
+        return (
+          h.name.toLowerCase().includes(q) || projName.toLowerCase().includes(q)
+        );
       })
     : hooks;
 
@@ -1408,11 +517,7 @@ function InboundTab({
         toast({ title: "Webhook deleted" });
       },
       onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
+        toast({ title: "Error", description: e.message, variant: "destructive" }),
     },
   });
 
@@ -1428,17 +533,10 @@ function InboundTab({
       onSuccess: (data) => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
         copyText(buildFullIngestUrl(data.ingestUrl), toast);
-        toast({
-          title: "Secret rotated",
-          description: "New ingest URL copied to clipboard.",
-        });
+        toast({ title: "Secret rotated", description: "New ingest URL copied to clipboard." });
       },
       onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
+        toast({ title: "Error", description: e.message, variant: "destructive" }),
     },
   });
 
@@ -1451,34 +549,39 @@ function InboundTab({
         <Button
           size="sm"
           className="gap-2 shrink-0"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => setLocation("/webhooks/inbound/new")}
         >
           <Plus className="w-4 h-4" /> New webhook
         </Button>
       </div>
 
-      {/* Loop-risk banner: shown whenever enabled outbound webhooks subscribe to
-          task.created AND at least one inbound webhook is active.            */}
       {outboundRiskHooks.length > 0 && hasEnabledInbound && (
         <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium">Loop risk: outbound webhooks are subscribed to task.created</p>
+            <p className="font-medium">
+              Loop risk: outbound webhooks are subscribed to task.created
+            </p>
             <p>
-              When an inbound webhook creates a task, Opsly immediately fires a{" "}
-              <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">task.created</code> outbound
-              event. If the source system also receives your outbound events and POSTs back, a loop forms —
-              stopped only by each webhook's rate limit. Check whether{" "}
-              {outboundRiskHooks.length === 1
-                ? <span className="font-medium">{outboundRiskHooks[0]!.name}</span>
-                : outboundRiskHooks.map((oh, i) => (
-                    <span key={oh.id}>
-                      {i > 0 && (i === outboundRiskHooks.length - 1 ? " and " : ", ")}
-                      <span className="font-medium">{oh.name}</span>
-                    </span>
-                  ))
-              }{" "}
-              {outboundRiskHooks.length === 1 ? "points" : "point"} at the same system sending you data.
+              When an inbound webhook creates a task, Opsly fires a{" "}
+              <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
+                task.created
+              </code>{" "}
+              outbound event. If the source system also receives your outbound events
+              and POSTs back, a loop forms — stopped only by each webhook's rate limit.
+              Check whether{" "}
+              {outboundRiskHooks.length === 1 ? (
+                <span className="font-medium">{outboundRiskHooks[0]!.name}</span>
+              ) : (
+                outboundRiskHooks.map((oh, i) => (
+                  <span key={oh.id}>
+                    {i > 0 && (i === outboundRiskHooks.length - 1 ? " and " : ", ")}
+                    <span className="font-medium">{oh.name}</span>
+                  </span>
+                ))
+              )}{" "}
+              {outboundRiskHooks.length === 1 ? "points" : "point"} at the same system
+              sending you data.
             </p>
           </div>
         </div>
@@ -1488,13 +591,11 @@ function InboundTab({
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowDownLeft className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
-              No inbound webhooks yet.
-            </p>
+            <p className="text-sm text-muted-foreground">No inbound webhooks yet.</p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => setLocation("/webhooks/inbound/new")}
               className="gap-2"
             >
               <Plus className="w-4 h-4" /> Create your first
@@ -1514,7 +615,8 @@ function InboundTab({
           </div>
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No webhooks match <span className="font-medium">"{search}"</span>.
+              No webhooks match{" "}
+              <span className="font-medium">"{search}"</span>.
             </p>
           ) : (
             <div className="space-y-3">
@@ -1524,11 +626,9 @@ function InboundTab({
                   h={h}
                   proj={projectOptions.find((p) => p.id === h.projectId)}
                   activity={activity[h.id]}
-                  onEdit={() => setEditing(h)}
+                  onEdit={() => setLocation(`/webhooks/inbound/${h.id}`)}
                   onDelete={() => deleteHook({ id: h.id })}
-                  onToggle={(v) =>
-                    toggleEnabled({ id: h.id, data: { enabled: v } })
-                  }
+                  onToggle={(v) => toggleEnabled({ id: h.id, data: { enabled: v } })}
                   onRotate={() => rotate({ id: h.id })}
                 />
               ))}
@@ -1536,389 +636,7 @@ function InboundTab({
           )}
         </>
       )}
-
-      <InboundDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        projectOptions={projectOptions}
-      />
-      {editing && (
-        <InboundDialog
-          open={!!editing}
-          onClose={() => setEditing(null)}
-          existing={editing}
-          projectOptions={projectOptions}
-        />
-      )}
     </div>
-  );
-}
-
-// ─── Outbound Webhook Dialog ──────────────────────────────────────────────────
-
-interface OutboundDialogProps {
-  open: boolean;
-  onClose: () => void;
-  existing?: OutboundWebhook;
-  projectOptions: { id: number; name: string }[];
-}
-
-function OutboundDialog({
-  open,
-  onClose,
-  existing,
-  projectOptions,
-}: OutboundDialogProps) {
-  const { toast } = useToast();
-  const qc = useQueryClient();
-
-  const [name, setName] = useState(existing?.name ?? "");
-  const [url, setUrl] = useState(existing?.url ?? "");
-  const [projectId, setProjectId] = useState<number | null>(
-    existing?.projectId ?? null,
-  );
-  const [events, setEvents] = useState<EventValue[]>(
-    (existing?.events as EventValue[]) ?? [],
-  );
-  const [visibility, setVisibility] = useState<WebhookVisibility>(
-    existing?.visibility ?? "private",
-  );
-  const [enabled, setEnabled] = useState(existing?.enabled ?? true);
-
-  type OutboundTestState =
-    | { status: "idle" }
-    | { status: "loading" }
-    | { status: "success"; statusCode: number; durationMs: number }
-    | { status: "error"; durationMs: number; error: string; statusCode?: number };
-  const [testState, setTestState] = useState<OutboundTestState>({ status: "idle" });
-
-  function reset() {
-    setName(existing?.name ?? "");
-    setUrl(existing?.url ?? "");
-    setProjectId(existing?.projectId ?? null);
-    setEvents((existing?.events as EventValue[]) ?? []);
-    setVisibility(existing?.visibility ?? "private");
-    setEnabled(existing?.enabled ?? true);
-    setTestState({ status: "idle" });
-  }
-
-  async function handleTest() {
-    const trimmedUrl = url.trim();
-    if (!trimmedUrl) return;
-    setTestState({ status: "loading" });
-    try {
-      const res = await fetch(
-        `${import.meta.env.BASE_URL}api/webhooks/outbound/test`.replace(/\/\//g, "/"),
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmedUrl }),
-          credentials: "include",
-        },
-      );
-      const data = await res.json();
-      if (!res.ok) {
-        setTestState({ status: "error", durationMs: 0, error: data.error ?? "Request failed" });
-      } else if (data.success) {
-        setTestState({ status: "success", statusCode: data.statusCode, durationMs: data.durationMs });
-      } else {
-        setTestState({ status: "error", durationMs: data.durationMs ?? 0, error: data.error ?? `HTTP ${data.statusCode}`, statusCode: data.statusCode });
-      }
-    } catch (err) {
-      setTestState({ status: "error", durationMs: 0, error: err instanceof Error ? err.message : "Network error" });
-    }
-  }
-
-  function handleClose() {
-    reset();
-    onClose();
-  }
-
-  function toggleEvent(ev: EventValue) {
-    setEvents((prev) =>
-      prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev],
-    );
-  }
-
-  const { mutate: create, isPending: isCreating } = useCreateOutboundWebhook({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Outbound webhook created" });
-        handleClose();
-      },
-      onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
-    },
-  });
-
-  const { mutate: update, isPending: isUpdating } = useUpdateOutboundWebhook({
-    mutation: {
-      onSuccess: () => {
-        qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Webhook updated" });
-        handleClose();
-      },
-      onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
-    },
-  });
-
-  const isPending = isCreating || isUpdating;
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim() || !url.trim() || events.length === 0) return;
-    const data = {
-      name: name.trim(),
-      url: url.trim(),
-      projectId: projectId ?? undefined,
-      events,
-      visibility,
-      enabled,
-    };
-    if (existing) {
-      update({ id: existing.id, data: { ...data, projectId: projectId } });
-    } else {
-      create({ data });
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            {existing ? "Edit outbound webhook" : "New outbound webhook"}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-          <div className="space-y-1">
-            <Label>Name</Label>
-            <Input
-              placeholder="Slack notifications"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="space-y-1">
-            <Label>Target URL</Label>
-            <Input
-              placeholder="https://hooks.slack.com/services/..."
-              value={url}
-              onChange={(e) => { setUrl(e.target.value); setTestState({ status: "idle" }); }}
-              type="url"
-              required
-            />
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-muted-foreground">
-                Opsly signs each POST with <code>X-Opsly-Signature</code>{" "}
-                (HMAC-SHA256).
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs gap-1.5 shrink-0"
-                disabled={!url.trim() || testState.status === "loading"}
-                onClick={handleTest}
-              >
-                {testState.status === "loading" ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <ArrowUpRight className="w-3 h-3" />
-                )}
-                Send test request
-              </Button>
-            </div>
-            {testState.status === "success" && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {testState.statusCode} · {testState.durationMs}ms — endpoint reachable
-              </p>
-            )}
-            {testState.status === "error" && (
-              <p className="text-xs text-destructive flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5" />
-                {testState.statusCode ? `${testState.statusCode} · ` : ""}
-                {testState.error}
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>Project filter (optional)</Label>
-            <Select
-              value={projectId?.toString() ?? "__none__"}
-              onValueChange={(v) =>
-                setProjectId(v === "__none__" ? null : Number(v))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="All projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">All projects</SelectItem>
-                {projectOptions.map((p) => (
-                  <SelectItem key={p.id} value={p.id.toString()}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Events</Label>
-
-            {/* Event hierarchy guidance callout */}
-            <div className="flex gap-2.5 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-3 py-2.5 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
-              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-              <div className="space-y-1">
-                <p className="font-medium">One action can fire multiple events</p>
-                <p>
-                  Some events are sub-events of a broader parent. For example, changing
-                  a task's status fires both <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.updated</code> and{" "}
-                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.status_changed</code>. Similarly, note events
-                  also fire a parent event depending on what the note is attached to — a note on a task fires{" "}
-                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">task.updated</code>, and a note on a project fires{" "}
-                  <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">project.updated</code>. If you subscribe
-                  to both a parent and its sub-event, your endpoint will receive two requests for the same action.
-                  Select only the broadest event you need.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {ALL_EVENTS.map((ev) => {
-                const checked = events.includes(ev.value);
-                const isChild = ev.value in EVENT_PARENTS;
-                return (
-                  <label
-                    key={ev.value}
-                    className={[
-                      "flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors",
-                      checked
-                        ? "border-primary/60 bg-primary/5"
-                        : "border-border hover:bg-accent",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleEvent(ev.value)}
-                      className="accent-primary"
-                    />
-                    <span className="flex flex-col min-w-0">
-                      <span>{ev.label}</span>
-                      {isChild && (
-                        <span className="text-[10px] text-muted-foreground font-normal">
-                          also fires {EVENT_PARENTS[ev.value]!.join(" / ")}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-
-            {/* Dynamic overlap warning */}
-            {(() => {
-              const overlaps = getOverlappingPairs(events);
-              if (overlaps.length === 0) return null;
-              return (
-                <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="font-medium">Overlapping events selected</p>
-                    <ul className="list-disc list-inside space-y-0.5">
-                      {overlaps.map(([parent, child]) => (
-                        <li key={child}>
-                          <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{parent}</code>
-                          {" "}already includes{" "}
-                          <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">{child}</code>
-                          {" "}— your endpoint will receive two requests per action.
-                        </li>
-                      ))}
-                    </ul>
-                    <p>Consider removing the sub-event(s) to avoid double-processing.</p>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {events.length === 0 && (
-              <p className="text-xs text-destructive">
-                Select at least one event.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <Label>Visibility</Label>
-            <Select
-              value={visibility}
-              onValueChange={(v) => setVisibility(v as WebhookVisibility)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="private">Private (only me)</SelectItem>
-                <SelectItem value="public_read">
-                  Shared - org members can view
-                </SelectItem>
-                <SelectItem value="public_write">
-                  Public - org members can view &amp; use
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={enabled}
-              onCheckedChange={setEnabled}
-              id="out-enabled"
-            />
-            <Label htmlFor="out-enabled">Enabled</Label>
-          </div>
-
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClose}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={
-                isPending || !name.trim() || !url.trim() || events.length === 0
-              }
-            >
-              {isPending
-                ? "Saving…"
-                : existing
-                  ? "Save changes"
-                  : "Create webhook"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
@@ -1929,17 +647,17 @@ function OutboundTab({
 }: {
   projectOptions: { id: number; name: string }[];
 }) {
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListOutboundWebhooks();
-  const [createOpen, setCreateOpen] = useState(false);
-  const [editing, setEditing] = useState<OutboundWebhook | null>(null);
   const [search, setSearch] = useState("");
 
   const filtered = search.trim()
     ? hooks.filter((h) => {
         const q = search.toLowerCase();
-        const projName = projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
+        const projName =
+          projectOptions.find((p) => p.id === h.projectId)?.name ?? "";
         return (
           h.name.toLowerCase().includes(q) ||
           h.url.toLowerCase().includes(q) ||
@@ -1955,11 +673,7 @@ function OutboundTab({
         toast({ title: "Webhook deleted" });
       },
       onError: (e: Error) =>
-        toast({
-          title: "Error",
-          description: e.message,
-          variant: "destructive",
-        }),
+        toast({ title: "Error", description: e.message, variant: "destructive" }),
     },
   });
 
@@ -1980,7 +694,7 @@ function OutboundTab({
         <Button
           size="sm"
           className="gap-2 shrink-0"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => setLocation("/webhooks/outbound/new")}
         >
           <Plus className="w-4 h-4" /> New webhook
         </Button>
@@ -1990,13 +704,11 @@ function OutboundTab({
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowUpRight className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">
-              No outbound webhooks yet.
-            </p>
+            <p className="text-sm text-muted-foreground">No outbound webhooks yet.</p>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => setLocation("/webhooks/outbound/new")}
               className="gap-2"
             >
               <Plus className="w-4 h-4" /> Create your first
@@ -2016,160 +728,123 @@ function OutboundTab({
           </div>
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No webhooks match <span className="font-medium">"{search}"</span>.
+              No webhooks match{" "}
+              <span className="font-medium">"{search}"</span>.
             </p>
           ) : (
-          <div className="space-y-3">
-          {filtered.map((h) => {
-            const proj = projectOptions.find((p) => p.id === h.projectId);
-            return (
-              <Card key={h.id} className={h.enabled ? "" : "opacity-60"}>
-                <CardContent className="py-4 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm">{h.name}</span>
-                        <VisibilityBadge v={h.visibility} />
-                        {proj && (
-                          <Badge variant="secondary" className="text-xs">
-                            {proj.name}
-                          </Badge>
-                        )}
-                        {!proj && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs text-muted-foreground"
-                          >
-                            All projects
-                          </Badge>
-                        )}
-                        {!h.enabled && (
-                          <Badge
-                            variant="outline"
-                            className="text-xs text-muted-foreground"
-                          >
-                            Disabled
-                          </Badge>
-                        )}
-                      </div>
-                      {/* Target URL */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="text-xs text-muted-foreground truncate max-w-sm">
-                          {h.url}
-                        </code>
-                      </div>
-                      {/* Signing secret */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">
-                          Secret:
-                        </span>
-                        <code className="text-xs bg-muted px-2 py-0.5 rounded-md truncate max-w-[200px]">
-                          {h.secret}
-                        </code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
-                          onClick={() => copyText(h.secret, toast)}
-                          title="Copy signing secret"
-                        >
-                          <Copy className="w-3 h-3" />
-                        </Button>
-                      </div>
-                      {/* Events */}
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {(h.events as string[]).map((ev) => (
-                          <Badge key={ev} variant="outline" className="text-xs">
-                            {ev}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
+            <div className="space-y-3">
+              {filtered.map((h) => {
+                const proj = projectOptions.find((p) => p.id === h.projectId);
+                return (
+                  <Card key={h.id} className={h.enabled ? "" : "opacity-60"}>
+                    <CardContent className="py-4 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{h.name}</span>
+                            <VisibilityBadge v={h.visibility} />
+                            {proj ? (
+                              <Badge variant="secondary" className="text-xs">
+                                {proj.name}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-muted-foreground"
+                              >
+                                All projects
+                              </Badge>
+                            )}
+                            {!h.enabled && (
+                              <Badge
+                                variant="outline"
+                                className="text-xs text-muted-foreground"
+                              >
+                                Disabled
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <code className="text-xs text-muted-foreground truncate max-w-sm">
+                              {h.url}
+                            </code>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {(h.events as string[]).map((ev) => (
+                              <Badge key={ev} variant="outline" className="text-xs">
+                                {ev}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
 
-                    {/* Actions */}
-                    {h.isOwner && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Switch
-                          checked={h.enabled}
-                          onCheckedChange={(v) =>
-                            toggleEnabled({ id: h.id, data: { enabled: v } })
-                          }
-                          className="scale-75"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => setEditing(h)}
-                          title="Edit"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
+                        {/* Actions — owner only */}
+                        {h.isOwner && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Switch
+                              checked={h.enabled}
+                              onCheckedChange={(v) =>
+                                toggleEnabled({ id: h.id, data: { enabled: v } })
+                              }
+                              className="scale-75"
+                            />
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              title="Delete"
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              onClick={() => setLocation(`/webhooks/outbound/${h.id}`)}
+                              title="Edit"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Pencil className="w-4 h-4" />
                             </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Delete webhook?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Opsly will stop sending events to{" "}
-                                <strong>{h.url}</strong>.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => deleteHook({ id: h.id })}
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Opsly will stop sending events to{" "}
+                                    <strong>{h.url}</strong>.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => deleteHook({ id: h.id })}
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* Delivery log */}
-                  <DeliveryLog webhookId={h.id} />
-                </CardContent>
-              </Card>
-            );
-          })}
-          </div>
+                      <DeliveryLog webhookId={h.id} />
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           )}
         </>
-      )}
-
-      <OutboundDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        projectOptions={projectOptions}
-      />
-      {editing && (
-        <OutboundDialog
-          open={!!editing}
-          onClose={() => setEditing(null)}
-          existing={editing}
-          projectOptions={projectOptions}
-        />
       )}
     </div>
   );
 }
 
-// ─── Page ────────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function WebhooksPage() {
   const { data: projects = [] } = useListProjects();

@@ -20,6 +20,8 @@ import OrgOnboarding from '@/pages/org-onboarding';
 import OrgInvitation from '@/pages/org-invitation';
 import OrgSettings from '@/pages/org-settings';
 import WebhooksPage from '@/pages/webhooks';
+import WebhookInboundEditPage from '@/pages/webhook-inbound-edit';
+import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
 import type { PendingInvitation } from '@workspace/api-client-react';
 
@@ -67,6 +69,8 @@ function Router() {
         <Route path="/notes" component={NotesPage} />
         <Route path="/org/settings" component={OrgSettings} />
         <Route path="/webhooks" component={WebhooksPage} />
+        <Route path="/webhooks/inbound/:id" component={WebhookInboundEditPage} />
+        <Route path="/webhooks/outbound/:id" component={WebhookOutboundEditPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
