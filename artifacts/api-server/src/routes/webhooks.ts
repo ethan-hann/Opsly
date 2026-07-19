@@ -2,7 +2,10 @@
  * Webhook routes — inbound (ingest + CRUD) and outbound (CRUD).
  *
  * Public route:
- *   POST /webhooks/inbound/:token/ingest  — no auth required; validates HMAC signature
+ *   POST /webhooks/inbound/:token/ingest  — no session auth required; the token
+ *        in the URL acts as a bearer credential (64-char random hex).  External
+ *        systems (Datadog, PagerDuty, GitHub Actions, curl, …) POST any JSON
+ *        object and we create a task from it.
  *
  * Authenticated routes (requireOrg):
  *   GET|POST        /webhooks/inbound
@@ -38,18 +41,6 @@ function generateToken(): string {
   return crypto.randomBytes(32).toString("hex"); // 64 hex chars
 }
 
-function signBody(secret: string, body: string): string {
-  return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
-}
-
-function timingSafeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  try {
-    return crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
-  } catch {
-    return false;
-  }
-}
 
 /** Resolve a dot-notation path within an object. */
 function getPath(obj: unknown, path: string): unknown {
@@ -260,20 +251,6 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
 
   if (!hook.enabled) {
     res.status(403).json({ error: "Webhook is disabled" });
-    return;
-  }
-
-  // Validate HMAC signature
-  const sig = req.headers["x-opsly-signature"];
-  if (!sig || typeof sig !== "string") {
-    res.status(401).json({ error: "Missing X-Opsly-Signature header" });
-    return;
-  }
-
-  const rawBody = JSON.stringify(req.body);
-  const expected = signBody(token, rawBody);
-  if (!timingSafeEqual(sig, expected)) {
-    res.status(401).json({ error: "Invalid signature" });
     return;
   }
 

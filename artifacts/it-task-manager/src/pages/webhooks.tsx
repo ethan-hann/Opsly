@@ -67,6 +67,7 @@ import {
   Globe,
   Lock,
   Eye,
+  Terminal,
 } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -393,6 +394,236 @@ function InboundDialog({ open, onClose, existing, projectOptions }: InboundDialo
   );
 }
 
+// ─── Payload field reference ──────────────────────────────────────────────────
+
+const PAYLOAD_FIELDS = [
+  { name: "title",       type: "string",  required: true,  note: 'Task title. Falls back to the webhook\'s "Default title" or "Untitled Alert".' },
+  { name: "description", type: "string",  required: false, note: "Task description." },
+  { name: "priority",    type: "string",  required: false, note: "low · medium · high · critical. Defaults to medium (or template default)." },
+  { name: "category",    type: "string",  required: false, note: "incident · change · maintenance · deployment · support · other. Defaults to incident." },
+  { name: "dueDate",     type: "string",  required: false, note: "Due date in YYYY-MM-DD format." },
+] as const;
+
+function buildCurlCommand(fullUrl: string): string {
+  return (
+    `curl -X POST "${fullUrl}" \\\n` +
+    `  -H "Content-Type: application/json" \\\n` +
+    `  -d '{"title":"CPU spike on prod","priority":"high","category":"incident"}'`
+  );
+}
+
+interface InboundHookCardProps {
+  h: InboundWebhook;
+  proj: { id: number; name: string } | undefined;
+  onEdit: () => void;
+  onDelete: () => void;
+  onToggle: (enabled: boolean) => void;
+  onRotate: () => void;
+}
+
+function InboundHookCard({ h, proj, onEdit, onDelete, onToggle, onRotate }: InboundHookCardProps) {
+  const { toast } = useToast();
+  const [docsOpen, setDocsOpen] = useState(false);
+  const fullUrl = buildFullIngestUrl(h.ingestUrl);
+  const curlCmd = buildCurlCommand(fullUrl);
+
+  return (
+    <Card className={h.enabled ? "" : "opacity-60"}>
+      <CardContent className="py-4 space-y-3">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-sm">{h.name}</span>
+              <VisibilityBadge v={h.visibility} />
+              {proj && <Badge variant="secondary" className="text-xs">{proj.name}</Badge>}
+              {!h.enabled && <Badge variant="outline" className="text-xs text-muted-foreground">Disabled</Badge>}
+            </div>
+
+            {/* Ingest URL */}
+            <div className="flex items-center gap-2 mt-2">
+              <code className="text-xs bg-muted px-2 py-1 rounded-md truncate max-w-sm">{fullUrl}</code>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+                onClick={() => copyText(fullUrl, toast)}
+                title="Copy ingest URL"
+              >
+                <Copy className="w-3.5 h-3.5" />
+              </Button>
+            </div>
+
+            {/* Template summary */}
+            {(h.taskTemplate?.defaultPriority || h.taskTemplate?.defaultCategory || h.taskTemplate?.titleField) && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Template: {[
+                  h.taskTemplate.titleField && `title from "${h.taskTemplate.titleField}"`,
+                  h.taskTemplate.defaultPriority && `${h.taskTemplate.defaultPriority} priority`,
+                  h.taskTemplate.defaultCategory && `${h.taskTemplate.defaultCategory} category`,
+                ].filter(Boolean).join(" · ")}
+              </p>
+            )}
+
+            {/* How-to toggle */}
+            <button
+              type="button"
+              onClick={() => setDocsOpen((v) => !v)}
+              className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Terminal className="w-3.5 h-3.5" />
+              How to send data
+              {docsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
+          </div>
+
+          {/* Actions */}
+          {h.isOwner && (
+            <div className="flex items-center gap-1 shrink-0">
+              <Switch
+                checked={h.enabled}
+                onCheckedChange={onToggle}
+                className="scale-75"
+                title={h.enabled ? "Disable webhook" : "Enable webhook"}
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-amber-600"
+                    title="Rotate secret (generates a new URL)"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The current ingest URL will stop working immediately. Any external system using it
+                      must be updated to the new URL. The new URL is automatically copied to your clipboard.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={onRotate}>Rotate &amp; copy</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                onClick={onEdit}
+                title="Edit"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    title="Delete"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      The ingest URL will stop working. Tasks already created by this webhook are kept.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={onDelete}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
+        </div>
+
+        {/* Expandable docs */}
+        {docsOpen && (
+          <div className="border border-border rounded-md bg-muted/30 p-3 space-y-3 text-xs">
+            {/* Payload fields */}
+            <div>
+              <p className="font-medium text-foreground mb-2">Accepted payload fields</p>
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="text-muted-foreground">
+                    <th className="pr-3 pb-1 font-medium w-24">Field</th>
+                    <th className="pr-3 pb-1 font-medium w-16">Type</th>
+                    <th className="pr-3 pb-1 font-medium w-16">Required</th>
+                    <th className="pb-1 font-medium">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {PAYLOAD_FIELDS.map((f) => (
+                    <tr key={f.name} className="border-t border-border/50">
+                      <td className="pr-3 py-1 font-mono text-foreground">{f.name}</td>
+                      <td className="pr-3 py-1 text-muted-foreground">{f.type}</td>
+                      <td className="pr-3 py-1">
+                        {f.required
+                          ? <span className="text-amber-600 font-medium">required</span>
+                          : <span className="text-muted-foreground">optional</span>}
+                      </td>
+                      <td className="py-1 text-muted-foreground leading-relaxed">{f.note}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-muted-foreground">
+                Any additional fields are ignored. No authentication header is required — the URL itself is secret.
+              </p>
+            </div>
+
+            {/* Curl example */}
+            <div>
+              <p className="font-medium text-foreground mb-1.5">Example request</p>
+              <div className="relative">
+                <pre className="bg-muted rounded-md p-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed">
+                  {curlCmd}
+                </pre>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-1.5 right-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => copyText(curlCmd, toast)}
+                  title="Copy curl command"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Response info */}
+            <div>
+              <p className="font-medium text-foreground mb-1">Response</p>
+              <p className="text-muted-foreground">
+                On success the endpoint returns <span className="font-mono text-foreground">201</span> with{" "}
+                <span className="font-mono text-foreground">{"{ taskId, orgTaskNumber, title }"}</span>.
+                An empty payload (<span className="font-mono text-foreground">{"{}"}</span>) is accepted and
+                creates a task titled "Untitled Alert".
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Inbound tab ─────────────────────────────────────────────────────────────
 
 function InboundTab({ projectOptions }: { projectOptions: { id: number; name: string }[] }) {
@@ -433,7 +664,7 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          External systems POST to an ingest URL; Opsly validates the signature and creates a task.
+          POST any JSON to an ingest URL and Opsly creates a task automatically. No signature required — the URL is the secret.
         </p>
         <Button size="sm" className="gap-2 shrink-0" onClick={() => setCreateOpen(true)}>
           <Plus className="w-4 h-4" /> New webhook
@@ -452,124 +683,17 @@ function InboundTab({ projectOptions }: { projectOptions: { id: number; name: st
         </Card>
       ) : (
         <div className="space-y-3">
-          {hooks.map((h) => {
-            const proj = projectOptions.find((p) => p.id === h.projectId);
-            const fullUrl = buildFullIngestUrl(h.ingestUrl);
-            return (
-              <Card key={h.id} className={h.enabled ? "" : "opacity-60"}>
-                <CardContent className="py-4 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm">{h.name}</span>
-                        <VisibilityBadge v={h.visibility} />
-                        {proj && <Badge variant="secondary" className="text-xs">{proj.name}</Badge>}
-                        {!h.enabled && <Badge variant="outline" className="text-xs text-muted-foreground">Disabled</Badge>}
-                      </div>
-                      {/* Ingest URL */}
-                      <div className="flex items-center gap-2 mt-2">
-                        <code className="text-xs bg-muted px-2 py-1 rounded-md truncate max-w-sm">{fullUrl}</code>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
-                          onClick={() => copyText(fullUrl, toast)}
-                          title="Copy ingest URL"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                      {/* Template summary */}
-                      {(h.taskTemplate?.defaultPriority || h.taskTemplate?.defaultCategory || h.taskTemplate?.titleField) && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Template: {[
-                            h.taskTemplate.titleField && `title from "${h.taskTemplate.titleField}"`,
-                            h.taskTemplate.defaultPriority && `${h.taskTemplate.defaultPriority} priority`,
-                            h.taskTemplate.defaultCategory && `${h.taskTemplate.defaultCategory} category`,
-                          ].filter(Boolean).join(" · ")}
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    {h.isOwner && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Switch
-                          checked={h.enabled}
-                          onCheckedChange={(v) => toggleEnabled({ id: h.id, data: { enabled: v } })}
-                          className="scale-75"
-                          title={h.enabled ? "Disable webhook" : "Enable webhook"}
-                        />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-amber-600"
-                              title="Rotate secret (invalidates current URL)"
-                            >
-                              <RefreshCw className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                The current ingest URL will stop working immediately. Any external system using it
-                                must be updated to the new URL. The new URL is automatically copied to your clipboard.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => rotate({ id: h.id })}>Rotate &amp; copy</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          onClick={() => setEditing(h)}
-                          title="Edit"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                The ingest URL will stop working. Tasks already created by this webhook are kept.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                onClick={() => deleteHook({ id: h.id })}
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {hooks.map((h) => (
+            <InboundHookCard
+              key={h.id}
+              h={h}
+              proj={projectOptions.find((p) => p.id === h.projectId)}
+              onEdit={() => setEditing(h)}
+              onDelete={() => deleteHook({ id: h.id })}
+              onToggle={(v) => toggleEnabled({ id: h.id, data: { enabled: v } })}
+              onRotate={() => rotate({ id: h.id })}
+            />
+          ))}
         </div>
       )}
 

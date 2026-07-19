@@ -5,7 +5,8 @@
  * so these tests run without a live database, auth session, or external HTTP calls.
  *
  * Covered:
- *  - POST /webhooks/inbound/:token/ingest  — public ingest (HMAC, disabled, unknown, template mapping)
+ *  - POST /webhooks/inbound/:token/ingest  — public ingest (no auth header needed; token in URL
+ *       acts as bearer); disabled webhook, unknown token, template mapping, empty payload
  *  - GET|POST /webhooks/inbound            — list, create, auth
  *  - GET|PATCH|DELETE /webhooks/inbound/:id — get, update, delete (creator-only enforcement)
  *  - POST /webhooks/inbound/:id/rotate-secret — token rotation
@@ -16,7 +17,6 @@
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import express from "express";
-import crypto from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Shared mock state
@@ -128,10 +128,6 @@ import webhooksRouter from "./webhooks.js";
 const TEST_TOKEN = "a".repeat(64); // 64 hex chars
 const OTHER_TOKEN = "b".repeat(64);
 
-function sign(secret: string, body: string): string {
-  return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
-}
-
 function makeHook(overrides: Record<string, unknown> = {}) {
   return {
     id: 1,
@@ -191,7 +187,7 @@ beforeEach(() => {
 // ============================================================
 
 describe("POST /webhooks/inbound/:token/ingest", () => {
-  it("creates a task with a valid signature", async () => {
+  it("creates a task from a plain POST — no signature header needed", async () => {
     const hook = makeHook();
     const task = {
       id: 42, orgId: "test-org", orgTaskNumber: 7,
@@ -204,52 +200,46 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([hook]);            // hook lookup by token
     // no projectId → skip project validation
     mockState.selectQueue.push([{ nextNum: 7 }]); // orgTaskNumber computation
-    mockState.insertResult = [task];              // task insert
-
-    const body = { title: "CPU spike", priority: "high" };
-    const raw = JSON.stringify(body);
+    mockState.insertResult = [task];
 
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", sign(TEST_TOKEN, raw))
       .set("Content-Type", "application/json")
-      .send(body);
+      .send({ title: "CPU spike", priority: "high" });
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ taskId: 42, orgTaskNumber: 7, title: "CPU spike" });
   });
 
-  it("rejects a missing signature with 401", async () => {
-    mockState.selectQueue.push([makeHook()]);
+  it("accepts an empty payload and creates a task titled 'Untitled Alert'", async () => {
+    const hook = makeHook();
+    const task = {
+      id: 43, orgId: "test-org", orgTaskNumber: 1,
+      title: "Untitled Alert", priority: "medium", category: "incident",
+      status: "todo", projectId: null, description: null,
+      assignee: null, dueDate: null, sourceWebhookId: 1,
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.insertResult = [task];
 
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .send({ title: "Test" });
+      .set("Content-Type", "application/json")
+      .send({});
 
-    expect(res.status).toBe(401);
-  });
-
-  it("rejects a bad signature with 401", async () => {
-    mockState.selectQueue.push([makeHook()]);
-
-    const res = await request(buildApp())
-      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", "sha256=deadbeef")
-      .send({ title: "Test" });
-
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ title: "Untitled Alert" });
   });
 
   it("returns 404 for an unknown token", async () => {
     mockState.selectQueue.push([]); // no hook found
 
-    const body = { title: "x" };
-    const raw = JSON.stringify(body);
-
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${OTHER_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", sign(OTHER_TOKEN, raw))
-      .send(body);
+      .send({ title: "x" });
 
     expect(res.status).toBe(404);
   });
@@ -257,13 +247,9 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
   it("returns 403 for a disabled webhook", async () => {
     mockState.selectQueue.push([makeHook({ enabled: false })]);
 
-    const body = { title: "x" };
-    const raw = JSON.stringify(body);
-
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", sign(TEST_TOKEN, raw))
-      .send(body);
+      .send({ title: "x" });
 
     expect(res.status).toBe(403);
   });
@@ -288,13 +274,9 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
-    const body = { alertname: "DiskFull", labels: { severity: "low" } };
-    const raw = JSON.stringify(body);
-
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", sign(TEST_TOKEN, raw))
-      .send(body);
+      .send({ alertname: "DiskFull", labels: { severity: "low" } });
 
     expect(res.status).toBe(201);
     expect(res.body.title).toBe("DiskFull");
@@ -316,13 +298,9 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ nextNum: 2 }]);
     mockState.insertResult = [task];
 
-    const body = { other: "field" }; // no alertname
-    const raw = JSON.stringify(body);
-
     const res = await request(buildApp())
       .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
-      .set("X-Opsly-Signature", sign(TEST_TOKEN, raw))
-      .send(body);
+      .send({ other: "field" }); // no alertname
 
     expect(res.status).toBe(201);
     expect(res.body.title).toBe("Unknown Alert");
