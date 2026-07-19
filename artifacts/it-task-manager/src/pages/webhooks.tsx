@@ -517,7 +517,7 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
                       </SelectTrigger>
                       <SelectContent>
                         {MAPPING_TARGET_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value}>
+                          <SelectItem key={o.value} value={o.value} textValue={o.label}>
                             <span className="flex flex-col">
                               <span>{o.label}</span>
                               <span className="text-[10px] text-muted-foreground">{o.hint}</span>
