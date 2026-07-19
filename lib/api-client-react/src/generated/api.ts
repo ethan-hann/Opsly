@@ -49,6 +49,7 @@ import type {
   OrgMemberInfo,
   Organization,
   OutboundWebhook,
+  OutboundWebhookDelivery,
   OutboundWebhookInput,
   OutboundWebhookUpdate,
   Project,
@@ -3857,6 +3858,83 @@ export const useCreateOutboundWebhook = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getCreateOutboundWebhookMutationOptions(options));
     }
+
+export const getListOutboundWebhookDeliveriesUrl = (id: number,) => {
+
+
+
+
+  return `/api/webhooks/outbound/${id}/deliveries`
+}
+
+/**
+ * @summary List the 25 most recent deliveries for an outbound webhook
+ */
+export const listOutboundWebhookDeliveries = async (id: number, options?: RequestInit): Promise<OutboundWebhookDelivery[]> => {
+
+  return customFetch<OutboundWebhookDelivery[]>(getListOutboundWebhookDeliveriesUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOutboundWebhookDeliveriesQueryKey = (id: number,) => {
+    return [
+    `/api/webhooks/outbound/${id}/deliveries`
+    ] as const;
+    }
+
+
+export const getListOutboundWebhookDeliveriesQueryOptions = <TData = Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOutboundWebhookDeliveriesQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>> = ({ signal }) => listOutboundWebhookDeliveries(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOutboundWebhookDeliveriesQueryResult = NonNullable<Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>>
+export type ListOutboundWebhookDeliveriesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List the 25 most recent deliveries for an outbound webhook
+ */
+
+export function useListOutboundWebhookDeliveries<TData = Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOutboundWebhookDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOutboundWebhookDeliveriesQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetOutboundWebhookUrl = (id: number,) => {
 

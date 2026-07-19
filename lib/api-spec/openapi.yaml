@@ -1297,6 +1297,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/OutboundWebhook'
 
+  /webhooks/outbound/{id}/deliveries:
+    get:
+      tags: [webhooks]
+      operationId: listOutboundWebhookDeliveries
+      summary: List the 25 most recent deliveries for an outbound webhook
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Recent delivery attempts, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutboundWebhookDelivery'
+        '404':
+          description: Webhook not found.
+
   /webhooks/outbound/{id}:
     get:
       tags: [webhooks]
@@ -2304,6 +2327,34 @@ components:
         createdAt:
           type: string
         updatedAt:
+          type: string
+
+    OutboundWebhookDelivery:
+      description: A single delivery attempt made by an outbound webhook.
+      type: object
+      required: [id, webhookId, event, url, success, durationMs, createdAt]
+      properties:
+        id:
+          type: integer
+        webhookId:
+          type: integer
+        event:
+          type: string
+        url:
+          type: string
+        statusCode:
+          type: ["integer", "null"]
+          description: HTTP status code from the external server, null on network error.
+        success:
+          type: boolean
+          description: True when the external server returned a 2xx status.
+        durationMs:
+          type: integer
+          description: Round-trip time in milliseconds.
+        error:
+          type: ["string", "null"]
+          description: Network-level error message when the request could not be sent.
+        createdAt:
           type: string
 
     OutboundWebhookInput:

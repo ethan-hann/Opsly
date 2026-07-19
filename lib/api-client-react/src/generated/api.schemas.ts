@@ -1045,6 +1045,31 @@ export interface OutboundWebhook {
   updatedAt: string;
 }
 
+/**
+ * A single delivery attempt made by an outbound webhook.
+ */
+export interface OutboundWebhookDelivery {
+  id: number;
+  webhookId: number;
+  event: string;
+  url: string;
+  /**
+     * HTTP status code from the external server, null on network error.
+     * @nullable
+     */
+  statusCode?: number | null;
+  /** True when the external server returned a 2xx status. */
+  success: boolean;
+  /** Round-trip time in milliseconds. */
+  durationMs: number;
+  /**
+     * Network-level error message when the request could not be sent.
+     * @nullable
+     */
+  error?: string | null;
+  createdAt: string;
+}
+
 export type OutboundWebhookInputEventsItem = typeof OutboundWebhookInputEventsItem[keyof typeof OutboundWebhookInputEventsItem];
 
 

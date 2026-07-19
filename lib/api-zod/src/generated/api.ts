@@ -1139,6 +1139,27 @@ export const CreateOutboundWebhookResponse = zod.object({
 
 
 /**
+ * @summary List the 25 most recent deliveries for an outbound webhook
+ */
+export const ListOutboundWebhookDeliveriesParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOutboundWebhookDeliveriesResponseItem = zod.object({
+  "id": zod.number(),
+  "webhookId": zod.number(),
+  "event": zod.string(),
+  "url": zod.string(),
+  "statusCode": zod.number().nullish().describe('HTTP status code from the external server, null on network error.'),
+  "success": zod.boolean().describe('True when the external server returned a 2xx status.'),
+  "durationMs": zod.number().describe('Round-trip time in milliseconds.'),
+  "error": zod.string().nullish().describe('Network-level error message when the request could not be sent.'),
+  "createdAt": zod.string()
+}).describe('A single delivery attempt made by an outbound webhook.')
+export const ListOutboundWebhookDeliveriesResponse = zod.array(ListOutboundWebhookDeliveriesResponseItem)
+
+
+/**
  * @summary Get an outbound webhook by ID
  */
 export const GetOutboundWebhookParams = zod.object({

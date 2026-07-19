@@ -18,11 +18,12 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod/v4";
-import { eq, and, or, ne } from "drizzle-orm";
+import { eq, and, or, ne, desc } from "drizzle-orm";
 import {
   db,
   inboundWebhooksTable,
   outboundWebhooksTable,
+  outboundWebhookDeliveriesTable,
   tasksTable,
   projectsTable,
 } from "@workspace/db";
@@ -590,6 +591,39 @@ router.post("/webhooks/outbound", requireOrg, async (req, res): Promise<void> =>
     .returning();
 
   res.status(201).json(serializeOutbound(hook, userId));
+});
+
+// GET /webhooks/outbound/:id/deliveries — list recent deliveries
+router.get("/webhooks/outbound/:id/deliveries", requireOrg, async (req, res): Promise<void> => {
+  const id = Number(req.params["id"]);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const orgId = req.orgId!;
+  const userId = req.user!.id;
+
+  // Verify the webhook belongs to this org and is visible to the caller
+  const [hook] = await db
+    .select({ id: outboundWebhooksTable.id })
+    .from(outboundWebhooksTable)
+    .where(
+      and(
+        eq(outboundWebhooksTable.id, id),
+        eq(outboundWebhooksTable.orgId, orgId),
+        outboundVisibilityFilter(userId),
+      ),
+    )
+    .limit(1);
+
+  if (!hook) { res.status(404).json({ error: "Webhook not found" }); return; }
+
+  const deliveries = await db
+    .select()
+    .from(outboundWebhookDeliveriesTable)
+    .where(eq(outboundWebhookDeliveriesTable.webhookId, id))
+    .orderBy(desc(outboundWebhookDeliveriesTable.createdAt))
+    .limit(25);
+
+  res.json(deliveries);
 });
 
 // GET /webhooks/outbound/:id — get

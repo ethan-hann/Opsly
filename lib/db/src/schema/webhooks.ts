@@ -155,3 +155,31 @@ export const insertOutboundWebhookSchema = createInsertSchema(
 
 export type InsertOutboundWebhook = z.infer<typeof insertOutboundWebhookSchema>;
 export type OutboundWebhook = typeof outboundWebhooksTable.$inferSelect;
+
+// ---------------------------------------------------------------------------
+// Outbound webhook delivery log
+// ---------------------------------------------------------------------------
+
+export const outboundWebhookDeliveriesTable = pgTable(
+  "outbound_webhook_deliveries",
+  {
+    id: serial("id").primaryKey(),
+    webhookId: integer("webhook_id")
+      .references(() => outboundWebhooksTable.id, { onDelete: "cascade" })
+      .notNull(),
+    event: text("event").notNull(),
+    url: text("url").notNull(),
+    /** HTTP status code returned by the external server, null on network error. */
+    statusCode: integer("status_code"),
+    success: boolean("success").notNull(),
+    durationMs: integer("duration_ms").notNull(),
+    /** Network-level error message when the request could not be sent. */
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+);
+
+export type OutboundWebhookDelivery =
+  typeof outboundWebhookDeliveriesTable.$inferSelect;

@@ -10,12 +10,14 @@ import {
   useCreateOutboundWebhook,
   useUpdateOutboundWebhook,
   useDeleteOutboundWebhook,
+  useListOutboundWebhookDeliveries,
   getListInboundWebhooksQueryKey,
   getListOutboundWebhooksQueryKey,
 } from "@workspace/api-client-react";
 import type {
   InboundWebhook,
   OutboundWebhook,
+  OutboundWebhookDelivery,
   WebhookTaskTemplate,
   WebhookVisibility,
 } from "@workspace/api-client-react";
@@ -74,6 +76,10 @@ import {
   Lock,
   Eye,
   Terminal,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Activity,
 } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -117,6 +123,121 @@ function VisibilityBadge({ v }: { v: WebhookVisibility }) {
     <Badge variant="outline" className="text-xs gap-1">
       {label}
     </Badge>
+  );
+}
+
+// ─── Delivery Log ───────────────────────────────────────────────────────────
+
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatTimeAgoShort(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60_000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <div className="text-xs border-b border-border/30 last:border-0">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full flex items-center gap-2 py-2 px-3 hover:bg-muted/40 transition-colors text-left"
+      >
+        {d.success ? (
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+        ) : (
+          <XCircle className="w-3.5 h-3.5 text-destructive shrink-0" />
+        )}
+        <span className="font-mono text-muted-foreground w-8 shrink-0">
+          {d.statusCode ?? "err"}
+        </span>
+        <span className="text-foreground/80 flex-1 truncate">{d.event}</span>
+        <span className="flex items-center gap-1 text-muted-foreground shrink-0">
+          <Clock className="w-3 h-3" />
+          {formatDuration(d.durationMs)}
+        </span>
+        <span className="text-muted-foreground shrink-0 w-16 text-right">
+          {formatTimeAgoShort(d.createdAt)}
+        </span>
+        {expanded ? (
+          <ChevronUp className="w-3 h-3 text-muted-foreground shrink-0" />
+        ) : (
+          <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+        )}
+      </button>
+      {expanded && (
+        <div className="px-3 pb-2 space-y-1 text-muted-foreground bg-muted/20">
+          <div className="flex gap-2">
+            <span className="font-medium text-foreground/60 w-16 shrink-0">URL</span>
+            <code className="truncate">{d.url}</code>
+          </div>
+          {d.error && (
+            <div className="flex gap-2">
+              <span className="font-medium text-foreground/60 w-16 shrink-0">Error</span>
+              <span className="text-destructive break-all">{d.error}</span>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <span className="font-medium text-foreground/60 w-16 shrink-0">Status</span>
+            <span>{d.success ? "Success" : "Failed"} · {formatDuration(d.durationMs)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliveryLogContent({ webhookId }: { webhookId: number }) {
+  const { data: deliveries, isFetching } = useListOutboundWebhookDeliveries(webhookId);
+
+  return (
+    <div className="mt-2 rounded-md border border-border/50 overflow-hidden bg-card">
+      {isFetching && !deliveries ? (
+        <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+      ) : !deliveries || deliveries.length === 0 ? (
+        <p className="text-xs text-muted-foreground text-center py-4">
+          No deliveries recorded yet. They appear here after the next matching event fires.
+        </p>
+      ) : (
+        <div>
+          {deliveries.map((d) => (
+            <DeliveryRow key={d.id} d={d} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliveryLog({ webhookId }: { webhookId: number }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="border-t border-border/40 mt-3 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+      >
+        <Activity className="w-3.5 h-3.5" />
+        <span className="font-medium">Recent deliveries</span>
+        <span className="ml-auto">
+          {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        </span>
+      </button>
+
+      {open && <DeliveryLogContent webhookId={webhookId} />}
+    </div>
   );
 }
 
@@ -1500,6 +1621,9 @@ function OutboundTab({
                       </div>
                     )}
                   </div>
+
+                  {/* Delivery log */}
+                  <DeliveryLog webhookId={h.id} />
                 </CardContent>
               </Card>
             );

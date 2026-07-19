@@ -8,7 +8,7 @@
  */
 
 import crypto from "node:crypto";
-import { db, outboundWebhooksTable } from "@workspace/db";
+import { db, outboundWebhooksTable, outboundWebhookDeliveriesTable } from "@workspace/db";
 import type { OutboundWebhookEvent } from "@workspace/db";
 import { eq, and, or, isNull } from "drizzle-orm";
 import { logger } from "./logger";
@@ -21,7 +21,13 @@ function sign(secret: string, body: string): string {
   return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
-async function postWithRetry(url: string, body: string, sig: string): Promise<void> {
+async function postWithRetry(
+  webhookId: number,
+  event: string,
+  url: string,
+  body: string,
+  sig: string,
+): Promise<void> {
   const headers = {
     "Content-Type": "application/json",
     "X-Opsly-Signature": sig,
@@ -29,18 +35,33 @@ async function postWithRetry(url: string, body: string, sig: string): Promise<vo
   };
 
   for (let attempt = 0; attempt < 2; attempt++) {
+    const start = Date.now();
     try {
       const res = await fetch(url, { method: "POST", headers, body });
-      if (!res.ok) {
+      const durationMs = Date.now() - start;
+      const success = res.ok;
+      if (!success) {
         logger.warn({ url, status: res.status, attempt }, "Outbound webhook non-2xx response");
       }
-      return; // success (even non-2xx counts as delivered)
+      // Record delivery (fire-and-forget — don't let a DB error affect the caller)
+      db.insert(outboundWebhookDeliveriesTable)
+        .values({ webhookId, event, url, statusCode: res.status, success, durationMs })
+        .execute()
+        .catch((e) => logger.error({ e }, "Failed to record webhook delivery"));
+      return; // delivered (even non-2xx counts as a completed attempt)
     } catch (err) {
+      const durationMs = Date.now() - start;
+      const errMsg = err instanceof Error ? err.message : String(err);
       if (attempt === 0) {
         logger.warn({ url, err }, "Outbound webhook delivery failed, retrying");
         await new Promise((r) => setTimeout(r, 500));
       } else {
         logger.error({ url, err }, "Outbound webhook delivery failed after retry");
+        // Record the final failed attempt
+        db.insert(outboundWebhookDeliveriesTable)
+          .values({ webhookId, event, url, statusCode: null, success: false, durationMs, error: errMsg })
+          .execute()
+          .catch((e) => logger.error({ e }, "Failed to record webhook delivery"));
       }
     }
   }
@@ -81,7 +102,7 @@ async function dispatch(
     const body = JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload });
 
     await Promise.all(
-      matching.map((h) => postWithRetry(h.url, body, sign(h.secret, body))),
+      matching.map((h) => postWithRetry(h.id, event, h.url, body, sign(h.secret, body))),
     );
   } catch (err) {
     logger.error({ err, orgId, event }, "Outbound webhook dispatch error");

@@ -43,6 +43,7 @@ export * from './orgMemberInfoRole';
 export * from './orgMeResponse';
 export * from './orgMeResponseRole';
 export * from './outboundWebhook';
+export * from './outboundWebhookDelivery';
 export * from './outboundWebhookEventsItem';
 export * from './outboundWebhookInput';
 export * from './outboundWebhookInputEventsItem';
