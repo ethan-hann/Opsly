@@ -137,8 +137,17 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
 
   // Include orgId in the DELETE predicate so that a racing concurrent request
   // from another org cannot delete this comment between our SELECT and DELETE.
-  await db.delete(commentsTable)
-    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)));
+  // Use RETURNING to detect a same-org race: if the comment was deleted by a
+  // concurrent request between our SELECT and DELETE, no row is returned and
+  // we respond 404 instead of silently returning 204.
+  const [deleted] = await db.delete(commentsTable)
+    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
+    .returning({ id: commentsTable.id });
+
+  if (!deleted) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
   res.sendStatus(204);
 });
 

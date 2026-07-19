@@ -21,6 +21,7 @@ import express from "express";
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertResult: [] as any[],
+  deleteResult: [] as any[],
   currentUserId: "user-1",
   manageOrgSettings: false,
 }));
@@ -55,7 +56,9 @@ vi.mock("@workspace/db", () => {
         }),
       }),
       delete: () => ({
-        where: () => Promise.resolve(),
+        where: () => ({
+          returning: () => Promise.resolve(mockState.deleteResult),
+        }),
       }),
     },
     commentsTable: {},
@@ -226,6 +229,7 @@ describe("DELETE /api/comments/:id", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
+    mockState.deleteResult = [{ id: 1 }]; // default: deletion succeeds
     mockState.currentUserId = "user-1";
     mockState.manageOrgSettings = false;
   });
@@ -294,6 +298,17 @@ describe("DELETE /api/comments/:id", () => {
     const res = await request(buildApp()).delete("/api/comments/1");
 
     expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the comment was deleted by a concurrent request between SELECT and DELETE", async () => {
+    // SELECT finds the comment (author matches), but the DELETE RETURNING comes back empty —
+    // simulating a same-org race where another request deleted the row first.
+    mockState.selectQueue.push([MOCK_COMMENT]); // SELECT succeeds: author owns comment
+    mockState.deleteResult = [];                 // DELETE RETURNING: no row deleted
+
+    const res = await request(buildApp()).delete("/api/comments/1");
+
+    expect(res.status).toBe(404);
   });
 
   it("returns 400 for a non-integer comment id", async () => {

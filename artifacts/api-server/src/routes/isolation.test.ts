@@ -626,9 +626,10 @@ describe("Comment isolation — DELETE /api/comments/:id", () => {
   });
 
   it("returns 204 when deleting an org-a comment (direct org check)", async () => {
-    // Step 1: comment found with orgId = 'org-a'
-    mockState.selectQueue.push([{ ...ORG_B_COMMENT, id: 1, orgId: "org-a" }]);
-    // delete runs with no returning
+    // Step 1: SELECT finds the comment (org-a scoped)
+    mockState.selectQueue.push([{ ...ORG_B_COMMENT, id: 1, orgId: "org-a", userId: "user-a1" }]);
+    // Step 2: DELETE … RETURNING returns the deleted row
+    mockState.deleteResult = [{ id: 1 }];
 
     const res = await request(buildApp()).delete("/api/comments/1");
     expect(res.status).toBe(204);
