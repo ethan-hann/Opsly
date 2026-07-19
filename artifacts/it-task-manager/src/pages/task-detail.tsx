@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useListProjects, useListCustomFieldDefinitions, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -82,6 +82,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   });
 
   const { data: projects = [] } = useListProjects();
+  const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
 
   if (isLoadingTask) {
     return <div className="space-y-6 max-w-4xl mx-auto p-4"><Skeleton className="h-64 w-full" /></div>;
@@ -337,6 +338,27 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   <span className="font-medium">{task.dueDate ? formatDate(task.dueDate) : "None"}</span>
                 </div>
                 
+                {/* Custom Fields */}
+                {customFieldDefs.map((field) => {
+                  const rawValue = (task.customFields as Record<string, unknown> | undefined)?.[String(field.id)];
+                  let display: string | null = null;
+                  if (rawValue === null || rawValue === undefined || rawValue === "") {
+                    display = null;
+                  } else if (Array.isArray(rawValue)) {
+                    display = (rawValue as string[]).join(", ") || null;
+                  } else {
+                    display = String(rawValue);
+                  }
+                  return (
+                    <div key={field.id} className="p-3 flex flex-col gap-1.5 hover:bg-muted/20 transition-colors">
+                      <span className="text-muted-foreground text-xs">{field.name}</span>
+                      <span className="font-medium text-sm">
+                        {display ?? <span className="text-muted-foreground italic">—</span>}
+                      </span>
+                    </div>
+                  );
+                })}
+
                 {/* Dates */}
                 <div className="p-3 flex flex-col gap-1.5 hover:bg-muted/20 transition-colors bg-muted/5">
                   <span className="text-muted-foreground flex items-center gap-2">

@@ -4,6 +4,7 @@ import {
   useCreateTask,
   useListProjects,
   useListOrgMembers,
+  useListCustomFieldDefinitions,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -11,6 +12,7 @@ import {
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
+import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -80,6 +82,9 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
   const [assignee, setAssignee] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+
+  const { data: customFields = [] } = useListCustomFieldDefinitions();
 
   // Sync projectId whenever the modal opens or initialProjectId changes
   useEffect(() => {
@@ -98,6 +103,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
     setAssignee("");
     setDueDate("");
     setErrors({});
+    setCustomFieldValues({});
   };
 
   const validate = () => {
@@ -126,6 +132,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
           category,
           assignee: assignee.trim() || undefined,
           dueDate: dueDate || undefined,
+          customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
         },
       },
       {
@@ -255,6 +262,12 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId }: NewTaskMo
               />
             </div>
           </div>
+
+          <CustomFieldInputs
+            fields={customFields}
+            values={customFieldValues}
+            onChange={(id, value) => setCustomFieldValues(prev => ({ ...prev, [id]: value }))}
+          />
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>

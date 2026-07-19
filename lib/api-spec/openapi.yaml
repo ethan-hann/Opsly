@@ -26,6 +26,8 @@ tags:
     description: Dashboard and analytics
   - name: webhooks
     description: Inbound and outbound webhook management
+  - name: custom-fields
+    description: Custom field definition management
 
 paths:
   /auth/user:
@@ -767,6 +769,126 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Task"
+
+  /custom-fields:
+    get:
+      operationId: listCustomFieldDefinitions
+      tags: [custom-fields]
+      summary: List custom field definitions for the org
+      description: >
+        Returns all non-deleted custom field definitions for the caller's
+        organization, ordered by `position` then `id`. Available to all org
+        members.
+      responses:
+        "200":
+          description: List of custom field definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomFieldDefinition"
+    post:
+      operationId: createCustomFieldDefinition
+      tags: [custom-fields]
+      summary: Create a custom field definition (admin only)
+      description: >
+        Creates a new custom field definition for the org. Position is
+        automatically assigned as the next available slot. Requires `admin` role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFieldDefinitionInput"
+      responses:
+        "201":
+          description: Created custom field definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldDefinition"
+        "400":
+          description: Invalid request body.
+        "403":
+          description: Admin access required.
+
+  /custom-fields/reorder:
+    post:
+      operationId: reorderCustomFieldDefinitions
+      tags: [custom-fields]
+      summary: Reorder custom field definitions (admin only)
+      description: >
+        Accepts an ordered array of field definition IDs and reassigns
+        `position` values to match the provided order. Requires `admin` role.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFieldReorderInput"
+      responses:
+        "204":
+          description: Reorder applied successfully.
+        "400":
+          description: Invalid request body.
+        "403":
+          description: Admin access required.
+
+  /custom-fields/{id}:
+    patch:
+      operationId: updateCustomFieldDefinition
+      tags: [custom-fields]
+      summary: Update a custom field definition (admin only)
+      description: >
+        Renames a field or updates its options list. Type cannot be changed
+        after creation. Requires `admin` role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomFieldDefinitionUpdate"
+      responses:
+        "200":
+          description: Updated custom field definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldDefinition"
+        "400":
+          description: Invalid request body.
+        "403":
+          description: Admin access required.
+        "404":
+          description: Custom field not found or already deleted.
+    delete:
+      operationId: deleteCustomFieldDefinition
+      tags: [custom-fields]
+      summary: Soft-delete a custom field definition (admin only)
+      description: >
+        Soft-deletes the field definition. Existing task data is preserved in
+        the `customFields` JSONB column but the field will no longer appear in
+        the UI. Requires `admin` role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Field soft-deleted successfully.
+        "403":
+          description: Admin access required.
+        "404":
+          description: Custom field not found or already deleted.
 
   /orgs:
     post:
@@ -1755,6 +1877,13 @@ components:
         commentCount:
           type: integer
           description: Number of comments attached to this task.
+        customFields:
+          type: object
+          additionalProperties: true
+          description: >
+            JSONB bag of custom field values keyed by field definition ID.
+            Values are type-dependent: string for text/date/single_select,
+            number for number, array of strings for multi_select.
         createdAt:
           type: string
           description: ISO 8601 timestamp when the task was created.
@@ -1799,6 +1928,12 @@ components:
         dueDate:
           type: string
           description: Task deadline in `YYYY-MM-DD` format.
+        customFields:
+          type: object
+          additionalProperties: true
+          description: >
+            Custom field values to set on creation. Keyed by field definition ID.
+            Values must match the field type. Omit to use empty defaults.
 
     TaskUpdate:
       description: Partial update for an existing task. All fields are optional.
@@ -1837,6 +1972,103 @@ components:
         dueDate:
           type: string
           description: Updated deadline in `YYYY-MM-DD` format.
+        customFields:
+          type: object
+          additionalProperties: true
+          description: >
+            Merged update to custom field values. Only keys present in this object
+            are written; omit the key to leave a field unchanged.
+
+    CustomFieldDefinition:
+      description: A typed metadata field definition scoped to an org.
+      type: object
+      required: [id, orgId, name, type, position, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key.
+        orgId:
+          type: string
+          description: ID of the org this field belongs to.
+        name:
+          type: string
+          description: Display name of the field shown in the task form.
+        type:
+          type: string
+          enum: [text, number, date, single_select, multi_select]
+          description: >
+            Data type of the field. `text` — single-line string; `number` — numeric value;
+            `date` — ISO date string; `single_select` — one value from `options`;
+            `multi_select` — multiple values from `options`.
+        options:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: >
+            Predefined option labels for `single_select` and `multi_select`
+            fields. Null for other types.
+        position:
+          type: integer
+          description: Display order. Lower values appear first.
+        deletedAt:
+          type: ["string", "null"]
+          description: >
+            ISO 8601 timestamp of soft-deletion. Null if the field is active.
+        createdAt:
+          type: string
+          description: ISO 8601 timestamp when the definition was created.
+        updatedAt:
+          type: string
+          description: ISO 8601 timestamp when the definition was last updated.
+
+    CustomFieldDefinitionInput:
+      description: Fields required to create a custom field definition.
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Display name for the new field.
+        type:
+          type: string
+          enum: [text, number, date, single_select, multi_select]
+          description: Data type of the field. Cannot be changed after creation.
+        options:
+          type: array
+          items:
+            type: string
+          description: >
+            Required for `single_select` and `multi_select` types. Ignored for
+            other types.
+
+    CustomFieldDefinitionUpdate:
+      description: Partial update for a custom field definition.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: New display name for the field.
+        options:
+          type: array
+          items:
+            type: string
+          description: Replacement options list for select fields.
+
+    CustomFieldReorderInput:
+      description: Ordered list of field definition IDs for reordering.
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+          description: >
+            Field definition IDs in the desired display order. Each ID must
+            belong to the caller's org.
 
     Comment:
       description: A comment attached to a task.

@@ -5,3 +5,4 @@ export * from "./tasks";
 export * from "./comments";
 export * from "./notes";
 export * from "./webhooks";
+export * from "./custom-fields";

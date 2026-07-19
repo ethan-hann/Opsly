@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, or } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable } from "@workspace/db";
+import { eq, sql, and, lt, or, isNull } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable } from "@workspace/db";
 import {
   CreateTaskBody,
   UpdateTaskBody,
@@ -53,9 +53,87 @@ async function buildTaskWithProject(
     assignee: task.assignee ?? null,
     dueDate: task.dueDate ?? null,
     commentCount: count ?? 0,
+    customFields: task.customFields ?? {},
     createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : task.createdAt,
     updatedAt: task.updatedAt instanceof Date ? task.updatedAt.toISOString() : task.updatedAt,
   };
+}
+
+/**
+ * Validate and strip custom field values against the org's active field definitions.
+ *
+ * - Returns { error } if a value violates the field's type contract.
+ * - Returns { sanitized } with unknown field IDs removed, ready for persistence.
+ * - null/undefined values are allowed for any field (semantics: clear the field).
+ */
+async function validateAndSanitizeCustomFields(
+  customFields: Record<string, unknown>,
+  orgId: string,
+): Promise<{ error: string; sanitized?: never } | { error?: never; sanitized: Record<string, unknown> }> {
+  if (!customFields || Object.keys(customFields).length === 0) {
+    return { sanitized: {} };
+  }
+
+  const definitions = await db
+    .select()
+    .from(customFieldDefinitionsTable)
+    .where(and(eq(customFieldDefinitionsTable.orgId, orgId), isNull(customFieldDefinitionsTable.deletedAt)));
+
+  const defMap = new Map(definitions.map((d) => [String(d.id), d]));
+  const sanitized: Record<string, unknown> = {};
+
+  for (const [fieldId, value] of Object.entries(customFields)) {
+    // Unknown field IDs are silently stripped — not persisted
+    const def = defMap.get(fieldId);
+    if (!def) continue;
+
+    // null/undefined clears the field — always permitted
+    if (value === null || value === undefined) {
+      sanitized[fieldId] = null;
+      continue;
+    }
+
+    switch (def.type) {
+      case "text":
+        if (typeof value !== "string") {
+          return { error: `Custom field "${def.name}" expects a text (string) value` };
+        }
+        break;
+      case "number":
+        if (typeof value !== "number" && !(typeof value === "string" && value !== "" && !isNaN(Number(value)))) {
+          return { error: `Custom field "${def.name}" expects a number` };
+        }
+        break;
+      case "date":
+        if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+          return { error: `Custom field "${def.name}" expects a date in YYYY-MM-DD format` };
+        }
+        break;
+      case "single_select": {
+        const options = (def.options as string[]) ?? [];
+        if (typeof value !== "string" || !options.includes(value)) {
+          return { error: `Custom field "${def.name}" value must be one of: ${options.join(", ")}` };
+        }
+        break;
+      }
+      case "multi_select": {
+        const options = (def.options as string[]) ?? [];
+        if (!Array.isArray(value)) {
+          return { error: `Custom field "${def.name}" expects an array of selected values` };
+        }
+        for (const v of value as unknown[]) {
+          if (typeof v !== "string" || !options.includes(v)) {
+            return { error: `Custom field "${def.name}" contains invalid option: ${String(v)}` };
+          }
+        }
+        break;
+      }
+    }
+
+    sanitized[fieldId] = value;
+  }
+
+  return { sanitized };
 }
 
 /**
@@ -158,15 +236,35 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
+  // Validate and sanitize custom field values (strip unknown field IDs, enforce types)
+  let sanitizedCustomFields: Record<string, unknown> | undefined;
+  if (parsed.data.customFields) {
+    const result = await validateAndSanitizeCustomFields(
+      parsed.data.customFields as Record<string, unknown>,
+      orgId,
+    );
+    if (result.error) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    sanitizedCustomFields = result.sanitized;
+  }
+
   // Compute the next per-org sequential task number atomically within the insert
   const [{ nextNum }] = await db
     .select({ nextNum: sql<number>`COALESCE(MAX(${tasksTable.orgTaskNumber}), 0) + 1` })
     .from(tasksTable)
     .where(eq(tasksTable.orgId, orgId));
 
+  const { customFields: _rawCf, ...restCreateData } = parsed.data;
   const [task] = await db
     .insert(tasksTable)
-    .values({ ...parsed.data, orgId, orgTaskNumber: nextNum })
+    .values({
+      ...restCreateData,
+      orgId,
+      orgTaskNumber: nextNum,
+      ...(sanitizedCustomFields !== undefined ? { customFields: sanitizedCustomFields } : {}),
+    })
     .returning();
 
   const enriched = await buildTaskWithProject(task, orgId);
@@ -236,9 +334,37 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
+  // Validate, sanitize, and merge custom field values
+  const { customFields: incomingCustomFields, ...restUpdateData } = parsed.data;
+  let mergedCustomFields: Record<string, unknown> | undefined;
+  if (incomingCustomFields !== undefined) {
+    const cfResult = await validateAndSanitizeCustomFields(
+      incomingCustomFields as Record<string, unknown>,
+      orgId,
+    );
+    if (cfResult.error) {
+      res.status(400).json({ error: cfResult.error });
+      return;
+    }
+    // Merge sanitized values with existing custom fields (partial update semantics)
+    const [existing] = await db
+      .select({ customFields: tasksTable.customFields })
+      .from(tasksTable)
+      .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+      .limit(1);
+    mergedCustomFields = {
+      ...(existing?.customFields as Record<string, unknown> ?? {}),
+      ...cfResult.sanitized,
+    };
+  }
+
+  const setData = mergedCustomFields !== undefined
+    ? { ...restUpdateData, customFields: mergedCustomFields }
+    : restUpdateData;
+
   const [task] = await db
     .update(tasksTable)
-    .set(parsed.data)
+    .set(setData)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .returning();
 

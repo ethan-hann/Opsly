@@ -17,7 +17,7 @@ import type { OrgMemberInfo, Role, RolePermissions } from "@workspace/api-client
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
   AlertTriangle, Building2, Clock, Crown, Link2, LogOut,
-  Mail, Pencil, Plus, Settings2, Shield, Trash2, UserPlus, X,
+  Mail, Pencil, Plus, Settings2, Shield, Sliders, Trash2, UserPlus, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
+import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 
 // ─── Permission metadata ──────────────────────────────────────────────────────
 
@@ -815,6 +816,25 @@ export default function OrgSettings() {
           )}
         </CardContent>
       </Card>
+
+      {/* Custom Fields (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sliders className="w-4 h-4" />
+              Custom Fields
+            </CardTitle>
+            <CardDescription>
+              Define typed fields that appear on every task in your organization.
+              Admins can create, rename, reorder, and delete fields.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CustomFieldsManager />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Danger zone */}
       <Card className="border-destructive/30">

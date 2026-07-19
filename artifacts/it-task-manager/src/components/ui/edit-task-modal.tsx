@@ -4,6 +4,7 @@ import {
   useUpdateTask,
   useListProjects,
   useListOrgMembers,
+  useListCustomFieldDefinitions,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -11,6 +12,7 @@ import {
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
+import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
   Dialog,
@@ -42,6 +44,7 @@ interface Task {
   category: TaskInputCategory;
   assignee?: string | null;
   dueDate?: string | null;
+  customFields?: Record<string, unknown>;
 }
 
 interface EditTaskModalProps {
@@ -78,6 +81,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
+  const { data: customFields = [] } = useListCustomFieldDefinitions();
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
@@ -94,6 +98,9 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const [assignee, setAssignee] = useState(task.assignee ?? "");
   const [dueDate, setDueDate] = useState(task.dueDate ? task.dueDate.slice(0, 10) : "");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
+    (task.customFields as Record<string, unknown>) ?? {}
+  );
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -107,6 +114,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
       setAssignee(task.assignee ?? "");
       setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
       setErrors({});
+      setCustomFieldValues((task.customFields as Record<string, unknown>) ?? {});
     }
     onOpenChange(next);
   };
@@ -126,6 +134,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           title: title.trim(),
           description: description.trim() || undefined,
           projectId: projectId !== "none" ? Number(projectId) : null,
+          customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
           status,
           priority,
           category,
@@ -247,6 +256,12 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
               />
             </div>
           </div>
+
+          <CustomFieldInputs
+            fields={customFields}
+            values={customFieldValues}
+            onChange={(id, value) => setCustomFieldValues(prev => ({ ...prev, [id]: value }))}
+          />
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>

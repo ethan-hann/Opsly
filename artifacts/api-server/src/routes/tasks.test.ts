@@ -78,6 +78,7 @@ vi.mock("@workspace/db", () => {
     usersTable: {},
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
+    customFieldDefinitionsTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -483,6 +484,169 @@ describe("PATCH /api/tasks/:id - assignee validation", () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ error: expect.stringMatching(/member/i) });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks - custom field validation
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks - custom field validation", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [MOCK_TASK];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  const TEXT_FIELD_DEF = { id: 10, name: "Notes", type: "text", options: null, orgId: "test-org", deletedAt: null, position: 0, createdAt: "", updatedAt: "" };
+  const NUMBER_FIELD_DEF = { id: 11, name: "Severity Score", type: "number", options: null, orgId: "test-org", deletedAt: null, position: 1, createdAt: "", updatedAt: "" };
+  const SELECT_FIELD_DEF = { id: 12, name: "Environment", type: "single_select", options: ["prod", "staging"], orgId: "test-org", deletedAt: null, position: 2, createdAt: "", updatedAt: "" };
+
+  it("rejects a non-string value for a text field with 400", async () => {
+    // validateAndSanitizeCustomFields selects definitions
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "10": 999 } }); // number, not string
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Notes/);
+    expect(res.body.error).toMatch(/text/i);
+  });
+
+  it("rejects an out-of-range option for a single_select field with 400", async () => {
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "12": "local" } }); // not in options
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Environment/);
+  });
+
+  it("rejects a non-numeric value for a number field with 400", async () => {
+    mockState.selectQueue.push([NUMBER_FIELD_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "11": "not-a-number" } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Severity Score/);
+  });
+
+  it("strips unknown field IDs and creates the task successfully", async () => {
+    // Definitions list has only field 10; field "99" is unknown → stripped
+    mockState.selectQueue.push([TEXT_FIELD_DEF]); // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);    // comment count
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "10": "valid note", "99": "unknown" } });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("accepts valid custom field values and creates the task", async () => {
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);  // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);    // comment count
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "10": "my note" } });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("allows null to clear any custom field value", async () => {
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);  // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);    // comment count
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "10": null } });
+
+    expect(res.status).toBe(201);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/tasks/:id - custom field validation and merge
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
+  const TEXT_FIELD_DEF = { id: 10, name: "Notes", type: "text", options: null, orgId: "test-org", deletedAt: null, position: 0, createdAt: "", updatedAt: "" };
+  const SELECT_FIELD_DEF = { id: 12, name: "Environment", type: "single_select", options: ["prod", "staging"], orgId: "test-org", deletedAt: null, position: 2, createdAt: "", updatedAt: "" };
+
+  const TASK_WITH_CUSTOM = {
+    ...MOCK_TASK,
+    customFields: { "10": "existing note", "12": "prod" },
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [TASK_WITH_CUSTOM];
+    mockState.deleteResult = [];
+  });
+
+  it("rejects a non-string value for a text field with 400", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // definitions
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "10": ["array", "not", "string"] } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Notes/);
+  });
+
+  it("rejects an invalid option for a single_select field with 400", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // definitions
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "12": "local" } }); // not in options
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Environment/);
+  });
+
+  it("merges customFields: sending one field leaves other existing fields intact", async () => {
+    // The existing task has { "10": "existing note", "12": "prod" }
+    // PATCH sends only { "12": "staging" } → "10" should be preserved
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // definitions
+    mockState.selectQueue.push([{ customFields: { "10": "existing note", "12": "prod" } }]); // existing for merge
+    // update returning already set in updateResult
+    mockState.selectQueue.push([{ count: 0 }]);                        // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "12": "staging" } });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("strips unknown field IDs and applies the patch successfully", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // definitions — field "99" not in list
+    mockState.selectQueue.push([{ customFields: { "10": "existing note" } }]); // existing for merge
+    mockState.selectQueue.push([{ count: 0 }]);                        // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "10": "updated note", "99": "phantom field" } });
+
+    expect(res.status).toBe(200);
   });
 });
 

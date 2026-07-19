@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TaskCategory } from './taskCategory';
+import type { TaskCustomFields } from './taskCustomFields';
 import type { TaskPriority } from './taskPriority';
 import type { TaskStatus } from './taskStatus';
 
@@ -52,6 +53,8 @@ export interface Task {
   dueDate?: string | null;
   /** Number of comments attached to this task. */
   commentCount?: number;
+  /** JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text/date/single_select, number for number, array of strings for multi_select. */
+  customFields?: TaskCustomFields;
   /** ISO 8601 timestamp when the task was created. */
   createdAt: string;
   /** ISO 8601 timestamp when the task was last updated. */

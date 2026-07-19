@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TaskUpdateCategory } from './taskUpdateCategory';
+import type { TaskUpdateCustomFields } from './taskUpdateCustomFields';
 import type { TaskUpdatePriority } from './taskUpdatePriority';
 import type { TaskUpdateStatus } from './taskUpdateStatus';
 
@@ -35,4 +36,6 @@ export interface TaskUpdate {
   assignee?: string | null;
   /** Updated deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
+  /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
+  customFields?: TaskUpdateCustomFields;
 }

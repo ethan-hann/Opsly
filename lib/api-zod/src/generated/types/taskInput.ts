@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { TaskInputCategory } from './taskInputCategory';
+import type { TaskInputCustomFields } from './taskInputCustomFields';
 import type { TaskInputPriority } from './taskInputPriority';
 import type { TaskInputStatus } from './taskInputStatus';
 
@@ -32,4 +33,6 @@ export interface TaskInput {
   assignee?: string;
   /** Task deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
+  /** Custom field values to set on creation. Keyed by field definition ID. Values must match the field type. Omit to use empty defaults. */
+  customFields?: TaskInputCustomFields;
 }

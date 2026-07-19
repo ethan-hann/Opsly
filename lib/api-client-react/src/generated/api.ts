@@ -26,6 +26,10 @@ import type {
   Comment,
   CommentInput,
   CreateRoleInput,
+  CustomFieldDefinition,
+  CustomFieldDefinitionInput,
+  CustomFieldDefinitionUpdate,
+  CustomFieldReorderInput,
   DashboardSummary,
   ErrorEnvelope,
   HandleBrowserLoginCallbackParams,
@@ -2239,6 +2243,373 @@ export function useGetOverdueTasks<TData = Awaited<ReturnType<typeof getOverdueT
 
 
 
+
+export const getListCustomFieldDefinitionsUrl = () => {
+
+
+
+
+  return `/api/custom-fields`
+}
+
+/**
+ * Returns all non-deleted custom field definitions for the caller's organization, ordered by `position` then `id`. Available to all org members.
+ * @summary List custom field definitions for the org
+ */
+export const listCustomFieldDefinitions = async ( options?: RequestInit): Promise<CustomFieldDefinition[]> => {
+
+  return customFetch<CustomFieldDefinition[]>(getListCustomFieldDefinitionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCustomFieldDefinitionsQueryKey = () => {
+    return [
+    `/api/custom-fields`
+    ] as const;
+    }
+
+
+export const getListCustomFieldDefinitionsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCustomFieldDefinitionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomFieldDefinitions>>> = ({ signal }) => listCustomFieldDefinitions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListCustomFieldDefinitionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCustomFieldDefinitions>>>
+export type ListCustomFieldDefinitionsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List custom field definitions for the org
+ */
+
+export function useListCustomFieldDefinitions<TData = Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListCustomFieldDefinitionsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCustomFieldDefinitionUrl = () => {
+
+
+
+
+  return `/api/custom-fields`
+}
+
+/**
+ * Creates a new custom field definition for the org. Position is automatically assigned as the next available slot. Requires `admin` role.
+ * @summary Create a custom field definition (admin only)
+ */
+export const createCustomFieldDefinition = async (customFieldDefinitionInput: CustomFieldDefinitionInput, options?: RequestInit): Promise<CustomFieldDefinition> => {
+
+  return customFetch<CustomFieldDefinition>(getCreateCustomFieldDefinitionUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFieldDefinitionInput)
+  }
+);}
+
+
+
+
+
+export const getCreateCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldDefinition>>, TError,{data: BodyType<CustomFieldDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldDefinition>>, TError,{data: BodyType<CustomFieldDefinitionInput>}, TContext> => {
+
+const mutationKey = ['createCustomFieldDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCustomFieldDefinition>>, {data: BodyType<CustomFieldDefinitionInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCustomFieldDefinition(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof createCustomFieldDefinition>>>
+    export type CreateCustomFieldDefinitionMutationBody = BodyType<CustomFieldDefinitionInput>
+    export type CreateCustomFieldDefinitionMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a custom field definition (admin only)
+ */
+export const useCreateCustomFieldDefinition = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCustomFieldDefinition>>, TError,{data: BodyType<CustomFieldDefinitionInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createCustomFieldDefinition>>,
+        TError,
+        {data: BodyType<CustomFieldDefinitionInput>},
+        TContext
+      > => {
+      return useMutation(getCreateCustomFieldDefinitionMutationOptions(options));
+    }
+
+export const getReorderCustomFieldDefinitionsUrl = () => {
+
+
+
+
+  return `/api/custom-fields/reorder`
+}
+
+/**
+ * Accepts an ordered array of field definition IDs and reassigns `position` values to match the provided order. Requires `admin` role.
+ * @summary Reorder custom field definitions (admin only)
+ */
+export const reorderCustomFieldDefinitions = async (customFieldReorderInput: CustomFieldReorderInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getReorderCustomFieldDefinitionsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFieldReorderInput)
+  }
+);}
+
+
+
+
+
+export const getReorderCustomFieldDefinitionsMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>, TError,{data: BodyType<CustomFieldReorderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>, TError,{data: BodyType<CustomFieldReorderInput>}, TContext> => {
+
+const mutationKey = ['reorderCustomFieldDefinitions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>, {data: BodyType<CustomFieldReorderInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderCustomFieldDefinitions(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderCustomFieldDefinitionsMutationResult = NonNullable<Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>>
+    export type ReorderCustomFieldDefinitionsMutationBody = BodyType<CustomFieldReorderInput>
+    export type ReorderCustomFieldDefinitionsMutationError = ErrorType<void>
+
+    /**
+ * @summary Reorder custom field definitions (admin only)
+ */
+export const useReorderCustomFieldDefinitions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>, TError,{data: BodyType<CustomFieldReorderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderCustomFieldDefinitions>>,
+        TError,
+        {data: BodyType<CustomFieldReorderInput>},
+        TContext
+      > => {
+      return useMutation(getReorderCustomFieldDefinitionsMutationOptions(options));
+    }
+
+export const getUpdateCustomFieldDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/custom-fields/${id}`
+}
+
+/**
+ * Renames a field or updates its options list. Type cannot be changed after creation. Requires `admin` role.
+ * @summary Update a custom field definition (admin only)
+ */
+export const updateCustomFieldDefinition = async (id: number,
+    customFieldDefinitionUpdate: CustomFieldDefinitionUpdate, options?: RequestInit): Promise<CustomFieldDefinition> => {
+
+  return customFetch<CustomFieldDefinition>(getUpdateCustomFieldDefinitionUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(customFieldDefinitionUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext> => {
+
+const mutationKey = ['updateCustomFieldDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, {id: number;data: BodyType<CustomFieldDefinitionUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateCustomFieldDefinition(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof updateCustomFieldDefinition>>>
+    export type UpdateCustomFieldDefinitionMutationBody = BodyType<CustomFieldDefinitionUpdate>
+    export type UpdateCustomFieldDefinitionMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a custom field definition (admin only)
+ */
+export const useUpdateCustomFieldDefinition = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCustomFieldDefinition>>, TError,{id: number;data: BodyType<CustomFieldDefinitionUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateCustomFieldDefinition>>,
+        TError,
+        {id: number;data: BodyType<CustomFieldDefinitionUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateCustomFieldDefinitionMutationOptions(options));
+    }
+
+export const getDeleteCustomFieldDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/custom-fields/${id}`
+}
+
+/**
+ * Soft-deletes the field definition. Existing task data is preserved in the `customFields` JSONB column but the field will no longer appear in the UI. Requires `admin` role.
+ * @summary Soft-delete a custom field definition (admin only)
+ */
+export const deleteCustomFieldDefinition = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteCustomFieldDefinitionUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCustomFieldDefinition>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteCustomFieldDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCustomFieldDefinition>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteCustomFieldDefinition(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCustomFieldDefinition>>>
+
+    export type DeleteCustomFieldDefinitionMutationError = ErrorType<void>
+
+    /**
+ * @summary Soft-delete a custom field definition (admin only)
+ */
+export const useDeleteCustomFieldDefinition = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCustomFieldDefinition>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteCustomFieldDefinitionMutationOptions(options));
+    }
 
 export const getCreateOrgUrl = () => {
 

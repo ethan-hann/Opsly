@@ -252,6 +252,7 @@ export const ListTasksResponseItem = zod.object({
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
   "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
@@ -273,7 +274,8 @@ export const CreateTaskBody = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency level of the task.'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category for the task.'),
   "assignee": zod.string().optional().describe('Email address of the org member to assign. Must match an existing org member; omit to leave unassigned.\n'),
-  "dueDate": zod.string().optional().describe('Task deadline in `YYYY-MM-DD` format.')
+  "dueDate": zod.string().optional().describe('Task deadline in `YYYY-MM-DD` format.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Custom field values to set on creation. Keyed by field definition ID. Values must match the field type. Omit to use empty defaults.\n')
 }).describe('Fields required to create a new task.')
 
 export const CreateTaskResponse = zod.object({
@@ -289,6 +291,7 @@ export const CreateTaskResponse = zod.object({
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
   "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
@@ -315,6 +318,7 @@ export const GetTaskResponse = zod.object({
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
   "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
@@ -339,7 +343,8 @@ export const UpdateTaskBody = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('New IT operational category.'),
   "assignee": zod.string().nullish().describe('Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged.\n'),
-  "dueDate": zod.string().optional().describe('Updated deadline in `YYYY-MM-DD` format.')
+  "dueDate": zod.string().optional().describe('Updated deadline in `YYYY-MM-DD` format.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged.\n')
 }).describe('Partial update for an existing task. All fields are optional.')
 
 export const UpdateTaskResponse = zod.object({
@@ -355,6 +360,7 @@ export const UpdateTaskResponse = zod.object({
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
   "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
@@ -600,10 +606,106 @@ export const GetOverdueTasksResponseItem = zod.object({
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
   "dueDate": zod.string().nullish().describe('Task deadline in `YYYY-MM-DD` format. Null if no deadline is set.'),
   "commentCount": zod.number().optional().describe('Number of comments attached to this task.'),
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
+
+
+/**
+ * Returns all non-deleted custom field definitions for the caller's organization, ordered by `position` then `id`. Available to all org members.
+ * @summary List custom field definitions for the org
+ */
+export const ListCustomFieldDefinitionsResponseItem = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the org this field belongs to.'),
+  "name": zod.string().describe('Display name of the field shown in the task form.'),
+  "type": zod.enum(['text', 'number', 'date', 'single_select', 'multi_select']).describe('Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.\n'),
+  "options": zod.array(zod.string()).nullish().describe('Predefined option labels for `single_select` and `multi_select` fields. Null for other types.\n'),
+  "position": zod.number().describe('Display order. Lower values appear first.'),
+  "deletedAt": zod.string().nullish().describe('ISO 8601 timestamp of soft-deletion. Null if the field is active.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the definition was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the definition was last updated.')
+}).describe('A typed metadata field definition scoped to an org.')
+export const ListCustomFieldDefinitionsResponse = zod.array(ListCustomFieldDefinitionsResponseItem)
+
+
+/**
+ * Creates a new custom field definition for the org. Position is automatically assigned as the next available slot. Requires `admin` role.
+ * @summary Create a custom field definition (admin only)
+ */
+
+
+
+export const CreateCustomFieldDefinitionBody = zod.object({
+  "name": zod.string().min(1).describe('Display name for the new field.'),
+  "type": zod.enum(['text', 'number', 'date', 'single_select', 'multi_select']).describe('Data type of the field. Cannot be changed after creation.'),
+  "options": zod.array(zod.string()).optional().describe('Required for `single_select` and `multi_select` types. Ignored for other types.\n')
+}).describe('Fields required to create a custom field definition.')
+
+export const CreateCustomFieldDefinitionResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the org this field belongs to.'),
+  "name": zod.string().describe('Display name of the field shown in the task form.'),
+  "type": zod.enum(['text', 'number', 'date', 'single_select', 'multi_select']).describe('Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.\n'),
+  "options": zod.array(zod.string()).nullish().describe('Predefined option labels for `single_select` and `multi_select` fields. Null for other types.\n'),
+  "position": zod.number().describe('Display order. Lower values appear first.'),
+  "deletedAt": zod.string().nullish().describe('ISO 8601 timestamp of soft-deletion. Null if the field is active.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the definition was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the definition was last updated.')
+}).describe('A typed metadata field definition scoped to an org.')
+
+
+/**
+ * Accepts an ordered array of field definition IDs and reassigns `position` values to match the provided order. Requires `admin` role.
+ * @summary Reorder custom field definitions (admin only)
+ */
+export const ReorderCustomFieldDefinitionsBody = zod.object({
+  "ids": zod.array(zod.number()).describe('Field definition IDs in the desired display order. Each ID must belong to the caller\'s org.\n')
+}).describe('Ordered list of field definition IDs for reordering.')
+
+export const ReorderCustomFieldDefinitionsResponse = zod.void()
+
+
+/**
+ * Renames a field or updates its options list. Type cannot be changed after creation. Requires `admin` role.
+ * @summary Update a custom field definition (admin only)
+ */
+export const UpdateCustomFieldDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateCustomFieldDefinitionBody = zod.object({
+  "name": zod.string().min(1).optional().describe('New display name for the field.'),
+  "options": zod.array(zod.string()).optional().describe('Replacement options list for select fields.')
+}).describe('Partial update for a custom field definition.')
+
+export const UpdateCustomFieldDefinitionResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the org this field belongs to.'),
+  "name": zod.string().describe('Display name of the field shown in the task form.'),
+  "type": zod.enum(['text', 'number', 'date', 'single_select', 'multi_select']).describe('Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.\n'),
+  "options": zod.array(zod.string()).nullish().describe('Predefined option labels for `single_select` and `multi_select` fields. Null for other types.\n'),
+  "position": zod.number().describe('Display order. Lower values appear first.'),
+  "deletedAt": zod.string().nullish().describe('ISO 8601 timestamp of soft-deletion. Null if the field is active.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the definition was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the definition was last updated.')
+}).describe('A typed metadata field definition scoped to an org.')
+
+
+/**
+ * Soft-deletes the field definition. Existing task data is preserved in the `customFields` JSONB column but the field will no longer appear in the UI. Requires `admin` role.
+ * @summary Soft-delete a custom field definition (admin only)
+ */
+export const DeleteCustomFieldDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteCustomFieldDefinitionResponse = zod.void()
 
 
 /**

@@ -10,6 +10,7 @@ import notesRouter from "./notes";
 import dashboardRouter from "./dashboard";
 import docsRouter from "./docs";
 import webhooksRouter from "./webhooks";
+import customFieldsRouter from "./custom-fields";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(notesRouter);
 router.use(dashboardRouter);
 router.use(docsRouter);
 router.use(webhooksRouter);
+router.use(customFieldsRouter);
 
 export default router;

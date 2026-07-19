@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, date, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, date, varchar, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
@@ -18,6 +18,8 @@ export const tasksTable = pgTable("tasks", {
   category: text("category").notNull().default("other"), // incident | change | maintenance | deployment | support | other
   assignee: text("assignee"),
   dueDate: date("due_date", { mode: "string" }),
+  /** JSONB bag of custom field values keyed by field definition ID. */
+  customFields: jsonb("custom_fields").$type<Record<string, unknown>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

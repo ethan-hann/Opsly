@@ -294,6 +294,11 @@ export const TaskCategory = {
 } as const;
 
 /**
+ * JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text/date/single_select, number for number, array of strings for multi_select.
+ */
+export type TaskCustomFields = { [key: string]: unknown };
+
+/**
  * An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.
  */
 export interface Task {
@@ -336,6 +341,8 @@ export interface Task {
   dueDate?: string | null;
   /** Number of comments attached to this task. */
   commentCount?: number;
+  /** JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text/date/single_select, number for number, array of strings for multi_select. */
+  customFields?: TaskCustomFields;
   /** ISO 8601 timestamp when the task was created. */
   createdAt: string;
   /** ISO 8601 timestamp when the task was last updated. */
@@ -384,6 +391,11 @@ export const TaskInputCategory = {
 } as const;
 
 /**
+ * Custom field values to set on creation. Keyed by field definition ID. Values must match the field type. Omit to use empty defaults.
+ */
+export type TaskInputCustomFields = { [key: string]: unknown };
+
+/**
  * Fields required to create a new task.
  */
 export interface TaskInput {
@@ -406,6 +418,8 @@ export interface TaskInput {
   assignee?: string;
   /** Task deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
+  /** Custom field values to set on creation. Keyed by field definition ID. Values must match the field type. Omit to use empty defaults. */
+  customFields?: TaskInputCustomFields;
 }
 
 /**
@@ -450,6 +464,11 @@ export const TaskUpdateCategory = {
 } as const;
 
 /**
+ * Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged.
+ */
+export type TaskUpdateCustomFields = { [key: string]: unknown };
+
+/**
  * Partial update for an existing task. All fields are optional.
  */
 export interface TaskUpdate {
@@ -475,6 +494,99 @@ export interface TaskUpdate {
   assignee?: string | null;
   /** Updated deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
+  /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
+  customFields?: TaskUpdateCustomFields;
+}
+
+/**
+ * Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.
+ */
+export type CustomFieldDefinitionType = typeof CustomFieldDefinitionType[keyof typeof CustomFieldDefinitionType];
+
+
+export const CustomFieldDefinitionType = {
+  text: 'text',
+  number: 'number',
+  date: 'date',
+  single_select: 'single_select',
+  multi_select: 'multi_select',
+} as const;
+
+/**
+ * A typed metadata field definition scoped to an org.
+ */
+export interface CustomFieldDefinition {
+  /** Auto-incremented primary key. */
+  id: number;
+  /** ID of the org this field belongs to. */
+  orgId: string;
+  /** Display name of the field shown in the task form. */
+  name: string;
+  /** Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`. */
+  type: CustomFieldDefinitionType;
+  /** Predefined option labels for `single_select` and `multi_select` fields. Null for other types. */
+  options?: string[] | null;
+  /** Display order. Lower values appear first. */
+  position: number;
+  /**
+     * ISO 8601 timestamp of soft-deletion. Null if the field is active.
+     * @nullable
+     */
+  deletedAt?: string | null;
+  /** ISO 8601 timestamp when the definition was created. */
+  createdAt: string;
+  /** ISO 8601 timestamp when the definition was last updated. */
+  updatedAt: string;
+}
+
+/**
+ * Data type of the field. Cannot be changed after creation.
+ */
+export type CustomFieldDefinitionInputType = typeof CustomFieldDefinitionInputType[keyof typeof CustomFieldDefinitionInputType];
+
+
+export const CustomFieldDefinitionInputType = {
+  text: 'text',
+  number: 'number',
+  date: 'date',
+  single_select: 'single_select',
+  multi_select: 'multi_select',
+} as const;
+
+/**
+ * Fields required to create a custom field definition.
+ */
+export interface CustomFieldDefinitionInput {
+  /**
+     * Display name for the new field.
+     * @minLength 1
+     */
+  name: string;
+  /** Data type of the field. Cannot be changed after creation. */
+  type: CustomFieldDefinitionInputType;
+  /** Required for `single_select` and `multi_select` types. Ignored for other types. */
+  options?: string[];
+}
+
+/**
+ * Partial update for a custom field definition.
+ */
+export interface CustomFieldDefinitionUpdate {
+  /**
+     * New display name for the field.
+     * @minLength 1
+     */
+  name?: string;
+  /** Replacement options list for select fields. */
+  options?: string[];
+}
+
+/**
+ * Ordered list of field definition IDs for reordering.
+ */
+export interface CustomFieldReorderInput {
+  /** Field definition IDs in the desired display order. Each ID must belong to the caller's org. */
+  ids: number[];
 }
 
 /**
