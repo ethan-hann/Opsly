@@ -170,46 +170,55 @@ function applyTemplate(
   priority: string;
   category: string;
   dueDate: string | undefined;
+  assignee: string | undefined;
+  status: string | undefined;
   projectId: number | null;
   /** Custom field values keyed by definition ID (string). Populated when
    *  fieldMapping entries target "cf:<id>" (e.g. "cf:3"). */
   customFields: Record<string, unknown>;
 } {
-  // Title resolution
-  const titleFromField = template.titleField
-    ? getPath(payload, template.titleField)
-    : undefined;
-  const title =
+  // Resolution order for every field:
+  //   template defaults  →  direct payload keys  →  fieldMapping (most specific)
+
+  // Title
+  const titleFromField = template.titleField ? getPath(payload, template.titleField) : undefined;
+  let title =
     String(titleFromField ?? payload["title"] ?? template.defaultTitle ?? "Untitled Alert").slice(0, 500);
 
-  // Description resolution
-  const descFromField = template.descriptionField
-    ? getPath(payload, template.descriptionField)
-    : undefined;
+  // Description
+  const descFromField = template.descriptionField ? getPath(payload, template.descriptionField) : undefined;
   const rawDesc = descFromField ?? payload["description"];
-  const description = rawDesc ? String(rawDesc) : undefined;
+  let description: string | undefined = rawDesc ? String(rawDesc) : undefined;
 
-  // Priority + category start from template defaults, then get overridden by
-  // payload direct fields, then by fieldMapping.
+  // Priority + category — template defaults, then direct payload keys
   let priority: string = template.defaultPriority ?? "medium";
   let category: string = template.defaultCategory ?? "incident";
-
-  // Direct payload fields override template defaults
   if (payload["priority"]) priority = String(payload["priority"]);
   if (payload["category"]) category = String(payload["category"]);
 
-  // dueDate: direct payload field (normalized), then fieldMapping can override.
+  // Assignee + status — direct payload keys (no template defaults)
+  let assignee: string | undefined =
+    payload["assignee"] != null ? String(payload["assignee"]) : undefined;
+  let status: string | undefined =
+    payload["status"] != null ? String(payload["status"]) : undefined;
+
+  // dueDate — direct payload key (normalized)
   let dueDate: string | undefined = normalizeDate(payload["dueDate"]);
 
   // fieldMapping overrides everything (most specific).
-  // Targets: "priority", "category", "dueDate", or "cf:<id>" for custom fields.
+  // Supported targets: title · description · priority · category · dueDate ·
+  //                    assignee · status · cf:<id>
   const customFields: Record<string, unknown> = {};
   if (template.fieldMapping) {
     for (const [payloadPath, taskField] of Object.entries(template.fieldMapping)) {
       const val = getPath(payload, payloadPath);
-      if (val === undefined) continue;
-      if (taskField === "priority") priority = String(val);
+      if (val === undefined || val === null) continue;
+      if (taskField === "title") title = String(val).slice(0, 500);
+      else if (taskField === "description") description = String(val);
+      else if (taskField === "priority") priority = String(val);
       else if (taskField === "category") category = String(val);
+      else if (taskField === "assignee") assignee = String(val);
+      else if (taskField === "status") status = String(val);
       else if (taskField === "dueDate") {
         const nd = normalizeDate(val);
         if (nd) dueDate = nd;
@@ -227,10 +236,12 @@ function applyTemplate(
   // Validate enums — fall back to defaults on invalid values
   const validPriorities = ["low", "medium", "high", "critical"];
   const validCategories = ["incident", "change", "maintenance", "deployment", "support", "other"];
+  const validStatuses = ["todo", "in_progress", "blocked", "done"];
   if (!validPriorities.includes(priority)) priority = "medium";
   if (!validCategories.includes(category)) category = "incident";
+  if (status !== undefined && !validStatuses.includes(status)) status = undefined;
 
-  return { title, description, priority, category, dueDate, projectId, customFields };
+  return { title, description, priority, category, dueDate, assignee, status, projectId, customFields };
 }
 
 // ---------------------------------------------------------------------------
@@ -416,7 +427,8 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
       priority: taskFields.priority,
       category: taskFields.category,
       dueDate: taskFields.dueDate,
-      status: "todo",
+      status: taskFields.status ?? "todo",
+      assignee: taskFields.assignee,
       ...(Object.keys(taskFields.customFields).length > 0
         ? { customFields: taskFields.customFields }
         : {}),
