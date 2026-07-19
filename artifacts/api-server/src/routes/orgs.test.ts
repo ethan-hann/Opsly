@@ -31,6 +31,9 @@ const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertQueue: [] as any[][], // each entry is the result of one insert().values().returning()
   updateQueue: [] as any[][], // each entry is the result of one update chain
+  isOrgOwner: true, // configurable: set false to simulate a non-owner admin
+  updateCalls: 0, // incremented whenever db.update() is invoked
+  deleteCalls: 0, // incremented whenever db.delete() is invoked
 }));
 
 // ---------------------------------------------------------------------------
@@ -80,7 +83,7 @@ vi.mock("@workspace/db", () => {
           });
         },
       }),
-      update: () => ({
+      update: () => (mockState.updateCalls++, {
         set: () => ({
           where: () => {
             const next = mockState.updateQueue.shift() ?? [];
@@ -90,7 +93,7 @@ vi.mock("@workspace/db", () => {
           },
         }),
       }),
-      delete: () => ({
+      delete: () => (mockState.deleteCalls++, {
         where: () => noop(),
       }),
     },
@@ -135,9 +138,9 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     req.user = { id: "user-owner" };
     req.orgId = "test-org";
     req.orgRole = "admin";
-    req.orgRoleId = "role-owner";
-    req.orgRoleName = "Owner";
-    req.isOrgOwner = true;
+    req.orgRoleId = mockState.isOrgOwner ? "role-owner" : "role-admin";
+    req.orgRoleName = mockState.isOrgOwner ? "Owner" : "Admin";
+    req.isOrgOwner = mockState.isOrgOwner;
     req.orgPermissions = ALL_PERMS;
     next();
   },
@@ -638,6 +641,8 @@ describe("POST /api/orgs/invitations/:token/decline", () => {
 describe("DELETE /api/orgs/members/:userId", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.isOrgOwner = true;
+    mockState.deleteCalls = 0;
   });
 
   it("returns 400 when trying to remove yourself", async () => {
@@ -663,6 +668,18 @@ describe("DELETE /api/orgs/members/:userId", () => {
 
     expect(res.status).toBe(204);
   });
+
+  it("returns 403 when a non-owner admin tries to remove an Owner", async () => {
+    mockState.isOrgOwner = false;
+    // target member has the Owner role
+    mockState.selectQueue.push([{ roleId: "role-owner", isOwner: true }]);
+
+    const res = await request(buildApp()).delete("/api/orgs/members/user-owner-2");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/owner/i) });
+    expect(mockState.deleteCalls).toBe(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -673,6 +690,9 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.updateQueue.length = 0;
+    mockState.isOrgOwner = true;
+    mockState.updateCalls = 0;
+    mockState.deleteCalls = 0;
   });
 
   it("returns 400 when roleId is missing", async () => {
@@ -721,6 +741,50 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ role: "member" });
+  });
+
+  it("returns 403 when a non-owner admin tries to change the Owner's role", async () => {
+    mockState.isOrgOwner = false;
+    // target member is the Owner
+    mockState.selectQueue.push([{ roleId: "role-owner", currentRoleIsOwner: true }]);
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-owner/role")
+      .send({ roleId: "role-member" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/owner/i) });
+    expect(mockState.updateCalls).toBe(0);
+  });
+
+  it("returns 403 when a non-owner admin tries to assign the Owner role", async () => {
+    mockState.isOrgOwner = false;
+    // target member is a regular member
+    mockState.selectQueue.push([{ roleId: "role-member", currentRoleIsOwner: false }]);
+    // target role is the Owner role
+    mockState.selectQueue.push([{ id: "role-owner", name: "Owner", isOwner: true, permissions: ALL_PERMS }]);
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-2/role")
+      .send({ roleId: "role-owner" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/owner/i) });
+    expect(mockState.updateCalls).toBe(0);
+  });
+
+  it("returns 400 when demoting the last remaining Owner (owner acting)", async () => {
+    // owner demoting an owner
+    mockState.selectQueue.push([{ roleId: "role-owner", currentRoleIsOwner: true }]);
+    mockState.selectQueue.push([{ id: "role-member", name: "Member", isOwner: false, permissions: MEMBER_PERMS }]);
+    mockState.selectQueue.push([{ count: 1 }]); // only 1 owner left
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-owner/role")
+      .send({ roleId: "role-member" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/last owner/i) });
   });
 });
 

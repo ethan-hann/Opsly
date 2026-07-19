@@ -2,4 +2,5 @@
 - [API server build quirks](api-server-build-quirks.md) — esbuild bundles api-server; zod must be in package.json dependencies (not just workspace catalog); orval schema naming pitfalls.
 - [api-client-react dist rebuild](api-client-react-dist-rebuild.md) — after orval regenerates sources, tsc incremental skips api-client-react (not in root tsconfig references); must manually rebuild its dist.
 - [Orval index.ts append bug](orval-index-append.md) — orval appends to existing index.ts files on every run; pre-codegen.mjs resets them before orval runs; api-zod dist/index.d.ts must be rebuilt after any index.ts change.
+- [Post-merge DB schema drift](post-merge-db-drift.md) — merged features can 500 until drizzle push runs; backfill NULLs blocking NOT NULL, restart api-server for new routes.
 - [vitest orval-sync race fix](vitest-orval-race-fix.md) — use git show HEAD to snapshot api-zod files in vitest load hook; deps.inline bypasses plugins so transform won't work.

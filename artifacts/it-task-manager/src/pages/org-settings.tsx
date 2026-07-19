@@ -1210,7 +1210,7 @@ export default function OrgSettings() {
                   {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
                 </div>
                 {/* Role badge or selector */}
-                {canManageMembers && !isMe ? (
+                {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") ? (
                   <Select
                     value={m.roleId}
                     onValueChange={(roleId) =>
@@ -1221,11 +1221,13 @@ export default function OrgSettings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {roles.map((r) => (
-                        <SelectItem key={r.id} value={r.id} className="text-xs">
-                          {r.name}
-                        </SelectItem>
-                      ))}
+                      {roles
+                        .filter((r) => isOwner || !r.isOwner)
+                        .map((r) => (
+                          <SelectItem key={r.id} value={r.id} className="text-xs">
+                            {r.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 ) : (
@@ -1235,7 +1237,7 @@ export default function OrgSettings() {
                   </Badge>
                 )}
                 {/* Remove */}
-                {canManageMembers && !isMe && (
+                {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Remove member">
