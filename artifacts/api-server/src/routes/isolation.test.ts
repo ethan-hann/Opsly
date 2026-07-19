@@ -545,6 +545,16 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
       .send({ status: "done" });
     expect(res.status).toBe(404);
   });
+
+  it("returns 403 when the caller does not have edit_tasks permission", async () => {
+    // Simulate a role where edit_tasks has been revoked — the server must
+    // enforce this regardless of what the frontend shows.
+    mockState.permissions = { ...mockState.permissions, edit_tasks: false };
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ status: "done" });
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("Task isolation — DELETE /api/tasks/:id", () => {

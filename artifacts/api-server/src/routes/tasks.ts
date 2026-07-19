@@ -459,6 +459,12 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
+  // Enforce edit_tasks permission server-side (frontend gate alone is insufficient)
+  if (!req.orgPermissions?.edit_tasks) {
+    res.status(403).json({ error: "You do not have permission to edit tasks" });
+    return;
+  }
+
   // Capture previous values for change-event diffing and outbound webhook dispatch
   const [prev] = await db
     .select({

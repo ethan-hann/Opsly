@@ -106,6 +106,13 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: "user-owner" };
+    req.orgPermissions = {
+      view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+      delete_tasks: true, manage_projects: true, manage_org_settings: true,
+      manage_members: true, manage_webhooks: true, manage_api_keys: true,
+      manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+      manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+    };
     next();
   },
 }));
