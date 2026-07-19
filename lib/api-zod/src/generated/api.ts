@@ -338,7 +338,7 @@ export const UpdateTaskBody = zod.object({
   "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional().describe('New task status.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('New IT operational category.'),
-  "assignee": zod.string().optional().describe('Updated assignee email. Must match an org member. Pass an empty value or omit to leave unchanged.\n'),
+  "assignee": zod.string().nullish().describe('Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged.\n'),
   "dueDate": zod.string().optional().describe('Updated deadline in `YYYY-MM-DD` format.')
 }).describe('Partial update for an existing task. All fields are optional.')
 

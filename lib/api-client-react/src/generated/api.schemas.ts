@@ -471,8 +471,8 @@ export interface TaskUpdate {
   priority?: TaskUpdatePriority;
   /** New IT operational category. */
   category?: TaskUpdateCategory;
-  /** Updated assignee email. Must match an org member. Pass an empty value or omit to leave unchanged. */
-  assignee?: string;
+  /** Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged. */
+  assignee?: string | null;
   /** Updated deadline in `YYYY-MM-DD` format. */
   dueDate?: string;
 }

@@ -1708,9 +1708,10 @@ components:
           description: New IT operational category.
         assignee:
           type: string
+          nullable: true
           description: >
-            Updated assignee email. Must match an org member. Pass an empty
-            value or omit to leave unchanged.
+            Updated assignee email. Must match an org member. Pass `null` to
+            unassign; omit to leave unchanged.
         dueDate:
           type: string
           description: Updated deadline in `YYYY-MM-DD` format.

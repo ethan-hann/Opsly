@@ -125,11 +125,11 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
         data: {
           title: title.trim(),
           description: description.trim() || undefined,
-          projectId: projectId !== "none" ? Number(projectId) : undefined,
+          projectId: projectId !== "none" ? Number(projectId) : null,
           status,
           priority,
           category,
-          assignee: assignee.trim() || undefined,
+          assignee: assignee.trim() || null,
           dueDate: dueDate || undefined,
         },
       },

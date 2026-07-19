@@ -1,6 +1,6 @@
 import { useAuth } from '@workspace/replit-auth-web';
 import { Button } from '@/components/ui/button';
-import { Activity, Shield, Zap, BarChart3 } from 'lucide-react';
+import { Activity, Shield, Zap, BarChart3, MessageSquareText } from 'lucide-react';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -13,14 +13,13 @@ export default function LoginPage() {
           <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-primary-foreground">
             <Activity className="w-5 h-5" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Mission Control</span>
+          <span className="font-bold text-lg tracking-tight">Opsly</span>
         </div>
 
         <div className="space-y-8">
           <div>
             <h1 className="text-4xl font-bold tracking-tight leading-tight">
-              IT Operations,<br />
-              under control.
+              IT Operations, under control.
             </h1>
             <p className="mt-4 text-muted-foreground text-lg leading-relaxed">
               Track incidents, manage deployments, and coordinate projects - all in one place built for engineering teams.
@@ -32,6 +31,7 @@ export default function LoginPage() {
               { icon: Shield, label: 'Incident Tracking', desc: 'Triage and resolve critical issues fast' },
               { icon: Zap, label: 'Deployment Management', desc: 'Monitor and coordinate releases end-to-end' },
               { icon: BarChart3, label: 'Project Visibility', desc: 'Real-time progress across all workstreams' },
+              { icon: MessageSquareText, label: 'Team Coordination', desc: 'Communicate and collaborate effectively' }
             ].map(({ icon: Icon, label, desc }) => (
               <div key={label} className="flex items-start gap-4">
                 <div className="w-9 h-9 rounded-md border border-border bg-background flex items-center justify-center shrink-0 mt-0.5">
@@ -59,7 +59,7 @@ export default function LoginPage() {
             <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-primary-foreground">
               <Activity className="w-5 h-5" />
             </div>
-            <span className="font-bold text-lg tracking-tight">Mission Control</span>
+            <span className="font-bold text-lg tracking-tight">Opsly</span>
           </div>
 
           <div className="space-y-2">
