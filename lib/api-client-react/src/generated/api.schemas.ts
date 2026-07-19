@@ -1421,6 +1421,18 @@ priority?: string;
  * Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.
  */
 category?: string;
+/**
+ * Filter by assignee email address. Returns only tasks assigned to this org member.
+ */
+assignee?: string;
+/**
+ * Filter tasks with a due date on or after this date (ISO 8601, YYYY-MM-DD). Use together with `dateTo` for a date range.
+ */
+dateFrom?: string;
+/**
+ * Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.
+ */
+dateTo?: string;
 };
 
 export type ListNotesParams = {

@@ -236,7 +236,10 @@ export const ListTasksQueryParams = zod.object({
   "projectId": zod.coerce.number().optional().describe('Filter tasks by project ID. Returns only tasks linked to this project.'),
   "status": zod.coerce.string().optional().describe('Filter by task status. One of `todo`, `in_progress`, `blocked`, or `done`.\n'),
   "priority": zod.coerce.string().optional().describe('Filter by task priority. One of `low`, `medium`, `high`, or `critical`.\n'),
-  "category": zod.coerce.string().optional().describe('Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.\n')
+  "category": zod.coerce.string().optional().describe('Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.\n'),
+  "assignee": zod.coerce.string().optional().describe('Filter by assignee email address. Returns only tasks assigned to this org member.\n'),
+  "dateFrom": zod.coerce.string().optional().describe('Filter tasks with a due date on or after this date (ISO 8601, YYYY-MM-DD). Use together with `dateTo` for a date range.\n'),
+  "dateTo": zod.coerce.string().optional().describe('Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.\n')
 })
 
 export const ListTasksResponseItem = zod.object({

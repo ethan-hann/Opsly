@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, or, isNull } from "drizzle-orm";
+import { eq, sql, and, lt, lte, gte, or, isNull } from "drizzle-orm";
 import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -191,13 +191,16 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
   }
 
   const orgId = req.orgId!;
-  const { projectId, status, priority, category } = queryParams.data;
+  const { projectId, status, priority, category, assignee, dateFrom, dateTo } = queryParams.data;
 
   const conditions = [eq(tasksTable.orgId, orgId)];
   if (projectId != null) conditions.push(eq(tasksTable.projectId, projectId));
   if (status) conditions.push(eq(tasksTable.status, status));
   if (priority) conditions.push(eq(tasksTable.priority, priority));
   if (category) conditions.push(eq(tasksTable.category, category));
+  if (assignee) conditions.push(eq(tasksTable.assignee, assignee));
+  if (dateFrom) conditions.push(gte(tasksTable.dueDate, dateFrom));
+  if (dateTo) conditions.push(lte(tasksTable.dueDate, dateTo));
 
   const tasks = await db
     .select()

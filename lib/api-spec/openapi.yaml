@@ -371,6 +371,27 @@ paths:
             `maintenance`, `deployment`, `support`, or `other`.
           schema:
             type: string
+        - name: assignee
+          in: query
+          description: >
+            Filter by assignee email address. Returns only tasks assigned to
+            this org member.
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          description: >
+            Filter tasks with a due date on or after this date (ISO 8601,
+            YYYY-MM-DD). Use together with `dateTo` for a date range.
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          description: >
+            Filter tasks with a due date on or before this date (ISO 8601,
+            YYYY-MM-DD). Use together with `dateFrom` for a date range.
+          schema:
+            type: string
       responses:
         "200":
           description: List of tasks
