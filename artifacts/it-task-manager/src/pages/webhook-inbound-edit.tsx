@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -46,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
   ArrowLeft,
+  Braces,
   Copy,
   Trash2,
   RefreshCw,
@@ -485,6 +486,17 @@ export default function WebhookInboundEditPage({
     '{\n  "title": "CPU spike on prod",\n  "priority": "high",\n  "category": "incident",\n  "description": "P99 latency exceeded 2s on api-server"\n}';
   const [testOpen, setTestOpen] = useState(false);
   const [testPayload, setTestPayload] = useState(DEFAULT_TEST_PAYLOAD);
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const formatJson = useCallback((src: string): string => {
+    try {
+      return JSON.stringify(JSON.parse(src), null, 2);
+    } catch {
+      return src;
+    }
+  }, []);
+
   type TestState =
     | { status: "idle" }
     | { status: "loading" }
@@ -503,15 +515,18 @@ export default function WebhookInboundEditPage({
   const [testState, setTestState] = useState<TestState>({ status: "idle" });
 
   async function handleTest() {
+    // Auto-format before sending so a valid-but-messy payload always succeeds.
+    const formatted = formatJson(testPayload);
+    setTestPayload(formatted);
     setTestState({ status: "loading" });
     let payload: Record<string, unknown>;
     try {
-      payload = JSON.parse(testPayload);
-    } catch {
-      setTestState({
-        status: "error",
-        error: "Invalid JSON — fix the syntax and try again.",
-      });
+      payload = JSON.parse(formatted);
+      setJsonError(null);
+    } catch (e) {
+      const msg = e instanceof SyntaxError ? e.message : "Invalid JSON";
+      setJsonError(msg);
+      setTestState({ status: "error", error: `Invalid JSON — ${msg}` });
       return;
     }
     try {
@@ -1002,31 +1017,92 @@ export default function WebhookInboundEditPage({
                   would create, given your current template settings. Your changes
                   don't need to be saved first.
                 </p>
-                <Textarea
-                  value={testPayload}
-                  onChange={(e) => {
-                    setTestPayload(e.target.value);
-                    setTestState({ status: "idle" });
-                  }}
-                  className="font-mono text-xs min-h-[120px] resize-y"
-                  spellCheck={false}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  onClick={handleTest}
-                  disabled={testState.status === "loading"}
-                >
-                  {testState.status === "loading" ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Terminal className="w-3.5 h-3.5" />
+                <div className="space-y-1">
+                  <Textarea
+                    ref={textareaRef}
+                    value={testPayload}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTestPayload(val);
+                      setTestState({ status: "idle" });
+                      // Live validation
+                      if (val.trim() === "") {
+                        setJsonError(null);
+                      } else {
+                        try {
+                          JSON.parse(val);
+                          setJsonError(null);
+                        } catch (err) {
+                          setJsonError(
+                            err instanceof SyntaxError ? err.message : "Invalid JSON"
+                          );
+                        }
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      // Tab → insert two spaces instead of moving focus
+                      if (e.key === "Tab") {
+                        e.preventDefault();
+                        const el = e.currentTarget;
+                        const start = el.selectionStart;
+                        const end = el.selectionEnd;
+                        const next = testPayload.slice(0, start) + "  " + testPayload.slice(end);
+                        setTestPayload(next);
+                        // Restore cursor after React re-renders
+                        requestAnimationFrame(() => {
+                          el.selectionStart = el.selectionEnd = start + 2;
+                        });
+                      }
+                    }}
+                    onBlur={() => {
+                      // Auto-format on blur if the JSON is valid
+                      if (!jsonError && testPayload.trim()) {
+                        setTestPayload(formatJson(testPayload));
+                      }
+                    }}
+                    className={[
+                      "font-mono text-xs min-h-[140px] resize-y",
+                      jsonError ? "border-destructive focus-visible:ring-destructive" : "",
+                    ].join(" ")}
+                    spellCheck={false}
+                  />
+                  {jsonError && (
+                    <p className="text-xs text-destructive flex items-start gap-1.5">
+                      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      {jsonError}
+                    </p>
                   )}
-                  Parse payload
-                </Button>
-                {testState.status === "error" && (
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={handleTest}
+                    disabled={testState.status === "loading" || !!jsonError}
+                  >
+                    {testState.status === "loading" ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Terminal className="w-3.5 h-3.5" />
+                    )}
+                    Parse payload
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="gap-1.5 text-muted-foreground"
+                    onClick={() => setTestPayload(formatJson(testPayload))}
+                    disabled={!testPayload.trim() || !!jsonError}
+                    title="Format JSON"
+                  >
+                    <Braces className="w-3.5 h-3.5" />
+                    Format
+                  </Button>
+                </div>
+                {testState.status === "error" && !jsonError && (
                   <p className="text-xs text-destructive">{testState.error}</p>
                 )}
                 {testState.status === "success" && (
