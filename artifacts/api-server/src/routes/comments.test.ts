@@ -7,7 +7,8 @@
  * Covered regressions:
  *  - GET /tasks/:id/comments — org-scoping (task must belong to org), 404 on miss
  *  - POST /tasks/:id/comments — org-scoping, body validation, 201 on success
- *  - DELETE /comments/:id — org-scoped single query, 404 on miss/mismatch, 204 on success
+ *  - DELETE /comments/:id — org-scoped select (permission check) + DELETE WHERE id AND org_id
+ *      to prevent cross-org race; 404 on miss/mismatch, 403 on insufficient permission, 204 on success
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";

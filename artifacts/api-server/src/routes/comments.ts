@@ -135,7 +135,10 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  await db.delete(commentsTable).where(eq(commentsTable.id, params.data.id));
+  // Include orgId in the DELETE predicate so that a racing concurrent request
+  // from another org cannot delete this comment between our SELECT and DELETE.
+  await db.delete(commentsTable)
+    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)));
   res.sendStatus(204);
 });
 
