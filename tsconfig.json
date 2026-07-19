@@ -8,6 +8,12 @@
     },
     {
       "path": "./lib/replit-auth-web"
+    },
+    {
+      "path": "./lib/api-zod"
+    },
+    {
+      "path": "./lib/api-client-react"
     }
   ]
 }
