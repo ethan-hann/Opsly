@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useListInboundWebhooks,
   useCreateInboundWebhook,
@@ -949,9 +949,15 @@ function buildCurlCommand(fullUrl: string): string {
   );
 }
 
+interface HookActivity {
+  tasksLastMinute: number;
+  tasksLastHour: number;
+}
+
 interface InboundHookCardProps {
   h: InboundWebhook;
   proj: { id: number; name: string } | undefined;
+  activity?: HookActivity;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
@@ -961,6 +967,7 @@ interface InboundHookCardProps {
 function InboundHookCard({
   h,
   proj,
+  activity,
   onEdit,
   onDelete,
   onToggle,
@@ -1037,6 +1044,47 @@ function InboundHookCard({
                 {h.rateLimitPerMinute} tasks / min
               </span>
             </p>
+
+            {/* Activity indicator — loop detection */}
+            {activity && (activity.tasksLastMinute > 0 || activity.tasksLastHour > 0) && (() => {
+              const atLimit = activity.tasksLastMinute >= h.rateLimitPerMinute;
+              const highRate = !atLimit && activity.tasksLastMinute > Math.floor(h.rateLimitPerMinute * 0.5);
+              return (
+                <div className={[
+                  "flex items-center gap-1.5 text-xs mt-1 font-medium",
+                  atLimit
+                    ? "text-destructive"
+                    : highRate
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground font-normal",
+                ].join(" ")}>
+                  {atLimit ? (
+                    <>
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
+                      </span>
+                      Rate limit hit — {activity.tasksLastMinute}/{h.rateLimitPerMinute} tasks/min · possible loop
+                    </>
+                  ) : highRate ? (
+                    <>
+                      <Activity className="w-3 h-3 shrink-0" />
+                      High rate — {activity.tasksLastMinute} tasks/min
+                      {activity.tasksLastHour > activity.tasksLastMinute && (
+                        <span className="font-normal text-muted-foreground">· {activity.tasksLastHour} in last hr</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="w-3 h-3 shrink-0" />
+                      {activity.tasksLastMinute > 0
+                        ? `${activity.tasksLastMinute} task${activity.tasksLastMinute === 1 ? "" : "s"} this minute`
+                        : `${activity.tasksLastHour} task${activity.tasksLastHour === 1 ? "" : "s"} in last hour`}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* How-to toggle */}
             <button
@@ -1236,9 +1284,29 @@ function InboundTab({
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListInboundWebhooks();
+  const { data: outboundHooks = [] } = useListOutboundWebhooks();
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<InboundWebhook | null>(null);
   const [search, setSearch] = useState("");
+
+  // Poll task-creation rates per hook every 30 s to catch live loops.
+  const { data: activity = {} } = useQuery<Record<number, HookActivity>>({
+    queryKey: ["webhooks/inbound/activity"],
+    queryFn: async () => {
+      const res = await fetch(
+        `${import.meta.env.BASE_URL}api/webhooks/inbound/activity`.replace(/\/\//g, "/"),
+        { credentials: "include" },
+      );
+      return res.ok ? res.json() : {};
+    },
+    refetchInterval: 30_000,
+  });
+
+  // Cross-reference: outbound hooks that fire on task.created while inbound hooks are active.
+  const outboundRiskHooks = outboundHooks.filter(
+    (oh) => oh.enabled && Array.isArray(oh.events) && oh.events.includes("task.created"),
+  );
+  const hasEnabledInbound = hooks.some((h) => h.enabled);
 
   const filtered = search.trim()
     ? hooks.filter((h) => {
@@ -1304,6 +1372,33 @@ function InboundTab({
         </Button>
       </div>
 
+      {/* Loop-risk banner: shown whenever enabled outbound webhooks subscribe to
+          task.created AND at least one inbound webhook is active.            */}
+      {outboundRiskHooks.length > 0 && hasEnabledInbound && (
+        <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <div className="space-y-1">
+            <p className="font-medium">Loop risk: outbound webhooks are subscribed to task.created</p>
+            <p>
+              When an inbound webhook creates a task, Opsly immediately fires a{" "}
+              <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">task.created</code> outbound
+              event. If the source system also receives your outbound events and POSTs back, a loop forms —
+              stopped only by each webhook's rate limit. Check whether{" "}
+              {outboundRiskHooks.length === 1
+                ? <span className="font-medium">{outboundRiskHooks[0]!.name}</span>
+                : outboundRiskHooks.map((oh, i) => (
+                    <span key={oh.id}>
+                      {i > 0 && (i === outboundRiskHooks.length - 1 ? " and " : ", ")}
+                      <span className="font-medium">{oh.name}</span>
+                    </span>
+                  ))
+              }{" "}
+              {outboundRiskHooks.length === 1 ? "points" : "point"} at the same system sending you data.
+            </p>
+          </div>
+        </div>
+      )}
+
       {hooks.length === 0 ? (
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
@@ -1343,6 +1438,7 @@ function InboundTab({
                   key={h.id}
                   h={h}
                   proj={projectOptions.find((p) => p.id === h.projectId)}
+                  activity={activity[h.id]}
                   onEdit={() => setEditing(h)}
                   onDelete={() => deleteHook({ id: h.id })}
                   onToggle={(v) =>

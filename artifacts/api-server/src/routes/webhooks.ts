@@ -18,7 +18,7 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod/v4";
-import { eq, and, or, ne, desc } from "drizzle-orm";
+import { eq, and, or, ne, desc, inArray } from "drizzle-orm";
 import {
   db,
   inboundWebhooksTable,
@@ -404,6 +404,52 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
     .returning();
 
   res.status(201).json(serializeInbound(hook, userId));
+});
+
+// GET /webhooks/inbound/activity — per-hook task creation counts for loop detection
+// Must be registered before /:id so "activity" isn't matched as an id.
+router.get("/webhooks/inbound/activity", requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
+  const userId = req.user!.id;
+
+  const hooks = await db
+    .select({ id: inboundWebhooksTable.id })
+    .from(inboundWebhooksTable)
+    .where(and(eq(inboundWebhooksTable.orgId, orgId), inboundVisibilityFilter(userId)));
+
+  if (hooks.length === 0) { res.json({}); return; }
+
+  const hookIds = hooks.map((h) => h.id);
+
+  // Single query: count per hook for tasks in the last hour,
+  // with a per-minute sub-count via conditional aggregation.
+  const counts = await db
+    .select({
+      sourceWebhookId: tasksTable.sourceWebhookId,
+      tasksLastMinute: sql<number>`COUNT(*) FILTER (WHERE ${tasksTable.createdAt} > NOW() - INTERVAL '1 minute')::int`,
+      tasksLastHour: sql<number>`COUNT(*)::int`,
+    })
+    .from(tasksTable)
+    .where(
+      and(
+        inArray(tasksTable.sourceWebhookId, hookIds),
+        sql`${tasksTable.createdAt} > NOW() - INTERVAL '1 hour'`,
+      ),
+    )
+    .groupBy(tasksTable.sourceWebhookId);
+
+  const activity: Record<number, { tasksLastMinute: number; tasksLastHour: number }> = {};
+  for (const h of hooks) activity[h.id] = { tasksLastMinute: 0, tasksLastHour: 0 };
+  for (const row of counts) {
+    if (row.sourceWebhookId != null) {
+      activity[row.sourceWebhookId] = {
+        tasksLastMinute: row.tasksLastMinute,
+        tasksLastHour: row.tasksLastHour,
+      };
+    }
+  }
+
+  res.json(activity);
 });
 
 // GET /webhooks/inbound/:id — get
