@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, or } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db, commentsTable, tasksTable } from "@workspace/db";
 import {
   CreateCommentBody,
@@ -14,23 +14,6 @@ import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
-
-/**
- * Org-scoped comment filter.
- *
- * Defense-in-depth: directly filters by comments.org_id when the column is set.
- * Falls back to the parent task's org scope (via taskId + tasksTable.orgId join)
- * for legacy rows that still have org_id = NULL (pre-backfill state).
- *
- * Once the backfill migration has run and org_id is made NOT NULL, the
- * fallback branch becomes unreachable and can be removed.
- */
-function commentOrgFilter(orgId: string) {
-  return or(
-    eq(commentsTable.orgId, orgId),
-    isNull(commentsTable.orgId),
-  );
-}
 
 router.get("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> => {
   const params = ListCommentsParams.safeParse(req.params);
@@ -53,11 +36,10 @@ router.get("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =>
     return;
   }
 
-  // Scope comments by task + org_id (with NULL fallback for pre-backfill rows)
   const comments = await db
     .select()
     .from(commentsTable)
-    .where(and(eq(commentsTable.taskId, params.data.id), commentOrgFilter(orgId)))
+    .where(and(eq(commentsTable.taskId, params.data.id), eq(commentsTable.orgId, orgId)))
     .orderBy(commentsTable.createdAt);
 
   res.json(ListCommentsResponse.parse(comments.map(c => ({
@@ -130,40 +112,15 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Delete if org_id matches directly, OR if org_id is NULL (pre-backfill)
-  // and the parent task belongs to this org (safety guard for legacy rows).
-  //
-  // The two-step approach for NULL rows prevents deleting comments whose parent
-  // task belongs to a DIFFERENT org but whose comment.org_id is also NULL.
   const [comment] = await db
-    .select({ id: commentsTable.id, taskId: commentsTable.taskId, orgId: commentsTable.orgId })
+    .select({ id: commentsTable.id })
     .from(commentsTable)
-    .where(eq(commentsTable.id, params.data.id))
+    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
     .limit(1);
 
   if (!comment) {
     res.status(404).json({ error: "Comment not found" });
     return;
-  }
-
-  if (comment.orgId !== null) {
-    // Fast path: direct org check for backfilled / new comments
-    if (comment.orgId !== orgId) {
-      res.status(404).json({ error: "Comment not found" });
-      return;
-    }
-  } else {
-    // Fallback path: verify parent task belongs to this org (pre-backfill rows)
-    const [task] = await db
-      .select({ id: tasksTable.id })
-      .from(tasksTable)
-      .where(and(eq(tasksTable.id, comment.taskId), eq(tasksTable.orgId, orgId)))
-      .limit(1);
-
-    if (!task) {
-      res.status(404).json({ error: "Comment not found" });
-      return;
-    }
   }
 
   await db.delete(commentsTable).where(eq(commentsTable.id, params.data.id));

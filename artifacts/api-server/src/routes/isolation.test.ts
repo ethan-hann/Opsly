@@ -617,10 +617,9 @@ describe("Comment isolation — DELETE /api/comments/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 404 when the comment's orgId belongs to org-b (direct org check)", async () => {
-    // Step 1: comment found but belongs to org-b
-    mockState.selectQueue.push([ORG_B_COMMENT]);
-    // No second select needed (orgId is non-null and doesn't match)
+  it("returns 404 when the comment's orgId belongs to org-b (combined id+org query returns empty)", async () => {
+    // The WHERE (id = 77 AND org_id = 'org-a') finds nothing for an org-b comment
+    mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).delete("/api/comments/77");
     expect(res.status).toBe(404);
@@ -633,66 +632,6 @@ describe("Comment isolation — DELETE /api/comments/:id", () => {
 
     const res = await request(buildApp()).delete("/api/comments/1");
     expect(res.status).toBe(204);
-  });
-});
-
-/**
- * Backfill regression — verifies that the org_id direct-scoping logic
- * correctly handles comments that (pre-backfill) have org_id = NULL.
- *
- * For NULL-org comments the route falls back to task-join scoping:
- * the parent task's org_id is used to determine access.  This keeps
- * pre-backfill rows accessible while preventing cross-org leakage.
- * Once the backfill runs and Phase 3 enforces NOT NULL, these fallback
- * branches can be removed.
- */
-describe("Comment backfill regression — null org_id rows use task-join fallback", () => {
-  beforeEach(reset);
-
-  it("list includes null-org comments when the parent task belongs to the caller's org", async () => {
-    const nullOrgComment = { ...ORG_B_COMMENT, id: 1, orgId: null, taskId: 1 };
-    mockState.selectQueue.push([{ id: 1 }]);   // task found in org-a
-    mockState.selectQueue.push([nullOrgComment]); // comment returned (OR filter matches isNull)
-
-    const res = await request(buildApp()).get("/api/tasks/1/comments");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-  });
-
-  it("delete returns 404 for a null-org comment whose parent task belongs to another org", async () => {
-    // Step 1: comment found with null orgId
-    mockState.selectQueue.push([{ ...ORG_B_COMMENT, orgId: null, taskId: 42 }]);
-    // Step 2: task 42 does NOT belong to org-a
-    mockState.selectQueue.push([]);
-
-    const res = await request(buildApp()).delete("/api/comments/100");
-    expect(res.status).toBe(404);
-  });
-
-  it("delete returns 204 for a null-org comment whose parent task belongs to the caller's org", async () => {
-    // Step 1: comment found with null orgId
-    mockState.selectQueue.push([{ ...ORG_B_COMMENT, id: 5, orgId: null, taskId: 1 }]);
-    // Step 2: task 1 belongs to org-a
-    mockState.selectQueue.push([{ id: 1 }]);
-
-    const res = await request(buildApp()).delete("/api/comments/5");
-    expect(res.status).toBe(204);
-  });
-
-  it("list returns comments after backfill sets org_id (post-backfill state)", async () => {
-    const backfilledComment = {
-      ...ORG_B_COMMENT,
-      id: 1,
-      orgId: "org-a", // org_id now populated by backfill script
-      taskId: 1,
-    };
-
-    mockState.selectQueue.push([{ id: 1 }]); // task belongs to org-a
-    mockState.selectQueue.push([backfilledComment]); // comment now visible
-
-    const res = await request(buildApp()).get("/api/tasks/1/comments");
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
   });
 });
 

@@ -7,8 +7,7 @@
  * Covered regressions:
  *  - GET /tasks/:id/comments — org-scoping (task must belong to org), 404 on miss
  *  - POST /tasks/:id/comments — org-scoping, body validation, 201 on success
- *  - DELETE /comments/:id — direct org check (non-null orgId), task-join fallback
- *    (null orgId / pre-backfill rows), 404 on miss/mismatch, 204 on success
+ *  - DELETE /comments/:id — org-scoped single query, 404 on miss/mismatch, 204 on success
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -102,11 +101,6 @@ const MOCK_COMMENT = {
   content: "Looks good to me",
   author: "alice@example.com",
   createdAt: "2024-01-01T00:00:00.000Z",
-};
-
-const MOCK_COMMENT_NULL_ORG = {
-  ...MOCK_COMMENT,
-  orgId: null, // pre-backfill row
 };
 
 // ---------------------------------------------------------------------------
@@ -237,28 +231,8 @@ describe("DELETE /api/comments/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 404 when the comment's org_id does not match the caller's org (non-null orgId path)", async () => {
-    // comment exists but belongs to a different org
-    mockState.selectQueue.push([{ ...MOCK_COMMENT, orgId: "other-org" }]);
-
-    const res = await request(buildApp()).delete("/api/comments/1");
-
-    expect(res.status).toBe(404);
-  });
-
-  it("returns 204 when comment orgId matches the caller's org (fast path)", async () => {
-    // comment found with matching org
-    mockState.selectQueue.push([MOCK_COMMENT]); // orgId: "test-org"
-
-    const res = await request(buildApp()).delete("/api/comments/1");
-
-    expect(res.status).toBe(204);
-  });
-
-  it("returns 404 for a pre-backfill comment (null orgId) whose task belongs to another org", async () => {
-    // comment found but orgId is null → fallback to task join
-    mockState.selectQueue.push([MOCK_COMMENT_NULL_ORG]);
-    // task lookup by orgId returns empty → task belongs to another org
+  it("returns 404 when the comment's org_id does not match the caller's org", async () => {
+    // The combined (id AND orgId) query returns no rows when org doesn't match
     mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).delete("/api/comments/1");
@@ -266,11 +240,9 @@ describe("DELETE /api/comments/:id", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 204 for a pre-backfill comment (null orgId) whose task belongs to the caller's org", async () => {
-    // comment found but orgId is null → fallback to task join
-    mockState.selectQueue.push([MOCK_COMMENT_NULL_ORG]);
-    // task found in the caller's org
-    mockState.selectQueue.push([MOCK_TASK]);
+  it("returns 204 when comment orgId matches the caller's org", async () => {
+    // Combined query finds the comment because both id and orgId match
+    mockState.selectQueue.push([MOCK_COMMENT]); // orgId: "test-org"
 
     const res = await request(buildApp()).delete("/api/comments/1");
 
