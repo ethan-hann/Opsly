@@ -10,8 +10,5 @@
     "lib": ["esnext", "dom", "dom.iterable"],
     "types": ["vite/client"]
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../api-client-react" }
-  ]
+  "include": ["src"]
 }

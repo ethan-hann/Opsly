@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AuthUser } from '@workspace/api-client-react';
 
-export type { AuthUser };
+/**
+ * Authenticated user.  Mirrors the AuthUser shape generated in
+ * @workspace/api-client-react so consumers can use either import.
+ * Defined here to avoid a build-time dependency on the generated client.
+ */
+export interface AuthUser {
+  /** Unique user ID from the OIDC provider (`sub` claim). */
+  id: string;
+  /** User's email address. May be null if the provider did not supply one. */
+  email: string | null;
+  /** User's given name. Null if not provided by the OIDC provider. */
+  firstName: string | null;
+  /** User's family name. Null if not provided by the OIDC provider. */
+  lastName: string | null;
+  /** URL of the user's profile picture. Null if not provided. */
+  profileImageUrl: string | null;
+}
 
 interface AuthState {
   user: AuthUser | null;

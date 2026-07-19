@@ -259,7 +259,7 @@ router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Prom
 
 // DELETE /orgs/invitations/:id - cancel a pending invitation (admin only)
 router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res): Promise<void> => {
-  const { id } = req.params;
+  const id = req.params.id as string;
 
   const [invitation] = await db
     .select({ id: invitationsTable.id, orgId: invitationsTable.orgId })

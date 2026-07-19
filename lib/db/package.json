@@ -10,7 +10,8 @@
   "scripts": {
     "push": "drizzle-kit push --config ./drizzle.config.ts",
     "push-force": "drizzle-kit push --force --config ./drizzle.config.ts",
-    "seed": "npx tsx src/seed-org.ts"
+    "seed": "npx tsx src/seed-org.ts",
+    "migrate:backfill-comments-org-id": "npx tsx src/migrations/backfill-comments-org-id.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
