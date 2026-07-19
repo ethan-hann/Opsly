@@ -493,50 +493,62 @@ function TemplateBuilder({ template, onChange }: TemplateBuilderProps) {
               </p>
             </div>
             {rows.length > 0 && (
-              <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 gap-y-1.5 items-center">
-                <span className="text-xs font-medium text-muted-foreground">From payload key</span>
-                <span />
-                <span className="text-xs font-medium text-muted-foreground">Maps to task field</span>
-                <span />
-                {rows.map((row) => (
-                  <>
-                    <Input
-                      key={`key-${row.id}`}
-                      placeholder="e.g. labels.severity"
-                      value={row.key}
-                      onChange={(e) => updateRow(row.id, "key", e.target.value)}
-                      className="h-7 text-xs"
-                    />
-                    <span className="text-muted-foreground text-xs text-center">→</span>
-                    <Select
-                      value={row.value}
-                      onValueChange={(v) => updateRow(row.id, "value", v)}
-                    >
-                      <SelectTrigger className="h-7 text-xs">
-                        <SelectValue placeholder="choose field…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MAPPING_TARGET_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={o.value} textValue={o.label}>
-                            <span className="flex flex-col">
-                              <span>{o.label}</span>
-                              <span className="text-[10px] text-muted-foreground">{o.hint}</span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => removeRow(row.id)}
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </>
-                ))}
+              <div className="space-y-1.5">
+                <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
+                  <span className="text-xs font-medium text-muted-foreground">From payload key</span>
+                  <span />
+                  <span className="text-xs font-medium text-muted-foreground">Maps to task field</span>
+                  <span />
+                </div>
+                {rows.map((row) => {
+                  const hint = MAPPING_TARGET_OPTIONS.find((o) => o.value === row.value)?.hint;
+                  return (
+                    <div key={row.id} className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
+                      <Input
+                        placeholder="e.g. labels.severity"
+                        value={row.key}
+                        onChange={(e) => updateRow(row.id, "key", e.target.value)}
+                        className="h-7 text-xs"
+                      />
+                      <span className="text-muted-foreground text-xs text-center">→</span>
+                      <Select
+                        value={row.value}
+                        onValueChange={(v) => updateRow(row.id, "value", v)}
+                      >
+                        <SelectTrigger className="h-7 text-xs">
+                          <SelectValue placeholder="choose field…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {MAPPING_TARGET_OPTIONS.map((o) => (
+                            <SelectItem key={o.value} value={o.value}>
+                              <span className="flex flex-col">
+                                <span>{o.label}</span>
+                                <span className="text-[10px] text-muted-foreground">{o.hint}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeRow(row.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      {hint && (
+                        <>
+                          <span />
+                          <span />
+                          <p className="text-[10px] text-muted-foreground leading-tight pb-0.5">{hint}</p>
+                          <span />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
             <Button
