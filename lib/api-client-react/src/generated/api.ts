@@ -25,6 +25,7 @@ import type {
   BeginBrowserLoginParams,
   Comment,
   CommentInput,
+  CreateRoleInput,
   DashboardSummary,
   ErrorEnvelope,
   HandleBrowserLoginCallbackParams,
@@ -56,11 +57,13 @@ import type {
   ProjectInput,
   ProjectUpdate,
   RenameOrgInput,
+  Role,
   SimpleSuccess,
   Task,
   TaskInput,
   TaskUpdate,
   UpdateMemberRoleInput,
+  UpdateRoleInput,
   WebhookIngestPayload,
   WebhookIngestSuccess
 } from './api.schemas';
@@ -3062,8 +3065,8 @@ export const getUpdateOrgMemberRoleUrl = (userId: string,) => {
 }
 
 /**
- * Updates the role of an org member to `admin` or `member`. Requires `admin` role. Promoting another user to `admin` does not remove the caller's own `admin` status - multiple admins are allowed. Returns 404 if the target user is not a member of this org.
- * @summary Change a member role, or transfer admin (admin only)
+ * Assigns a role to an org member. The caller must have the `manage_members` permission. Only owners can assign the Owner built-in role. Returns 404 if the target user or role is not found in this org.
+ * @summary Assign a role to a member (manage_members permission required)
  */
 export const updateOrgMemberRole = async (userId: string,
     updateMemberRoleInput: UpdateMemberRoleInput, options?: RequestInit): Promise<OrgMemberInfo> => {
@@ -3113,7 +3116,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type UpdateOrgMemberRoleMutationError = ErrorType<void>
 
     /**
- * @summary Change a member role, or transfer admin (admin only)
+ * @summary Assign a role to a member (manage_members permission required)
  */
 export const useUpdateOrgMemberRole = <TError = ErrorType<void>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgMemberRole>>, TError,{userId: string;data: BodyType<UpdateMemberRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -3135,7 +3138,7 @@ export const getLeaveOrgUrl = () => {
 }
 
 /**
- * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the last admin, they should transfer the admin role before leaving; the server does not enforce this constraint automatically.
+ * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the sole Owner, they must transfer the Owner role to another member before leaving.
  * @summary Leave the current organization
  */
 export const leaveOrg = async ( options?: RequestInit): Promise<SimpleSuccess> => {
@@ -3196,6 +3199,301 @@ export const useLeaveOrg = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getLeaveOrgMutationOptions(options));
+    }
+
+export const getListRolesUrl = () => {
+
+
+
+
+  return `/api/roles`
+}
+
+/**
+ * Returns all roles defined for the caller's organization — three built-in roles (Owner, Admin, Member) plus any custom roles created by owners. Built-in roles appear first in a fixed order.
+ * @summary List all roles for the current org
+ */
+export const listRoles = async ( options?: RequestInit): Promise<Role[]> => {
+
+  return customFetch<Role[]>(getListRolesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRolesQueryKey = () => {
+    return [
+    `/api/roles`
+    ] as const;
+    }
+
+
+export const getListRolesQueryOptions = <TData = Awaited<ReturnType<typeof listRoles>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRolesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRoles>>> = ({ signal }) => listRoles({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListRolesQueryResult = NonNullable<Awaited<ReturnType<typeof listRoles>>>
+export type ListRolesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List all roles for the current org
+ */
+
+export function useListRoles<TData = Awaited<ReturnType<typeof listRoles>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listRoles>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListRolesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRoleUrl = () => {
+
+
+
+
+  return `/api/roles`
+}
+
+/**
+ * Creates a new custom role for the org. Requires Owner role. The new role's permissions default to the Member preset for any key not supplied in the request.
+ * @summary Create a custom role (owner only)
+ */
+export const createRole = async (createRoleInput: CreateRoleInput, options?: RequestInit): Promise<Role> => {
+
+  return customFetch<Role>(getCreateRoleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRoleInput)
+  }
+);}
+
+
+
+
+
+export const getCreateRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRole>>, TError,{data: BodyType<CreateRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRole>>, TError,{data: BodyType<CreateRoleInput>}, TContext> => {
+
+const mutationKey = ['createRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRole>>, {data: BodyType<CreateRoleInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createRole(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRoleMutationResult = NonNullable<Awaited<ReturnType<typeof createRole>>>
+    export type CreateRoleMutationBody = BodyType<CreateRoleInput>
+    export type CreateRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a custom role (owner only)
+ */
+export const useCreateRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRole>>, TError,{data: BodyType<CreateRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createRole>>,
+        TError,
+        {data: BodyType<CreateRoleInput>},
+        TContext
+      > => {
+      return useMutation(getCreateRoleMutationOptions(options));
+    }
+
+export const getUpdateRoleUrl = (id: string,) => {
+
+
+
+
+  return `/api/roles/${id}`
+}
+
+/**
+ * Updates a role's display name and/or permission flags. Only provided fields are changed. The Owner built-in role cannot be modified. Requires Owner role.
+ * @summary Update a role's name and/or permissions (owner only)
+ */
+export const updateRole = async (id: string,
+    updateRoleInput: UpdateRoleInput, options?: RequestInit): Promise<Role> => {
+
+  return customFetch<Role>(getUpdateRoleUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateRoleInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRole>>, TError,{id: string;data: BodyType<UpdateRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateRole>>, TError,{id: string;data: BodyType<UpdateRoleInput>}, TContext> => {
+
+const mutationKey = ['updateRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateRole>>, {id: string;data: BodyType<UpdateRoleInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateRole(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateRoleMutationResult = NonNullable<Awaited<ReturnType<typeof updateRole>>>
+    export type UpdateRoleMutationBody = BodyType<UpdateRoleInput>
+    export type UpdateRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a role's name and/or permissions (owner only)
+ */
+export const useUpdateRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateRole>>, TError,{id: string;data: BodyType<UpdateRoleInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateRole>>,
+        TError,
+        {id: string;data: BodyType<UpdateRoleInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateRoleMutationOptions(options));
+    }
+
+export const getDeleteRoleUrl = (id: string,) => {
+
+
+
+
+  return `/api/roles/${id}`
+}
+
+/**
+ * Permanently deletes a custom role. All members currently assigned to this role are automatically reassigned to the Member built-in role. Built-in roles (Owner, Admin, Member) cannot be deleted. Requires Owner role.
+ * @summary Delete a custom role (owner only)
+ */
+export const deleteRole = async (id: string, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteRoleUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteRoleMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRole>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteRole>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['deleteRole'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteRole>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteRole(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteRoleMutationResult = NonNullable<Awaited<ReturnType<typeof deleteRole>>>
+
+    export type DeleteRoleMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a custom role (owner only)
+ */
+export const useDeleteRole = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteRole>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteRole>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getDeleteRoleMutationOptions(options));
     }
 
 export const getIngestWebhookPayloadUrl = (token: string,) => {

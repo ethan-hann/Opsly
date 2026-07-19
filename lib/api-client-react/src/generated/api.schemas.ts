@@ -712,7 +712,7 @@ export interface PendingInvitation {
 }
 
 /**
- * The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null.
+ * Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.
  */
 export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
 
@@ -723,19 +723,53 @@ export const OrgMeResponseRole = {
 } as const;
 
 /**
+ * Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.
+ */
+export interface RolePermissions {
+  view_tasks: boolean;
+  create_tasks: boolean;
+  edit_tasks: boolean;
+  close_tasks: boolean;
+  delete_tasks: boolean;
+  manage_projects: boolean;
+  manage_org_settings: boolean;
+  manage_members: boolean;
+  manage_webhooks: boolean;
+  manage_api_keys: boolean;
+  manage_custom_fields: boolean;
+  manage_workflow_stages: boolean;
+  manage_sla_policies: boolean;
+  manage_task_templates: boolean;
+  manage_saved_views: boolean;
+  view_audit_log: boolean;
+}
+
+/**
  * Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.
  */
 export interface OrgMeResponse {
   /** The organization the user belongs to. Null if they are not a member. */
   org: Organization | null;
-  /** The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null. */
+  /** Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks. */
   role: OrgMeResponseRole;
+  /**
+     * ID of the caller's current role. Null when `org` is null.
+     * @nullable
+     */
+  roleId?: string | null;
+  /**
+     * Display name of the caller's current role. Null when `org` is null.
+     * @nullable
+     */
+  roleName?: string | null;
+  /** Full set of permission flags for the caller's role. Null when `org` is null. */
+  permissions?: RolePermissions | null;
   /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
 }
 
 /**
- * The member's role within the organization.
+ * Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.
  */
 export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
 
@@ -751,8 +785,13 @@ export const OrgMemberInfoRole = {
 export interface OrgMemberInfo {
   /** Unique user ID of the member. */
   userId: string;
-  /** The member's role within the organization. */
+  /** Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks. */
   role: OrgMemberInfoRole;
+  /** ID of the member's current role. */
+  roleId: string;
+  /** Display name of the member's current role. */
+  roleName: string;
+  permissions: RolePermissions;
   /** ISO 8601 timestamp when the user joined the organization. */
   joinedAt: string;
   /**
@@ -840,22 +879,56 @@ export interface InviteMemberInput {
 }
 
 /**
- * New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks.
- */
-export type UpdateMemberRoleInputRole = typeof UpdateMemberRoleInputRole[keyof typeof UpdateMemberRoleInputRole];
-
-
-export const UpdateMemberRoleInputRole = {
-  admin: 'admin',
-  member: 'member',
-} as const;
-
-/**
- * Request body for changing an org member's role.
+ * Request body for assigning a role to an org member.
  */
 export interface UpdateMemberRoleInput {
-  /** New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks. */
-  role: UpdateMemberRoleInputRole;
+  /** ID of the role to assign. Must belong to the same organization. Only owners can assign the Owner built-in role. */
+  roleId: string;
+}
+
+/**
+ * A named role within an organization with a set of permission flags.
+ */
+export interface Role {
+  /** UUID of the role. */
+  id: string;
+  /** UUID of the owning organization. */
+  orgId: string;
+  /** Display name of the role (e.g. "Owner", "Admin", "Member", or a custom name). */
+  name: string;
+  /** `true` for the three system-seeded roles (Owner, Admin, Member). Built-in roles cannot be deleted. */
+  isBuiltIn: boolean;
+  /** `true` only for the Owner built-in role whose permissions are immutable and cannot be changed. */
+  isOwner: boolean;
+  permissions: RolePermissions;
+  /** ISO 8601 timestamp when the role was created. */
+  createdAt: string;
+}
+
+/**
+ * Request body for creating a new custom role.
+ */
+export interface CreateRoleInput {
+  /**
+     * Display name for the new role. Must be unique within the org.
+     * @minLength 1
+     * @maxLength 100
+     */
+  name: string;
+  permissions?: RolePermissions;
+}
+
+/**
+ * Request body for updating a role's name and/or permissions. Only provided fields are changed. The Owner built-in role cannot be modified.
+ */
+export interface UpdateRoleInput {
+  /**
+     * New display name. Must be unique within the org.
+     * @minLength 1
+     * @maxLength 100
+     */
+  name?: string;
+  permissions?: RolePermissions;
 }
 
 /**

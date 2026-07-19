@@ -624,7 +624,27 @@ export const CreateOrgResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
+  "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
+  "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
+  "permissions": zod.union([zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
@@ -664,7 +684,27 @@ export const GetMyOrgResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
+  "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
+  "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
+  "permissions": zod.union([zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
@@ -681,7 +721,27 @@ export const GetMyOrgResponse = zod.object({
  */
 export const ListOrgMembersResponseItem = zod.object({
   "userId": zod.string().describe('Unique user ID of the member.'),
-  "role": zod.enum(['admin', 'member']).describe('The member\'s role within the organization.'),
+  "role": zod.enum(['admin', 'member']).describe('Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.\n'),
+  "roleId": zod.string().describe('ID of the member\'s current role.'),
+  "roleName": zod.string().describe('Display name of the member\'s current role.'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
   "lastName": zod.string().nullish().describe('Member\'s family name. Null if not set in their profile.'),
@@ -768,7 +828,27 @@ export const AcceptOrgInvitationResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('The caller\'s role in the organization. `admin` can manage members and invitations; `member` has read\/write access to projects and tasks. Null when `org` is null.\n'),
+  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
+  "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
+  "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
+  "permissions": zod.union([zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
@@ -804,20 +884,40 @@ export const RemoveOrgMemberResponse = zod.void()
 
 
 /**
- * Updates the role of an org member to `admin` or `member`. Requires `admin` role. Promoting another user to `admin` does not remove the caller's own `admin` status - multiple admins are allowed. Returns 404 if the target user is not a member of this org.
- * @summary Change a member role, or transfer admin (admin only)
+ * Assigns a role to an org member. The caller must have the `manage_members` permission. Only owners can assign the Owner built-in role. Returns 404 if the target user or role is not found in this org.
+ * @summary Assign a role to a member (manage_members permission required)
  */
 export const UpdateOrgMemberRoleParams = zod.object({
   "userId": zod.coerce.string().describe('ID of the member whose role to change.')
 })
 
 export const UpdateOrgMemberRoleBody = zod.object({
-  "role": zod.enum(['admin', 'member']).describe('New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read\/write operations on projects and tasks.\n')
-}).describe('Request body for changing an org member\'s role.')
+  "roleId": zod.string().describe('ID of the role to assign. Must belong to the same organization. Only owners can assign the Owner built-in role.\n')
+}).describe('Request body for assigning a role to an org member.')
 
 export const UpdateOrgMemberRoleResponse = zod.object({
   "userId": zod.string().describe('Unique user ID of the member.'),
-  "role": zod.enum(['admin', 'member']).describe('The member\'s role within the organization.'),
+  "role": zod.enum(['admin', 'member']).describe('Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.\n'),
+  "roleId": zod.string().describe('ID of the member\'s current role.'),
+  "roleName": zod.string().describe('Display name of the member\'s current role.'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
   "lastName": zod.string().nullish().describe('Member\'s family name. Null if not set in their profile.'),
@@ -827,12 +927,176 @@ export const UpdateOrgMemberRoleResponse = zod.object({
 
 
 /**
- * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the last admin, they should transfer the admin role before leaving; the server does not enforce this constraint automatically.
+ * Removes the authenticated user from their current organization. The caller's tasks and projects remain in the org but become unassigned. If the departing user is the sole Owner, they must transfer the Owner role to another member before leaving.
  * @summary Leave the current organization
  */
 export const LeaveOrgResponse = zod.object({
   "success": zod.boolean().describe('Always `true` when the operation completed successfully.')
 }).describe('Generic success acknowledgement with no additional data.')
+
+
+/**
+ * Returns all roles defined for the caller's organization — three built-in roles (Owner, Admin, Member) plus any custom roles created by owners. Built-in roles appear first in a fixed order.
+ * @summary List all roles for the current org
+ */
+export const ListRolesResponseItem = zod.object({
+  "id": zod.string().describe('UUID of the role.'),
+  "orgId": zod.string().describe('UUID of the owning organization.'),
+  "name": zod.string().describe('Display name of the role (e.g. \"Owner\", \"Admin\", \"Member\", or a custom name).'),
+  "isBuiltIn": zod.boolean().describe('`true` for the three system-seeded roles (Owner, Admin, Member). Built-in roles cannot be deleted.\n'),
+  "isOwner": zod.boolean().describe('`true` only for the Owner built-in role whose permissions are immutable and cannot be changed.\n'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
+}).describe('A named role within an organization with a set of permission flags.')
+export const ListRolesResponse = zod.array(ListRolesResponseItem)
+
+
+/**
+ * Creates a new custom role for the org. Requires Owner role. The new role's permissions default to the Member preset for any key not supplied in the request.
+ * @summary Create a custom role (owner only)
+ */
+export const createRoleBodyNameMax = 100;
+
+
+
+export const CreateRoleBody = zod.object({
+  "name": zod.string().min(1).max(createRoleBodyNameMax).describe('Display name for the new role. Must be unique within the org.'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
+}).describe('Request body for creating a new custom role.')
+
+export const CreateRoleResponse = zod.object({
+  "id": zod.string().describe('UUID of the role.'),
+  "orgId": zod.string().describe('UUID of the owning organization.'),
+  "name": zod.string().describe('Display name of the role (e.g. \"Owner\", \"Admin\", \"Member\", or a custom name).'),
+  "isBuiltIn": zod.boolean().describe('`true` for the three system-seeded roles (Owner, Admin, Member). Built-in roles cannot be deleted.\n'),
+  "isOwner": zod.boolean().describe('`true` only for the Owner built-in role whose permissions are immutable and cannot be changed.\n'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
+}).describe('A named role within an organization with a set of permission flags.')
+
+
+/**
+ * Updates a role's display name and/or permission flags. Only provided fields are changed. The Owner built-in role cannot be modified. Requires Owner role.
+ * @summary Update a role's name and/or permissions (owner only)
+ */
+export const UpdateRoleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const updateRoleBodyNameMax = 100;
+
+
+
+export const UpdateRoleBody = zod.object({
+  "name": zod.string().min(1).max(updateRoleBodyNameMax).optional().describe('New display name. Must be unique within the org.'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
+}).describe('Request body for updating a role\'s name and\/or permissions. Only provided fields are changed. The Owner built-in role cannot be modified.\n')
+
+export const UpdateRoleResponse = zod.object({
+  "id": zod.string().describe('UUID of the role.'),
+  "orgId": zod.string().describe('UUID of the owning organization.'),
+  "name": zod.string().describe('Display name of the role (e.g. \"Owner\", \"Admin\", \"Member\", or a custom name).'),
+  "isBuiltIn": zod.boolean().describe('`true` for the three system-seeded roles (Owner, Admin, Member). Built-in roles cannot be deleted.\n'),
+  "isOwner": zod.boolean().describe('`true` only for the Owner built-in role whose permissions are immutable and cannot be changed.\n'),
+  "permissions": zod.object({
+  "view_tasks": zod.boolean(),
+  "create_tasks": zod.boolean(),
+  "edit_tasks": zod.boolean(),
+  "close_tasks": zod.boolean(),
+  "delete_tasks": zod.boolean(),
+  "manage_projects": zod.boolean(),
+  "manage_org_settings": zod.boolean(),
+  "manage_members": zod.boolean(),
+  "manage_webhooks": zod.boolean(),
+  "manage_api_keys": zod.boolean(),
+  "manage_custom_fields": zod.boolean(),
+  "manage_workflow_stages": zod.boolean(),
+  "manage_sla_policies": zod.boolean(),
+  "manage_task_templates": zod.boolean(),
+  "manage_saved_views": zod.boolean(),
+  "view_audit_log": zod.boolean()
+}).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
+}).describe('A named role within an organization with a set of permission flags.')
+
+
+/**
+ * Permanently deletes a custom role. All members currently assigned to this role are automatically reassigned to the Member built-in role. Built-in roles (Owner, Admin, Member) cannot be deleted. Requires Owner role.
+ * @summary Delete a custom role (owner only)
+ */
+export const DeleteRoleParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const DeleteRoleResponse = zod.void()
 
 
 /**

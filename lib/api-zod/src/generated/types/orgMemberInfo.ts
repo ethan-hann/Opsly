@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { OrgMemberInfoRole } from './orgMemberInfoRole';
+import type { RolePermissions } from './rolePermissions';
 
 /**
  * Profile and membership information for a single org member.
@@ -13,8 +14,13 @@ import type { OrgMemberInfoRole } from './orgMemberInfoRole';
 export interface OrgMemberInfo {
   /** Unique user ID of the member. */
   userId: string;
-  /** The member's role within the organization. */
+  /** Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks. */
   role: OrgMemberInfoRole;
+  /** ID of the member's current role. */
+  roleId: string;
+  /** Display name of the member's current role. */
+  roleName: string;
+  permissions: RolePermissions;
   /** ISO 8601 timestamp when the user joined the organization. */
   joinedAt: string;
   /**

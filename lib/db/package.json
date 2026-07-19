@@ -13,7 +13,8 @@
     "seed": "npx tsx src/seed-org.ts",
     "migrate:backfill-comments-org-id": "npx tsx src/migrations/backfill-comments-org-id.ts",
     "migrate:add-inbound-webhook-rate-limit": "pnpm dlx tsx src/migrations/add-inbound-webhook-rate-limit.ts",
-    "migrate:add-outbound-webhook-deliveries": "pnpm dlx tsx src/migrations/add-outbound-webhook-deliveries.ts"
+    "migrate:add-outbound-webhook-deliveries": "pnpm dlx tsx src/migrations/add-outbound-webhook-deliveries.ts",
+    "migrate:add-roles-and-permissions": "pnpm dlx tsx src/migrations/add-roles-and-permissions.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

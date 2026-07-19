@@ -7,8 +7,18 @@ import {
   orgMembersTable,
   invitationsTable,
   usersTable,
+  rolesTable,
+  OWNER_PERMISSIONS,
+  ADMIN_PERMISSIONS,
+  MEMBER_PERMISSIONS,
 } from '@workspace/db';
-import { requireAuth, requireOrg, requireAdmin } from '../middlewares/requireOrgMiddleware';
+import type { RolePermissions } from '@workspace/db';
+import {
+  requireAuth,
+  requireOrg,
+  requireAdmin,
+  requirePermission,
+} from '../middlewares/requireOrgMiddleware';
 
 const router: IRouter = Router();
 
@@ -23,17 +33,64 @@ function generateToken(): string {
   return token;
 }
 
+/**
+ * Seed the three built-in roles (Owner, Admin, Member) for a newly created org.
+ * Returns the Owner role id so the creator can be assigned to it.
+ */
+async function seedBuiltInRoles(orgId: string): Promise<{ ownerId: string; memberId: string }> {
+  const [ownerRole] = await db
+    .insert(rolesTable)
+    .values({ orgId, name: 'Owner', isBuiltIn: true, isOwner: true, permissions: OWNER_PERMISSIONS })
+    .returning({ id: rolesTable.id });
+
+  await db
+    .insert(rolesTable)
+    .values({ orgId, name: 'Admin', isBuiltIn: true, isOwner: false, permissions: ADMIN_PERMISSIONS });
+
+  const [memberRole] = await db
+    .insert(rolesTable)
+    .values({ orgId, name: 'Member', isBuiltIn: true, isOwner: false, permissions: MEMBER_PERMISSIONS })
+    .returning({ id: rolesTable.id });
+
+  return { ownerId: ownerRole.id, memberId: memberRole.id };
+}
+
+/** Get the Member built-in role id for an org (used when accepting invitations). */
+async function getMemberRoleId(orgId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ id: rolesTable.id })
+    .from(rolesTable)
+    .where(
+      and(
+        eq(rolesTable.orgId, orgId),
+        eq(rolesTable.isBuiltIn, true),
+        sql`${rolesTable.name} = 'Member'`,
+      ),
+    )
+    .limit(1);
+  return row?.id ?? null;
+}
+
+/** Derive legacy admin/member label from permissions (backward-compat). */
+function legacyRole(permissions: RolePermissions): 'admin' | 'member' {
+  return permissions.manage_org_settings ? 'admin' : 'member';
+}
+
 async function getOrgMeData(userId: string) {
-  // Check membership
+  // Check membership — join with roles to get full permission context
   const [membership] = await db
     .select({
       orgId: orgMembersTable.orgId,
-      role: orgMembersTable.role,
       orgName: organizationsTable.name,
       orgCreatedAt: organizationsTable.createdAt,
+      roleId: orgMembersTable.roleId,
+      roleName: rolesTable.name,
+      isOwner: rolesTable.isOwner,
+      permissions: rolesTable.permissions,
     })
     .from(orgMembersTable)
     .innerJoin(organizationsTable, eq(orgMembersTable.orgId, organizationsTable.id))
+    .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
     .where(eq(orgMembersTable.userId, userId))
     .limit(1);
 
@@ -44,13 +101,15 @@ async function getOrgMeData(userId: string) {
         name: membership.orgName,
         createdAt: membership.orgCreatedAt.toISOString(),
       },
-      role: membership.role,
+      role: legacyRole(membership.permissions),
+      roleId: membership.roleId,
+      roleName: membership.roleName,
+      permissions: membership.permissions,
       pendingInvitation: null,
     };
   }
 
-  // No membership - check for pending invitation
-  // Fetch the user's email to match against invitations
+  // No membership — check for pending invitation
   const [user] = await db
     .select({ email: usersTable.email })
     .from(usersTable)
@@ -83,6 +142,9 @@ async function getOrgMeData(userId: string) {
     return {
       org: null,
       role: null,
+      roleId: null,
+      roleName: null,
+      permissions: null,
       pendingInvitation: {
         id: invitation.id,
         orgId: invitation.orgId,
@@ -93,7 +155,7 @@ async function getOrgMeData(userId: string) {
     };
   }
 
-  return { org: null, role: null, pendingInvitation: null };
+  return { org: null, role: null, roleId: null, roleName: null, permissions: null, pendingInvitation: null };
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
@@ -124,15 +186,21 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
     .values({ name: parsed.data.name })
     .returning();
 
+  // Seed built-in roles and assign creator to Owner
+  const { ownerId } = await seedBuiltInRoles(org.id);
+
   await db.insert(orgMembersTable).values({
     orgId: org.id,
     userId: req.user!.id,
-    role: 'admin',
+    roleId: ownerId,
   });
 
   res.status(201).json({
     org: { id: org.id, name: org.name, createdAt: org.createdAt.toISOString() },
     role: 'admin',
+    roleId: ownerId,
+    roleName: 'Owner',
+    permissions: OWNER_PERMISSIONS,
     pendingInvitation: null,
   });
 });
@@ -144,7 +212,7 @@ router.get('/orgs/me', requireAuth, async (req, res): Promise<void> => {
 });
 
 // PATCH /orgs/me - rename the current organization (admin only)
-router.patch('/orgs/me', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.patch('/orgs/me', requireOrg, requirePermission('manage_org_settings'), async (req, res): Promise<void> => {
   const schema = z.object({ name: z.string().min(1).max(200) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
@@ -165,12 +233,15 @@ router.patch('/orgs/me', requireOrg, requireAdmin, async (req, res): Promise<voi
   });
 });
 
-// GET /orgs/members - list org members with user info
+// GET /orgs/members - list org members with user info + role details
 router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   const members = await db
     .select({
       userId: orgMembersTable.userId,
-      role: orgMembersTable.role,
+      roleId: orgMembersTable.roleId,
+      roleName: rolesTable.name,
+      isOwner: rolesTable.isOwner,
+      permissions: rolesTable.permissions,
       joinedAt: orgMembersTable.joinedAt,
       firstName: usersTable.firstName,
       lastName: usersTable.lastName,
@@ -179,13 +250,17 @@ router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
     })
     .from(orgMembersTable)
     .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
+    .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
     .where(eq(orgMembersTable.orgId, req.orgId!))
     .orderBy(orgMembersTable.joinedAt);
 
   res.json(
     members.map((m) => ({
       userId: m.userId,
-      role: m.role,
+      role: legacyRole(m.permissions),
+      roleId: m.roleId,
+      roleName: m.roleName,
+      permissions: m.permissions,
       joinedAt: m.joinedAt.toISOString(),
       firstName: m.firstName ?? null,
       lastName: m.lastName ?? null,
@@ -219,8 +294,8 @@ router.get('/orgs/invitation-preview/:token', async (req, res): Promise<void> =>
   res.json({ orgName: row.orgName, expiresAt: row.expiresAt.toISOString() });
 });
 
-// GET /orgs/invitations - list pending invitations (admin only)
-router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+// GET /orgs/invitations - list pending invitations (manage_members required)
+router.get('/orgs/invitations', requireOrg, requirePermission('manage_members'), async (req, res): Promise<void> => {
   const now = new Date();
   const invitations = await db
     .select({
@@ -257,8 +332,8 @@ router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Prom
   );
 });
 
-// DELETE /orgs/invitations/:id - cancel a pending invitation (admin only)
-router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+// DELETE /orgs/invitations/:id - cancel a pending invitation
+router.delete('/orgs/invitations/:id', requireOrg, requirePermission('manage_members'), async (req, res): Promise<void> => {
   const id = req.params.id as string;
 
   const [invitation] = await db
@@ -282,8 +357,8 @@ router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res
   res.status(204).send();
 });
 
-// POST /orgs/invite - invite a member (admin only)
-router.post('/orgs/invite', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+// POST /orgs/invite - invite a member
+router.post('/orgs/invite', requireOrg, requirePermission('manage_members'), async (req, res): Promise<void> => {
   const schema = z.object({
     email: z.string().email().optional(),
     userId: z.string().min(1).optional(),
@@ -392,11 +467,18 @@ router.post('/orgs/invitations/:token/accept', requireAuth, async (req, res): Pr
     return;
   }
 
+  // Get Member role for this org
+  const memberRoleId = await getMemberRoleId(invitation.orgId);
+  if (!memberRoleId) {
+    res.status(500).json({ error: 'Organization roles not initialized — contact an admin' });
+    return;
+  }
+
   // Create membership and mark invitation accepted
   await db.insert(orgMembersTable).values({
     orgId: invitation.orgId,
     userId,
-    role: 'member',
+    roleId: memberRoleId,
   });
 
   await db
@@ -450,8 +532,8 @@ router.post('/orgs/invitations/:token/decline', requireAuth, async (req, res): P
   res.json({ success: true });
 });
 
-// DELETE /orgs/members/:userId - remove a member (admin only)
-router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+// DELETE /orgs/members/:userId - remove a member
+router.delete('/orgs/members/:userId', requireOrg, requirePermission('manage_members'), async (req, res): Promise<void> => {
   const targetUserId = req.params.userId as string;
 
   if (targetUserId === req.user!.id) {
@@ -459,9 +541,11 @@ router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res
     return;
   }
 
+  // Join with rolesTable so we can check whether the target is an Owner
   const [member] = await db
-    .select()
+    .select({ roleId: orgMembersTable.roleId, isOwner: rolesTable.isOwner })
     .from(orgMembersTable)
+    .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
     .where(
       and(
         eq(orgMembersTable.orgId, req.orgId!),
@@ -473,6 +557,30 @@ router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res
   if (!member) {
     res.status(404).json({ error: 'Member not found' });
     return;
+  }
+
+  // Non-owners cannot remove Owner-role members
+  if (member.isOwner && !req.isOrgOwner) {
+    res.status(403).json({ error: 'Only owners can remove other owners' });
+    return;
+  }
+
+  // Owners cannot be removed if they are the last owner
+  if (member.isOwner) {
+    const [ownerCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orgMembersTable)
+      .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
+      .where(
+        and(
+          eq(orgMembersTable.orgId, req.orgId!),
+          eq(rolesTable.isOwner, true),
+        ),
+      );
+    if ((ownerCount?.count ?? 0) <= 1) {
+      res.status(400).json({ error: 'Cannot remove the last owner. Transfer the Owner role to another member first.' });
+      return;
+    }
   }
 
   await db
@@ -487,19 +595,21 @@ router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res
   res.sendStatus(204);
 });
 
-// PATCH /orgs/members/:userId/role - transfer admin / change role (admin only)
-router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req, res): Promise<void> => {
+// PATCH /orgs/members/:userId/role - assign a role to a member (manage_members required)
+router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage_members'), async (req, res): Promise<void> => {
   const targetUserId = req.params.userId as string;
-  const schema = z.object({ role: z.enum(['admin', 'member']) });
+  const schema = z.object({ roleId: z.string().min(1) });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
+  // Join with rolesTable to get current role info alongside the membership
   const [member] = await db
-    .select()
+    .select({ roleId: orgMembersTable.roleId, currentRoleIsOwner: rolesTable.isOwner })
     .from(orgMembersTable)
+    .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
     .where(
       and(
         eq(orgMembersTable.orgId, req.orgId!),
@@ -513,22 +623,56 @@ router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req,
     return;
   }
 
-  // If promoting to admin, demote current admin to member
-  if (parsed.data.role === 'admin') {
-    await db
-      .update(orgMembersTable)
-      .set({ role: 'member' })
+  // Non-owners cannot modify Owner-role members
+  if (member.currentRoleIsOwner && !req.isOrgOwner) {
+    res.status(403).json({ error: 'Only owners can change the role of another owner' });
+    return;
+  }
+
+  // Verify the target role belongs to this org
+  const [targetRole] = await db
+    .select()
+    .from(rolesTable)
+    .where(
+      and(
+        eq(rolesTable.id, parsed.data.roleId),
+        eq(rolesTable.orgId, req.orgId!),
+      ),
+    )
+    .limit(1);
+
+  if (!targetRole) {
+    res.status(404).json({ error: 'Role not found in this organization' });
+    return;
+  }
+
+  // Only owners can assign the Owner role
+  if (targetRole.isOwner && !req.isOrgOwner) {
+    res.status(403).json({ error: 'Only owners can assign the Owner role' });
+    return;
+  }
+
+  // If demoting an Owner, ensure at least one other Owner remains
+  if (member.currentRoleIsOwner && !targetRole.isOwner) {
+    const [ownerCount] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(orgMembersTable)
+      .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
       .where(
         and(
           eq(orgMembersTable.orgId, req.orgId!),
-          eq(orgMembersTable.userId, req.user!.id),
+          eq(rolesTable.isOwner, true),
         ),
       );
+    if ((ownerCount?.count ?? 0) <= 1) {
+      res.status(400).json({ error: 'Cannot demote the last owner. Assign the Owner role to another member first.' });
+      return;
+    }
   }
 
   const [updated] = await db
     .update(orgMembersTable)
-    .set({ role: parsed.data.role })
+    .set({ roleId: parsed.data.roleId })
     .where(
       and(
         eq(orgMembersTable.orgId, req.orgId!),
@@ -550,7 +694,10 @@ router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req,
 
   res.json({
     userId: updated.userId,
-    role: updated.role,
+    role: legacyRole(targetRole.permissions),
+    roleId: updated.roleId,
+    roleName: targetRole.name,
+    permissions: targetRole.permissions,
     joinedAt: updated.joinedAt.toISOString(),
     firstName: userInfo?.firstName ?? null,
     lastName: userInfo?.lastName ?? null,
@@ -564,7 +711,7 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const orgId = req.orgId!;
 
-  // Count total members to decide whether to delete the org or just remove self
+  // Count total members
   const [memberCount] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(orgMembersTable)
@@ -579,21 +726,22 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // More than one member - check admin constraint
-  if (req.orgRole === 'admin') {
-    const [adminCount] = await db
+  // Check owner constraint — owners must transfer ownership before leaving
+  if (req.isOrgOwner) {
+    const [ownerCount] = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(orgMembersTable)
+      .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
       .where(
         and(
           eq(orgMembersTable.orgId, orgId),
-          eq(orgMembersTable.role, 'admin'),
+          eq(rolesTable.isOwner, true),
         ),
       );
 
-    if ((adminCount?.count ?? 0) <= 1) {
+    if ((ownerCount?.count ?? 0) <= 1) {
       res.status(400).json({
-        error: 'Transfer admin to another member before leaving',
+        error: 'Transfer the Owner role to another member before leaving',
       });
       return;
     }

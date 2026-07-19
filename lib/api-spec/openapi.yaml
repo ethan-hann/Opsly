@@ -1052,12 +1052,11 @@ paths:
     patch:
       operationId: updateOrgMemberRole
       tags: [orgs]
-      summary: Change a member role, or transfer admin (admin only)
+      summary: Assign a role to a member (manage_members permission required)
       description: >
-        Updates the role of an org member to `admin` or `member`. Requires
-        `admin` role. Promoting another user to `admin` does not remove the
-        caller's own `admin` status - multiple admins are allowed. Returns 404
-        if the target user is not a member of this org.
+        Assigns a role to an org member. The caller must have the
+        `manage_members` permission. Only owners can assign the Owner built-in
+        role. Returns 404 if the target user or role is not found in this org.
       parameters:
         - name: userId
           in: path
@@ -1080,9 +1079,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrgMemberInfo"
         "403":
-          description: Caller is not an admin of the organization.
+          description: Caller lacks manage_members permission, or tried to assign Owner role without being an owner.
         "404":
-          description: Target user is not a member of this organization.
+          description: Target user or role not found in this organization.
 
   /orgs/leave:
     post:
@@ -1092,9 +1091,8 @@ paths:
       description: >
         Removes the authenticated user from their current organization. The
         caller's tasks and projects remain in the org but become unassigned.
-        If the departing user is the last admin, they should transfer the admin
-        role before leaving; the server does not enforce this constraint
-        automatically.
+        If the departing user is the sole Owner, they must transfer the Owner
+        role to another member before leaving.
       responses:
         "200":
           description: Left organization successfully.
@@ -1102,6 +1100,107 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleSuccess"
+
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [roles]
+      summary: List all roles for the current org
+      description: >
+        Returns all roles defined for the caller's organization — three
+        built-in roles (Owner, Admin, Member) plus any custom roles created
+        by owners. Built-in roles appear first in a fixed order.
+      responses:
+        "200":
+          description: Array of roles ordered built-in first, then custom alphabetically.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+    post:
+      operationId: createRole
+      tags: [roles]
+      summary: Create a custom role (owner only)
+      description: >
+        Creates a new custom role for the org. Requires Owner role. The new
+        role's permissions default to the Member preset for any key not supplied
+        in the request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleInput"
+      responses:
+        "201":
+          description: Role created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "403":
+          description: Caller is not an Owner.
+        "409":
+          description: A role with that name already exists in this org.
+
+  /roles/{id}:
+    patch:
+      operationId: updateRole
+      tags: [roles]
+      summary: Update a role's name and/or permissions (owner only)
+      description: >
+        Updates a role's display name and/or permission flags. Only provided
+        fields are changed. The Owner built-in role cannot be modified.
+        Requires Owner role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleInput"
+      responses:
+        "200":
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "403":
+          description: Caller is not an Owner, or the role is the immutable Owner role.
+        "404":
+          description: Role not found.
+        "409":
+          description: A role with that name already exists.
+    delete:
+      operationId: deleteRole
+      tags: [roles]
+      summary: Delete a custom role (owner only)
+      description: >
+        Permanently deletes a custom role. All members currently assigned to
+        this role are automatically reassigned to the Member built-in role.
+        Built-in roles (Owner, Admin, Member) cannot be deleted. Requires Owner
+        role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Role deleted; affected members reassigned to Member role.
+        "403":
+          description: Caller is not an Owner, or the role is a built-in role.
+        "404":
+          description: Role not found.
 
   /webhooks/inbound/{token}/ingest:
     post:
@@ -2045,9 +2144,20 @@ components:
               enum: [admin, member]
             - type: 'null'
           description: >
-            The caller's role in the organization. `admin` can manage members
-            and invitations; `member` has read/write access to projects and
-            tasks. Null when `org` is null.
+            Legacy role label for backward-compatibility. `admin` when the caller
+            has the `manage_org_settings` permission; `member` otherwise. Null
+            when `org` is null. Prefer `permissions` for fine-grained checks.
+        roleId:
+          type: ["string", "null"]
+          description: ID of the caller's current role. Null when `org` is null.
+        roleName:
+          type: ["string", "null"]
+          description: Display name of the caller's current role. Null when `org` is null.
+        permissions:
+          oneOf:
+            - $ref: '#/components/schemas/RolePermissions'
+            - type: 'null'
+          description: Full set of permission flags for the caller's role. Null when `org` is null.
         pendingInvitation:
           oneOf:
             - $ref: '#/components/schemas/PendingInvitation'
@@ -2059,7 +2169,7 @@ components:
     OrgMemberInfo:
       description: Profile and membership information for a single org member.
       type: object
-      required: [userId, role, joinedAt]
+      required: [userId, role, roleId, roleName, permissions, joinedAt]
       properties:
         userId:
           type: string
@@ -2067,7 +2177,18 @@ components:
         role:
           type: string
           enum: [admin, member]
-          description: The member's role within the organization.
+          description: >
+            Legacy role label for backward-compatibility. `admin` when the member
+            has the `manage_org_settings` permission; `member` otherwise.
+            Prefer `permissions` for fine-grained checks.
+        roleId:
+          type: string
+          description: ID of the member's current role.
+        roleName:
+          type: string
+          description: Display name of the member's current role.
+        permissions:
+          $ref: '#/components/schemas/RolePermissions'
         joinedAt:
           type: string
           description: ISO 8601 timestamp when the user joined the organization.
@@ -2143,17 +2264,128 @@ components:
           description: User ID of the user to invite.
 
     UpdateMemberRoleInput:
-      description: Request body for changing an org member's role.
+      description: Request body for assigning a role to an org member.
       type: object
-      required: [role]
+      required: [roleId]
       properties:
-        role:
+        roleId:
           type: string
-          enum: [admin, member]
           description: >
-            New role for the member. Promoting to `admin` grants full
-            organization management permissions. Demoting to `member` restricts
-            access to standard read/write operations on projects and tasks.
+            ID of the role to assign. Must belong to the same organization.
+            Only owners can assign the Owner built-in role.
+
+    RolePermissions:
+      description: >
+        Boolean permission flags for a role. Every key is present; `true` grants
+        the permission, `false` denies it.
+      type: object
+      required:
+        - view_tasks
+        - create_tasks
+        - edit_tasks
+        - close_tasks
+        - delete_tasks
+        - manage_projects
+        - manage_org_settings
+        - manage_members
+        - manage_webhooks
+        - manage_api_keys
+        - manage_custom_fields
+        - manage_workflow_stages
+        - manage_sla_policies
+        - manage_task_templates
+        - manage_saved_views
+        - view_audit_log
+      properties:
+        view_tasks:
+          type: boolean
+        create_tasks:
+          type: boolean
+        edit_tasks:
+          type: boolean
+        close_tasks:
+          type: boolean
+        delete_tasks:
+          type: boolean
+        manage_projects:
+          type: boolean
+        manage_org_settings:
+          type: boolean
+        manage_members:
+          type: boolean
+        manage_webhooks:
+          type: boolean
+        manage_api_keys:
+          type: boolean
+        manage_custom_fields:
+          type: boolean
+        manage_workflow_stages:
+          type: boolean
+        manage_sla_policies:
+          type: boolean
+        manage_task_templates:
+          type: boolean
+        manage_saved_views:
+          type: boolean
+        view_audit_log:
+          type: boolean
+
+    Role:
+      description: A named role within an organization with a set of permission flags.
+      type: object
+      required: [id, orgId, name, isBuiltIn, isOwner, permissions, createdAt]
+      properties:
+        id:
+          type: string
+          description: UUID of the role.
+        orgId:
+          type: string
+          description: UUID of the owning organization.
+        name:
+          type: string
+          description: Display name of the role (e.g. "Owner", "Admin", "Member", or a custom name).
+        isBuiltIn:
+          type: boolean
+          description: >
+            `true` for the three system-seeded roles (Owner, Admin, Member).
+            Built-in roles cannot be deleted.
+        isOwner:
+          type: boolean
+          description: >
+            `true` only for the Owner built-in role whose permissions are
+            immutable and cannot be changed.
+        permissions:
+          $ref: '#/components/schemas/RolePermissions'
+        createdAt:
+          type: string
+          description: ISO 8601 timestamp when the role was created.
+
+    CreateRoleInput:
+      description: Request body for creating a new custom role.
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Display name for the new role. Must be unique within the org.
+        permissions:
+          $ref: '#/components/schemas/RolePermissions'
+
+    UpdateRoleInput:
+      description: >
+        Request body for updating a role's name and/or permissions. Only
+        provided fields are changed. The Owner built-in role cannot be modified.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: New display name. Must be unique within the org.
+        permissions:
+          $ref: '#/components/schemas/RolePermissions'
 
     SimpleSuccess:
       description: Generic success acknowledgement with no additional data.

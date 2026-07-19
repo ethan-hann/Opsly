@@ -5,12 +5,11 @@
  * Opsly API
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateMemberRoleInputRole } from './updateMemberRoleInputRole';
 
 /**
- * Request body for changing an org member's role.
+ * Request body for assigning a role to an org member.
  */
 export interface UpdateMemberRoleInput {
-  /** New role for the member. Promoting to `admin` grants full organization management permissions. Demoting to `member` restricts access to standard read/write operations on projects and tasks. */
-  role: UpdateMemberRoleInputRole;
+  /** ID of the role to assign. Must belong to the same organization. Only owners can assign the Owner built-in role. */
+  roleId: string;
 }

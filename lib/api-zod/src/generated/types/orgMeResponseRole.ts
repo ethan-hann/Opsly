@@ -7,7 +7,7 @@
  */
 
 /**
- * The caller's role in the organization. `admin` can manage members and invitations; `member` has read/write access to projects and tasks. Null when `org` is null.
+ * Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.
  */
 export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
 

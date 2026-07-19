@@ -96,8 +96,13 @@ vi.mock("@workspace/db", () => {
     },
     organizationsTable: {},
     orgMembersTable: {},
+    rolesTable: {},
     invitationsTable: {},
     usersTable: {},
+    OWNER_PERMISSIONS: {},
+    ADMIN_PERMISSIONS: {},
+    MEMBER_PERMISSIONS: {},
+    ALL_PERMISSIONS: [],
     eq: () => ({}),
     and: () => ({}),
     or: () => ({}),
@@ -113,7 +118,14 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // requireAuth injects req.user; requireOrg also injects orgId + role.
-// requireAdmin just passes through (we test business logic, not the guard itself).
+// Guards are stubbed — we test business logic, not the guards themselves.
+const ALL_PERMS = {
+  view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+  delete_tasks: true, manage_projects: true, manage_org_settings: true,
+  manage_members: true, manage_webhooks: true, manage_api_keys: true,
+  manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+  manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+};
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireAuth: (req: any, _res: any, next: any) => {
     req.user = { id: "user-owner" };
@@ -123,9 +135,19 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     req.user = { id: "user-owner" };
     req.orgId = "test-org";
     req.orgRole = "admin";
+    req.orgRoleId = "role-owner";
+    req.orgRoleName = "Owner";
+    req.isOrgOwner = true;
+    req.orgPermissions = ALL_PERMS;
     next();
   },
   requireAdmin: (_req: any, _res: any, next: any) => {
+    next();
+  },
+  requireOwner: (_req: any, _res: any, next: any) => {
+    next();
+  },
+  requirePermission: (_key: string) => (_req: any, _res: any, next: any) => {
     next();
   },
 }));
@@ -149,10 +171,20 @@ const MOCK_ORG = {
   createdAt: new Date("2024-01-01T00:00:00.000Z"),
 };
 
+const MEMBER_PERMS = {
+  view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+  delete_tasks: false, manage_projects: false, manage_org_settings: false,
+  manage_members: false, manage_webhooks: false, manage_api_keys: false,
+  manage_custom_fields: false, manage_workflow_stages: false, manage_sla_policies: false,
+  manage_task_templates: false, manage_saved_views: false, view_audit_log: false,
+};
+
 const MOCK_MEMBER = {
   orgId: "test-org",
   userId: "user-owner",
-  role: "admin",
+  roleId: "role-owner",
+  roleName: "Owner",
+  permissions: ALL_PERMS,
   joinedAt: new Date("2024-01-01T00:00:00.000Z"),
 };
 
@@ -195,8 +227,11 @@ describe("POST /api/orgs", () => {
 
   it("returns 201 with org and role on success", async () => {
     mockState.selectQueue.push([]); // no existing membership
-    mockState.insertQueue.push([MOCK_ORG]); // insert org
-    mockState.insertQueue.push([]); // insert member (no returning)
+    mockState.insertQueue.push([MOCK_ORG]); // insert org → returning
+    mockState.insertQueue.push([{ id: "role-owner" }]); // insert Owner role → returning
+    mockState.insertQueue.push([]); // insert Admin role → noop
+    mockState.insertQueue.push([{ id: "role-member" }]); // insert Member role → returning
+    // insert org member → queue empty, noop
 
     const res = await request(buildApp()).post("/api/orgs").send({ name: "Acme Corp" });
 
@@ -219,7 +254,10 @@ describe("GET /api/orgs/me", () => {
   it("returns org and role when the user is a member", async () => {
     mockState.selectQueue.push([{
       orgId: "test-org",
-      role: "admin",
+      roleId: "role-owner",
+      roleName: "Owner",
+      isOwner: true,
+      permissions: ALL_PERMS,
       orgName: "Acme Corp",
       orgCreatedAt: new Date("2024-01-01T00:00:00.000Z"),
     }]);
@@ -298,7 +336,10 @@ describe("GET /api/orgs/members", () => {
   it("returns 200 with member list", async () => {
     mockState.selectQueue.push([{
       userId: "user-owner",
-      role: "admin",
+      roleId: "role-owner",
+      roleName: "Owner",
+      isOwner: true,
+      permissions: ALL_PERMS,
       joinedAt: new Date("2024-01-01T00:00:00.000Z"),
       firstName: "Alice",
       lastName: "Smith",
@@ -310,7 +351,7 @@ describe("GET /api/orgs/members", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toMatchObject({ userId: "user-owner", role: "admin", email: "alice@example.com" });
+    expect(res.body[0]).toMatchObject({ userId: "user-owner", role: "admin", roleName: "Owner", email: "alice@example.com" });
   });
 
   it("returns 200 with an empty array when there are no members", async () => {
@@ -533,10 +574,15 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
     mockState.selectQueue.push([{ email: "bob@example.com" }]); // user email
     mockState.selectQueue.push([{ ...MOCK_INVITATION, invitedEmail: "bob@example.com" }]); // invitation
     mockState.selectQueue.push([]); // no existing membership
-    mockState.insertQueue.push([]); // insert member
+    mockState.selectQueue.push([{ id: "role-member" }]); // getMemberRoleId
+    mockState.insertQueue.push([]); // insert org member
     mockState.updateQueue.push([]); // update invitation status
     // getOrgMeData - membership select for the response
-    mockState.selectQueue.push([{ orgId: "test-org", role: "member", orgName: "Acme Corp", orgCreatedAt: new Date() }]);
+    mockState.selectQueue.push([{
+      orgId: "test-org", roleId: "role-member", roleName: "Member",
+      isOwner: false, permissions: MEMBER_PERMS,
+      orgName: "Acme Corp", orgCreatedAt: new Date(),
+    }]);
 
     const res = await request(buildApp()).post("/api/orgs/invitations/abc123/accept");
 
@@ -629,10 +675,10 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
     mockState.updateQueue.length = 0;
   });
 
-  it("returns 400 for an invalid role value", async () => {
+  it("returns 400 when roleId is missing", async () => {
     const res = await request(buildApp())
       .patch("/api/orgs/members/user-2/role")
-      .send({ role: "superuser" });
+      .send({});
 
     expect(res.status).toBe(400);
   });
@@ -642,33 +688,36 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
 
     const res = await request(buildApp())
       .patch("/api/orgs/members/user-2/role")
-      .send({ role: "member" });
+      .send({ roleId: "role-admin" });
 
     expect(res.status).toBe(404);
   });
 
-  it("returns 200 with updated member when promoting to admin", async () => {
+  it("returns 200 with updated member when assigning admin role", async () => {
+    const adminRole = { id: "role-admin", name: "Admin", isOwner: false, permissions: ALL_PERMS };
     mockState.selectQueue.push([MOCK_MEMBER]); // target member found
-    mockState.updateQueue.push([]); // demote current admin
-    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", role: "admin" }]); // promote target
+    mockState.selectQueue.push([adminRole]); // target role found
+    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", roleId: "role-admin" }]);
     mockState.selectQueue.push([{ firstName: "Bob", lastName: "Jones", email: "bob@example.com", profileImageUrl: null }]);
 
     const res = await request(buildApp())
       .patch("/api/orgs/members/user-2/role")
-      .send({ role: "admin" });
+      .send({ roleId: "role-admin" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ role: "admin", email: "bob@example.com" });
   });
 
-  it("returns 200 with updated member when changing to member role", async () => {
+  it("returns 200 with updated member when assigning member role", async () => {
+    const memberRole = { id: "role-member", name: "Member", isOwner: false, permissions: MEMBER_PERMS };
     mockState.selectQueue.push([MOCK_MEMBER]); // target found
-    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", role: "member" }]);
+    mockState.selectQueue.push([memberRole]); // target role found
+    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", roleId: "role-member" }]);
     mockState.selectQueue.push([{ firstName: "Bob", lastName: "Jones", email: "bob@example.com", profileImageUrl: null }]);
 
     const res = await request(buildApp())
       .patch("/api/orgs/members/user-2/role")
-      .send({ role: "member" });
+      .send({ roleId: "role-member" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ role: "member" });
@@ -694,20 +743,20 @@ describe("POST /api/orgs/leave", () => {
     expect(res.body).toMatchObject({ success: true });
   });
 
-  it("returns 400 when sole admin tries to leave a multi-member org", async () => {
+  it("returns 400 when sole owner tries to leave a multi-member org", async () => {
     mockState.selectQueue.push([{ count: 3 }]); // multiple members
-    // req.orgRole = 'admin' from mock
-    mockState.selectQueue.push([{ count: 1 }]); // only 1 admin
+    // req.isOrgOwner = true from mock → checks owner count
+    mockState.selectQueue.push([{ count: 1 }]); // only 1 owner
 
     const res = await request(buildApp()).post("/api/orgs/leave");
 
     expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({ error: expect.stringMatching(/transfer admin/i) });
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/transfer.*owner/i) });
   });
 
-  it("removes the member and returns success when there are multiple admins", async () => {
+  it("removes the member and returns success when there are multiple owners", async () => {
     mockState.selectQueue.push([{ count: 3 }]); // multiple members
-    mockState.selectQueue.push([{ count: 2 }]); // 2 admins → safe to leave
+    mockState.selectQueue.push([{ count: 2 }]); // 2 owners → safe to leave
 
     const res = await request(buildApp()).post("/api/orgs/leave");
 

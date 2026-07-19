@@ -6,15 +6,20 @@ import {
   type ReactNode,
 } from "react";
 import { useGetMyOrg } from "@workspace/api-client-react";
-import type { OrgMeResponse, Organization, PendingInvitation } from "@workspace/api-client-react";
+import type { OrgMeResponse, Organization, PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 interface OrgContextValue {
   org: Organization | null;
   role: "admin" | "member" | null;
+  roleId: string | null;
+  roleName: string | null;
+  permissions: RolePermissions | null;
   pendingInvitation: PendingInvitation | null;
   isAdmin: boolean;
+  isOwner: boolean;
+  hasPermission: (key: keyof RolePermissions) => boolean;
   refetchOrg: () => void;
 }
 
@@ -70,12 +75,23 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return <>{onboarding(refetch)}</>;
   }
 
+  const permissions = data.permissions ?? null;
+
+  function hasPermission(key: keyof RolePermissions): boolean {
+    return permissions?.[key] === true;
+  }
+
   // Has org - render main app with context
   const value: OrgContextValue = {
     org: data.org,
     role: data.role ?? null,
+    roleId: data.roleId ?? null,
+    roleName: data.roleName ?? null,
+    permissions,
     pendingInvitation: null,
     isAdmin: data.role === "admin",
+    isOwner: permissions?.manage_org_settings === true && data.roleName === "Owner",
+    hasPermission,
     refetchOrg,
   };
 

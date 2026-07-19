@@ -7,7 +7,7 @@
  */
 
 /**
- * The member's role within the organization.
+ * Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.
  */
 export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
 

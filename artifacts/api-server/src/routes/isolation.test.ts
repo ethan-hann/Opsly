@@ -141,8 +141,13 @@ vi.mock("@workspace/db", () => {
     notesTable: {},
     orgMembersTable: {},
     organizationsTable: {},
+    rolesTable: {},
     usersTable: {},
     invitationsTable: {},
+    OWNER_PERMISSIONS: {},
+    ADMIN_PERMISSIONS: {},
+    MEMBER_PERMISSIONS: {},
+    ALL_PERMISSIONS: [],
   };
 });
 
@@ -160,10 +165,21 @@ vi.mock("drizzle-orm", () => ({
 // requireOrgMiddleware — caller is authenticated as a member of "org-a"
 // The org id is derived server-side; clients cannot override it.
 // ---------------------------------------------------------------------------
+const ALL_PERMS = {
+  view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+  delete_tasks: true, manage_projects: true, manage_org_settings: true,
+  manage_members: true, manage_webhooks: true, manage_api_keys: true,
+  manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+  manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+};
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "org-a";
     req.orgRole = "admin";
+    req.orgRoleId = "role-owner";
+    req.orgRoleName = "Owner";
+    req.isOrgOwner = true;
+    req.orgPermissions = ALL_PERMS;
     req.user = { id: "user-a1", email: "user-a1@org-a.example" };
     next();
   },
@@ -172,6 +188,12 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     next();
   },
   requireAdmin: (_req: any, _res: any, next: any) => {
+    next();
+  },
+  requireOwner: (_req: any, _res: any, next: any) => {
+    next();
+  },
+  requirePermission: (_key: string) => (_req: any, _res: any, next: any) => {
     next();
   },
 }));
@@ -661,7 +683,16 @@ describe("Org isolation — GET /api/orgs/members", () => {
   it("returns org-a members and not org-b members", async () => {
     const orgAMember = {
       userId: "user-a1",
-      role: "admin",
+      roleId: "role-owner",
+      roleName: "Owner",
+      isOwner: true,
+      permissions: {
+        view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+        delete_tasks: true, manage_projects: true, manage_org_settings: true,
+        manage_members: true, manage_webhooks: true, manage_api_keys: true,
+        manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
+        manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+      },
       joinedAt: new Date(),
       firstName: "Alice",
       lastName: "Admin",
