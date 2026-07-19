@@ -15,6 +15,7 @@ import {
   GetOverdueTasksResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
 
@@ -169,6 +170,7 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     .returning();
 
   const enriched = await buildTaskWithProject(task, orgId);
+  dispatchTaskCreated(orgId, task.projectId, enriched);
   res.status(201).json(CreateTaskResponse.parse(enriched));
 });
 
@@ -209,6 +211,13 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
+  // Capture previous values for outbound dispatch
+  const [prev] = await db
+    .select({ status: tasksTable.status, assignee: tasksTable.assignee })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .limit(1);
+
   // Validate that projectId (if being changed) belongs to this org
   if (parsed.data.projectId != null) {
     const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
@@ -239,6 +248,7 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   }
 
   const enriched = await buildTaskWithProject(task, orgId);
+  dispatchTaskUpdated(orgId, task.projectId, enriched, prev?.status, prev?.assignee);
   res.json(UpdateTaskResponse.parse(enriched));
 });
 

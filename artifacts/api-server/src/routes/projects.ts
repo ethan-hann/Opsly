@@ -13,6 +13,7 @@ import {
   UpdateProjectResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { dispatchProjectCreated, dispatchProjectUpdated } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
 
@@ -67,7 +68,9 @@ router.post("/projects", requireOrg, async (req, res): Promise<void> => {
     .values({ ...parsed.data, orgId: req.orgId! })
     .returning();
 
-  res.status(201).json(CreateProjectResponse.parse(serializeProject(project, 0, 0)));
+  const serialized = serializeProject(project, 0, 0);
+  dispatchProjectCreated(req.orgId!, serialized);
+  res.status(201).json(CreateProjectResponse.parse(serialized));
 });
 
 router.get("/projects/:id", requireOrg, async (req, res): Promise<void> => {
@@ -130,7 +133,9 @@ router.patch("/projects/:id", requireOrg, async (req, res): Promise<void> => {
     .from(tasksTable)
     .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, req.orgId!)));
 
-  res.json(UpdateProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
+  const serializedUpdate = serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0);
+  dispatchProjectUpdated(req.orgId!, serializedUpdate);
+  res.json(UpdateProjectResponse.parse(serializedUpdate));
 });
 
 router.delete("/projects/:id", requireOrg, async (req, res): Promise<void> => {

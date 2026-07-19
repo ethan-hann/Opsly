@@ -49,7 +49,7 @@ async function getOrgMeData(userId: string) {
     };
   }
 
-  // No membership — check for pending invitation
+  // No membership - check for pending invitation
   // Fetch the user's email to match against invitations
   const [user] = await db
     .select({ email: usersTable.email })
@@ -98,7 +98,7 @@ async function getOrgMeData(userId: string) {
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
-// POST /orgs — create an organization (authenticated, no org required)
+// POST /orgs - create an organization (authenticated, no org required)
 router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
   const schema = z.object({ name: z.string().min(1).max(200) });
   const parsed = schema.safeParse(req.body);
@@ -137,13 +137,13 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
   });
 });
 
-// GET /orgs/me — current org + role + pending invitation
+// GET /orgs/me - current org + role + pending invitation
 router.get('/orgs/me', requireAuth, async (req, res): Promise<void> => {
   const data = await getOrgMeData(req.user!.id);
   res.json(data);
 });
 
-// PATCH /orgs/me — rename the current organization (admin only)
+// PATCH /orgs/me - rename the current organization (admin only)
 router.patch('/orgs/me', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const schema = z.object({ name: z.string().min(1).max(200) });
   const parsed = schema.safeParse(req.body);
@@ -165,7 +165,7 @@ router.patch('/orgs/me', requireOrg, requireAdmin, async (req, res): Promise<voi
   });
 });
 
-// GET /orgs/members — list org members with user info
+// GET /orgs/members - list org members with user info
 router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   const members = await db
     .select({
@@ -195,7 +195,7 @@ router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   );
 });
 
-// GET /orgs/invitation-preview/:token — public; returns org name for the invite page
+// GET /orgs/invitation-preview/:token - public; returns org name for the invite page
 router.get('/orgs/invitation-preview/:token', async (req, res): Promise<void> => {
   const { token } = req.params;
   const now = new Date();
@@ -219,7 +219,7 @@ router.get('/orgs/invitation-preview/:token', async (req, res): Promise<void> =>
   res.json({ orgName: row.orgName, expiresAt: row.expiresAt.toISOString() });
 });
 
-// GET /orgs/invitations — list pending invitations (admin only)
+// GET /orgs/invitations - list pending invitations (admin only)
 router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const now = new Date();
   const invitations = await db
@@ -257,7 +257,7 @@ router.get('/orgs/invitations', requireOrg, requireAdmin, async (req, res): Prom
   );
 });
 
-// DELETE /orgs/invitations/:id — cancel a pending invitation (admin only)
+// DELETE /orgs/invitations/:id - cancel a pending invitation (admin only)
 router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const { id } = req.params;
 
@@ -282,7 +282,7 @@ router.delete('/orgs/invitations/:id', requireOrg, requireAdmin, async (req, res
   res.status(204).send();
 });
 
-// POST /orgs/invite — invite a member (admin only)
+// POST /orgs/invite - invite a member (admin only)
 router.post('/orgs/invite', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const schema = z.object({
     email: z.string().email().optional(),
@@ -343,7 +343,7 @@ router.post('/orgs/invite', requireOrg, requireAdmin, async (req, res): Promise<
   });
 });
 
-// POST /orgs/invitations/:token/accept — accept invitation
+// POST /orgs/invitations/:token/accept - accept invitation
 router.post('/orgs/invitations/:token/accept', requireAuth, async (req, res): Promise<void> => {
   const token = req.params.token as string;
   const userId = req.user!.id;
@@ -408,7 +408,7 @@ router.post('/orgs/invitations/:token/accept', requireAuth, async (req, res): Pr
   res.json(data);
 });
 
-// POST /orgs/invitations/:token/decline — decline invitation
+// POST /orgs/invitations/:token/decline - decline invitation
 router.post('/orgs/invitations/:token/decline', requireAuth, async (req, res): Promise<void> => {
   const token = req.params.token as string;
   const userId = req.user!.id;
@@ -450,7 +450,7 @@ router.post('/orgs/invitations/:token/decline', requireAuth, async (req, res): P
   res.json({ success: true });
 });
 
-// DELETE /orgs/members/:userId — remove a member (admin only)
+// DELETE /orgs/members/:userId - remove a member (admin only)
 router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const targetUserId = req.params.userId as string;
 
@@ -487,7 +487,7 @@ router.delete('/orgs/members/:userId', requireOrg, requireAdmin, async (req, res
   res.sendStatus(204);
 });
 
-// PATCH /orgs/members/:userId/role — transfer admin / change role (admin only)
+// PATCH /orgs/members/:userId/role - transfer admin / change role (admin only)
 router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req, res): Promise<void> => {
   const targetUserId = req.params.userId as string;
   const schema = z.object({ role: z.enum(['admin', 'member']) });
@@ -559,7 +559,7 @@ router.patch('/orgs/members/:userId/role', requireOrg, requireAdmin, async (req,
   });
 });
 
-// POST /orgs/leave — leave the current organization
+// POST /orgs/leave - leave the current organization
 router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const orgId = req.orgId!;
@@ -573,13 +573,13 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
   const totalMembers = memberCount?.count ?? 0;
 
   if (totalMembers <= 1) {
-    // Sole member — delete the org entirely (cascades to projects, tasks, notes, etc.)
+    // Sole member - delete the org entirely (cascades to projects, tasks, notes, etc.)
     await db.delete(organizationsTable).where(eq(organizationsTable.id, orgId));
     res.json({ success: true });
     return;
   }
 
-  // More than one member — check admin constraint
+  // More than one member - check admin constraint
   if (req.orgRole === 'admin') {
     const [adminCount] = await db
       .select({ count: sql<number>`count(*)::int` })

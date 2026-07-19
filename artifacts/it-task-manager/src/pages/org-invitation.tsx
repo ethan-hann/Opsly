@@ -50,7 +50,7 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Mission Control</h1>
-            <p className="text-muted-foreground text-sm mt-1">IT Task Manager</p>
+            <p className="text-muted-foreground text-sm mt-1">Opsly</p>
           </div>
         </div>
 

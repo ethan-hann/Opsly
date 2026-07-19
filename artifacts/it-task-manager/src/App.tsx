@@ -19,6 +19,7 @@ import LoginPage from '@/pages/login';
 import OrgOnboarding from '@/pages/org-onboarding';
 import OrgInvitation from '@/pages/org-invitation';
 import OrgSettings from '@/pages/org-settings';
+import WebhooksPage from '@/pages/webhooks';
 import InvitePage from '@/pages/invite-page';
 import type { PendingInvitation } from '@workspace/api-client-react';
 
@@ -65,6 +66,7 @@ function Router() {
         <Route path="/tasks/:id" component={TaskDetail} />
         <Route path="/notes" component={NotesPage} />
         <Route path="/org/settings" component={OrgSettings} />
+        <Route path="/webhooks" component={WebhooksPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
@@ -97,7 +99,7 @@ function App() {
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
             <Switch>
-              {/* Invite acceptance — outside AuthGuard/OrgGuard so unauthenticated
+              {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
                   users can see the invite details before being asked to log in */}
               <Route path="/invite/:token" component={InvitePage} />
               <Route>

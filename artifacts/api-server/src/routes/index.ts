@@ -8,6 +8,7 @@ import commentsRouter from "./comments";
 import notesRouter from "./notes";
 import dashboardRouter from "./dashboard";
 import docsRouter from "./docs";
+import webhooksRouter from "./webhooks";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(commentsRouter);
 router.use(notesRouter);
 router.use(dashboardRouter);
 router.use(docsRouter);
+router.use(webhooksRouter);
 
 export default router;

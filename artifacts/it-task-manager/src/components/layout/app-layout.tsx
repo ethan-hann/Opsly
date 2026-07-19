@@ -13,6 +13,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   BookOpen,
+  Webhook,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -37,6 +38,7 @@ const mainNavItems = [
   { href: "/projects", label: "Projects", icon: FolderGit2 },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
   { href: "/notes", label: "Scratch Pad", icon: StickyNote },
+  { href: "/webhooks", label: "Webhooks", icon: Webhook },
 ];
 
 const externalNavItems = [
@@ -88,7 +90,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      {/* Root — full height on desktop, natural height on mobile */}
+      {/* Root - full height on desktop, natural height on mobile */}
       <div className="flex flex-col md:flex-row md:h-[100dvh] min-h-[100dvh] bg-background text-foreground font-sans">
         {/* ── Mobile top bar ─────────────────────────────────────────────── */}
         <header className="md:hidden shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-card z-20">
@@ -97,7 +99,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Activity className="w-4 h-4" />
             </div>
             <span className="font-semibold tracking-tight truncate">
-              Mission Control
+              Opsly
             </span>
           </div>
           <Button
@@ -135,7 +137,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <>
                 <div className="min-w-0 flex-1">
                   <p className="font-bold tracking-tight leading-tight">
-                    Mission Control
+                    Opsly
                   </p>
                   {org && (
                     <p className="text-xs text-sidebar-foreground/50 truncate">

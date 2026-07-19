@@ -181,7 +181,7 @@ export default function NotesPage() {
       <div className="px-4 md:px-5 pt-3 pb-2 border-b border-border shrink-0">
         {/* Top row: back (mobile), title, save indicator, dock controls */}
         <div className="flex items-center gap-2">
-          {/* Back button — mobile only */}
+          {/* Back button - mobile only */}
           <button
             className="md:hidden shrink-0 p-1 -ml-1 text-muted-foreground hover:text-foreground"
             onClick={handleBack}
@@ -208,7 +208,7 @@ export default function NotesPage() {
             Saved
           </span>
 
-          {/* Preview dock controls — hidden on mobile and for read-only notes */}
+          {/* Preview dock controls - hidden on mobile and for read-only notes */}
           {canEdit && (
             <div className="hidden md:flex items-center gap-0.5 shrink-0">
               <DockBtn title="Hide preview"       active={dock === "hidden"} onClick={() => setDock("hidden")}><EyeOff className="w-3.5 h-3.5" /></DockBtn>
@@ -266,13 +266,13 @@ export default function NotesPage() {
                 : "border-border bg-muted/30 text-muted-foreground"
             }`}>
               {selectedNote.visibility === "public_write"
-                ? <><Edit2 className="w-3 h-3" /> Shared — you can edit</>
-                : <><Eye className="w-3 h-3" /> Shared — read only</>
+                ? <><Edit2 className="w-3 h-3" /> Shared - you can edit</>
+                : <><Eye className="w-3 h-3" /> Shared - read only</>
               }
             </span>
           )}
 
-          {/* Link controls — editable for owners/public_write, read-only display otherwise */}
+          {/* Link controls - editable for owners/public_write, read-only display otherwise */}
           {canEdit ? (
             <div className="flex flex-wrap items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5">
@@ -315,7 +315,7 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Editor + preview split (editable) — preview only (read-only) */}
+      {/* Editor + preview split (editable) - preview only (read-only) */}
       {!canEdit ? (
         <div className="flex-1 overflow-y-auto">
           <MarkdownPreview content={localContent} />
@@ -366,7 +366,7 @@ export default function NotesPage() {
 
   return (
     <div className="flex h-[calc(100dvh-2rem)] -m-4 md:-m-8 overflow-hidden rounded-lg border border-border">
-      {/* Note list sidebar — hidden on mobile when a note is open */}
+      {/* Note list sidebar - hidden on mobile when a note is open */}
       <div className={`${selectedId !== null ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 flex-col border-r border-border bg-card`}>
         <div className="p-3 border-b border-border flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-primary" />
@@ -443,7 +443,7 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Editor — full width on mobile when note is open */}
+      {/* Editor - full width on mobile when note is open */}
       {editorArea}
 
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>

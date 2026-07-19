@@ -5,12 +5,12 @@
  * without a live database or auth session.
  *
  * Covered regressions:
- *  - GET /notes — happy-path list
- *  - POST /notes — body validation, invalid projectId/taskId, 201 on success
- *  - GET /notes/:id — 404 on miss, 403 for private note accessed by non-owner, 200 for owner
- *  - PATCH /notes/:id — 404 on miss, 403 for non-owner on read-only/private notes,
+ *  - GET /notes - happy-path list
+ *  - POST /notes - body validation, invalid projectId/taskId, 201 on success
+ *  - GET /notes/:id - 404 on miss, 403 for private note accessed by non-owner, 200 for owner
+ *  - PATCH /notes/:id - 404 on miss, 403 for non-owner on read-only/private notes,
  *                        403 when non-owner tries to change visibility, 200 for owner and public_write
- *  - DELETE /notes/:id — 404 on miss, 403 for non-owner, 204 for owner
+ *  - DELETE /notes/:id - 404 on miss, 403 for non-owner, 204 for owner
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";

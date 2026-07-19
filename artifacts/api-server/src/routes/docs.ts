@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { load } from "js-yaml";
-// @ts-ignore — YAML files are bundled as text by esbuild
+// @ts-ignore - YAML files are bundled as text by esbuild
 import specYaml from "../../../../lib/api-spec/openapi.yaml";
 
 const router = Router();
@@ -8,18 +8,18 @@ const router = Router();
 // Parse once at startup
 const specJson = load(specYaml) as object;
 
-/** GET /api/openapi.json — machine-readable spec */
+/** GET /api/openapi.json - machine-readable spec */
 router.get("/openapi.json", (_req, res) => {
   res.json(specJson);
 });
 
-/** GET /api/openapi.yaml — raw YAML spec */
+/** GET /api/openapi.yaml - raw YAML spec */
 router.get("/openapi.yaml", (_req, res) => {
   res.setHeader("Content-Type", "application/yaml");
   res.send(specYaml);
 });
 
-/** GET /api/docs — interactive Scalar docs UI */
+/** GET /api/docs - interactive Scalar docs UI */
 router.get("/docs", (_req, res) => {
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(`<!doctype html>
@@ -27,7 +27,7 @@ router.get("/docs", (_req, res) => {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>IT Task Manager — API Docs</title>
+    <title>Opsly - API Docs</title>
     <style>body { margin: 0; padding: 0; }</style>
   </head>
   <body>

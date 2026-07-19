@@ -5,8 +5,8 @@
  * without a live database or auth session.
  *
  * Covered:
- *  - GET /dashboard/summary  — full stats object, zero-state fallback
- *  - GET /dashboard/activity — merged + sorted activity feed, empty state
+ *  - GET /dashboard/summary  - full stats object, zero-state fallback
+ *  - GET /dashboard/activity - merged + sorted activity feed, empty state
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -141,7 +141,7 @@ describe("GET /api/dashboard/summary", () => {
   });
 
   it("falls back to zero when DB rows are missing", async () => {
-    // Push empty arrays — the handler uses ?? 0 fallbacks
+    // Push empty arrays - the handler uses ?? 0 fallbacks
     mockState.selectQueue.push([]);
     mockState.selectQueue.push([]);
     mockState.selectQueue.push([]);

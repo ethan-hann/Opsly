@@ -7,7 +7,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Left panel — branding */}
+      {/* Left panel - branding */}
       <div className="hidden lg:flex flex-col justify-between w-1/2 bg-card border-r border-border p-12">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-primary-foreground">
@@ -23,7 +23,7 @@ export default function LoginPage() {
               under control.
             </h1>
             <p className="mt-4 text-muted-foreground text-lg leading-relaxed">
-              Track incidents, manage deployments, and coordinate projects — all in one place built for engineering teams.
+              Track incidents, manage deployments, and coordinate projects - all in one place built for engineering teams.
             </p>
           </div>
 
@@ -47,11 +47,11 @@ export default function LoginPage() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          IT Task Manager — v1.0
+          Opsly - v1.0
         </p>
       </div>
 
-      {/* Right panel — login */}
+      {/* Right panel - login */}
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}

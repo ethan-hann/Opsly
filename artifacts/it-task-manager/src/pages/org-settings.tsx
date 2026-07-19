@@ -49,7 +49,7 @@ interface LeaveOrgSectionProps {
 }
 
 function LeaveOrgSection({ orgName, isAdmin, isOnlyMember, isLeaving, onLeave }: LeaveOrgSectionProps) {
-  // Case 1: sole member — leaving deletes the entire org and all its data
+  // Case 1: sole member - leaving deletes the entire org and all its data
   if (isOnlyMember) {
     return (
       <div className="space-y-3">
@@ -113,7 +113,7 @@ function LeaveOrgSection({ orgName, isAdmin, isOnlyMember, isLeaving, onLeave }:
     );
   }
 
-  // Case 2: admin with other members — must transfer admin first
+  // Case 2: admin with other members - must transfer admin first
   if (isAdmin) {
     return (
       <div className="space-y-3">
@@ -141,7 +141,7 @@ function LeaveOrgSection({ orgName, isAdmin, isOnlyMember, isLeaving, onLeave }:
     );
   }
 
-  // Case 3: regular member — standard confirmation
+  // Case 3: regular member - standard confirmation
   return (
     <div className="flex items-center justify-between">
       <div>
@@ -598,7 +598,7 @@ export default function OrgSettings() {
         </Card>
       )}
 
-      {/* Danger zone — leave org */}
+      {/* Danger zone - leave org */}
       <Card className="border-destructive/30">
         <CardHeader>
           <CardTitle className="text-base text-destructive">Danger zone</CardTitle>

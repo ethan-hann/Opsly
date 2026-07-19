@@ -55,7 +55,7 @@ async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
   return !!row;
 }
 
-// GET /notes/events — SSE stream for real-time note change notifications.
+// GET /notes/events - SSE stream for real-time note change notifications.
 // Must be registered before /notes/:id so Express doesn't treat "events" as an id.
 router.get("/notes/events", requireOrg, (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
@@ -234,7 +234,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   return res.json(UpdateNoteResponse.parse(serializeNote(note, userId)));
 });
 
-// DELETE /notes/:id — owner only
+// DELETE /notes/:id - owner only
 router.delete("/notes/:id", requireOrg, async (req, res) => {
   const params = DeleteNoteParams.safeParse(req.params);
   if (!params.success) {

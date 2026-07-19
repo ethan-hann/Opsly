@@ -105,7 +105,7 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ columnId, label, borderClass, tasks, isOver }: KanbanColumnProps) {
-  // useDroppable makes this a valid drop target — even when empty
+  // useDroppable makes this a valid drop target - even when empty
   const { setNodeRef } = useDroppable({ id: `${COL_PREFIX}${columnId}` });
 
   return (
@@ -188,7 +188,7 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
     if (overStr.startsWith(COL_PREFIX)) {
       return overStr.slice(COL_PREFIX.length) as TaskStatus;
     }
-    // Another task card — find its effective column
+    // Another task card - find its effective column
     const overTaskId = Number(overId);
     if (!Number.isNaN(overTaskId)) {
       return effectiveStatus(overTaskId);

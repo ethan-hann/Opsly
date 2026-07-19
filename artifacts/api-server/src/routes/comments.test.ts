@@ -5,9 +5,9 @@
  * without a live database or auth session.
  *
  * Covered regressions:
- *  - GET /tasks/:id/comments — org-scoping (task must belong to org), 404 on miss
- *  - POST /tasks/:id/comments — org-scoping, body validation, 201 on success
- *  - DELETE /comments/:id — cross-org guard (comment→task→org), 404 on miss/mismatch, 204 on success
+ *  - GET /tasks/:id/comments - org-scoping (task must belong to org), 404 on miss
+ *  - POST /tasks/:id/comments - org-scoping, body validation, 201 on success
+ *  - DELETE /comments/:id - cross-org guard (comment→task→org), 404 on miss/mismatch, 204 on success
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -114,7 +114,7 @@ describe("GET /api/tasks/:id/comments", () => {
   });
 
   it("returns 404 when the task does not belong to the org", async () => {
-    // Task lookup returns empty — task not found in this org.
+    // Task lookup returns empty - task not found in this org.
     mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).get("/api/tasks/1/comments");

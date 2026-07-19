@@ -11,6 +11,7 @@ import {
   DeleteCommentResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
 
@@ -76,11 +77,25 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
     .values({ ...parsed.data, taskId: params.data.id })
     .returning();
 
-  res.status(201).json(CreateCommentResponse.parse({
+  const serializedComment = {
     ...comment,
     author: comment.author ?? null,
     createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
-  }));
+  };
+
+  // Fire outbound webhook async — fetch full task for payload
+  void (async () => {
+    const [fullTask] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id)).limit(1);
+    if (fullTask) {
+      dispatchTaskCommented(req.orgId!, fullTask.projectId, {
+        ...fullTask,
+        createdAt: fullTask.createdAt.toISOString(),
+        updatedAt: fullTask.updatedAt.toISOString(),
+      }, serializedComment);
+    }
+  })();
+
+  res.status(201).json(CreateCommentResponse.parse(serializedComment));
 });
 
 router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {

@@ -170,7 +170,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
                 </div>
               </div>
 
-              {/* Body — read-only rendered preview */}
+              {/* Body - read-only rendered preview */}
               {isExpanded && (
                 <div className="border-t border-border px-3 py-3 space-y-3">
                   <MarkdownPreview

@@ -5,11 +5,11 @@
  * without a live database or auth session.
  *
  * Covered:
- *  - GET  /projects      — list with task counts, empty list
- *  - POST /projects      — body validation, 201 on success
- *  - GET  /projects/:id  — 200 with task counts, 404, 400 bad id
- *  - PATCH /projects/:id — body validation, 404, 200 on success
- *  - DELETE /projects/:id — 204, 404, 400 bad id
+ *  - GET  /projects      - list with task counts, empty list
+ *  - POST /projects      - body validation, 201 on success
+ *  - GET  /projects/:id  - 200 with task counts, 404, 400 bad id
+ *  - PATCH /projects/:id - body validation, 404, 200 on success
+ *  - DELETE /projects/:id - 204, 404, 400 bad id
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -73,6 +73,8 @@ vi.mock("@workspace/db", () => {
     projectsTable: {},
     tasksTable: {},
     orgMembersTable: {},
+    inboundWebhooksTable: {},
+    outboundWebhooksTable: {},
     usersTable: {},
     sql: () => ({}),
     eq: () => ({}),
@@ -83,6 +85,9 @@ vi.mock("@workspace/db", () => {
 vi.mock("drizzle-orm", () => ({
   eq: () => ({}),
   and: () => ({}),
+  or: () => ({}),
+  ne: () => ({}),
+  isNull: () => ({}),
   sql: () => ({}),
 }));
 

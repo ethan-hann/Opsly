@@ -1,7 +1,7 @@
 /**
  * In-process SSE registry for real-time note change notifications.
  *
- * Each connected client is stored by orgId so broadcasts are scoped — one
+ * Each connected client is stored by orgId so broadcasts are scoped - one
  * org's changes never wake another org's clients.
  */
 

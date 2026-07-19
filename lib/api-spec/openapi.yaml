@@ -3,7 +3,7 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: IT Task Manager API
+  description: Opsly API
 servers:
   - url: /api
     description: Base API path
@@ -24,6 +24,8 @@ tags:
     description: Rich-text scratch pad notes
   - name: dashboard
     description: Dashboard and analytics
+  - name: webhooks
+    description: Inbound and outbound webhook management
 
 paths:
   /auth/user:
@@ -34,7 +36,7 @@ paths:
       description: >
         Returns the user object for the active session, or `null` when no valid
         session is present. Accepts either a `Bearer <sid>` Authorization header
-        (mobile) or the `sid` session cookie (browser). Never returns a 401 —
+        (mobile) or the `sid` session cookie (browser). Never returns a 401 -
         callers must check whether the returned `user` field is null.
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -236,7 +238,7 @@ paths:
       summary: Create a new project
       description: >
         Creates a new project scoped to the caller's organization. The `orgId`
-        is taken from the authenticated session — it cannot be supplied by the
+        is taken from the authenticated session - it cannot be supplied by the
         caller. Returns 400 if the request body is invalid.
       requestBody:
         required: true
@@ -317,7 +319,7 @@ paths:
       description: >
         Permanently deletes the project. Returns 404 if the project does not
         exist or belongs to a different org. Associated tasks are not
-        automatically deleted — they retain their `projectId` reference.
+        automatically deleted - they retain their `projectId` reference.
       parameters:
         - name: id
           in: path
@@ -817,7 +819,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Organization"
         "400":
-          description: Invalid input — name missing or too long.
+          description: Invalid input - name missing or too long.
         "403":
           description: Caller is not an admin of the organization.
     get:
@@ -1054,7 +1056,7 @@ paths:
       description: >
         Updates the role of an org member to `admin` or `member`. Requires
         `admin` role. Promoting another user to `admin` does not remove the
-        caller's own `admin` status — multiple admins are allowed. Returns 404
+        caller's own `admin` status - multiple admins are allowed. Returns 404
         if the target user is not a member of this org.
       parameters:
         - name: userId
@@ -1100,6 +1102,265 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SimpleSuccess"
+
+  /webhooks/inbound/{token}/ingest:
+    post:
+      tags: [webhooks]
+      operationId: ingestWebhookPayload
+      summary: Ingest an external payload and create a task (public)
+      description: >
+        Public endpoint — no session required. Validates the HMAC-SHA256
+        signature in `X-Opsly-Signature` (keyed on the webhook token), applies
+        the webhook's task template to the payload, and creates a task in the
+        webhook's org. Returns 401 on bad/missing signature, 403 if disabled.
+      parameters:
+        - name: token
+          in: path
+          required: true
+          description: 64-character hex token embedded in the webhook URL.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookIngestPayload'
+      responses:
+        '201':
+          description: Task created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookIngestSuccess'
+        '400':
+          description: Invalid payload.
+        '401':
+          description: Missing or invalid HMAC signature.
+        '403':
+          description: Webhook is disabled.
+        '404':
+          description: Webhook not found.
+
+  /webhooks/inbound:
+    get:
+      tags: [webhooks]
+      operationId: listInboundWebhooks
+      summary: List inbound webhooks visible to the caller
+      responses:
+        '200':
+          description: List of inbound webhooks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InboundWebhook'
+    post:
+      tags: [webhooks]
+      operationId: createInboundWebhook
+      summary: Create an inbound webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundWebhookInput'
+      responses:
+        '201':
+          description: Inbound webhook created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundWebhook'
+
+  /webhooks/inbound/{id}:
+    get:
+      tags: [webhooks]
+      operationId: getInboundWebhook
+      summary: Get an inbound webhook by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Inbound webhook.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundWebhook'
+        '404':
+          description: Not found.
+    patch:
+      tags: [webhooks]
+      operationId: updateInboundWebhook
+      summary: Update an inbound webhook (creator only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InboundWebhookUpdate'
+      responses:
+        '200':
+          description: Updated webhook.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundWebhook'
+        '403':
+          description: Not the creator.
+        '404':
+          description: Not found.
+    delete:
+      tags: [webhooks]
+      operationId: deleteInboundWebhook
+      summary: Delete an inbound webhook (creator only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted.
+        '403':
+          description: Not the creator.
+        '404':
+          description: Not found.
+
+  /webhooks/inbound/{id}/rotate-secret:
+    post:
+      tags: [webhooks]
+      operationId: rotateInboundWebhookSecret
+      summary: Rotate the token/secret for an inbound webhook (creator only)
+      description: >
+        Issues a new 64-character hex token and returns the updated webhook.
+        The old ingest URL is immediately invalidated.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Updated webhook with new token and ingest URL.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InboundWebhook'
+        '403':
+          description: Not the creator.
+        '404':
+          description: Not found.
+
+  /webhooks/outbound:
+    get:
+      tags: [webhooks]
+      operationId: listOutboundWebhooks
+      summary: List outbound webhooks visible to the caller
+      responses:
+        '200':
+          description: List of outbound webhooks.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OutboundWebhook'
+    post:
+      tags: [webhooks]
+      operationId: createOutboundWebhook
+      summary: Create an outbound webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundWebhookInput'
+      responses:
+        '201':
+          description: Outbound webhook created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundWebhook'
+
+  /webhooks/outbound/{id}:
+    get:
+      tags: [webhooks]
+      operationId: getOutboundWebhook
+      summary: Get an outbound webhook by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Outbound webhook.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundWebhook'
+        '404':
+          description: Not found.
+    patch:
+      tags: [webhooks]
+      operationId: updateOutboundWebhook
+      summary: Update an outbound webhook (creator only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OutboundWebhookUpdate'
+      responses:
+        '200':
+          description: Updated webhook.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutboundWebhook'
+        '403':
+          description: Not the creator.
+        '404':
+          description: Not found.
+    delete:
+      tags: [webhooks]
+      operationId: deleteOutboundWebhook
+      summary: Delete an outbound webhook (creator only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted.
+        '403':
+          description: Not the creator.
+        '404':
+          description: Not found.
 
 components:
   parameters:
@@ -1237,9 +1498,9 @@ components:
           type: string
           enum: [planning, active, on_hold, completed]
           description: >
-            Lifecycle status of the project. `planning` — not yet started;
-            `active` — work is ongoing; `on_hold` — temporarily paused;
-            `completed` — all work finished.
+            Lifecycle status of the project. `planning` - not yet started;
+            `active` - work is ongoing; `on_hold` - temporarily paused;
+            `completed` - all work finished.
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -1344,9 +1605,9 @@ components:
           type: string
           enum: [todo, in_progress, blocked, done]
           description: >
-            Current state of the task. `todo` — not yet started; `in_progress`
-            — actively being worked on; `blocked` — waiting on an external
-            dependency; `done` — work is complete.
+            Current state of the task. `todo` - not yet started; `in_progress`
+            - actively being worked on; `blocked` - waiting on an external
+            dependency; `done` - work is complete.
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -1357,10 +1618,10 @@ components:
           type: string
           enum: [incident, change, maintenance, deployment, support, other]
           description: >
-            IT operational category. `incident` — unplanned disruption;
-            `change` — planned modification; `maintenance` — routine upkeep;
-            `deployment` — software release; `support` — user-facing assistance;
-            `other` — anything that doesn't fit.
+            IT operational category. `incident` - unplanned disruption;
+            `change` - planned modification; `maintenance` - routine upkeep;
+            `deployment` - software release; `support` - user-facing assistance;
+            `other` - anything that doesn't fit.
         assignee:
           type: ["string", "null"]
           description: >
@@ -1498,8 +1759,8 @@ components:
       enum: [private, public_read, public_write]
       description: >
         Controls who can see and edit a note within the organization.
-        `private` — only the owner can read or write; `public_read` — all org
-        members can read but only the owner can write; `public_write` — all org
+        `private` - only the owner can read or write; `public_read` - all org
+        members can read but only the owner can write; `public_write` - all org
         members can read and write (but only the owner can delete or change
         visibility).
 
@@ -1823,8 +2084,8 @@ components:
           type: string
           enum: [pending, accepted, declined]
           description: >
-            Current state of the invitation. `pending` — awaiting a response;
-            `accepted` — the invitee joined the org; `declined` — the invitee
+            Current state of the invitation. `pending` - awaiting a response;
+            `accepted` - the invitee joined the org; `declined` - the invitee
             rejected it.
         expiresAt:
           type: string
@@ -1878,3 +2139,240 @@ components:
         success:
           type: boolean
           description: Always `true` when the operation completed successfully.
+
+    WebhookVisibility:
+      type: string
+      enum: [private, public_read, public_write]
+      description: >
+        `private` - only the creator can read or write; `public_read` - all org
+        members can read but only the creator can edit; `public_write` - all org
+        members can read and use the webhook.
+
+    WebhookTaskTemplate:
+      description: >
+        Controls how an inbound payload is mapped to task fields.
+        All fields are optional; absent fields fall back to sensible defaults.
+      type: object
+      properties:
+        titleField:
+          type: string
+          description: Dot-notation JSON path in the payload used as the task title (e.g. "alertname").
+        defaultTitle:
+          type: string
+          description: Static title fallback when the payload has no title field.
+        descriptionField:
+          type: string
+          description: Dot-notation path used as the task description.
+        defaultPriority:
+          type: string
+          enum: [low, medium, high, critical]
+          description: Priority applied when the payload doesn't specify one.
+        defaultCategory:
+          type: string
+          enum: [incident, change, maintenance, deployment, support, other]
+          description: Category applied when the payload doesn't specify one.
+        fieldMapping:
+          type: object
+          additionalProperties:
+            type: string
+          description: >
+            Free-form mapping of dot-notation payload paths to task field names.
+            Example - { "labels.severity": "priority" }.
+
+    InboundWebhook:
+      description: An inbound webhook that accepts external payloads and creates tasks.
+      type: object
+      required: [id, orgId, createdBy, name, token, taskTemplate, visibility, enabled, isOwner, ingestUrl, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: string
+        projectId:
+          type: ["integer", "null"]
+          description: Optional project the created tasks are filed under.
+        createdBy:
+          type: string
+        name:
+          type: string
+        token:
+          type: string
+          description: 64-character hex token. Embedded in the ingest URL and used as the HMAC key.
+        taskTemplate:
+          $ref: '#/components/schemas/WebhookTaskTemplate'
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+        isOwner:
+          type: boolean
+          description: True when the authenticated user is the creator.
+        ingestUrl:
+          type: string
+          description: Relative path for the public ingest endpoint. Prepend the API origin to get the full URL.
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    InboundWebhookInput:
+      description: Fields for creating an inbound webhook.
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        projectId:
+          type: integer
+          description: Optional project to pin ingest-created tasks to.
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+          default: true
+        taskTemplate:
+          $ref: '#/components/schemas/WebhookTaskTemplate'
+
+    InboundWebhookUpdate:
+      description: Partial update for an inbound webhook.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        projectId:
+          type: ["integer", "null"]
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+        taskTemplate:
+          $ref: '#/components/schemas/WebhookTaskTemplate'
+
+    OutboundWebhook:
+      description: An outbound webhook that POSTs signed event payloads to an external URL.
+      type: object
+      required: [id, orgId, createdBy, name, url, secret, events, visibility, enabled, isOwner, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        orgId:
+          type: string
+        projectId:
+          type: ["integer", "null"]
+          description: Optional project filter. When set, only fires for events on this project.
+        createdBy:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+          description: Target URL Opsly will POST event payloads to.
+        secret:
+          type: string
+          description: 64-character hex secret used to sign outbound payloads (X-Opsly-Signature).
+        events:
+          type: array
+          items:
+            type: string
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+          description: Event types this webhook subscribes to.
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+        isOwner:
+          type: boolean
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+
+    OutboundWebhookInput:
+      description: Fields for creating an outbound webhook.
+      type: object
+      required: [name, url, events]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        url:
+          type: string
+          description: Target URL for event delivery.
+        projectId:
+          type: integer
+          description: Optional project filter.
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+          default: true
+
+    OutboundWebhookUpdate:
+      description: Partial update for an outbound webhook.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        url:
+          type: string
+        projectId:
+          type: ["integer", "null"]
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, project.created, project.updated]
+        visibility:
+          $ref: '#/components/schemas/WebhookVisibility'
+        enabled:
+          type: boolean
+
+    WebhookIngestPayload:
+      description: >
+        JSON payload POSTed to the ingest endpoint by an external system.
+        Only `title` is required; all other fields are optional and supplement or
+        override the webhook's task template.
+      type: object
+      properties:
+        title:
+          type: string
+          description: Task title. Required unless the webhook template specifies a titleField.
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, critical]
+        category:
+          type: string
+          enum: [incident, change, maintenance, deployment, support, other]
+        dueDate:
+          type: string
+          description: Task deadline in YYYY-MM-DD format.
+      additionalProperties: true
+
+    WebhookIngestSuccess:
+      description: Confirmation returned after a successful ingest.
+      type: object
+      required: [taskId, orgTaskNumber, title]
+      properties:
+        taskId:
+          type: integer
+        orgTaskNumber:
+          type: integer
+          description: The TSK-## number assigned to the created task.
+        title:
+          type: string

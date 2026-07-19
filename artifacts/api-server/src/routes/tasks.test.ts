@@ -5,12 +5,12 @@
  * without a live database or auth session.
  *
  * Covered:
- *  - GET  /tasks/overdue — list enriched overdue tasks
- *  - GET  /tasks         — list all tasks, filter by projectId/status/priority/category
- *  - GET  /tasks/:id     — 200 with enriched task, 404, 400 bad id
- *  - POST /tasks         — body validation, projectId validation, assignee validation, 201
- *  - PATCH /tasks/:id    — params/body validation, projectId validation, assignee validation, 404, 200
- *  - DELETE /tasks/:id   — 204, 404, 400 bad id
+ *  - GET  /tasks/overdue - list enriched overdue tasks
+ *  - GET  /tasks         - list all tasks, filter by projectId/status/priority/category
+ *  - GET  /tasks/:id     - 200 with enriched task, 404, 400 bad id
+ *  - POST /tasks         - body validation, projectId validation, assignee validation, 201
+ *  - PATCH /tasks/:id    - params/body validation, projectId validation, assignee validation, 404, 200
+ *  - DELETE /tasks/:id   - 204, 404, 400 bad id
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -76,6 +76,8 @@ vi.mock("@workspace/db", () => {
     commentsTable: {},
     orgMembersTable: {},
     usersTable: {},
+    inboundWebhooksTable: {},
+    outboundWebhooksTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -88,6 +90,8 @@ vi.mock("drizzle-orm", () => ({
   and: () => ({}),
   lt: () => ({}),
   or: () => ({}),
+  ne: () => ({}),
+  isNull: () => ({}),
   sql: () => ({}),
 }));
 
@@ -221,7 +225,7 @@ describe("GET /api/tasks", () => {
   });
 
   it("passes unrecognised status strings through (schema uses coerce.string, not enum)", async () => {
-    // ListTasksQueryParams.status is zod.coerce.string(), not an enum — unknown
+    // ListTasksQueryParams.status is zod.coerce.string(), not an enum - unknown
     // values are forwarded to the DB layer rather than rejected at the route level.
     mockState.selectQueue.push([]); // tasks query returns empty list
     const res = await request(buildApp()).get("/api/tasks?status=not_a_status");
@@ -279,10 +283,10 @@ describe("GET /api/tasks/:id", () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/tasks — body validation
+// POST /api/tasks - body validation
 // ---------------------------------------------------------------------------
 
-describe("POST /api/tasks — body validation", () => {
+describe("POST /api/tasks - body validation", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
@@ -324,10 +328,10 @@ describe("POST /api/tasks — body validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/tasks — assignee validation (existing coverage, kept)
+// POST /api/tasks - assignee validation (existing coverage, kept)
 // ---------------------------------------------------------------------------
 
-describe("POST /api/tasks — assignee validation", () => {
+describe("POST /api/tasks - assignee validation", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [MOCK_TASK];
@@ -369,10 +373,10 @@ describe("POST /api/tasks — assignee validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/tasks/:id — validation + business logic
+// PATCH /api/tasks/:id - validation + business logic
 // ---------------------------------------------------------------------------
 
-describe("PATCH /api/tasks/:id — validation", () => {
+describe("PATCH /api/tasks/:id - validation", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
@@ -409,6 +413,7 @@ describe("PATCH /api/tasks/:id — validation", () => {
   it("returns 200 on a successful status update", async () => {
     const updated = { ...MOCK_TASK, status: "in_progress" };
     mockState.updateResult = [updated];
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp())
@@ -421,6 +426,7 @@ describe("PATCH /api/tasks/:id — validation", () => {
 
   it("returns 200 when assigning a valid projectId", async () => {
     const updated = { ...MOCK_TASK, projectId: 5 };
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
     mockState.selectQueue.push([{ id: 5 }]); // projectBelongsToOrg → found
     mockState.updateResult = [updated];
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project name
@@ -436,10 +442,10 @@ describe("PATCH /api/tasks/:id — validation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATCH /api/tasks/:id — assignee validation (existing coverage, kept)
+// PATCH /api/tasks/:id - assignee validation (existing coverage, kept)
 // ---------------------------------------------------------------------------
 
-describe("PATCH /api/tasks/:id — assignee validation", () => {
+describe("PATCH /api/tasks/:id - assignee validation", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
@@ -448,6 +454,7 @@ describe("PATCH /api/tasks/:id — assignee validation", () => {
   });
 
   it("accepts a patch with no assignee field", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).patch("/api/tasks/1").send({ status: "in_progress" });
@@ -456,6 +463,7 @@ describe("PATCH /api/tasks/:id — assignee validation", () => {
   });
 
   it("accepts a patch whose assignee is an org member", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
     mockState.selectQueue.push([{ userId: "user-1" }]);
     mockState.selectQueue.push([{ count: 0 }]);
 

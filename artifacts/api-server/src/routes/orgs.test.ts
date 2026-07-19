@@ -5,19 +5,19 @@
  * without a live database or auth session.
  *
  * Covered:
- *  - POST /orgs                              — create org: validation, 409 already in org, 201
- *  - GET  /orgs/me                           — has org, has pending invitation, neither
- *  - PATCH /orgs/me                          — body validation, 200 on success
- *  - GET  /orgs/members                      — 200 with member list
- *  - GET  /orgs/invitation-preview/:token    — 404 not found/expired, 200 valid
- *  - GET  /orgs/invitations                  — 200 with list
- *  - DELETE /orgs/invitations/:id            — 404, 204
- *  - POST /orgs/invite                       — 400 no email/userId, 409 already member, 201
- *  - POST /orgs/invitations/:token/accept    — 404, 403 wrong user, 409 already in org, 200
- *  - POST /orgs/invitations/:token/decline   — 404, 403 wrong user, 200
- *  - DELETE /orgs/members/:userId            — 400 self-remove, 404, 204
- *  - PATCH /orgs/members/:userId/role        — 400 invalid role, 404, 200
- *  - POST /orgs/leave                        — sole member deletes org, sole admin blocked, 200
+ *  - POST /orgs                              - create org: validation, 409 already in org, 201
+ *  - GET  /orgs/me                           - has org, has pending invitation, neither
+ *  - PATCH /orgs/me                          - body validation, 200 on success
+ *  - GET  /orgs/members                      - 200 with member list
+ *  - GET  /orgs/invitation-preview/:token    - 404 not found/expired, 200 valid
+ *  - GET  /orgs/invitations                  - 200 with list
+ *  - DELETE /orgs/invitations/:id            - 404, 204
+ *  - POST /orgs/invite                       - 400 no email/userId, 409 already member, 201
+ *  - POST /orgs/invitations/:token/accept    - 404, 403 wrong user, 409 already in org, 200
+ *  - POST /orgs/invitations/:token/decline   - 404, 403 wrong user, 200
+ *  - DELETE /orgs/members/:userId            - 400 self-remove, 404, 204
+ *  - PATCH /orgs/members/:userId/role        - 400 invalid role, 404, 200
+ *  - POST /orgs/leave                        - sole member deletes org, sole admin blocked, 200
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -56,7 +56,7 @@ vi.mock("@workspace/db", () => {
     return chain;
   }
 
-  // A thenable "no-op" result — used when the code awaits insert/update/delete
+  // A thenable "no-op" result - used when the code awaits insert/update/delete
   // without calling .returning() (e.g. db.insert(t).values(d) or db.delete(t).where(...)).
   function noop(): any {
     return {
@@ -535,7 +535,7 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
     mockState.selectQueue.push([]); // no existing membership
     mockState.insertQueue.push([]); // insert member
     mockState.updateQueue.push([]); // update invitation status
-    // getOrgMeData — membership select for the response
+    // getOrgMeData - membership select for the response
     mockState.selectQueue.push([{ orgId: "test-org", role: "member", orgName: "Acme Corp", orgCreatedAt: new Date() }]);
 
     const res = await request(buildApp()).post("/api/orgs/invitations/abc123/accept");

@@ -98,7 +98,7 @@ export function openPreviewWindow(title: string, content: string) {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>${escHtml(title)} — Preview</title>
+  <title>${escHtml(title)} - Preview</title>
   <style>
     :root { color-scheme: dark; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -133,7 +133,7 @@ export function openPreviewWindow(title: string, content: string) {
   win.document.open();
   win.document.write(html);
   win.document.close();
-  win.document.title = `${title} — Preview`;
+  win.document.title = `${title} - Preview`;
 }
 
 function escHtml(s: string) {
