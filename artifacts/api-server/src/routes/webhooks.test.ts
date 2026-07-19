@@ -75,8 +75,10 @@ vi.mock("@workspace/db", () => {
     },
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
+    outboundWebhookDeliveriesTable: {},
     tasksTable: {},
     projectsTable: {},
+    customFieldDefinitionsTable: {},
     usersTable: {},
     orgMembersTable: {},
     orgsTable: {},
@@ -200,6 +202,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     mockState.selectQueue.push([hook]);               // hook lookup
     mockState.selectQueue.push([{ recentCount: 0 }]); // rate-limit count
+    mockState.selectQueue.push([]);                    // cf defs (none)
     // no projectId → skip project validation
     mockState.selectQueue.push([{ nextNum: 7 }]);     // orgTaskNumber
     mockState.insertResult = [task];
@@ -225,6 +228,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     mockState.selectQueue.push([hook]);
     mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
@@ -286,6 +290,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     mockState.selectQueue.push([hook]);
     mockState.selectQueue.push([{ recentCount: 3 }]); // 3 of 10 used
+    mockState.selectQueue.push([]);                    // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
@@ -317,6 +322,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     mockState.selectQueue.push([hook]);
     mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.insertResult = [task];
 
@@ -342,6 +348,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     mockState.selectQueue.push([hook]);
     mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 2 }]);
     mockState.insertResult = [task];
 

@@ -92,12 +92,12 @@ const VISIBILITY_OPTIONS: { value: WebhookVisibility; label: string; Icon: typeo
 // ─── Payload field reference ──────────────────────────────────────────────────
 
 const PAYLOAD_FIELDS = [
-  { name: "title", type: "string", required: true, note: "Task title. Falls back to the webhook's Default title or 'Untitled Alert'." },
-  { name: "description", type: "string", required: false, note: "Task description." },
-  { name: "priority", type: "string", required: false, note: "low · medium · high · critical. Defaults to medium (or template default)." },
-  { name: "category", type: "string", required: false, note: "incident · change · maintenance · deployment · support · other. Defaults to incident." },
-  { name: "dueDate", type: "string", required: false, note: "Due date in YYYY-MM-DD format." },
-] as const;
+  { name: "title",       type: "string",         required: true,  note: "Task title. Falls back to the webhook's Default title or 'Untitled Alert'." },
+  { name: "description", type: "string",         required: false, note: "Task description." },
+  { name: "priority",    type: "string",         required: false, note: "low · medium · high · critical. Defaults to medium (or template default)." },
+  { name: "category",    type: "string",         required: false, note: "incident · change · maintenance · deployment · support · other. Defaults to incident." },
+  { name: "dueDate",     type: "string | number", required: false, note: "Due date. Accepts YYYY-MM-DD, ISO 8601 (\"2025-03-15T10:30:00Z\"), or a Unix timestamp (seconds or ms). Can also be set via a field mapping below." },
+];
 
 // ─── Template Builder ─────────────────────────────────────────────────────────
 
@@ -106,6 +106,7 @@ type FieldMappingRow = { id: number; key: string; value: string };
 const STATIC_MAPPING_OPTIONS = [
   { value: "priority", label: "Priority", hint: "low · medium · high · critical" },
   { value: "category", label: "Category", hint: "incident · change · maintenance · deployment · support · other" },
+  { value: "dueDate",  label: "Due date", hint: "YYYY-MM-DD, ISO 8601, or Unix timestamp (seconds or ms)" },
 ];
 
 function TemplateBuilder({

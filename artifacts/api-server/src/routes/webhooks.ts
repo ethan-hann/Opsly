@@ -26,6 +26,7 @@ import {
   outboundWebhookDeliveriesTable,
   tasksTable,
   projectsTable,
+  customFieldDefinitionsTable,
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
@@ -91,11 +92,78 @@ function buildIngestUrl(token: string): string {
   return `/api/webhooks/inbound/${token}/ingest`;
 }
 
+/**
+ * Normalize any date-like value to a YYYY-MM-DD string.
+ *
+ * Accepted inputs
+ * ───────────────
+ * • number   — Unix timestamp in seconds (< 1e10) or milliseconds (>= 1e10).
+ *              Datadog, PagerDuty, and many monitoring tools send seconds.
+ * • string   — YYYY-MM-DD (returned as-is)
+ *              ISO 8601 with time/TZ  e.g. "2025-03-15T10:30:00Z"
+ *              YYYY/MM/DD  e.g. "2025/03/15"
+ *              MM/DD/YYYY  e.g. "03/15/2025"  (US format, common in Jira exports)
+ *              Named months e.g. "March 15, 2025" (handled by native Date parser)
+ *
+ * All output is UTC-anchored so a timestamp like "2025-03-15T23:00:00-05:00"
+ * produces "2025-03-16" rather than "2025-03-15" (correct calendar day in UTC).
+ *
+ * Returns undefined for any value that cannot be parsed as a valid date.
+ */
+function normalizeDate(val: unknown): string | undefined {
+  if (val === null || val === undefined || val === "") return undefined;
+
+  let ms: number | undefined;
+
+  if (typeof val === "number") {
+    // Heuristic: seconds if the value is plausibly a recent/near-future Unix
+    // second-timestamp (year ~1970-2286), milliseconds otherwise.
+    ms = val < 1e10 ? val * 1000 : val;
+  } else if (typeof val === "string") {
+    const s = val.trim();
+    if (!s) return undefined;
+
+    // Fast path: already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // YYYY/MM/DD
+    const isoSlash = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    if (isoSlash) {
+      ms = Date.UTC(Number(isoSlash[1]), Number(isoSlash[2]) - 1, Number(isoSlash[3]));
+    } else {
+      // MM/DD/YYYY  (US format)
+      const usSlash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (usSlash) {
+        ms = Date.UTC(Number(usSlash[3]), Number(usSlash[1]) - 1, Number(usSlash[2]));
+      } else {
+        // ISO 8601 with time, named months, etc. — let the native parser handle it
+        const d = new Date(s);
+        if (!isNaN(d.getTime())) ms = d.getTime();
+      }
+    }
+  }
+
+  if (ms === undefined || isNaN(ms)) return undefined;
+
+  const d = new Date(ms);
+  if (isNaN(d.getTime())) return undefined;
+
+  const y = d.getUTCFullYear();
+  const mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dy = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${mo}-${dy}`;
+}
+
+/** Minimal CF definition shape needed by applyTemplate. */
+type CfDef = { id: number; type: string };
+
 /** Apply the webhook's task template to a raw ingest payload. */
 function applyTemplate(
   payload: Record<string, unknown>,
   template: WebhookTaskTemplate,
   projectId: number | null,
+  /** Optional custom-field definitions — used to normalize date-type CF values. */
+  cfDefs?: CfDef[],
 ): {
   title: string;
   description: string | undefined;
@@ -130,8 +198,11 @@ function applyTemplate(
   if (payload["priority"]) priority = String(payload["priority"]);
   if (payload["category"]) category = String(payload["category"]);
 
+  // dueDate: direct payload field (normalized), then fieldMapping can override.
+  let dueDate: string | undefined = normalizeDate(payload["dueDate"]);
+
   // fieldMapping overrides everything (most specific).
-  // Targets of the form "cf:<id>" populate custom fields by definition ID.
+  // Targets: "priority", "category", "dueDate", or "cf:<id>" for custom fields.
   const customFields: Record<string, unknown> = {};
   if (template.fieldMapping) {
     for (const [payloadPath, taskField] of Object.entries(template.fieldMapping)) {
@@ -139,9 +210,16 @@ function applyTemplate(
       if (val === undefined) continue;
       if (taskField === "priority") priority = String(val);
       else if (taskField === "category") category = String(val);
-      else if (taskField.startsWith("cf:")) {
+      else if (taskField === "dueDate") {
+        const nd = normalizeDate(val);
+        if (nd) dueDate = nd;
+      } else if (taskField.startsWith("cf:")) {
         const cfId = taskField.slice(3);
-        if (cfId) customFields[cfId] = val;
+        if (cfId) {
+          const def = cfDefs?.find((f) => String(f.id) === cfId);
+          // Normalize date-type custom fields; pass all other types through as-is.
+          customFields[cfId] = def?.type === "date" ? (normalizeDate(val) ?? val) : val;
+        }
       }
     }
   }
@@ -151,9 +229,6 @@ function applyTemplate(
   const validCategories = ["incident", "change", "maintenance", "deployment", "support", "other"];
   if (!validPriorities.includes(priority)) priority = "medium";
   if (!validCategories.includes(category)) category = "incident";
-
-  const dueDate =
-    typeof payload["dueDate"] === "string" ? payload["dueDate"] : undefined;
 
   return { title, description, priority, category, dueDate, projectId, customFields };
 }
@@ -299,7 +374,14 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
 
   const payload = req.body as Record<string, unknown>;
   const template = (hook.taskTemplate ?? {}) as WebhookTaskTemplate;
-  const taskFields = applyTemplate(payload, template, hook.projectId ?? null);
+
+  // Load CF definitions so applyTemplate can normalize date-type custom fields.
+  const cfDefs = await db
+    .select({ id: customFieldDefinitionsTable.id, type: customFieldDefinitionsTable.type })
+    .from(customFieldDefinitionsTable)
+    .where(eq(customFieldDefinitionsTable.orgId, hook.orgId));
+
+  const taskFields = applyTemplate(payload, template, hook.projectId ?? null, cfDefs);
 
   // Validate project still belongs to org (guard against project deletion race)
   if (taskFields.projectId != null) {
@@ -833,10 +915,17 @@ router.post("/webhooks/inbound/test", requireOrg, async (req, res): Promise<void
   const parsed = TestInboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const orgId = req.orgId!;
+  const cfDefs = await db
+    .select({ id: customFieldDefinitionsTable.id, type: customFieldDefinitionsTable.type })
+    .from(customFieldDefinitionsTable)
+    .where(eq(customFieldDefinitionsTable.orgId, orgId));
+
   const result = applyTemplate(
     parsed.data.payload as Record<string, unknown>,
     parsed.data.template as WebhookTaskTemplate,
     null,
+    cfDefs,
   );
   res.json(result);
 });
