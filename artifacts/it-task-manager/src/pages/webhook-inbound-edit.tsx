@@ -905,7 +905,7 @@ export default function WebhookInboundEditPage({
               <div className="space-y-1.5">
                 <Label htmlFor="rateLimit">Rate limit (tasks / minute)</Label>
                 <p className="text-xs text-muted-foreground">
-                  Requests that exceed this cap return{" "}
+                  Allowed range: 1–10,000. Requests that exceed this cap return{" "}
                   <code className="bg-muted px-1 rounded">429</code> with a{" "}
                   <code className="bg-muted px-1 rounded">Retry-After: 60</code> header.
                 </p>
