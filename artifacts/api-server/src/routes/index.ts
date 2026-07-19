@@ -11,6 +11,7 @@ import dashboardRouter from "./dashboard";
 import docsRouter from "./docs";
 import webhooksRouter from "./webhooks";
 import customFieldsRouter from "./custom-fields";
+import savedViewsRouter from "./saved-views";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(dashboardRouter);
 router.use(docsRouter);
 router.use(webhooksRouter);
 router.use(customFieldsRouter);
+router.use(savedViewsRouter);
 
 export default router;

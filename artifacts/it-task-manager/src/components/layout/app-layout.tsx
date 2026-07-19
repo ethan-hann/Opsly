@@ -14,6 +14,13 @@ import {
   PanelLeftOpen,
   BookOpen,
   Webhook,
+  Bookmark,
+  Globe,
+  Lock,
+  Pencil,
+  Trash2,
+  Star,
+  ChevronRight,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -32,6 +39,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useState, useEffect } from "react";
+import { useListViews, useUpdateView, useDeleteView } from "@workspace/api-client-react";
+import type { SavedView } from "@workspace/api-client-react";
+import { Input } from "@/components/ui/input";
 
 const mainNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -59,6 +69,199 @@ function writeCollapsed(v: boolean) {
     /* ignore */
   }
 }
+
+/** Build the /tasks URL with a saved view's filters applied */
+function viewHref(view: SavedView): string {
+  const params = new URLSearchParams();
+  const f = view.filters;
+  if (f.status) params.set("status", f.status);
+  if (f.priority) params.set("priority", f.priority);
+  if (f.category) params.set("category", f.category);
+  if (f.assignee) params.set("assignee", f.assignee);
+  if (f.dateFrom) params.set("dateFrom", f.dateFrom);
+  if (f.dateTo) params.set("dateTo", f.dateTo);
+  if (f.projectFilter && f.projectFilter !== "all") params.set("project", f.projectFilter);
+  if (f.search) params.set("search", f.search);
+  params.set("viewId", String(view.id));
+  return "/tasks?" + params.toString();
+}
+
+// ─── Saved Views Sidebar Section ──────────────────────────────────────────────
+
+interface ViewsSectionProps {
+  collapsed: boolean;
+  userId: string | undefined;
+  canAdmin: boolean;
+}
+
+function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
+  const [location] = useLocation();
+  const { data: views } = useListViews();
+  const updateView = useUpdateView();
+  const deleteView = useDeleteView();
+  const [expanded, setExpanded] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  if (!views || views.length === 0) return null;
+
+  // Determine active view from URL
+  const urlParams = new URLSearchParams(location.includes("?") ? location.split("?")[1] : "");
+  const activeViewId = urlParams.get("viewId") ? Number(urlParams.get("viewId")) : null;
+
+  const handleRename = async (viewId: number) => {
+    if (!editingName.trim()) return;
+    await updateView.mutateAsync({ id: viewId, data: { name: editingName.trim() } });
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const handleDelete = async (viewId: number) => {
+    await deleteView.mutateAsync({ id: viewId });
+  };
+
+  const handleToggleDefault = async (view: SavedView) => {
+    await updateView.mutateAsync({ id: view.id, data: { isDefault: !view.isDefault } });
+  };
+
+  if (collapsed) {
+    // In collapsed mode: show a single Bookmark icon with tooltip
+    return (
+      <div className="pt-2 mt-1 border-t border-sidebar-border/50">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex justify-center py-1.5">
+              <Bookmark className="w-4 h-4 text-sidebar-foreground/50" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            <p>Saved Views ({views.length})</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-2 mt-1 border-t border-sidebar-border/50">
+      <button
+        onClick={() => setExpanded((p) => !p)}
+        className="flex items-center justify-between w-full px-3 py-1 text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider hover:text-sidebar-foreground/70 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          <Bookmark className="w-3 h-3" />
+          Views
+        </span>
+        <ChevronRight className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
+      </button>
+
+      {expanded && (
+        <div className="mt-0.5 space-y-0.5">
+          {views.map((view) => {
+            const isActive = view.id === activeViewId;
+            const canEdit = view.createdBy === userId || canAdmin;
+
+            if (editingId === view.id) {
+              return (
+                <div key={view.id} className="px-2 py-1 flex gap-1">
+                  <Input
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="h-6 text-xs"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleRename(view.id);
+                      if (e.key === "Escape") { setEditingId(null); setEditingName(""); }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-6 px-2 text-xs shrink-0"
+                    onClick={() => handleRename(view.id)}
+                    disabled={updateView.isPending}
+                  >
+                    OK
+                  </Button>
+                </div>
+              );
+            }
+
+            return (
+              <Link key={view.id} href={viewHref(view)}>
+                <div
+                  className={[
+                    "group flex items-center gap-2 px-3 py-1.5 rounded-md transition-colors cursor-pointer text-xs",
+                    isActive
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                  ].join(" ")}
+                >
+                  {/* Visibility icon */}
+                  {view.isOrgWide ? (
+                    <Globe className="w-3 h-3 shrink-0 opacity-50" />
+                  ) : (
+                    <Lock className="w-3 h-3 shrink-0 opacity-50" />
+                  )}
+
+                  <span className="flex-1 truncate">{view.name}</span>
+
+                  {view.isDefault && (
+                    <Star className="w-3 h-3 shrink-0 text-amber-500" fill="currentColor" />
+                  )}
+
+                  {/* Edit/delete controls — show on hover for owned views */}
+                  {canEdit && (
+                    <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
+                      {/* Only show star toggle when view is NOT already the default */}
+                      {!view.isDefault && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleToggleDefault(view);
+                          }}
+                          className="p-0.5 rounded opacity-50 hover:opacity-100 hover:bg-sidebar-accent transition-colors"
+                          title="Set as default"
+                        >
+                          <Star className="w-3 h-3" fill="none" />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditingId(view.id);
+                          setEditingName(view.name);
+                        }}
+                        className="p-0.5 rounded opacity-50 hover:opacity-100 hover:bg-sidebar-accent transition-colors"
+                        title="Rename"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(view.id);
+                        }}
+                        className="p-0.5 rounded opacity-50 hover:opacity-100 hover:text-destructive hover:bg-sidebar-accent transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── App Layout ───────────────────────────────────────────────────────────────
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -263,6 +466,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 );
               })}
             </div>
+
+            {/* Saved Views section */}
+            <ViewsSection
+              collapsed={collapsed}
+              userId={user?.id}
+              canAdmin={isAdmin}
+            />
           </nav>
 
           {/* Bottom: theme + user */}

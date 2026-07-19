@@ -16,7 +16,8 @@
     "migrate:add-outbound-webhook-deliveries": "pnpm dlx tsx src/migrations/add-outbound-webhook-deliveries.ts",
     "migrate:add-roles-and-permissions": "pnpm dlx tsx src/migrations/add-roles-and-permissions.ts",
     "migrate:add-custom-fields": "pnpm dlx tsx src/migrations/add-custom-fields.ts",
-    "migrate:create-task-events": "pnpm dlx tsx src/migrations/create-task-events.ts"
+    "migrate:create-task-events": "pnpm dlx tsx src/migrations/create-task-events.ts",
+    "migrate:create-saved-views": "pnpm dlx tsx src/migrations/create-saved-views.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

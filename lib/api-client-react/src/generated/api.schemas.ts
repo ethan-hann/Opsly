@@ -1397,6 +1397,95 @@ export interface WebhookIngestPayload {
  }
 
 /**
+ * Project presence filter.
+ */
+export type SavedViewFiltersProjectFilter = typeof SavedViewFiltersProjectFilter[keyof typeof SavedViewFiltersProjectFilter];
+
+
+export const SavedViewFiltersProjectFilter = {
+  all: 'all',
+  with_project: 'with_project',
+  no_project: 'no_project',
+} as const;
+
+/**
+ * Filter state stored in a saved view.
+ */
+export interface SavedViewFilters {
+  /** Task status filter value. */
+  status?: string;
+  /** Task priority filter value. */
+  priority?: string;
+  /** Task category filter value. */
+  category?: string;
+  /** Assignee email filter value. */
+  assignee?: string;
+  /** Due date lower bound in YYYY-MM-DD format. */
+  dateFrom?: string;
+  /** Due date upper bound in YYYY-MM-DD format. */
+  dateTo?: string;
+  /** Project presence filter. */
+  projectFilter?: SavedViewFiltersProjectFilter;
+  /** Free-text search string. */
+  search?: string;
+}
+
+/**
+ * A named, persisted set of task filters.
+ */
+export interface SavedView {
+  /** Auto-incremented primary key. */
+  id: number;
+  /** Organization this view belongs to. */
+  orgId: string;
+  /** User ID of the view creator. */
+  createdBy: string;
+  /** Human-readable name for the view. */
+  name: string;
+  filters: SavedViewFilters;
+  /** When true the view is visible to all org members. */
+  isOrgWide: boolean;
+  /** When true this view loads automatically on /tasks for its owner. */
+  isDefault: boolean;
+  /** ISO 8601 creation timestamp. */
+  createdAt: string;
+  /** ISO 8601 last-updated timestamp. */
+  updatedAt: string;
+}
+
+/**
+ * Request body for creating a saved view.
+ */
+export interface SavedViewInput {
+  /**
+     * Display name for the view.
+     * @minLength 1
+     */
+  name: string;
+  filters: SavedViewFilters;
+  /** Whether the view is visible to all org members. Defaults to false. */
+  isOrgWide?: boolean;
+  /** Whether this view should load automatically for the creator. Defaults to false. */
+  isDefault?: boolean;
+}
+
+/**
+ * Partial update for a saved view.
+ */
+export interface SavedViewUpdate {
+  /**
+     * New display name.
+     * @minLength 1
+     */
+  name?: string;
+  filters?: SavedViewFilters;
+  /** Change org-wide visibility. */
+  isOrgWide?: boolean;
+  /** Pin or unpin as the user's default view. */
+  isDefault?: boolean;
+}
+
+/**
  * Confirmation returned after a successful ingest.
  */
 export interface WebhookIngestSuccess {

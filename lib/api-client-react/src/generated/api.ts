@@ -64,6 +64,9 @@ import type {
   ProjectUpdate,
   RenameOrgInput,
   Role,
+  SavedView,
+  SavedViewInput,
+  SavedViewUpdate,
   SimpleSuccess,
   Task,
   TaskEvent,
@@ -1709,6 +1712,301 @@ export const useDeleteComment = <TError = ErrorType<DeleteComment403>,
         TContext
       > => {
       return useMutation(getDeleteCommentMutationOptions(options));
+    }
+
+export const getListViewsUrl = () => {
+
+
+
+
+  return `/api/views`
+}
+
+/**
+ * Returns saved views visible to the caller: their own personal views plus all org-wide views within their organization.
+ * @summary List saved views for the current user
+ */
+export const listViews = async ( options?: RequestInit): Promise<SavedView[]> => {
+
+  return customFetch<SavedView[]>(getListViewsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListViewsQueryKey = () => {
+    return [
+    `/api/views`
+    ] as const;
+    }
+
+
+export const getListViewsQueryOptions = <TData = Awaited<ReturnType<typeof listViews>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listViews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListViewsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listViews>>> = ({ signal }) => listViews({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listViews>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListViewsQueryResult = NonNullable<Awaited<ReturnType<typeof listViews>>>
+export type ListViewsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List saved views for the current user
+ */
+
+export function useListViews<TData = Awaited<ReturnType<typeof listViews>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listViews>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListViewsQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateViewUrl = () => {
+
+
+
+
+  return `/api/views`
+}
+
+/**
+ * Creates a new saved view for the caller. The view stores the current filter state. If `isDefault` is true, any previous default view for this user is automatically unset.
+ * @summary Create a saved view
+ */
+export const createView = async (savedViewInput: SavedViewInput, options?: RequestInit): Promise<SavedView> => {
+
+  return customFetch<SavedView>(getCreateViewUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(savedViewInput)
+  }
+);}
+
+
+
+
+
+export const getCreateViewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createView>>, TError,{data: BodyType<SavedViewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createView>>, TError,{data: BodyType<SavedViewInput>}, TContext> => {
+
+const mutationKey = ['createView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createView>>, {data: BodyType<SavedViewInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createView(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateViewMutationResult = NonNullable<Awaited<ReturnType<typeof createView>>>
+    export type CreateViewMutationBody = BodyType<SavedViewInput>
+    export type CreateViewMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a saved view
+ */
+export const useCreateView = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createView>>, TError,{data: BodyType<SavedViewInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createView>>,
+        TError,
+        {data: BodyType<SavedViewInput>},
+        TContext
+      > => {
+      return useMutation(getCreateViewMutationOptions(options));
+    }
+
+export const getUpdateViewUrl = (id: number,) => {
+
+
+
+
+  return `/api/views/${id}`
+}
+
+/**
+ * Renames a view, changes its visibility, or sets it as the default. Only the view's creator or an org admin may update it. Setting `isDefault: true` automatically clears any previous default view for the caller.
+ * @summary Update a saved view
+ */
+export const updateView = async (id: number,
+    savedViewUpdate: SavedViewUpdate, options?: RequestInit): Promise<SavedView> => {
+
+  return customFetch<SavedView>(getUpdateViewUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(savedViewUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateViewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateView>>, TError,{id: number;data: BodyType<SavedViewUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateView>>, TError,{id: number;data: BodyType<SavedViewUpdate>}, TContext> => {
+
+const mutationKey = ['updateView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateView>>, {id: number;data: BodyType<SavedViewUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateView(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateViewMutationResult = NonNullable<Awaited<ReturnType<typeof updateView>>>
+    export type UpdateViewMutationBody = BodyType<SavedViewUpdate>
+    export type UpdateViewMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a saved view
+ */
+export const useUpdateView = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateView>>, TError,{id: number;data: BodyType<SavedViewUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateView>>,
+        TError,
+        {id: number;data: BodyType<SavedViewUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateViewMutationOptions(options));
+    }
+
+export const getDeleteViewUrl = (id: number,) => {
+
+
+
+
+  return `/api/views/${id}`
+}
+
+/**
+ * Permanently deletes a saved view. Only the view's creator or an org admin may delete it.
+ * @summary Delete a saved view
+ */
+export const deleteView = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteViewUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteViewMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteView>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteView>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteView'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteView>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteView(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteViewMutationResult = NonNullable<Awaited<ReturnType<typeof deleteView>>>
+
+    export type DeleteViewMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a saved view
+ */
+export const useDeleteView = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteView>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteView>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteViewMutationOptions(options));
     }
 
 export const getListNotesUrl = (params?: ListNotesParams,) => {

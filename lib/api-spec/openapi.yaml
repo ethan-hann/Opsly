@@ -28,6 +28,8 @@ tags:
     description: Inbound and outbound webhook management
   - name: custom-fields
     description: Custom field definition management
+  - name: views
+    description: Saved filter views
 
 paths:
   /auth/user:
@@ -629,6 +631,105 @@ paths:
                 properties:
                   error:
                     type: string
+
+  /views:
+    get:
+      operationId: listViews
+      tags: [views]
+      summary: List saved views for the current user
+      description: >
+        Returns saved views visible to the caller: their own personal views plus
+        all org-wide views within their organization.
+      responses:
+        "200":
+          description: List of saved views
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SavedView"
+    post:
+      operationId: createView
+      tags: [views]
+      summary: Create a saved view
+      description: >
+        Creates a new saved view for the caller. The view stores the current
+        filter state. If `isDefault` is true, any previous default view for this
+        user is automatically unset.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedViewInput"
+      responses:
+        "201":
+          description: Created saved view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedView"
+        "400":
+          description: Invalid request body.
+
+  /views/{id}:
+    patch:
+      operationId: updateView
+      tags: [views]
+      summary: Update a saved view
+      description: >
+        Renames a view, changes its visibility, or sets it as the default.
+        Only the view's creator or an org admin may update it. Setting
+        `isDefault: true` automatically clears any previous default view for
+        the caller.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Numeric ID of the saved view.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavedViewUpdate"
+      responses:
+        "200":
+          description: Updated saved view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SavedView"
+        "400":
+          description: Invalid request body.
+        "403":
+          description: Not the view owner or an org admin.
+        "404":
+          description: View not found.
+    delete:
+      operationId: deleteView
+      tags: [views]
+      summary: Delete a saved view
+      description: >
+        Permanently deletes a saved view. Only the view's creator or an org
+        admin may delete it.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Numeric ID of the saved view to delete.
+      responses:
+        "204":
+          description: View deleted successfully.
+        "403":
+          description: Not the view owner or an org admin.
+        "404":
+          description: View not found.
 
   /notes:
     get:
@@ -3002,6 +3103,103 @@ components:
           type: string
           description: Task deadline in YYYY-MM-DD format.
       additionalProperties: true
+
+    SavedViewFilters:
+      description: Filter state stored in a saved view.
+      type: object
+      properties:
+        status:
+          type: string
+          description: Task status filter value.
+        priority:
+          type: string
+          description: Task priority filter value.
+        category:
+          type: string
+          description: Task category filter value.
+        assignee:
+          type: string
+          description: Assignee email filter value.
+        dateFrom:
+          type: string
+          description: Due date lower bound in YYYY-MM-DD format.
+        dateTo:
+          type: string
+          description: Due date upper bound in YYYY-MM-DD format.
+        projectFilter:
+          type: string
+          enum: [all, with_project, no_project]
+          description: Project presence filter.
+        search:
+          type: string
+          description: Free-text search string.
+
+    SavedView:
+      description: A named, persisted set of task filters.
+      type: object
+      required: [id, orgId, createdBy, name, filters, isOrgWide, isDefault, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key.
+        orgId:
+          type: string
+          description: Organization this view belongs to.
+        createdBy:
+          type: string
+          description: User ID of the view creator.
+        name:
+          type: string
+          description: Human-readable name for the view.
+        filters:
+          $ref: "#/components/schemas/SavedViewFilters"
+        isOrgWide:
+          type: boolean
+          description: When true the view is visible to all org members.
+        isDefault:
+          type: boolean
+          description: When true this view loads automatically on /tasks for its owner.
+        createdAt:
+          type: string
+          description: ISO 8601 creation timestamp.
+        updatedAt:
+          type: string
+          description: ISO 8601 last-updated timestamp.
+
+    SavedViewInput:
+      description: Request body for creating a saved view.
+      type: object
+      required: [name, filters]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Display name for the view.
+        filters:
+          $ref: "#/components/schemas/SavedViewFilters"
+        isOrgWide:
+          type: boolean
+          description: Whether the view is visible to all org members. Defaults to false.
+        isDefault:
+          type: boolean
+          description: Whether this view should load automatically for the creator. Defaults to false.
+
+    SavedViewUpdate:
+      description: Partial update for a saved view.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: New display name.
+        filters:
+          $ref: "#/components/schemas/SavedViewFilters"
+        isOrgWide:
+          type: boolean
+          description: Change org-wide visibility.
+        isDefault:
+          type: boolean
+          description: Pin or unpin as the user's default view.
 
     WebhookIngestSuccess:
       description: Confirmation returned after a successful ingest.

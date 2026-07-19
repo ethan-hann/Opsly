@@ -457,6 +457,138 @@ export const DeleteCommentResponse = zod.void()
 
 
 /**
+ * Returns saved views visible to the caller: their own personal views plus all org-wide views within their organization.
+ * @summary List saved views for the current user
+ */
+export const ListViewsResponseItem = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('Organization this view belongs to.'),
+  "createdBy": zod.string().describe('User ID of the view creator.'),
+  "name": zod.string().describe('Human-readable name for the view.'),
+  "filters": zod.object({
+  "status": zod.string().optional().describe('Task status filter value.'),
+  "priority": zod.string().optional().describe('Task priority filter value.'),
+  "category": zod.string().optional().describe('Task category filter value.'),
+  "assignee": zod.string().optional().describe('Assignee email filter value.'),
+  "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
+  "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
+  "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
+  "search": zod.string().optional().describe('Free-text search string.')
+}).describe('Filter state stored in a saved view.'),
+  "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
+  "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('A named, persisted set of task filters.')
+export const ListViewsResponse = zod.array(ListViewsResponseItem)
+
+
+/**
+ * Creates a new saved view for the caller. The view stores the current filter state. If `isDefault` is true, any previous default view for this user is automatically unset.
+ * @summary Create a saved view
+ */
+
+
+
+export const CreateViewBody = zod.object({
+  "name": zod.string().min(1).describe('Display name for the view.'),
+  "filters": zod.object({
+  "status": zod.string().optional().describe('Task status filter value.'),
+  "priority": zod.string().optional().describe('Task priority filter value.'),
+  "category": zod.string().optional().describe('Task category filter value.'),
+  "assignee": zod.string().optional().describe('Assignee email filter value.'),
+  "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
+  "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
+  "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
+  "search": zod.string().optional().describe('Free-text search string.')
+}).describe('Filter state stored in a saved view.'),
+  "isOrgWide": zod.boolean().optional().describe('Whether the view is visible to all org members. Defaults to false.'),
+  "isDefault": zod.boolean().optional().describe('Whether this view should load automatically for the creator. Defaults to false.')
+}).describe('Request body for creating a saved view.')
+
+export const CreateViewResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('Organization this view belongs to.'),
+  "createdBy": zod.string().describe('User ID of the view creator.'),
+  "name": zod.string().describe('Human-readable name for the view.'),
+  "filters": zod.object({
+  "status": zod.string().optional().describe('Task status filter value.'),
+  "priority": zod.string().optional().describe('Task priority filter value.'),
+  "category": zod.string().optional().describe('Task category filter value.'),
+  "assignee": zod.string().optional().describe('Assignee email filter value.'),
+  "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
+  "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
+  "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
+  "search": zod.string().optional().describe('Free-text search string.')
+}).describe('Filter state stored in a saved view.'),
+  "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
+  "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('A named, persisted set of task filters.')
+
+
+/**
+ * Renames a view, changes its visibility, or sets it as the default. Only the view's creator or an org admin may update it. Setting `isDefault: true` automatically clears any previous default view for the caller.
+ * @summary Update a saved view
+ */
+export const UpdateViewParams = zod.object({
+  "id": zod.coerce.number().describe('Numeric ID of the saved view.')
+})
+
+
+
+
+export const UpdateViewBody = zod.object({
+  "name": zod.string().min(1).optional().describe('New display name.'),
+  "filters": zod.object({
+  "status": zod.string().optional().describe('Task status filter value.'),
+  "priority": zod.string().optional().describe('Task priority filter value.'),
+  "category": zod.string().optional().describe('Task category filter value.'),
+  "assignee": zod.string().optional().describe('Assignee email filter value.'),
+  "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
+  "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
+  "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
+  "search": zod.string().optional().describe('Free-text search string.')
+}).optional().describe('Filter state stored in a saved view.'),
+  "isOrgWide": zod.boolean().optional().describe('Change org-wide visibility.'),
+  "isDefault": zod.boolean().optional().describe('Pin or unpin as the user\'s default view.')
+}).describe('Partial update for a saved view.')
+
+export const UpdateViewResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('Organization this view belongs to.'),
+  "createdBy": zod.string().describe('User ID of the view creator.'),
+  "name": zod.string().describe('Human-readable name for the view.'),
+  "filters": zod.object({
+  "status": zod.string().optional().describe('Task status filter value.'),
+  "priority": zod.string().optional().describe('Task priority filter value.'),
+  "category": zod.string().optional().describe('Task category filter value.'),
+  "assignee": zod.string().optional().describe('Assignee email filter value.'),
+  "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
+  "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
+  "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
+  "search": zod.string().optional().describe('Free-text search string.')
+}).describe('Filter state stored in a saved view.'),
+  "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
+  "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('A named, persisted set of task filters.')
+
+
+/**
+ * Permanently deletes a saved view. Only the view's creator or an org admin may delete it.
+ * @summary Delete a saved view
+ */
+export const DeleteViewParams = zod.object({
+  "id": zod.coerce.number().describe('Numeric ID of the saved view to delete.')
+})
+
+export const DeleteViewResponse = zod.void()
+
+
+/**
  * Returns notes visible to the caller within their organization. Visibility rules: the caller always sees their own notes and legacy notes with no owner; `public_read` and `public_write` notes from other org members are also returned. Private notes owned by other members are excluded. Results are ordered by `updatedAt` descending. Optionally filter to a specific project or task using query parameters.
  * @summary List all notes, optionally filtered by project or task
  */

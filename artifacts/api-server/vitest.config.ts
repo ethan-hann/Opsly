@@ -17,6 +17,14 @@ const yamlAsString = {
 export default defineConfig({
   plugins: [yamlAsString],
   cacheDir: `/tmp/vitest-cache-api-server-${process.pid}`,
+  server: {
+    // Bundle workspace packages inline so vitest doesn't fan-out to hundreds
+    // of individual generated TypeScript files on cold starts, which causes
+    // intermittent ENOENT races when multiple workers load them simultaneously.
+    deps: {
+      inline: ["@workspace/api-zod", "@workspace/db"],
+    },
+  },
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
