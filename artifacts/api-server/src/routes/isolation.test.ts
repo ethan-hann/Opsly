@@ -157,6 +157,8 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   ne: () => ({}),
   lt: () => ({}),
+  lte: () => ({}),
+  gte: () => ({}),
   isNull: () => ({}),
   sql: () => ({}),
 }));
@@ -321,6 +323,134 @@ describe("Task isolation — GET /api/tasks", () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].id).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Filter isolation — assignee, dateFrom, dateTo combinations cannot surface
+// tasks from another org even when filter values overlap across orgs.
+//
+// Each "no leak" test pushes nothing onto the selectQueue.  The mock DB
+// then returns [] — exactly what a correctly-scoped orgId WHERE clause
+// produces when org-a has no tasks matching the filter despite org-b having
+// tasks that would otherwise match.
+// ---------------------------------------------------------------------------
+
+const SHARED_ASSIGNEE = "shared@example.com";
+const SHARED_DATE = "2025-03-15";
+
+describe("Task filter isolation — assignee filter", () => {
+  beforeEach(reset);
+
+  it("returns empty when org-b has a task with the same assignee but org-a has none", async () => {
+    // selectQueue is empty → DB returned [] for orgId='org-a' AND assignee filter
+    const res = await request(buildApp()).get(`/api/tasks?assignee=${SHARED_ASSIGNEE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when both orgs have tasks with the same assignee", async () => {
+    const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE };
+    mockState.selectQueue.push([orgATask]); // DB returns only the org-a task (orgId scoped)
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp()).get(`/api/tasks?assignee=${SHARED_ASSIGNEE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+    expect(res.body[0].assignee).toBe(SHARED_ASSIGNEE);
+  });
+});
+
+describe("Task filter isolation — dateFrom filter", () => {
+  beforeEach(reset);
+
+  it("returns empty when org-b tasks fall within the date range but org-a has none", async () => {
+    const res = await request(buildApp()).get(`/api/tasks?dateFrom=${SHARED_DATE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when both orgs have tasks on or after dateFrom", async () => {
+    const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: SHARED_DATE };
+    mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get(`/api/tasks?dateFrom=${SHARED_DATE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+  });
+});
+
+describe("Task filter isolation — dateTo filter", () => {
+  beforeEach(reset);
+
+  it("returns empty when org-b tasks are before the cutoff but org-a has none", async () => {
+    const res = await request(buildApp()).get(`/api/tasks?dateTo=${SHARED_DATE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when both orgs have tasks before dateTo", async () => {
+    const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: "2025-03-10" };
+    mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get(`/api/tasks?dateTo=${SHARED_DATE}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+  });
+});
+
+describe("Task filter isolation — combined assignee + dateFrom + dateTo", () => {
+  beforeEach(reset);
+
+  it("returns empty when org-b matches all combined filter criteria but org-a has no tasks", async () => {
+    const res = await request(buildApp()).get(
+      `/api/tasks?assignee=${SHARED_ASSIGNEE}&dateFrom=2025-03-01&dateTo=2025-03-31`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when both orgs match all combined filter criteria", async () => {
+    const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE };
+    mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get(
+      `/api/tasks?assignee=${SHARED_ASSIGNEE}&dateFrom=2025-03-01&dateTo=2025-03-31`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+  });
+
+  it("returns empty with status + priority + assignee + date range when org-b matches but org-a does not", async () => {
+    const res = await request(buildApp()).get(
+      `/api/tasks?status=todo&priority=medium&assignee=${SHARED_ASSIGNEE}&dateFrom=2025-03-01&dateTo=2025-03-31`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when all five filter dimensions overlap across orgs", async () => {
+    const orgATask = {
+      ...ORG_B_TASK, id: 1, orgId: "org-a",
+      status: "todo", priority: "medium",
+      assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE,
+    };
+    mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get(
+      `/api/tasks?status=todo&priority=medium&assignee=${SHARED_ASSIGNEE}&dateFrom=2025-03-01&dateTo=2025-03-31`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
   });
 });
 

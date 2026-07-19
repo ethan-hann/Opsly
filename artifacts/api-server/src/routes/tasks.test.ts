@@ -90,6 +90,8 @@ vi.mock("drizzle-orm", () => ({
   eq: () => ({}),
   and: () => ({}),
   lt: () => ({}),
+  lte: () => ({}),
+  gte: () => ({}),
   or: () => ({}),
   ne: () => ({}),
   isNull: () => ({}),
@@ -231,6 +233,73 @@ describe("GET /api/tasks", () => {
     mockState.selectQueue.push([]); // tasks query returns empty list
     const res = await request(buildApp()).get("/api/tasks?status=not_a_status");
     expect(res.status).toBe(200);
+  });
+
+  it("accepts an assignee filter and returns 200", async () => {
+    const assignedTask = { ...MOCK_TASK, assignee: "alice@example.com" };
+    mockState.selectQueue.push([assignedTask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?assignee=alice%40example.com");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].assignee).toBe("alice@example.com");
+  });
+
+  it("returns empty array when no tasks match the assignee filter", async () => {
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/api/tasks?assignee=nobody%40example.com");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("accepts a dateFrom filter and returns tasks on or after that date", async () => {
+    const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
+    mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?dateFrom=2025-06-01");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("accepts a dateTo filter and returns tasks on or before that date", async () => {
+    const datedTask = { ...MOCK_TASK, dueDate: "2025-05-10" };
+    mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?dateTo=2025-05-31");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("accepts dateFrom and dateTo together as a date-range filter", async () => {
+    const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
+    mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?dateFrom=2025-06-01&dateTo=2025-06-30");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("accepts all filters combined: assignee + dateFrom + dateTo + status + priority", async () => {
+    const fullTask = { ...MOCK_TASK, assignee: "alice@example.com", dueDate: "2025-06-15" };
+    mockState.selectQueue.push([fullTask]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get(
+      "/api/tasks?assignee=alice%40example.com&dateFrom=2025-06-01&dateTo=2025-06-30&status=todo&priority=medium",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
   });
 });
 
