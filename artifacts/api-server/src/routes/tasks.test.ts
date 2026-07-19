@@ -594,6 +594,8 @@ describe("POST /api/tasks - custom field validation", () => {
   const TEXT_FIELD_DEF = { id: 10, name: "Notes", type: "text", options: null, orgId: "test-org", deletedAt: null, position: 0, createdAt: "", updatedAt: "" };
   const NUMBER_FIELD_DEF = { id: 11, name: "Severity Score", type: "number", options: null, orgId: "test-org", deletedAt: null, position: 1, createdAt: "", updatedAt: "" };
   const SELECT_FIELD_DEF = { id: 12, name: "Environment", type: "single_select", options: ["prod", "staging"], orgId: "test-org", deletedAt: null, position: 2, createdAt: "", updatedAt: "" };
+  const DATE_FIELD_DEF = { id: 13, name: "Due Date Override", type: "date", options: null, orgId: "test-org", deletedAt: null, position: 3, createdAt: "", updatedAt: "" };
+  const MULTI_SELECT_DEF = { id: 14, name: "Tags", type: "multi_select", options: ["bug", "feature", "hotfix"], orgId: "test-org", deletedAt: null, position: 4, createdAt: "", updatedAt: "" };
 
   it("rejects a non-string value for a text field with 400", async () => {
     // validateAndSanitizeCustomFields selects definitions
@@ -666,6 +668,65 @@ describe("POST /api/tasks - custom field validation", () => {
 
     expect(res.status).toBe(201);
   });
+
+  it("rejects an invalid date format for a date field with 400", async () => {
+    mockState.selectQueue.push([DATE_FIELD_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "13": "not-a-date" } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Due Date Override/);
+    expect(res.body.error).toMatch(/YYYY-MM-DD/);
+  });
+
+  it("accepts a valid YYYY-MM-DD date value and creates the task", async () => {
+    mockState.selectQueue.push([DATE_FIELD_DEF]); // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);   // comment count
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "13": "2024-06-15" } });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects a non-array value for a multi_select field with 400", async () => {
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "14": "bug" } }); // string, not array
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Tags/);
+    expect(res.body.error).toMatch(/array/i);
+  });
+
+  it("rejects an out-of-range option in a multi_select field with 400", async () => {
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "14": ["bug", "unknown-tag"] } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Tags/);
+  });
+
+  it("accepts a valid multi_select array and creates the task", async () => {
+    mockState.selectQueue.push([MULTI_SELECT_DEF]); // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ nextNum: 1 }]);   // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);     // comment count
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, customFields: { "14": ["bug", "hotfix"] } });
+
+    expect(res.status).toBe(201);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -675,6 +736,8 @@ describe("POST /api/tasks - custom field validation", () => {
 describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
   const TEXT_FIELD_DEF = { id: 10, name: "Notes", type: "text", options: null, orgId: "test-org", deletedAt: null, position: 0, createdAt: "", updatedAt: "" };
   const SELECT_FIELD_DEF = { id: 12, name: "Environment", type: "single_select", options: ["prod", "staging"], orgId: "test-org", deletedAt: null, position: 2, createdAt: "", updatedAt: "" };
+  const DATE_FIELD_DEF = { id: 13, name: "Due Date Override", type: "date", options: null, orgId: "test-org", deletedAt: null, position: 3, createdAt: "", updatedAt: "" };
+  const MULTI_SELECT_DEF = { id: 14, name: "Tags", type: "multi_select", options: ["bug", "feature", "hotfix"], orgId: "test-org", deletedAt: null, position: 4, createdAt: "", updatedAt: "" };
 
   const TASK_WITH_CUSTOM = {
     ...MOCK_TASK,
@@ -737,6 +800,70 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     const res = await request(buildApp())
       .patch("/api/tasks/1")
       .send({ customFields: { "10": "updated note", "99": "phantom field" } });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects an invalid date format for a date field with 400", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([DATE_FIELD_DEF]);                      // definitions
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "13": "June 15 2024" } }); // not YYYY-MM-DD
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Due Date Override/);
+    expect(res.body.error).toMatch(/YYYY-MM-DD/);
+  });
+
+  it("accepts a valid YYYY-MM-DD date value in a PATCH", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]);          // prev state
+    mockState.selectQueue.push([DATE_FIELD_DEF]);                               // definitions
+    mockState.selectQueue.push([{ customFields: {} }]);                         // existing for merge
+    mockState.selectQueue.push([{ count: 0 }]);                                 // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "13": "2024-06-15" } });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a non-array value for a multi_select field in a PATCH with 400", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                    // definitions
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "14": "bug" } }); // string, not array
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Tags/);
+    expect(res.body.error).toMatch(/array/i);
+  });
+
+  it("rejects an invalid option in a multi_select array in a PATCH with 400", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                    // definitions
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "14": ["bug", "invalid-tag"] } });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/Tags/);
+  });
+
+  it("accepts a valid multi_select array in a PATCH", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]);   // prev state
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                      // definitions
+    mockState.selectQueue.push([{ customFields: {} }]);                  // existing for merge
+    mockState.selectQueue.push([{ count: 0 }]);                          // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "14": ["feature", "hotfix"] } });
 
     expect(res.status).toBe(200);
   });
