@@ -172,6 +172,9 @@ const ALL_EVENTS: OutboundWebhookEvent[] = [
   "task.commented",
   "project.created",
   "project.updated",
+  "note.created",
+  "note.updated",
+  "note.deleted",
 ];
 
 const WebhookVisibilityEnum = z.enum(["private", "public_read", "public_write"]);
@@ -183,6 +186,9 @@ const OutboundEventEnum = z.enum([
   "task.commented",
   "project.created",
   "project.updated",
+  "note.created",
+  "note.updated",
+  "note.deleted",
 ]);
 
 const WebhookTaskTemplateSchema = z
