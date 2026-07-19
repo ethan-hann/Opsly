@@ -773,14 +773,25 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
     expect(mockState.updateCalls).toBe(0);
   });
 
+  it("returns 403 when an owner tries to change their own role", async () => {
+    // requireOrg mock injects req.user.id = "user-owner" and isOrgOwner = true
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-owner/role")
+      .send({ roleId: "role-member" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/own role/i) });
+    expect(mockState.updateCalls).toBe(0);
+  });
+
   it("returns 400 when demoting the last remaining Owner (owner acting)", async () => {
-    // owner demoting an owner
+    // owner demoting a different owner (not themselves)
     mockState.selectQueue.push([{ roleId: "role-owner", currentRoleIsOwner: true }]);
     mockState.selectQueue.push([{ id: "role-member", name: "Member", isOwner: false, permissions: MEMBER_PERMS }]);
     mockState.selectQueue.push([{ count: 1 }]); // only 1 owner left
 
     const res = await request(buildApp())
-      .patch("/api/orgs/members/user-owner/role")
+      .patch("/api/orgs/members/user-owner-2/role")
       .send({ roleId: "role-member" });
 
     expect(res.status).toBe(400);

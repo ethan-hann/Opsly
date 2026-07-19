@@ -606,6 +606,13 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
     return;
   }
 
+  // Owners cannot change their own role — ownership must be transferred by
+  // assigning the Owner role to another member instead.
+  if (targetUserId === req.user!.id && req.isOrgOwner) {
+    res.status(403).json({ error: 'Owners cannot change their own role. Assign the Owner role to another member instead.' });
+    return;
+  }
+
   // Join with rolesTable to get current role info alongside the membership
   const [member] = await db
     .select({ roleId: orgMembersTable.roleId, currentRoleIsOwner: rolesTable.isOwner })
