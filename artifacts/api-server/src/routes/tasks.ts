@@ -348,6 +348,12 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
+  // Enforce create_tasks permission server-side (frontend gate alone is insufficient)
+  if (!req.orgPermissions?.create_tasks) {
+    res.status(403).json({ error: "You do not have permission to create tasks" });
+    return;
+  }
+
   // Validate that projectId (if provided) belongs to this org
   if (parsed.data.projectId != null) {
     const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);

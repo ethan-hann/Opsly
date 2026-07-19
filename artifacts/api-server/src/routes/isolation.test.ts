@@ -557,6 +557,20 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
   });
 });
 
+describe("Task permission — POST /api/tasks", () => {
+  beforeEach(reset);
+
+  it("returns 403 when the caller does not have create_tasks permission", async () => {
+    // Simulate a role where create_tasks has been revoked — the server must
+    // enforce this regardless of what the frontend shows.
+    mockState.permissions = { ...mockState.permissions, create_tasks: false };
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ title: "New task", status: "todo", priority: "medium", category: "incident" });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("Task isolation — DELETE /api/tasks/:id", () => {
   beforeEach(reset);
 
