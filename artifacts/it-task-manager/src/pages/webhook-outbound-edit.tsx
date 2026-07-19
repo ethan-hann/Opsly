@@ -567,10 +567,10 @@ export default function WebhookOutboundEditPage({
                   disabled={readOnly || isPending}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All projects" />
+                    <SelectValue placeholder="No project" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">All projects</SelectItem>
+                    <SelectItem value="__none__">No project</SelectItem>
                     {projectOptions.map((p) => (
                       <SelectItem key={p.id} value={p.id.toString()}>
                         {p.name}
