@@ -42,7 +42,7 @@ export const orgMembersTable = pgTable(
 );
 
 export const invitationsTable = pgTable('invitations', {
-  id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
   orgId: varchar('org_id')
     .notNull()
     .references(() => organizationsTable.id, { onDelete: 'cascade' }),
