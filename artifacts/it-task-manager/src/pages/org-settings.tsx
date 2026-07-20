@@ -327,7 +327,7 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
               </Button>
             </form>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-sm">{role.name}</span>
               {role.isBuiltIn && (
                 <Badge variant="outline" className="text-xs py-0">Built-in</Badge>
@@ -338,6 +338,12 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
                   Owner
                 </Badge>
               )}
+              <Badge
+                variant="outline"
+                className={`text-xs py-0 ${affectedMembers.length === 0 ? "text-muted-foreground/50 border-border/50" : "text-muted-foreground"}`}
+              >
+                {affectedMembers.length} {affectedMembers.length === 1 ? "member" : "members"}
+              </Badge>
               {canEdit && !role.isBuiltIn && (
                 <button
                   className="text-muted-foreground hover:text-foreground transition-colors"
