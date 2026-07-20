@@ -72,8 +72,7 @@ vi.mock("@workspace/db", () => {
     };
   }
 
-  return {
-    db: {
+  const dbMock: any = {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
       insert: () => ({
         values: () => {
@@ -96,7 +95,11 @@ vi.mock("@workspace/db", () => {
       delete: () => (mockState.deleteCalls++, {
         where: () => noop(),
       }),
-    },
+      transaction: async (fn: any) => fn(dbMock),
+  };
+
+  return {
+    db: dbMock,
     organizationsTable: {},
     orgMembersTable: {},
     rolesTable: {},
@@ -770,6 +773,50 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
 
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: expect.stringMatching(/owner/i) });
+    expect(mockState.updateCalls).toBe(0);
+  });
+
+  it("transfers ownership: assigning Owner role demotes the acting owner to Admin", async () => {
+    mockState.selectQueue.push([{ roleId: "role-member", currentRoleIsOwner: false }]); // target member
+    mockState.selectQueue.push([{ id: "role-owner", name: "Owner", isOwner: true, permissions: ALL_PERMS }]); // target role
+    mockState.selectQueue.push([{ id: "role-admin" }]); // built-in Admin role lookup
+    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", roleId: "role-owner" }]); // promote target
+    mockState.updateQueue.push([{ ...MOCK_MEMBER, roleId: "role-admin" }]); // demote acting owner
+    mockState.selectQueue.push([{ firstName: "Bob", lastName: "Jones", email: "bob@example.com", profileImageUrl: null }]);
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-2/role")
+      .send({ roleId: "role-owner" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ roleName: "Owner", userId: "user-2" });
+    expect(mockState.updateCalls).toBe(2); // target promoted AND actor demoted
+  });
+
+  it("fails the whole transfer when demoting the previous owner fails (no partial state)", async () => {
+    mockState.selectQueue.push([{ roleId: "role-member", currentRoleIsOwner: false }]); // target member
+    mockState.selectQueue.push([{ id: "role-owner", name: "Owner", isOwner: true, permissions: ALL_PERMS }]); // target role
+    mockState.selectQueue.push([{ id: "role-admin" }]); // built-in Admin role
+    mockState.updateQueue.push([{ ...MOCK_MEMBER, userId: "user-2", roleId: "role-owner" }]); // promote succeeds
+    mockState.updateQueue.push([]); // demote returns no row → transaction throws → rollback
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-2/role")
+      .send({ roleId: "role-owner" });
+
+    expect(res.status).toBe(500); // surfaced as an error, not a silent partial success
+  });
+
+  it("returns 500 without any writes when the built-in Admin role is missing during transfer", async () => {
+    mockState.selectQueue.push([{ roleId: "role-member", currentRoleIsOwner: false }]); // target member
+    mockState.selectQueue.push([{ id: "role-owner", name: "Owner", isOwner: true, permissions: ALL_PERMS }]); // target role
+    mockState.selectQueue.push([]); // Admin role not found
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/members/user-2/role")
+      .send({ roleId: "role-owner" });
+
+    expect(res.status).toBe(500);
     expect(mockState.updateCalls).toBe(0);
   });
 

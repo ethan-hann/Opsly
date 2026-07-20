@@ -1018,6 +1018,9 @@ export default function OrgSettings() {
 
   const canManageMembers = hasPermission("manage_members");
 
+  // Pending ownership transfer awaiting confirmation: { userId, roleId, name }
+  const [pendingTransfer, setPendingTransfer] = useState<{ userId: string; roleId: string; name: string } | null>(null);
+
   const { mutate: updateMemberRole } = useUpdateOrgMemberRole({
     mutation: {
       onSuccess: () => {
@@ -1213,9 +1216,15 @@ export default function OrgSettings() {
                 {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") ? (
                   <Select
                     value={m.roleId}
-                    onValueChange={(roleId) =>
-                      updateMemberRole({ userId: m.userId, data: { roleId } })
-                    }
+                    onValueChange={(roleId) => {
+                      const selected = roles.find((r) => r.id === roleId);
+                      if (selected?.isOwner) {
+                        // Ownership transfer — require explicit confirmation
+                        setPendingTransfer({ userId: m.userId, roleId, name: getDisplayName(m) });
+                      } else {
+                        updateMemberRole({ userId: m.userId, data: { roleId } });
+                      }
+                    }}
                   >
                     <SelectTrigger className="h-7 w-36 text-xs">
                       <SelectValue />
@@ -1268,6 +1277,33 @@ export default function OrgSettings() {
           })}
         </CardContent>
       </Card>
+
+      {/* Ownership transfer confirmation */}
+      <AlertDialog open={pendingTransfer !== null} onOpenChange={(open) => { if (!open) setPendingTransfer(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transfer ownership?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingTransfer?.name} will become the Owner of this organization, and your role will
+              change to Admin. There can only be one Owner. This action can only be undone by the new Owner.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingTransfer) {
+                  updateMemberRole({ userId: pendingTransfer.userId, data: { roleId: pendingTransfer.roleId } });
+                }
+                setPendingTransfer(null);
+              }}
+            >
+              Transfer ownership
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Pending invitations */}
       {isAdmin && invitations.length > 0 && (

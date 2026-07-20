@@ -660,6 +660,29 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
     return;
   }
 
+  // Assigning the Owner role is an ownership TRANSFER: the acting owner is
+  // demoted to the built-in Admin role in the same request so the org never
+  // ends up with two owners (which desyncs role data across members).
+  let demoteActingOwnerToRoleId: string | null = null;
+  if (targetRole.isOwner && req.isOrgOwner) {
+    const [adminRole] = await db
+      .select({ id: rolesTable.id })
+      .from(rolesTable)
+      .where(
+        and(
+          eq(rolesTable.orgId, req.orgId!),
+          eq(rolesTable.isBuiltIn, true),
+          eq(rolesTable.name, 'Admin'),
+        ),
+      )
+      .limit(1);
+    if (!adminRole) {
+      res.status(500).json({ error: 'Built-in Admin role not found; cannot transfer ownership' });
+      return;
+    }
+    demoteActingOwnerToRoleId = adminRole.id;
+  }
+
   // If demoting an Owner, ensure at least one other Owner remains
   if (member.currentRoleIsOwner && !targetRole.isOwner) {
     const [ownerCount] = await db
@@ -678,16 +701,44 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
     }
   }
 
-  const [updated] = await db
-    .update(orgMembersTable)
-    .set({ roleId: parsed.data.roleId })
-    .where(
-      and(
-        eq(orgMembersTable.orgId, req.orgId!),
-        eq(orgMembersTable.userId, targetUserId),
-      ),
-    )
-    .returning();
+  // Ownership transfers perform both writes atomically: if either the
+  // promotion or the demotion fails, neither is committed — the org can
+  // never be left with two owners.
+  const updated = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(orgMembersTable)
+      .set({ roleId: parsed.data.roleId })
+      .where(
+        and(
+          eq(orgMembersTable.orgId, req.orgId!),
+          eq(orgMembersTable.userId, targetUserId),
+        ),
+      )
+      .returning();
+
+    if (!row) {
+      throw new Error('Failed to update member role');
+    }
+
+    // Complete the ownership transfer: demote the previous owner to Admin
+    if (demoteActingOwnerToRoleId) {
+      const [demoted] = await tx
+        .update(orgMembersTable)
+        .set({ roleId: demoteActingOwnerToRoleId })
+        .where(
+          and(
+            eq(orgMembersTable.orgId, req.orgId!),
+            eq(orgMembersTable.userId, req.user!.id),
+          ),
+        )
+        .returning();
+      if (!demoted) {
+        throw new Error('Failed to demote previous owner');
+      }
+    }
+
+    return row;
+  });
 
   const [userInfo] = await db
     .select({

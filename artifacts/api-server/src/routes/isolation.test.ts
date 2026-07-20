@@ -127,8 +127,7 @@ vi.mock("@workspace/db", () => {
     return chain;
   }
 
-  return {
-    db: {
+  const dbMock: any = {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
       insert: () => ({
         values: () => ({
@@ -151,7 +150,11 @@ vi.mock("@workspace/db", () => {
           return p;
         },
       }),
-    },
+      transaction: async (fn: any) => fn(dbMock),
+  };
+
+  return {
+    db: dbMock,
     tasksTable: {},
     projectsTable: {},
     commentsTable: {},
