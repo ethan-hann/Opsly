@@ -29,7 +29,7 @@ import {
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Crown, FileText, GripVertical, Link2, LogOut,
+  AlertTriangle, Building2, Clock, Copy, Crown, FileText, GripVertical, Link2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
   Workflow,
 } from "lucide-react";
@@ -223,6 +223,7 @@ interface RoleCardProps {
   members: OrgMemberInfo[]; // full org member list, used to warn before deletion
   onUpdated: () => void;
   onDeleted: () => void;
+  onDuplicate: (role: Role) => void;
 }
 
 function memberDisplayName(m: OrgMemberInfo): string {
@@ -230,7 +231,7 @@ function memberDisplayName(m: OrgMemberInfo): string {
   return name || m.email || m.userId;
 }
 
-function RoleCard({ role, canEdit, members, onUpdated, onDeleted }: RoleCardProps) {
+function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }: RoleCardProps) {
   const { toast } = useToast();
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(role.name);
@@ -339,6 +340,16 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted }: RoleCardProp
             </div>
           )}
         </div>
+        {/* Duplicate */}
+        {canEdit && (
+          <button
+            className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
+            onClick={() => onDuplicate(role)}
+            title={`Duplicate "${role.name}" role`}
+          >
+            <Copy className="w-3.5 h-3.5" />
+          </button>
+        )}
         {/* Delete */}
         {canEdit && !role.isBuiltIn && (
           <AlertDialog>
@@ -1297,6 +1308,8 @@ export default function OrgSettings() {
   const [inviteValue, setInviteValue] = useState("");
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
+  const [newRolePermissions, setNewRolePermissions] = useState<RolePermissions | null>(null);
+  const [duplicateSourceName, setDuplicateSourceName] = useState("");
 
   // ── Rename state ────────────────────────────────────────────────────────────
   const [isEditingName, setIsEditingName] = useState(false);
@@ -1406,6 +1419,8 @@ export default function OrgSettings() {
         toast({ title: "Role created" });
         setIsCreatingRole(false);
         setNewRoleName("");
+        setNewRolePermissions(null);
+        setDuplicateSourceName("");
         refetchRoles();
       },
       onError: (err: Error) => {
@@ -1428,7 +1443,26 @@ export default function OrgSettings() {
     e.preventDefault();
     const trimmed = newRoleName.trim();
     if (!trimmed) return;
-    createRole({ data: { name: trimmed } });
+    createRole({
+      data: {
+        name: trimmed,
+        ...(newRolePermissions ? { permissions: newRolePermissions } : {}),
+      },
+    });
+  }
+
+  function handleDuplicate(source: Role) {
+    setNewRoleName(`Copy of ${source.name}`);
+    setNewRolePermissions(source.permissions as RolePermissions);
+    setDuplicateSourceName(source.name);
+    setIsCreatingRole(true);
+  }
+
+  function cancelCreateRole() {
+    setIsCreatingRole(false);
+    setNewRoleName("");
+    setNewRolePermissions(null);
+    setDuplicateSourceName("");
   }
 
   function getDisplayName(m: OrgMemberInfo) {
@@ -1729,30 +1763,38 @@ export default function OrgSettings() {
               </CardDescription>
             </div>
             {isOwner && !isCreatingRole && (
-              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setIsCreatingRole(true)}>
+              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(null); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
                 <Plus className="w-3.5 h-3.5" />
                 New role
               </Button>
             )}
           </div>
           {isOwner && isCreatingRole && (
-            <form onSubmit={handleCreateRole} className="mt-3 flex gap-2">
-              <Input
-                autoFocus
-                placeholder="Role name"
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                maxLength={100}
-                disabled={isCreatingRoleReq}
-                className="h-8 text-sm"
-              />
-              <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
-                {isCreatingRoleReq ? "Creating…" : "Create"}
-              </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => { setIsCreatingRole(false); setNewRoleName(""); }}>
-                Cancel
-              </Button>
-            </form>
+            <div className="mt-3 space-y-2">
+              {duplicateSourceName && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Copy className="w-3 h-3 shrink-0" />
+                  Duplicating permissions from <strong>{duplicateSourceName}</strong> — rename below, then create.
+                </p>
+              )}
+              <form onSubmit={handleCreateRole} className="flex gap-2">
+                <Input
+                  autoFocus
+                  placeholder="Role name"
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  maxLength={100}
+                  disabled={isCreatingRoleReq}
+                  className="h-8 text-sm"
+                />
+                <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
+                  {isCreatingRoleReq ? "Creating…" : "Create"}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={cancelCreateRole}>
+                  Cancel
+                </Button>
+              </form>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -1764,6 +1806,7 @@ export default function OrgSettings() {
               members={members}
               onUpdated={refetchRoles}
               onDeleted={() => { refetchRoles(); refetchMembers(); }}
+              onDuplicate={handleDuplicate}
             />
           ))}
           {roles.length === 0 && (
