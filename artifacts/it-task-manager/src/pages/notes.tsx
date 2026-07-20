@@ -116,7 +116,12 @@ export default function NotesPage() {
 
   const handleNew = async () => {
     const result = await createNote.mutateAsync({
-      data: { title: "Untitled Note", content: "" },
+      data: {
+        title: "Untitled Note",
+        content: "",
+        ...(filterProjectId !== "all" ? { projectId: filterProjectId as number } : {}),
+        ...(filterTaskId !== "all" ? { taskId: filterTaskId as number } : {}),
+      },
     });
     setSelectedId(result.id);
     setLocalContent("");
