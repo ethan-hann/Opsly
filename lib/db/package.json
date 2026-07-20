@@ -18,7 +18,8 @@
     "migrate:add-custom-fields": "pnpm dlx tsx src/migrations/add-custom-fields.ts",
     "migrate:create-task-events": "pnpm dlx tsx src/migrations/create-task-events.ts",
     "migrate:create-saved-views": "pnpm dlx tsx src/migrations/create-saved-views.ts",
-    "migrate:create-sla-policies": "pnpm dlx tsx src/migrations/create-sla-policies.ts"
+    "migrate:create-sla-policies": "pnpm dlx tsx src/migrations/create-sla-policies.ts",
+    "migrate:add-project-sla-overrides": "pnpm dlx tsx src/migrations/add-project-sla-overrides.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
