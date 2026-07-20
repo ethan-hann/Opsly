@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { useOrgContext } from "@/hooks/use-org-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, FolderGit2, Calendar } from "lucide-react";
@@ -12,6 +13,8 @@ import { NewProjectModal } from "@/components/ui/new-project-modal";
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
   const [showNewProject, setShowNewProject] = useState(false);
+  const { hasPermission } = useOrgContext();
+  const canManageProjects = hasPermission('manage_projects');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -20,10 +23,12 @@ export default function ProjectsList() {
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
           <p className="text-muted-foreground mt-1">Manage IT initiatives, deployments, and epics.</p>
         </div>
-        <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
-          <Plus className="w-4 h-4" />
-          New Project
-        </Button>
+        {canManageProjects && (
+          <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
+            <Plus className="w-4 h-4" />
+            New Project
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -83,10 +88,12 @@ export default function ProjectsList() {
             <FolderGit2 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-lg font-medium">No projects found</h3>
             <p className="text-muted-foreground mb-4">Get started by creating a new project initiative.</p>
-            <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
-              <Plus className="w-4 h-4" />
-              Create Project
-            </Button>
+            {canManageProjects && (
+              <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
+                <Plus className="w-4 h-4" />
+                Create Project
+              </Button>
+            )}
           </div>
         )}
       </div>

@@ -12,6 +12,7 @@ import {
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
+import { useOrgContext } from "@/hooks/use-org-context";
 import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -41,6 +42,8 @@ interface Task {
   description?: string | null;
   projectId?: number | null;
   status: string;
+  stageType?: string | null;
+  stageName?: string | null;
   priority: TaskInputPriority;
   category: TaskInputCategory;
   assignee?: string | null;
@@ -74,11 +77,13 @@ const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
 export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) {
   const queryClient = useQueryClient();
   const { mutate: updateTask, isPending } = useUpdateTask();
+  const { hasPermission } = useOrgContext();
+  const canClose = hasPermission('close_tasks');
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
   const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { data: stages = [] } = useListWorkflowStages();
-  const activeStages = stages.filter((s) => !s.archivedAt);
+  const activeStages = stages.filter((s) => !s.archivedAt && (canClose || s.type !== 'closed'));
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
@@ -200,19 +205,26 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Status</Label>
-              <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {activeStages.map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                  ))}
-                  {status && !activeStages.some((s) => String(s.id) === status) && (
-                    <SelectItem value={status} className="text-muted-foreground">
-                      {stages.find((s) => String(s.id) === status)?.name ?? status} (archived)
-                    </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
+              {/* Read-only when task is in a closed stage and user lacks close_tasks */}
+              {!canClose && task.stageType === 'closed' ? (
+                <div className="h-9 px-3 py-2 text-sm rounded-md border border-input bg-muted text-muted-foreground flex items-center">
+                  {task.stageName ?? status}
+                </div>
+              ) : (
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {activeStages.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                    ))}
+                    {status && !activeStages.some((s) => String(s.id) === status) && (
+                      <SelectItem value={status} className="text-muted-foreground">
+                        {stages.find((s) => String(s.id) === status)?.name ?? status} (archived)
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="space-y-1">
               <Label>Priority</Label>

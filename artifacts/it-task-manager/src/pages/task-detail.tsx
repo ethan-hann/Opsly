@@ -585,6 +585,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   // Gate all inline editing on edit_tasks permission
   const canEdit = hasPermission('edit_tasks');
+  const canDelete = hasPermission('delete_tasks');
+  const canClose = hasPermission('close_tasks');
 
   if (isLoadingTask) {
     return <div className="space-y-6 max-w-4xl mx-auto p-4"><Skeleton className="h-64 w-full" /></div>;
@@ -708,33 +710,37 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       <span className="ml-0.5 text-muted-foreground">· {watcherCount}</span>
                     )}
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-                    <Edit className="w-3.5 h-3.5" /> Edit Task
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete Task">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete this task?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the task and all associated comments.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => deleteMutation.mutate({ id: task.id })}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {deleteMutation.isPending ? "Deleting..." : "Delete"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  {canEdit && (
+                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
+                      <Edit className="w-3.5 h-3.5" /> Edit Task
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete Task">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the task and all associated comments.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteMutation.mutate({ id: task.id })}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -943,15 +949,17 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
                 {/* Status */}
                 <PropertyRow icon={<Activity className="w-4 h-4" />} label="Status">
-                  {canEdit ? (
+                  {canEdit && (canClose || task.stageType !== 'closed') ? (
                     <Select value={task.status} onValueChange={handleStatusChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {stages.filter((s) => !s.archivedAt).map((s) => (
-                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                        ))}
+                        {stages
+                          .filter((s) => !s.archivedAt && (canClose || s.type !== 'closed'))
+                          .map((s) => (
+                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                          ))}
                         {/* Show current archived stage so it doesn't disappear */}
                         {task.stageArchived && (
                           <SelectItem value={task.status} className="text-muted-foreground">
