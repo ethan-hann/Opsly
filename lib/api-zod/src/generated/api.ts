@@ -835,6 +835,27 @@ export const ReorderCustomFieldDefinitionsResponse = zod.void()
 
 
 /**
+ * Clears the `deletedAt` timestamp on a soft-deleted field definition, making it active again. Task data stored under the field is unaffected — it was preserved by the soft-delete. Returns 404 if the field does not exist in the org or is already active. Requires `admin` role.
+ * @summary Restore a soft-deleted custom field definition (admin only)
+ */
+export const RestoreCustomFieldDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RestoreCustomFieldDefinitionResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the org this field belongs to.'),
+  "name": zod.string().describe('Display name of the field shown in the task form.'),
+  "type": zod.enum(['text', 'number', 'date', 'single_select', 'multi_select']).describe('Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.\n'),
+  "options": zod.array(zod.string()).nullish().describe('Predefined option labels for `single_select` and `multi_select` fields. Null for other types.\n'),
+  "position": zod.number().describe('Display order. Lower values appear first.'),
+  "deletedAt": zod.string().nullish().describe('ISO 8601 timestamp of soft-deletion. Null if the field is active.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the definition was created.'),
+  "updatedAt": zod.string().describe('ISO 8601 timestamp when the definition was last updated.')
+}).describe('A typed metadata field definition scoped to an org.')
+
+
+/**
  * Permanently deletes the field definition row and removes its key from every task's `customFields` JSONB column in a single transaction. Works on both active and soft-deleted field definitions. Returns the number of tasks whose data was erased. This action is irreversible. Requires `admin` role.
  * @summary Hard-delete a custom field and erase all stored values (admin only)
  */

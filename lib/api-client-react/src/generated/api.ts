@@ -2860,6 +2860,78 @@ export const useReorderCustomFieldDefinitions = <TError = ErrorType<void>,
       return useMutation(getReorderCustomFieldDefinitionsMutationOptions(options));
     }
 
+export const getRestoreCustomFieldDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/custom-fields/${id}/restore`
+}
+
+/**
+ * Clears the `deletedAt` timestamp on a soft-deleted field definition, making it active again. Task data stored under the field is unaffected — it was preserved by the soft-delete. Returns 404 if the field does not exist in the org or is already active. Requires `admin` role.
+ * @summary Restore a soft-deleted custom field definition (admin only)
+ */
+export const restoreCustomFieldDefinition = async (id: number, options?: RequestInit): Promise<CustomFieldDefinition> => {
+
+  return customFetch<CustomFieldDefinition>(getRestoreCustomFieldDefinitionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRestoreCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof restoreCustomFieldDefinition>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['restoreCustomFieldDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof restoreCustomFieldDefinition>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  restoreCustomFieldDefinition(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RestoreCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof restoreCustomFieldDefinition>>>
+
+    export type RestoreCustomFieldDefinitionMutationError = ErrorType<void>
+
+    /**
+ * @summary Restore a soft-deleted custom field definition (admin only)
+ */
+export const useRestoreCustomFieldDefinition = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof restoreCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof restoreCustomFieldDefinition>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRestoreCustomFieldDefinitionMutationOptions(options));
+    }
+
 export const getPurgeCustomFieldDefinitionUrl = (id: number,) => {
 
 

@@ -1017,6 +1017,35 @@ paths:
         "403":
           description: Admin access required.
 
+  /custom-fields/{id}/restore:
+    post:
+      operationId: restoreCustomFieldDefinition
+      tags: [custom-fields]
+      summary: Restore a soft-deleted custom field definition (admin only)
+      description: >
+        Clears the `deletedAt` timestamp on a soft-deleted field definition,
+        making it active again. Task data stored under the field is
+        unaffected — it was preserved by the soft-delete. Returns 404 if the
+        field does not exist in the org or is already active. Requires
+        `admin` role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Restored field definition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldDefinition"
+        "403":
+          description: Admin access required.
+        "404":
+          description: Custom field not found, belongs to a different org, or is already active.
+
   /custom-fields/{id}/purge:
     post:
       operationId: purgeCustomFieldDefinition
