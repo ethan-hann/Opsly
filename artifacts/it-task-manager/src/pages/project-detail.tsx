@@ -44,6 +44,7 @@ type PriorityLevel = typeof PRIORITY_LEVELS[number]["value"];
 interface PolicyDraft {
   responseMinutes: string;
   resolutionMinutes: string;
+  warningThresholdPercent: string; // 1–99, empty means use server default (80)
 }
 
 function minutesToDisplay(v: number | null | undefined): string {
@@ -75,8 +76,9 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
       PRIORITY_LEVELS.map(({ value }) => {
         const p = map.get(value);
         return [value, {
-          responseMinutes:   minutesToDisplay(p?.responseMinutes),
-          resolutionMinutes: minutesToDisplay(p?.resolutionMinutes),
+          responseMinutes:         minutesToDisplay(p?.responseMinutes),
+          resolutionMinutes:       minutesToDisplay(p?.resolutionMinutes),
+          warningThresholdPercent: p?.warningThresholdPercent != null ? String(p.warningThresholdPercent) : "",
         }];
       }),
     ) as Record<PriorityLevel, PolicyDraft>;
@@ -108,11 +110,15 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   }
   function handleSave() {
     if (!draft) return;
-    const entries = PRIORITY_LEVELS.map(({ value }) => ({
-      priority: value as "low" | "medium" | "high" | "critical",
-      responseMinutes:   displayToMinutes(draft[value].responseMinutes),
-      resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
-    })).filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
+    const entries = PRIORITY_LEVELS.map(({ value }) => {
+      const w = parseInt(draft[value].warningThresholdPercent, 10);
+      return {
+        priority: value as "low" | "medium" | "high" | "critical",
+        responseMinutes:   displayToMinutes(draft[value].responseMinutes),
+        resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
+        ...(w >= 1 && w <= 99 ? { warningThresholdPercent: w } : {}),
+      };
+    }).filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
     upsertPolicies({ projectId, data: { policies: entries } });
   }
   function updateDraft(priority: PriorityLevel, field: keyof PolicyDraft, value: string) {
@@ -186,13 +192,14 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
           </div>
         ) : editing && draft ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-[120px_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
               <span>Priority</span>
               <span>Response (min)</span>
               <span>Resolution (min)</span>
+              <span>Warning at (%)</span>
             </div>
             {PRIORITY_LEVELS.map(({ value, label }) => (
-              <div key={value} className="grid grid-cols-[120px_1fr_1fr] gap-3 items-center">
+              <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center">
                 <span className="text-sm font-medium">{label}</span>
                 <Input
                   type="number" min={1} placeholder="Org default"
@@ -204,6 +211,12 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                   type="number" min={1} placeholder="Org default"
                   value={draft[value].resolutionMinutes}
                   onChange={(e) => updateDraft(value, "resolutionMinutes", e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  type="number" min={1} max={99} placeholder="80"
+                  value={draft[value].warningThresholdPercent}
+                  onChange={(e) => updateDraft(value, "warningThresholdPercent", e.target.value)}
                   className="h-8 text-sm"
                 />
               </div>
@@ -219,10 +232,11 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
           </div>
         ) : (
           <div className="space-y-1">
-            <div className="grid grid-cols-[120px_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
               <span>Priority</span>
               <span>Response</span>
               <span>Resolution</span>
+              <span>Warning at</span>
             </div>
             {PRIORITY_LEVELS.map(({ value, label }) => {
               const proj = projectPolicies?.find((p) => p.priority === value);
@@ -235,8 +249,14 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                 return <span className="text-muted-foreground/50">—</span>;
               };
 
+              const displayWarning = () => {
+                if (proj?.warningThresholdPercent != null) return <strong className="text-foreground">{proj.warningThresholdPercent}%</strong>;
+                if (org?.warningThresholdPercent != null)  return <span className="text-muted-foreground/60">{org.warningThresholdPercent}% (org)</span>;
+                return <span className="text-muted-foreground/60">80% (default)</span>;
+              };
+
               return (
-                <div key={value} className="grid grid-cols-[120px_1fr_1fr] gap-3 items-center py-1.5 border-b border-border last:border-0">
+                <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center py-1.5 border-b border-border last:border-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium">{label}</span>
                     {hasProjectOverride && (
@@ -245,6 +265,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                   </div>
                   <span className="text-sm">{displayVal(proj?.responseMinutes, org?.responseMinutes)}</span>
                   <span className="text-sm">{displayVal(proj?.resolutionMinutes, org?.resolutionMinutes)}</span>
+                  <span className="text-sm">{displayWarning()}</span>
                 </div>
               );
             })}

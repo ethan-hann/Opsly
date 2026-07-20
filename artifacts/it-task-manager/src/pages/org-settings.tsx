@@ -1700,6 +1700,7 @@ type PriorityLevel = typeof PRIORITY_LEVELS[number]["value"];
 interface PolicyDraft {
   responseMinutes: string;   // empty string means "no target"
   resolutionMinutes: string;
+  warningThresholdPercent: string; // 1–99, empty means use server default (80)
 }
 
 function minutesToDisplay(minutes: number | null | undefined): string {
@@ -1727,8 +1728,9 @@ function SlaPoliciesCard() {
       PRIORITY_LEVELS.map(({ value }) => {
         const p = map.get(value);
         return [value, {
-          responseMinutes:   minutesToDisplay(p?.responseMinutes),
-          resolutionMinutes: minutesToDisplay(p?.resolutionMinutes),
+          responseMinutes:         minutesToDisplay(p?.responseMinutes),
+          resolutionMinutes:       minutesToDisplay(p?.resolutionMinutes),
+          warningThresholdPercent: p?.warningThresholdPercent != null ? String(p.warningThresholdPercent) : "",
         }];
       }),
     ) as Record<PriorityLevel, PolicyDraft>;
@@ -1759,11 +1761,15 @@ function SlaPoliciesCard() {
 
   function handleSave() {
     if (!draft) return;
-    const entries = PRIORITY_LEVELS.map(({ value }) => ({
-      priority: value as "low" | "medium" | "high" | "critical",
-      responseMinutes: displayToMinutes(draft[value].responseMinutes),
-      resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
-    })).filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
+    const entries = PRIORITY_LEVELS.map(({ value }) => {
+      const w = parseInt(draft[value].warningThresholdPercent, 10);
+      return {
+        priority: value as "low" | "medium" | "high" | "critical",
+        responseMinutes:   displayToMinutes(draft[value].responseMinutes),
+        resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
+        ...(w >= 1 && w <= 99 ? { warningThresholdPercent: w } : {}),
+      };
+    }).filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
 
     upsertPolicies({ data: { policies: entries } });
   }
@@ -1803,13 +1809,14 @@ function SlaPoliciesCard() {
           </div>
         ) : editing && draft ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-[120px_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
+            <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
               <span>Priority</span>
               <span>Response (min)</span>
               <span>Resolution (min)</span>
+              <span>Warning at (%)</span>
             </div>
             {PRIORITY_LEVELS.map(({ value, label }) => (
-              <div key={value} className="grid grid-cols-[120px_1fr_1fr] gap-3 items-center">
+              <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center">
                 <span className="text-sm font-medium">{label}</span>
                 <Input
                   type="number"
@@ -1825,6 +1832,15 @@ function SlaPoliciesCard() {
                   placeholder="No target"
                   value={draft[value].resolutionMinutes}
                   onChange={(e) => updateDraft(value, "resolutionMinutes", e.target.value)}
+                  className="h-8 text-sm"
+                />
+                <Input
+                  type="number"
+                  min={1}
+                  max={99}
+                  placeholder="80"
+                  value={draft[value].warningThresholdPercent}
+                  onChange={(e) => updateDraft(value, "warningThresholdPercent", e.target.value)}
                   className="h-8 text-sm"
                 />
               </div>
@@ -1861,6 +1877,9 @@ function SlaPoliciesCard() {
                           Resolution: <strong className="text-foreground">{p.resolutionMinutes}m</strong>
                         </span>
                       )}
+                      <span className="text-muted-foreground">
+                        Warning at: <strong className="text-foreground">{p.warningThresholdPercent ?? 80}%</strong>
+                      </span>
                     </div>
                   ) : (
                     <span className="text-sm text-muted-foreground flex-1">No target set</span>
