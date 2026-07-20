@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, isNull, isNotNull, asc, sql } from "drizzle-orm";
-import { db, customFieldDefinitionsTable, tasksTable } from "@workspace/db";
+import { db, customFieldDefinitionsTable, tasksTable, taskEventsTable } from "@workspace/db";
 import {
   ListCustomFieldDefinitionsResponse,
   CreateCustomFieldDefinitionBody,
@@ -18,6 +18,13 @@ import {
 import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
+
+/** Derive a human-readable display name from a user object. */
+function actorDisplayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null } | undefined): string | null {
+  if (!user) return null;
+  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  return full || user.email || "Unknown";
+}
 
 /** Serialize a DB row's Date fields to ISO strings for Zod response parsing. */
 function serializeDef(def: typeof customFieldDefinitionsTable.$inferSelect) {
@@ -112,7 +119,11 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
   // are cleared atomically before the options list is updated.
   if (parsed.data.options !== undefined) {
     const [currentDef] = await db
-      .select({ type: customFieldDefinitionsTable.type, options: customFieldDefinitionsTable.options })
+      .select({
+        type: customFieldDefinitionsTable.type,
+        options: customFieldDefinitionsTable.options,
+        name: customFieldDefinitionsTable.name,
+      })
       .from(customFieldDefinitionsTable)
       .where(
         and(
@@ -131,12 +142,16 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
         const fieldId = String(params.data.id);
         // Build a safe parameterised ARRAY[...] expression for the removed values.
         const removedArr = sql`ARRAY[${sql.join(removedOptions.map((o) => sql`${o}`), sql`, `)}]`;
+        const removedSet = new Set(removedOptions);
 
-        let affectedCount = 0;
+        // Fetch affected tasks — their IDs and current customFields values.
+        // This replaces a count-only query: the rows are needed both for the 409
+        // payload (affectedTaskCount) and for writing audit events on force=true.
+        let affectedTasks: Array<{ id: number; customFields: unknown }> = [];
 
         if (currentDef.type === "single_select") {
-          const [row] = await db
-            .select({ count: sql<number>`COUNT(*)::int` })
+          affectedTasks = await db
+            .select({ id: tasksTable.id, customFields: tasksTable.customFields })
             .from(tasksTable)
             .where(
               and(
@@ -144,11 +159,10 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
                 sql`${tasksTable.customFields}->>${fieldId} = ANY(${removedArr})`,
               ),
             );
-          affectedCount = row?.count ?? 0;
         } else {
-          // multi_select: check if the stored JSON array overlaps with removed options.
-          const [row] = await db
-            .select({ count: sql<number>`COUNT(*)::int` })
+          // multi_select: fetch tasks whose array overlaps with the removed options.
+          affectedTasks = await db
+            .select({ id: tasksTable.id, customFields: tasksTable.customFields })
             .from(tasksTable)
             .where(
               and(
@@ -161,8 +175,9 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
                 )`,
               ),
             );
-          affectedCount = row?.count ?? 0;
         }
+
+        const affectedCount = affectedTasks.length;
 
         if (affectedCount > 0) {
           if (!parsed.data.force) {
@@ -174,6 +189,12 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
           }
 
           // force=true: clear stale values from affected tasks before saving.
+          const actorId = req.user?.id ?? null;
+          const actorName = actorDisplayName(req.user);
+          // field identifier uses "cf:" prefix so the UI can distinguish custom-field
+          // audit events from standard task-field events.
+          const auditField = `cf:${currentDef.name}`;
+
           if (currentDef.type === "single_select") {
             await db.execute(sql`
               UPDATE tasks
@@ -181,6 +202,19 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
               WHERE org_id = ${orgId}
                 AND custom_fields->>${fieldId} = ANY(${removedArr})
             `);
+
+            // One audit event per task: records the old option value, cleared by admin.
+            await db.insert(taskEventsTable).values(
+              affectedTasks.map((task) => ({
+                taskId: task.id,
+                orgId,
+                actorId,
+                actorName,
+                field: auditField,
+                oldValue: String((task.customFields as Record<string, unknown>)[fieldId] ?? ""),
+                newValue: null as null,
+              })),
+            );
           } else {
             // Filter each task's multi_select array to only retain valid options.
             await db.execute(sql`
@@ -203,6 +237,23 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
                   WHERE elem = ANY(${removedArr})
                 )
             `);
+
+            // One audit event per task: records old array and the filtered new array.
+            await db.insert(taskEventsTable).values(
+              affectedTasks.map((task) => {
+                const oldArr: string[] = ((task.customFields as Record<string, unknown>)[fieldId] as string[]) ?? [];
+                const newArr = oldArr.filter((v) => !removedSet.has(v));
+                return {
+                  taskId: task.id,
+                  orgId,
+                  actorId,
+                  actorName,
+                  field: auditField,
+                  oldValue: JSON.stringify(oldArr),
+                  newValue: newArr.length > 0 ? JSON.stringify(newArr) : null,
+                };
+              }),
+            );
           }
         }
       }

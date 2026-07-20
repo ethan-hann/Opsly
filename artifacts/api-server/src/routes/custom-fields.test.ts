@@ -24,6 +24,7 @@ import express from "express";
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertResult: [] as any[],
+  insertCalls: [] as any[],
   updateResult: [] as any[],
   /** When false, the requireOrg mock sets manage_projects = false → requireAdmin blocks */
   isAdmin: true,
@@ -72,9 +73,10 @@ vi.mock("@workspace/db", () => {
     select: () => makeChain(mockState.selectQueue.shift() ?? []),
     execute: () => Promise.resolve([]),
     insert: () => ({
-      values: () => ({
-        returning: () => Promise.resolve(mockState.insertResult),
-      }),
+      values: (arg: any) => {
+        mockState.insertCalls.push(arg);
+        return { returning: () => Promise.resolve(mockState.insertResult) };
+      },
     }),
     update: () => ({
       set: () => ({
@@ -94,6 +96,7 @@ vi.mock("@workspace/db", () => {
     db: dbMock,
     customFieldDefinitionsTable: {},
     tasksTable: {},
+    taskEventsTable: {},
   };
 });
 
@@ -370,19 +373,37 @@ describe("PATCH /api/custom-fields/:id", () => {
 // ---------------------------------------------------------------------------
 
 describe("PATCH /api/custom-fields/:id — option removal conflict guard", () => {
-  const SINGLE_SELECT_DEF = { type: "single_select", options: ["prod", "staging", "dev"] };
-  const MULTI_SELECT_DEF  = { type: "multi_select",  options: ["A", "B", "C"] };
+  // field id=2 is referenced by the route param "/api/custom-fields/2"
+  const SINGLE_SELECT_DEF = { type: "single_select", options: ["prod", "staging", "dev"], name: "Environment" };
+  const MULTI_SELECT_DEF  = { type: "multi_select",  options: ["A", "B", "C"], name: "Tags" };
+
+  // Three tasks that have the stale "dev" value stored under field id=2
+  const AFFECTED_SINGLE_TASKS = [
+    { id: 10, customFields: { "2": "dev" } },
+    { id: 11, customFields: { "2": "dev" } },
+    { id: 12, customFields: { "2": "dev" } },
+  ];
+
+  // Five tasks that have stale multi-select values under field id=2
+  const AFFECTED_MULTI_TASKS = [
+    { id: 20, customFields: { "2": ["A", "B"] } },
+    { id: 21, customFields: { "2": ["B", "C"] } },
+    { id: 22, customFields: { "2": ["A", "C"] } },
+    { id: 23, customFields: { "2": ["B"] } },
+    { id: 24, customFields: { "2": ["A", "B", "C"] } },
+  ];
 
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.isAdmin = true;
   });
 
   it("returns 409 with affectedTaskCount when a removed single_select option is in use", async () => {
-    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
-    mockState.selectQueue.push([{ count: 3 }]);       // affected-task count
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]);      // currentDef lookup
+    mockState.selectQueue.push(AFFECTED_SINGLE_TASKS);    // affected tasks (length=3)
 
     const res = await request(buildApp())
       .patch("/api/custom-fields/2")
@@ -394,8 +415,8 @@ describe("PATCH /api/custom-fields/:id — option removal conflict guard", () =>
   });
 
   it("returns 409 with affectedTaskCount when a removed multi_select option is in use", async () => {
-    mockState.selectQueue.push([MULTI_SELECT_DEF]); // currentDef lookup
-    mockState.selectQueue.push([{ count: 5 }]);      // affected-task count
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);    // currentDef lookup
+    mockState.selectQueue.push(AFFECTED_MULTI_TASKS);  // affected tasks (length=5)
 
     const res = await request(buildApp())
       .patch("/api/custom-fields/2")
@@ -406,8 +427,8 @@ describe("PATCH /api/custom-fields/:id — option removal conflict guard", () =>
   });
 
   it("returns 200 and clears stale values when force=true", async () => {
-    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
-    mockState.selectQueue.push([{ count: 3 }]);       // affected-task count
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]);   // currentDef lookup
+    mockState.selectQueue.push(AFFECTED_SINGLE_TASKS); // affected tasks
     mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
 
     const res = await request(buildApp())
@@ -420,7 +441,7 @@ describe("PATCH /api/custom-fields/:id — option removal conflict guard", () =>
 
   it("returns 200 when removed options are not stored in any task", async () => {
     mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef lookup
-    mockState.selectQueue.push([{ count: 0 }]);       // zero affected tasks
+    mockState.selectQueue.push([]);                    // no affected tasks
     mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
 
     const res = await request(buildApp())
@@ -439,6 +460,126 @@ describe("PATCH /api/custom-fields/:id — option removal conflict guard", () =>
       .send({ options: ["prod", "staging", "dev", "qa"] }); // adding "qa", nothing removed
 
     expect(res.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/custom-fields/:id — audit events for force option cleanup
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/custom-fields/:id — audit events for force cleanup", () => {
+  const SINGLE_SELECT_DEF = { type: "single_select", options: ["prod", "staging", "dev"], name: "Environment" };
+  const MULTI_SELECT_DEF  = { type: "multi_select",  options: ["A", "B", "C"], name: "Tags" };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
+    mockState.isAdmin = true;
+  });
+
+  it("inserts one audit event per affected task when a single_select option is force-removed", async () => {
+    const affectedTasks = [
+      { id: 10, customFields: { "2": "dev" } },
+      { id: 11, customFields: { "2": "dev" } },
+    ];
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef
+    mockState.selectQueue.push(affectedTasks);         // affected tasks
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"], force: true });
+
+    // One insert batch for the task_events rows
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      taskId: 10,
+      orgId: "test-org",
+      field: "cf:Environment",
+      oldValue: "dev",
+      newValue: null,
+    });
+    expect(events[1]).toMatchObject({
+      taskId: 11,
+      orgId: "test-org",
+      field: "cf:Environment",
+      oldValue: "dev",
+      newValue: null,
+    });
+  });
+
+  it("records the actor id and name on the audit events", async () => {
+    const affectedTasks = [{ id: 10, customFields: { "2": "dev" } }];
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]);
+    mockState.selectQueue.push(affectedTasks);
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"], force: true });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    // requireOrg mock sets req.user = { id: "user-1", email: "user@example.com" }
+    expect(mockState.insertCalls[0][0]).toMatchObject({
+      actorId: "user-1",
+      actorName: "user@example.com",
+    });
+  });
+
+  it("inserts one audit event per affected task when a multi_select option is force-removed", async () => {
+    const affectedTasks = [
+      { id: 20, customFields: { "2": ["A", "B"] } }, // B is removed, A stays
+      { id: 21, customFields: { "2": ["B", "C"] } }, // both B and C removed → empty
+    ];
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);
+    mockState.selectQueue.push(affectedTasks);
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["A"], force: true }); // removing B and C
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(2);
+    // Task 20: A stays, B removed → newValue is the filtered array
+    expect(events[0]).toMatchObject({
+      taskId: 20,
+      field: "cf:Tags",
+      oldValue: JSON.stringify(["A", "B"]),
+      newValue: JSON.stringify(["A"]),
+    });
+    // Task 21: both B and C removed → nothing left → newValue=null
+    expect(events[1]).toMatchObject({
+      taskId: 21,
+      field: "cf:Tags",
+      oldValue: JSON.stringify(["B", "C"]),
+      newValue: null,
+    });
+  });
+
+  it("inserts no audit events when no tasks are affected by the option removal", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef
+    mockState.selectQueue.push([]);                    // no affected tasks
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"], force: true });
+
+    expect(mockState.insertCalls).toHaveLength(0);
+  });
+
+  it("inserts no audit events when force is not supplied (request rejected with 409)", async () => {
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]);
+    mockState.selectQueue.push([{ id: 10, customFields: { "2": "dev" } }]);
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"] }); // no force
+
+    // 409 is returned before any event insertion
+    expect(mockState.insertCalls).toHaveLength(0);
   });
 });
 

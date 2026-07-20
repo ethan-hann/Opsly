@@ -69,6 +69,17 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
     return `Task created: "${newValue ?? ""}"`;
   }
 
+  // Custom-field audit events use a "cf:<fieldName>" prefix so they can be
+  // distinguished from standard task fields and rendered with their real name.
+  if (field.startsWith("cf:")) {
+    const cfName = field.slice(3);
+    const oldStr = oldValue || "—";
+    const newStr = newValue || "—";
+    if (!oldValue && newValue) return `${cfName} set to ${newStr}`;
+    if (oldValue && !newValue) return `${cfName} cleared (was ${oldStr})`;
+    return `${cfName} changed from ${oldStr} → ${newStr}`;
+  }
+
   const fieldLabel: Record<string, string> = {
     status: "Status",
     priority: "Priority",
