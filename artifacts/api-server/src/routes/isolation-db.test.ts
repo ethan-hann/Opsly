@@ -23,6 +23,15 @@
  *  - GET  /api/dashboard/activity — activity reflects only Org A data
  *  - GET  /api/orgs/members      — only Org A members returned
  *  - GET  /api/orgs/invitations  — only Org A invitations returned
+ *  - PATCH  /api/tasks/bulk       — updated:0 when IDs belong to Org B
+ *  - DELETE /api/tasks/bulk       — deleted:0 when IDs belong to Org B
+ *  - PATCH  /api/tasks/:id        — 404 for Org B task id, row unchanged
+ *  - DELETE /api/tasks/:id        — 404 for Org B task id, row unchanged
+ *  - PATCH  /api/projects/:id     — 404 for Org B project id, row unchanged
+ *  - DELETE /api/projects/:id     — 404 for Org B project id, row unchanged
+ *  - PATCH  /api/notes/:id        — 404 for Org B note id, row unchanged
+ *  - DELETE /api/notes/:id        — 404 for Org B note id, row unchanged
+ *  - POST   /api/tasks/:id/comments — 404 for Org B task id, no row inserted
  */
 
 import { vi, describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -163,7 +172,7 @@ import {
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // App factory
@@ -654,5 +663,157 @@ describeIf("DB isolation — DELETE /api/tasks/bulk (cross-org deletion guard)",
       .from(tasksTable)
       .where(eq(tasksTable.id, orgBTaskId));
     expect(still).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Write-isolation: PATCH and DELETE on individual resources
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — PATCH /api/tasks/:id (cross-org mutation guard)", () => {
+  it("returns 404 for an Org B task id and leaves the DB row unchanged", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/tasks/${orgBTaskId}`)
+      .send({ priority: "low" });
+
+    expect(res.status).toBe(404);
+
+    // Verify the Org B task was NOT modified
+    const [still] = await db
+      .select({ id: tasksTable.id, priority: tasksTable.priority })
+      .from(tasksTable)
+      .where(eq(tasksTable.id, orgBTaskId));
+    expect(still).toBeDefined();
+    expect(still.priority).toBe("medium"); // unchanged from seed
+  });
+
+  it("returns 200 and updates Org A task (positive control)", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/tasks/${orgATaskId}`)
+      .send({ title: "Org A Task (updated)" });
+
+    expect(res.status).toBe(200);
+
+    // Restore original title so later tests are unaffected
+    await db
+      .update(tasksTable)
+      .set({ title: "Org A Task" })
+      .where(eq(tasksTable.id, orgATaskId));
+  });
+});
+
+describeIf("DB isolation — DELETE /api/tasks/:id (cross-org deletion guard)", () => {
+  it("returns 404 for an Org B task id and leaves the DB row in place", async () => {
+    const res = await request(buildApp()).delete(`/api/tasks/${orgBTaskId}`);
+    expect(res.status).toBe(404);
+
+    // Verify the Org B task was NOT deleted
+    const [still] = await db
+      .select({ id: tasksTable.id })
+      .from(tasksTable)
+      .where(eq(tasksTable.id, orgBTaskId));
+    expect(still).toBeDefined();
+  });
+});
+
+describeIf("DB isolation — PATCH /api/projects/:id (cross-org mutation guard)", () => {
+  it("returns 404 for an Org B project id and leaves the DB row unchanged", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/projects/${orgBProjectId}`)
+      .send({ name: "Hacked Name" });
+
+    expect(res.status).toBe(404);
+
+    // Verify the Org B project name was NOT changed
+    const [still] = await db
+      .select({ id: projectsTable.id, name: projectsTable.name })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, orgBProjectId));
+    expect(still).toBeDefined();
+    expect(still.name).toBe("Org B Secret Project"); // unchanged from seed
+  });
+
+  it("returns 200 and updates Org A project (positive control)", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/projects/${orgAProjectId}`)
+      .send({ name: "Org A Project (updated)" });
+
+    expect(res.status).toBe(200);
+
+    // Restore original name so later tests are unaffected
+    await db
+      .update(projectsTable)
+      .set({ name: "Org A Project" })
+      .where(eq(projectsTable.id, orgAProjectId));
+  });
+});
+
+describeIf("DB isolation — DELETE /api/projects/:id (cross-org deletion guard)", () => {
+  it("returns 404 for an Org B project id and leaves the DB row in place", async () => {
+    const res = await request(buildApp()).delete(`/api/projects/${orgBProjectId}`);
+    expect(res.status).toBe(404);
+
+    // Verify the Org B project was NOT deleted
+    const [still] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(eq(projectsTable.id, orgBProjectId));
+    expect(still).toBeDefined();
+  });
+});
+
+describeIf("DB isolation — PATCH /api/notes/:id (cross-org mutation guard)", () => {
+  it("returns 404 for an Org B note id and leaves the DB row unchanged", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/notes/${orgBNoteId}`)
+      .send({ title: "Hacked Title" });
+
+    expect(res.status).toBe(404);
+
+    // Verify the Org B note title was NOT changed
+    const [still] = await db
+      .select({ id: notesTable.id, title: notesTable.title })
+      .from(notesTable)
+      .where(eq(notesTable.id, orgBNoteId));
+    expect(still).toBeDefined();
+    expect(still.title).toBe("Org B Secret Note"); // unchanged from seed
+  });
+});
+
+describeIf("DB isolation — DELETE /api/notes/:id (cross-org deletion guard)", () => {
+  it("returns 404 for an Org B note id and leaves the DB row in place", async () => {
+    const res = await request(buildApp()).delete(`/api/notes/${orgBNoteId}`);
+    expect(res.status).toBe(404);
+
+    // Verify the Org B note was NOT deleted
+    const [still] = await db
+      .select({ id: notesTable.id })
+      .from(notesTable)
+      .where(eq(notesTable.id, orgBNoteId));
+    expect(still).toBeDefined();
+  });
+});
+
+describeIf("DB isolation — POST /api/tasks/:id/comments (cross-org comment guard)", () => {
+  it("returns 404 for an Org B task id and inserts no comment row", async () => {
+    // Count comments on Org B task before the request
+    const before = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(commentsTable)
+      .where(eq(commentsTable.taskId, orgBTaskId));
+    const countBefore = before[0].count;
+
+    const res = await request(buildApp())
+      .post(`/api/tasks/${orgBTaskId}/comments`)
+      .send({ content: "Injected comment", author: "attacker" });
+
+    expect(res.status).toBe(404);
+
+    // No new comment must have been inserted
+    const after = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(commentsTable)
+      .where(eq(commentsTable.taskId, orgBTaskId));
+    expect(after[0].count).toBe(countBefore);
   });
 });
