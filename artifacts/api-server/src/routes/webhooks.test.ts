@@ -813,6 +813,19 @@ describe("POST /webhooks/outbound", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("returns 400 when projectId belongs to another org (cross-org isolation)", async () => {
+    // The handler queries: SELECT id FROM projects WHERE id = :id AND orgId = :orgId.
+    // Returning [] simulates a project that exists in org-B but not in the caller's org-A.
+    mockState.selectQueue.push([]); // project not found in caller's org
+
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({ name: "Exfil Hook", url: "https://evil.example.com", events: ["task.created"], projectId: 42 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/projectId/i) });
+  });
 });
 
 // ============================================================
@@ -864,6 +877,22 @@ describe("PATCH /webhooks/outbound/:id", () => {
       .send({ name: "Hacked" });
 
     expect(res.status).toBe(403);
+  });
+
+  it("returns 400 when projectId belongs to another org (cross-org isolation)", async () => {
+    // (1) hook lookup — exists, caller is the creator
+    mockState.selectQueue.push([makeOutboundHook()]);
+    // (2) project lookup with AND orgId = :orgId — returns [] because the
+    //     project belongs to a different org (simulates org-A caller referencing
+    //     an org-B project by guessing its numeric ID)
+    mockState.selectQueue.push([]); // project not found in caller's org
+
+    const res = await request(buildApp())
+      .patch("/api/webhooks/outbound/1")
+      .send({ projectId: 42 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/projectId/i) });
   });
 
   it("returns 404 when not found", async () => {
