@@ -503,6 +503,83 @@ export interface TaskUpdate {
   customFields?: TaskUpdateCustomFields;
 }
 
+export type BulkTaskPatchInputPatchStatus = typeof BulkTaskPatchInputPatchStatus[keyof typeof BulkTaskPatchInputPatchStatus];
+
+
+export const BulkTaskPatchInputPatchStatus = {
+  todo: 'todo',
+  in_progress: 'in_progress',
+  blocked: 'blocked',
+  done: 'done',
+} as const;
+
+export type BulkTaskPatchInputPatchPriority = typeof BulkTaskPatchInputPatchPriority[keyof typeof BulkTaskPatchInputPatchPriority];
+
+
+export const BulkTaskPatchInputPatchPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type BulkTaskPatchInputPatchCategory = typeof BulkTaskPatchInputPatchCategory[keyof typeof BulkTaskPatchInputPatchCategory];
+
+
+export const BulkTaskPatchInputPatchCategory = {
+  incident: 'incident',
+  change: 'change',
+  maintenance: 'maintenance',
+  deployment: 'deployment',
+  support: 'support',
+  other: 'other',
+} as const;
+
+/**
+ * Fields to apply to each task. Identical semantics to TaskUpdate.
+ */
+export type BulkTaskPatchInputPatch = {
+  status?: BulkTaskPatchInputPatchStatus;
+  priority?: BulkTaskPatchInputPatchPriority;
+  category?: BulkTaskPatchInputPatchCategory;
+  /** Email of an org member, or null to unassign. */
+  assignee?: string | null;
+};
+
+/**
+ * Payload for bulk-updating multiple tasks.
+ */
+export interface BulkTaskPatchInput {
+  /**
+     * IDs of tasks to update. Tasks not belonging to the org are skipped.
+     * @minItems 1
+     */
+  ids: number[];
+  /** Fields to apply to each task. Identical semantics to TaskUpdate. */
+  patch: BulkTaskPatchInputPatch;
+}
+
+export interface BulkTaskPatchResult {
+  /** Number of tasks successfully updated. */
+  updated: number;
+}
+
+/**
+ * Payload for bulk-deleting multiple tasks.
+ */
+export interface BulkTaskDeleteInput {
+  /**
+     * IDs of tasks to delete. Tasks not belonging to the org are skipped.
+     * @minItems 1
+     */
+  ids: number[];
+}
+
+export interface BulkTaskDeleteResult {
+  /** Number of tasks successfully deleted. */
+  deleted: number;
+}
+
 /**
  * Data type of the field. `text` — single-line string; `number` — numeric value; `date` — ISO date string; `single_select` — one value from `options`; `multi_select` — multiple values from `options`.
  */

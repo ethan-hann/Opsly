@@ -5,3 +5,4 @@
 - [Post-merge DB schema drift](post-merge-db-drift.md) — merged features can 500 until drizzle push runs; backfill NULLs blocking NOT NULL, restart api-server for new routes.
 - [vitest orval-sync race fix](vitest-orval-race-fix.md) — use git show HEAD to snapshot api-zod files in vitest load hook; deps.inline bypasses plugins so transform won't work.
 - [orval-sync HMR transience](orval-sync-hmr-transience.md) — pre-codegen.mjs resets generated index files; any frontend import of a generated export causes a transient HMR error; avoid importing generated symbols in app hooks.
+- [api-zod stale tsbuildinfo](api-zod-tsbuildinfo-stale.md) — broken codegen run caches empty dist/index.d.ts; fix: delete dist/ + tsbuildinfo, rebuild. Also: schema naming rule to avoid orval conflicts.

@@ -1,4 +1,4 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates } from "@workspace/api-client-react";
+import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks } from "@workspace/api-client-react";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -15,6 +15,9 @@ import { KanbanBoard } from "@/components/ui/kanban-board";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useAuth } from "@workspace/replit-auth-web";
 import type { SavedView } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useOrgContext } from "@/hooks/use-org-context";
+import { getListTasksQueryKey } from "@workspace/api-client-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -415,6 +418,197 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
   );
 }
 
+// ─── Bulk Action Bar ──────────────────────────────────────────────────────────
+
+interface BulkActionBarProps {
+  selectedIds: Set<number>;
+  onClear: () => void;
+  assigneeOptions: { value: string; label: string }[];
+  canDelete: boolean;
+  onBulkUpdate: (patch: { status?: string; priority?: string; category?: string; assignee?: string | null }) => Promise<void>;
+  onBulkDelete: () => Promise<void>;
+  isPending: boolean;
+}
+
+function BulkActionBar({
+  selectedIds,
+  onClear,
+  assigneeOptions,
+  canDelete,
+  onBulkUpdate,
+  onBulkDelete,
+  isPending,
+}: BulkActionBarProps) {
+  const count = selectedIds.size;
+  const [openPopover, setOpenPopover] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  if (count === 0) return null;
+
+  const handleUpdate = async (patch: Parameters<typeof onBulkUpdate>[0]) => {
+    await onBulkUpdate(patch);
+    setOpenPopover(null);
+  };
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-3 bg-card border border-border rounded-xl shadow-2xl shadow-black/20 animate-in slide-in-from-bottom-4 duration-200">
+      {/* Count + clear */}
+      <div className="flex items-center gap-2 pr-3 border-r border-border">
+        <CheckSquare className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium">{count} selected</span>
+        <button
+          onClick={onClear}
+          className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
+          aria-label="Clear selection"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Assign to */}
+      <Popover open={openPopover === "assignee"} onOpenChange={(o) => setOpenPopover(o ? "assignee" : null)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+            <UserCheck className="w-3.5 h-3.5" />
+            Assign to
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-52 p-1" align="center" side="top">
+          <div className="flex flex-col gap-0.5">
+            <button
+              onClick={() => handleUpdate({ assignee: null })}
+              className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors text-muted-foreground"
+            >
+              Unassign
+            </button>
+            {assigneeOptions.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleUpdate({ assignee: opt.value })}
+                className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Change status */}
+      <Popover open={openPopover === "status"} onOpenChange={(o) => setOpenPopover(o ? "status" : null)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+            <AlertCircle className="w-3.5 h-3.5" />
+            Status
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-44 p-1" align="center" side="top">
+          <div className="flex flex-col gap-0.5">
+            {STATUS_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleUpdate({ status: opt.value })}
+                className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Change priority */}
+      <Popover open={openPopover === "priority"} onOpenChange={(o) => setOpenPopover(o ? "priority" : null)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+            <Tag className="w-3.5 h-3.5" />
+            Priority
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-44 p-1" align="center" side="top">
+          <div className="flex flex-col gap-0.5">
+            {PRIORITY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleUpdate({ priority: opt.value })}
+                className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Change category */}
+      <Popover open={openPopover === "category"} onOpenChange={(o) => setOpenPopover(o ? "category" : null)}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+            <Layers className="w-3.5 h-3.5" />
+            Category
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-44 p-1" align="center" side="top">
+          <div className="flex flex-col gap-0.5">
+            {CATEGORY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => handleUpdate({ category: opt.value })}
+                className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/* Delete (admin only) */}
+      {canDelete && (
+        <>
+          <div className="w-px h-6 bg-border" />
+          {confirmDelete ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-destructive font-medium">Delete {count}?</span>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={isPending}
+                onClick={async () => {
+                  await onBulkDelete();
+                  setConfirmDelete(false);
+                }}
+              >
+                {isPending ? "Deleting..." : "Yes, delete"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+              disabled={isPending}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TasksList() {
@@ -424,9 +618,13 @@ export default function TasksList() {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const defaultApplied = useRef(false);
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
   const { filters, setFilter, setSearch, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   // Build API query params from active filters (server-side filtering)
   const apiParams = {
@@ -446,13 +644,15 @@ export default function TasksList() {
   const { data: slaPolicies } = useGetSLAPolicies();
   const { data: templates = [] } = useListTaskTemplates();
 
+  const bulkUpdate = useBulkUpdateTasks();
+  const bulkDelete = useBulkDeleteTasks();
+  const { hasPermission } = useOrgContext();
+
   // Default view loading: on mount, if no filters in URL, apply the user's default view
   useEffect(() => {
     if (defaultApplied.current) return;
     if (!views) return;
     const params = new URLSearchParams(urlSearch);
-    // Treat any non-empty query param as "user has specified filters" so we
-    // never silently override explicit URL state (deep links, shared links, etc.)
     const hasFilters = params.size > 0;
     if (!hasFilters) {
       const defaultView = views.find((v) => v.isDefault && v.createdBy === user?.id);
@@ -500,6 +700,63 @@ export default function TasksList() {
         .filter(Boolean)
         .join(" ")
     : undefined;
+
+  // ─── Selection helpers ────────────────────────────────────────────────────
+
+  const visibleIds = (filteredTasks ?? []).map((t) => t.id);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const someSelected = visibleIds.some((id) => selectedIds.has(id));
+
+  const toggleTask = (id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        visibleIds.forEach((id) => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // ─── Bulk action handlers ─────────────────────────────────────────────────
+
+  const handleBulkUpdate = async (patch: { status?: string; priority?: string; category?: string; assignee?: string | null }) => {
+    await bulkUpdate.mutateAsync({
+      data: {
+        ids: Array.from(selectedIds),
+        patch: patch as { status?: "todo" | "in_progress" | "blocked" | "done"; priority?: "low" | "medium" | "high" | "critical"; category?: "incident" | "change" | "maintenance" | "deployment" | "support" | "other"; assignee?: string | null },
+      },
+    });
+    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+    clearSelection();
+  };
+
+  const handleBulkDelete = async () => {
+    await bulkDelete.mutateAsync({
+      data: { ids: Array.from(selectedIds) },
+    });
+    await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
+    clearSelection();
+  };
+
+  const canDelete = hasPermission("delete_tasks");
+
+  const isBulkPending = bulkUpdate.isPending || bulkDelete.isPending;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
@@ -723,52 +980,91 @@ export default function TasksList() {
         ) : viewMode === "list" ? (
           <Card className="overflow-hidden">
             <div className="divide-y divide-border">
+              {/* Header row with select-all checkbox */}
+              {filteredTasks && filteredTasks.length > 0 && (
+                <div className="px-4 py-2 flex items-center gap-3 bg-muted/20">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded border-border cursor-pointer accent-primary"
+                    checked={allSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = someSelected && !allSelected;
+                    }}
+                    onChange={toggleAll}
+                    aria-label="Select all tasks"
+                  />
+                  <span className="text-xs text-muted-foreground font-medium">
+                    {someSelected
+                      ? `${selectedIds.size} of ${filteredTasks.length} selected`
+                      : `${filteredTasks.length} task${filteredTasks.length === 1 ? "" : "s"}`}
+                  </span>
+                </div>
+              )}
+
               {filteredTasks && filteredTasks.length > 0 ? (
-                filteredTasks.map((task) => (
-                  <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
-                          TSK-{task.orgTaskNumber}
-                        </span>
-                        <Link href={`/tasks/${task.id}`}>
-                          <span className="font-medium text-sm hover:text-primary transition-colors cursor-pointer">
-                            {task.title}
-                          </span>
-                        </Link>
+                filteredTasks.map((task) => {
+                  const isChecked = selectedIds.has(task.id);
+                  const anySelected = selectedIds.size > 0;
+                  return (
+                    <div
+                      key={task.id}
+                      className={`group p-4 hover:bg-muted/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 ${isChecked ? "bg-primary/5" : ""}`}
+                    >
+                      {/* Checkbox — always visible when something is selected, hover-visible otherwise */}
+                      <div className={`flex items-start gap-3 ${anySelected ? "" : "group-hover:[&>input]:opacity-100"}`}>
+                        <input
+                          type="checkbox"
+                          className={`mt-0.5 w-4 h-4 rounded border-border cursor-pointer accent-primary flex-shrink-0 transition-opacity ${anySelected || isChecked ? "opacity-100" : "opacity-0"}`}
+                          checked={isChecked}
+                          onChange={() => toggleTask(task.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`Select task ${task.title}`}
+                        />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs text-muted-foreground px-1.5 py-0.5 rounded bg-secondary">
+                              TSK-{task.orgTaskNumber}
+                            </span>
+                            <Link href={`/tasks/${task.id}`}>
+                              <span className="font-medium text-sm hover:text-primary transition-colors cursor-pointer">
+                                {task.title}
+                              </span>
+                            </Link>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            {task.projectName && (
+                              <span className="text-foreground/80">{task.projectName}</span>
+                            )}
+                            <span className="px-1.5 py-0.5 rounded border border-border">
+                              {task.category}
+                            </span>
+                            {task.dueDate && (
+                              <span>Due: {formatDate(task.dueDate)}</span>
+                            )}
+                            {task.assignee && (
+                              <span className="flex items-center gap-1">
+                                <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[10px] text-primary">
+                                  {task.assignee.charAt(0).toUpperCase()}
+                                </div>
+                                {task.assignee}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground pl-14 md:pl-0">
-                        {task.projectName && (
-                          <span className="text-foreground/80">{task.projectName}</span>
-                        )}
-                        <span className="px-1.5 py-0.5 rounded border border-border">
-                          {task.category}
-                        </span>
-                        {task.dueDate && (
-                          <span>Due: {formatDate(task.dueDate)}</span>
-                        )}
-                        {task.assignee && (
-                          <span className="flex items-center gap-1">
-                            <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[10px] text-primary">
-                              {task.assignee.charAt(0).toUpperCase()}
-                            </div>
-                            {task.assignee}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2 pl-7 md:pl-0 flex-wrap justify-end">
+                        <SlaBadge
+                          createdAt={task.createdAt}
+                          status={task.status}
+                          priority={task.priority}
+                          policies={slaPolicies}
+                        />
+                        <StatusBadge status={task.status} />
+                        <PriorityBadge priority={task.priority} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 pl-14 md:pl-0 flex-wrap justify-end">
-                      <SlaBadge
-                        createdAt={task.createdAt}
-                        status={task.status}
-                        priority={task.priority}
-                        policies={slaPolicies}
-                      />
-                      <StatusBadge status={task.status} />
-                      <PriorityBadge priority={task.priority} />
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-12 text-center text-muted-foreground">
                   No tasks found matching your criteria.
@@ -780,6 +1076,17 @@ export default function TasksList() {
           <KanbanBoard tasks={filteredTasks ?? []} />
         )}
       </div>
+
+      {/* Floating bulk action bar */}
+      <BulkActionBar
+        selectedIds={selectedIds}
+        onClear={clearSelection}
+        assigneeOptions={assigneeOptions}
+        canDelete={canDelete}
+        onBulkUpdate={handleBulkUpdate}
+        onBulkDelete={handleBulkDelete}
+        isPending={isBulkPending}
+      />
 
       <NewTaskModal
         open={showNewTask}

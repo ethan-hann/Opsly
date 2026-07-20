@@ -23,6 +23,10 @@ import type {
   ActivityItem,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  BulkTaskDeleteInput,
+  BulkTaskDeleteResult,
+  BulkTaskPatchInput,
+  BulkTaskPatchResult,
   Comment,
   CommentInput,
   CreateRoleInput,
@@ -2552,6 +2556,150 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
 
 
 
+
+export const getBulkUpdateTasksUrl = () => {
+
+
+
+
+  return `/api/tasks/bulk`
+}
+
+/**
+ * Partially updates one or more fields across a set of tasks. All supplied `ids` must belong to the caller's organization — any that don't are silently skipped. Requires the `edit_tasks` permission. Inserts one audit event per changed field per task.
+ * @summary Bulk update multiple tasks
+ */
+export const bulkUpdateTasks = async (bulkTaskPatchInput: BulkTaskPatchInput, options?: RequestInit): Promise<BulkTaskPatchResult> => {
+
+  return customFetch<BulkTaskPatchResult>(getBulkUpdateTasksUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkTaskPatchInput)
+  }
+);}
+
+
+
+
+
+export const getBulkUpdateTasksMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext> => {
+
+const mutationKey = ['bulkUpdateTasks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkUpdateTasks>>, {data: BodyType<BulkTaskPatchInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkUpdateTasks(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkUpdateTasksMutationResult = NonNullable<Awaited<ReturnType<typeof bulkUpdateTasks>>>
+    export type BulkUpdateTasksMutationBody = BodyType<BulkTaskPatchInput>
+    export type BulkUpdateTasksMutationError = ErrorType<void>
+
+    /**
+ * @summary Bulk update multiple tasks
+ */
+export const useBulkUpdateTasks = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkUpdateTasks>>,
+        TError,
+        {data: BodyType<BulkTaskPatchInput>},
+        TContext
+      > => {
+      return useMutation(getBulkUpdateTasksMutationOptions(options));
+    }
+
+export const getBulkDeleteTasksUrl = () => {
+
+
+
+
+  return `/api/tasks/bulk`
+}
+
+/**
+ * Permanently deletes a set of tasks and their comments. All supplied `ids` must belong to the caller's organization — any that don't are silently skipped. Requires the `delete_tasks` permission (admin only).
+ * @summary Bulk delete multiple tasks
+ */
+export const bulkDeleteTasks = async (bulkTaskDeleteInput: BulkTaskDeleteInput, options?: RequestInit): Promise<BulkTaskDeleteResult> => {
+
+  return customFetch<BulkTaskDeleteResult>(getBulkDeleteTasksUrl(),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkTaskDeleteInput)
+  }
+);}
+
+
+
+
+
+export const getBulkDeleteTasksMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteTasks>>, TError,{data: BodyType<BulkTaskDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteTasks>>, TError,{data: BodyType<BulkTaskDeleteInput>}, TContext> => {
+
+const mutationKey = ['bulkDeleteTasks'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof bulkDeleteTasks>>, {data: BodyType<BulkTaskDeleteInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  bulkDeleteTasks(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type BulkDeleteTasksMutationResult = NonNullable<Awaited<ReturnType<typeof bulkDeleteTasks>>>
+    export type BulkDeleteTasksMutationBody = BodyType<BulkTaskDeleteInput>
+    export type BulkDeleteTasksMutationError = ErrorType<void>
+
+    /**
+ * @summary Bulk delete multiple tasks
+ */
+export const useBulkDeleteTasks = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkDeleteTasks>>, TError,{data: BodyType<BulkTaskDeleteInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof bulkDeleteTasks>>,
+        TError,
+        {data: BodyType<BulkTaskDeleteInput>},
+        TContext
+      > => {
+      return useMutation(getBulkDeleteTasksMutationOptions(options));
+    }
 
 export const getGetOverdueTasksUrl = () => {
 

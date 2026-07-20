@@ -751,6 +751,44 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 
 
 /**
+ * Partially updates one or more fields across a set of tasks. All supplied `ids` must belong to the caller's organization — any that don't are silently skipped. Requires the `edit_tasks` permission. Inserts one audit event per changed field per task.
+ * @summary Bulk update multiple tasks
+ */
+
+
+
+export const BulkUpdateTasksBody = zod.object({
+  "ids": zod.array(zod.number()).min(1).describe('IDs of tasks to update. Tasks not belonging to the org are skipped.'),
+  "patch": zod.object({
+  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional(),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
+  "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional(),
+  "assignee": zod.string().nullish().describe('Email of an org member, or null to unassign.')
+}).describe('Fields to apply to each task. Identical semantics to TaskUpdate.')
+}).describe('Payload for bulk-updating multiple tasks.')
+
+export const BulkUpdateTasksResponse = zod.object({
+  "updated": zod.number().describe('Number of tasks successfully updated.')
+})
+
+
+/**
+ * Permanently deletes a set of tasks and their comments. All supplied `ids` must belong to the caller's organization — any that don't are silently skipped. Requires the `delete_tasks` permission (admin only).
+ * @summary Bulk delete multiple tasks
+ */
+
+
+
+export const BulkDeleteTasksBody = zod.object({
+  "ids": zod.array(zod.number()).min(1).describe('IDs of tasks to delete. Tasks not belonging to the org are skipped.')
+}).describe('Payload for bulk-deleting multiple tasks.')
+
+export const BulkDeleteTasksResponse = zod.object({
+  "deleted": zod.number().describe('Number of tasks successfully deleted.')
+})
+
+
+/**
  * Returns all tasks in the caller's organization whose `dueDate` is strictly before today and whose `status` is not `done`, ordered by `dueDate` ascending (most overdue first). Enriched the same way as the general task list (project name, comment count).
  * @summary Get all overdue tasks
  */

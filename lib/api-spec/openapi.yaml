@@ -921,6 +921,57 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  /tasks/bulk:
+    patch:
+      operationId: bulkUpdateTasks
+      tags: [tasks]
+      summary: Bulk update multiple tasks
+      description: >
+        Partially updates one or more fields across a set of tasks. All
+        supplied `ids` must belong to the caller's organization — any that
+        don't are silently skipped. Requires the `edit_tasks` permission.
+        Inserts one audit event per changed field per task.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkTaskPatchInput"
+      responses:
+        "200":
+          description: Number of tasks successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkTaskPatchResult"
+        "400":
+          description: Validation error.
+        "403":
+          description: Missing edit_tasks permission.
+    delete:
+      operationId: bulkDeleteTasks
+      tags: [tasks]
+      summary: Bulk delete multiple tasks
+      description: >
+        Permanently deletes a set of tasks and their comments. All supplied
+        `ids` must belong to the caller's organization — any that don't are
+        silently skipped. Requires the `delete_tasks` permission (admin only).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkTaskDeleteInput"
+      responses:
+        "200":
+          description: Number of tasks successfully deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkTaskDeleteResult"
+        "403":
+          description: Missing delete_tasks permission.
+
   /tasks/overdue:
     get:
       operationId: getOverdueTasks
@@ -2363,6 +2414,63 @@ components:
           description: >
             Merged update to custom field values. Only keys present in this object
             are written; omit the key to leave a field unchanged.
+
+    BulkTaskPatchInput:
+      description: Payload for bulk-updating multiple tasks.
+      type: object
+      required: [ids, patch]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: IDs of tasks to update. Tasks not belonging to the org are skipped.
+        patch:
+          type: object
+          description: Fields to apply to each task. Identical semantics to TaskUpdate.
+          properties:
+            status:
+              type: string
+              enum: [todo, in_progress, blocked, done]
+            priority:
+              type: string
+              enum: [low, medium, high, critical]
+            category:
+              type: string
+              enum: [incident, change, maintenance, deployment, support, other]
+            assignee:
+              type: string
+              nullable: true
+              description: Email of an org member, or null to unassign.
+
+    BulkTaskPatchResult:
+      type: object
+      required: [updated]
+      properties:
+        updated:
+          type: integer
+          description: Number of tasks successfully updated.
+
+    BulkTaskDeleteInput:
+      description: Payload for bulk-deleting multiple tasks.
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+          minItems: 1
+          description: IDs of tasks to delete. Tasks not belonging to the org are skipped.
+
+    BulkTaskDeleteResult:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
+          description: Number of tasks successfully deleted.
 
     CustomFieldDefinition:
       description: A typed metadata field definition scoped to an org.

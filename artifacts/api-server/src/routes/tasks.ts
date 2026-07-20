@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, lte, gte, or, isNull, asc } from "drizzle-orm";
+import { eq, sql, and, lt, lte, gte, or, isNull, asc, inArray } from "drizzle-orm";
 import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -15,6 +15,10 @@ import {
   GetOverdueTasksResponse,
   ListTaskEventsParams,
   ListTaskEventsResponse,
+  BulkUpdateTasksBody,
+  BulkUpdateTasksResponse,
+  BulkDeleteTasksBody,
+  BulkDeleteTasksResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskSlaBreached } from "../lib/webhook-dispatcher";
@@ -450,6 +454,96 @@ router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   res.json(GetTaskResponse.parse(enriched));
 });
 
+// ─── Bulk update ─────────────────────────────────────────────────────────────
+
+router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
+  const parsed = BulkUpdateTasksBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  if (!req.orgPermissions?.edit_tasks) {
+    res.status(403).json({ error: "You do not have permission to edit tasks" });
+    return;
+  }
+
+  const { ids, patch } = parsed.data;
+  if (ids.length === 0) {
+    res.json(BulkUpdateTasksResponse.parse({ updated: 0 }));
+    return;
+  }
+
+  // Enforce close_tasks permission when any task is being moved to "done"
+  if (patch.status === "done" && !req.orgPermissions?.close_tasks) {
+    res.status(403).json({ error: "You do not have permission to close tasks" });
+    return;
+  }
+
+  // Validate assignee belongs to org (if provided)
+  if (patch.assignee) {
+    const validAssignee = await assigneeBelongsToOrg(patch.assignee, orgId);
+    if (!validAssignee) {
+      res.status(400).json({ error: "Assignee must be a member of your organization" });
+      return;
+    }
+  }
+
+  // Fetch current state for diffing — only rows belonging to this org
+  const prevRows = await db
+    .select({
+      id: tasksTable.id,
+      status: tasksTable.status,
+      priority: tasksTable.priority,
+      assignee: tasksTable.assignee,
+      category: tasksTable.category,
+      title: tasksTable.title,
+      dueDate: tasksTable.dueDate,
+      projectId: tasksTable.projectId,
+    })
+    .from(tasksTable)
+    .where(and(inArray(tasksTable.id, ids), eq(tasksTable.orgId, orgId)));
+
+  if (prevRows.length === 0) {
+    res.json(BulkUpdateTasksResponse.parse({ updated: 0 }));
+    return;
+  }
+
+  // Build update payload — only include fields present in the patch
+  const setData: Partial<typeof tasksTable.$inferInsert> = {};
+  if (patch.status !== undefined) setData.status = patch.status;
+  if (patch.priority !== undefined) setData.priority = patch.priority;
+  if (patch.category !== undefined) setData.category = patch.category;
+  if ("assignee" in patch) setData.assignee = patch.assignee ?? null;
+
+  const orgIds = prevRows.map((r) => r.id);
+  await db
+    .update(tasksTable)
+    .set(setData)
+    .where(and(inArray(tasksTable.id, orgIds), eq(tasksTable.orgId, orgId)));
+
+  // Insert audit events per task per changed field
+  const actorId = req.user?.id ?? null;
+  const actorNameStr = req.user ? displayName(req.user) : null;
+
+  for (const prev of prevRows) {
+    const next = {
+      status: patch.status ?? prev.status,
+      priority: patch.priority ?? prev.priority,
+      assignee: "assignee" in patch ? (patch.assignee ?? null) : prev.assignee,
+      category: patch.category ?? prev.category,
+      title: prev.title,
+      dueDate: prev.dueDate,
+      projectId: prev.projectId,
+    };
+    await insertChangeEvents(prev.id, orgId, actorId, actorNameStr, prev, next);
+  }
+
+  res.json(BulkUpdateTasksResponse.parse({ updated: prevRows.length }));
+});
+
 router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const params = UpdateTaskParams.safeParse(req.params);
   if (!params.success) {
@@ -579,6 +673,51 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields }, prev.status, prev.assignee);
   res.json(UpdateTaskResponse.parse(enriched));
+});
+
+// ─── Bulk delete ─────────────────────────────────────────────────────────────
+
+router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
+  const parsed = BulkDeleteTasksBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  if (!req.orgPermissions?.delete_tasks) {
+    res.status(403).json({ error: "You do not have permission to delete tasks" });
+    return;
+  }
+
+  const { ids } = parsed.data;
+  if (ids.length === 0) {
+    res.json(BulkDeleteTasksResponse.parse({ deleted: 0 }));
+    return;
+  }
+
+  // Delete comments first (in case DB doesn't cascade), then tasks — org-scoped
+  const orgTaskIds = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(inArray(tasksTable.id, ids), eq(tasksTable.orgId, orgId)));
+
+  if (orgTaskIds.length === 0) {
+    res.json(BulkDeleteTasksResponse.parse({ deleted: 0 }));
+    return;
+  }
+
+  const safeIds = orgTaskIds.map((r) => r.id);
+
+  await db.delete(commentsTable).where(inArray(commentsTable.taskId, safeIds));
+
+  const deleted = await db
+    .delete(tasksTable)
+    .where(and(inArray(tasksTable.id, safeIds), eq(tasksTable.orgId, orgId)))
+    .returning({ id: tasksTable.id });
+
+  res.json(BulkDeleteTasksResponse.parse({ deleted: deleted.length }));
 });
 
 router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
