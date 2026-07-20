@@ -160,6 +160,19 @@ vi.mock("../lib/webhook-dispatcher", () => ({
   dispatchSlaWarning: vi.fn(),
 }));
 
+// ---------------------------------------------------------------------------
+// Mock org-features — always enabled by default; individual tests override
+// ---------------------------------------------------------------------------
+let slaTrackingEnabled = true;
+vi.mock("../lib/org-features", () => ({
+  requireOrgFeature: () => (_req: any, res: any, next: any) => {
+    if (!slaTrackingEnabled) {
+      return res.status(403).json({ error: "feature_disabled", feature: "sla_tracking" });
+    }
+    next();
+  },
+}));
+
 // Mock resolve-custom-fields (only used by POST/PATCH /tasks, not GET, but imported)
 vi.mock("../lib/resolve-custom-fields", () => ({
   resolveCustomFieldNames: async () => ({}),
@@ -362,6 +375,16 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("GET /api/org/sla-policies", () => {
+  beforeEach(() => { slaTrackingEnabled = true; });
+  afterEach(() => { slaTrackingEnabled = true; });
+
+  it("returns 403 feature_disabled when sla_tracking is off for the org", async () => {
+    slaTrackingEnabled = false;
+    const res = await request(buildOrgsApp()).get("/api/org/sla-policies");
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: "feature_disabled", feature: "sla_tracking" });
+  });
+
   it("returns 200 with an empty array when no policies are configured", async () => {
     mockState.selectQueue.push([]); // slaPoliciesTable returns nothing
 
@@ -391,6 +414,18 @@ describe("GET /api/org/sla-policies", () => {
 // ---------------------------------------------------------------------------
 
 describe("PUT /api/org/sla-policies", () => {
+  beforeEach(() => { slaTrackingEnabled = true; });
+  afterEach(() => { slaTrackingEnabled = true; });
+
+  it("returns 403 feature_disabled when sla_tracking is off for the org", async () => {
+    slaTrackingEnabled = false;
+    const res = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 480 }] });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: "feature_disabled", feature: "sla_tracking" });
+  });
+
   it("returns 403 when the caller lacks manage_sla_policies permission", async () => {
     mockState.permissions = { ...mockState.ALL_PERMS, manage_sla_policies: false };
 

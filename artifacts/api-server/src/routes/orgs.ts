@@ -21,6 +21,7 @@ import {
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse';
+import { requireOrgFeature } from '../lib/org-features';
 import { seedDefaultStages } from '../lib/workflow-stages';
 import { sendMail, buildInviteEmail, isEmailConfigured } from '../lib/email';
 import { logger } from '../lib/logger';
@@ -886,8 +887,10 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 
+const requireSlaTrackingFeature = requireOrgFeature('sla_tracking');
+
 // GET /org/sla-policies - get SLA policies for the current org (org-level only)
-router.get('/org/sla-policies', requireOrg, async (req, res): Promise<void> => {
+router.get('/org/sla-policies', requireOrg, requireSlaTrackingFeature, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const policies = await db
     .select()
@@ -903,7 +906,7 @@ router.get('/org/sla-policies', requireOrg, async (req, res): Promise<void> => {
 });
 
 // PUT /org/sla-policies - upsert SLA policies (admin only)
-router.put('/org/sla-policies', requireOrg, requirePermission('manage_sla_policies'), async (req, res): Promise<void> => {
+router.put('/org/sla-policies', requireOrg, requireSlaTrackingFeature, requirePermission('manage_sla_policies'), async (req, res): Promise<void> => {
   const schema = z.object({
     policies: z
       .array(
