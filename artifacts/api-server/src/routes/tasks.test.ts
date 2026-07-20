@@ -1139,7 +1139,7 @@ describe("PATCH /api/tasks/:id - event emission", () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/tasks - rich-text description sanitization (XSS prevention)
+// POST /api/tasks - description sanitization (markdown mode)
 // ---------------------------------------------------------------------------
 
 describe("POST /api/tasks - description sanitization", () => {
@@ -1151,65 +1151,50 @@ describe("POST /api/tasks - description sanitization", () => {
     mockState.deleteResult = [];
   });
 
-  it("strips <script> tags from description before storing", async () => {
+  it("stores null when description is empty or whitespace-only", async () => {
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
     mockState.selectQueue.push([{ count: 0 }]);   // comment count
 
     await request(buildApp())
       .post("/api/tasks")
-      .send({ ...VALID_TASK_BODY, description: '<p>Steps</p><script>alert("xss")</script>' });
-
-    expect(mockState.insertCalls[0].description).not.toContain("<script>");
-    expect(mockState.insertCalls[0].description).not.toContain("alert(");
-    expect(mockState.insertCalls[0].description).toContain("Steps");
-  });
-
-  it("strips event-handler attributes from description before storing", async () => {
-    mockState.selectQueue.push([{ nextNum: 1 }]);
-    mockState.selectQueue.push([{ count: 0 }]);
-
-    await request(buildApp())
-      .post("/api/tasks")
-      .send({ ...VALID_TASK_BODY, description: '<p onclick="alert(1)">Runbook</p>' });
-
-    expect(mockState.insertCalls[0].description).not.toContain("onclick");
-    expect(mockState.insertCalls[0].description).toContain("Runbook");
-  });
-
-  it("strips <iframe> from description before storing", async () => {
-    mockState.selectQueue.push([{ nextNum: 1 }]);
-    mockState.selectQueue.push([{ count: 0 }]);
-
-    await request(buildApp())
-      .post("/api/tasks")
-      .send({ ...VALID_TASK_BODY, description: '<iframe src="https://evil.com"></iframe><p>safe</p>' });
-
-    expect(mockState.insertCalls[0].description).not.toContain("<iframe");
-    expect(mockState.insertCalls[0].description).toContain("safe");
-  });
-
-  it("stores null when description is an empty TipTap paragraph", async () => {
-    mockState.selectQueue.push([{ nextNum: 1 }]);
-    mockState.selectQueue.push([{ count: 0 }]);
-
-    await request(buildApp())
-      .post("/api/tasks")
-      .send({ ...VALID_TASK_BODY, description: "<p></p>" });
+      .send({ ...VALID_TASK_BODY, description: "   \n  " });
 
     expect(mockState.insertCalls[0].description).toBeNull();
   });
 
-  it("preserves valid TipTap HTML (bold, lists, headings)", async () => {
+  it("stores null when description is an empty string", async () => {
     mockState.selectQueue.push([{ nextNum: 1 }]);
     mockState.selectQueue.push([{ count: 0 }]);
 
-    const safeHtml = "<h2>Steps</h2><ul><li><strong>Check logs</strong></li></ul>";
     await request(buildApp())
       .post("/api/tasks")
-      .send({ ...VALID_TASK_BODY, description: safeHtml });
+      .send({ ...VALID_TASK_BODY, description: "" });
 
-    expect(mockState.insertCalls[0].description).toContain("<h2>Steps</h2>");
-    expect(mockState.insertCalls[0].description).toContain("<strong>Check logs</strong>");
+    expect(mockState.insertCalls[0].description).toBeNull();
+  });
+
+  it("preserves markdown content as-is", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const md = "## Steps\n\n- [ ] Check logs\n- **Restart** the service";
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: md });
+
+    expect(mockState.insertCalls[0].description).toBe(md);
+  });
+
+  it("preserves code blocks and inline code in markdown", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const md = "Run `kubectl get pods`\n\n```bash\nkubectl logs pod\n```";
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: md });
+
+    expect(mockState.insertCalls[0].description).toBe(md);
   });
 });
 

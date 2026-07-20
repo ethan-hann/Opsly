@@ -42,7 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
-import { RichTextEditor } from "@/components/notes/rich-text-editor";
+import { MarkdownEditor } from "@/components/notes/markdown-editor";
 
 // ─── Permission metadata ──────────────────────────────────────────────────────
 
@@ -470,7 +470,7 @@ function TemplateRow({
         defaultTitle: form.defaultTitle.trim(),
         defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
         defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
-        defaultDescription: (form.defaultDescription && form.defaultDescription !== "<p></p>") ? form.defaultDescription : null,
+        defaultDescription: form.defaultDescription.trim() || null,
       },
     });
   }
@@ -539,14 +539,13 @@ function TemplateRow({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Default description / runbook steps</Label>
-          <div className="rounded-md border border-input bg-background px-3 py-2">
-            <RichTextEditor
-              content={form.defaultDescription}
-              onChange={(html) => setForm((f) => ({ ...f, defaultDescription: html }))}
-              placeholder="Checklist or steps to follow when this template is used..."
-              editable={!isUpdating}
-            />
-          </div>
+          <MarkdownEditor
+            value={form.defaultDescription}
+            onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
+            placeholder="Checklist or steps to follow when this template is used..."
+            readOnly={isUpdating}
+            className="h-48 border border-input rounded-md overflow-hidden"
+          />
         </div>
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={isUpdating || !form.name.trim()}>
@@ -647,7 +646,7 @@ function TaskTemplatesCard() {
         defaultTitle: form.defaultTitle.trim() || undefined,
         defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
         defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
-        defaultDescription: (form.defaultDescription && form.defaultDescription !== "<p></p>") ? form.defaultDescription : undefined,
+        defaultDescription: form.defaultDescription.trim() || undefined,
       },
     });
   }
@@ -739,14 +738,13 @@ function TaskTemplatesCard() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Default description / runbook steps</Label>
-              <div className="rounded-md border border-input bg-background px-3 py-2">
-                <RichTextEditor
-                  content={form.defaultDescription}
-                  onChange={(html) => setForm((f) => ({ ...f, defaultDescription: html }))}
-                  placeholder="Checklist or steps to follow when this template is used..."
-                  editable={!isCreatingReq}
-                />
-              </div>
+              <MarkdownEditor
+                value={form.defaultDescription}
+                onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
+                placeholder="Checklist or steps to follow when this template is used..."
+                readOnly={isCreatingReq}
+                className="h-48 border border-input rounded-md overflow-hidden"
+              />
             </div>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={isCreatingReq || !form.name.trim()}>

@@ -177,7 +177,7 @@ describe("POST /api/task-templates - creation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// POST /api/task-templates - defaultDescription sanitization (XSS prevention)
+// POST /api/task-templates - defaultDescription sanitization (markdown mode)
 // ---------------------------------------------------------------------------
 
 describe("POST /api/task-templates - defaultDescription sanitization", () => {
@@ -189,50 +189,38 @@ describe("POST /api/task-templates - defaultDescription sanitization", () => {
     mockState.deleteResult = [];
   });
 
-  it("strips <script> tags from defaultDescription before storing", async () => {
+  it("stores null when defaultDescription is empty", async () => {
     await request(buildApp())
       .post("/api/task-templates")
-      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: '<p>Steps</p><script>alert("xss")</script>' });
-
-    expect(mockState.insertCalls[0].defaultDescription).not.toContain("<script>");
-    expect(mockState.insertCalls[0].defaultDescription).not.toContain("alert(");
-    expect(mockState.insertCalls[0].defaultDescription).toContain("Steps");
-  });
-
-  it("strips event-handler attributes from defaultDescription before storing", async () => {
-    await request(buildApp())
-      .post("/api/task-templates")
-      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: '<p onclick="alert(1)">Runbook</p>' });
-
-    expect(mockState.insertCalls[0].defaultDescription).not.toContain("onclick");
-    expect(mockState.insertCalls[0].defaultDescription).toContain("Runbook");
-  });
-
-  it("strips <iframe> from defaultDescription before storing", async () => {
-    await request(buildApp())
-      .post("/api/task-templates")
-      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: '<iframe src="https://evil.com"></iframe><p>safe</p>' });
-
-    expect(mockState.insertCalls[0].defaultDescription).not.toContain("<iframe");
-    expect(mockState.insertCalls[0].defaultDescription).toContain("safe");
-  });
-
-  it("stores null when defaultDescription is an empty TipTap paragraph", async () => {
-    await request(buildApp())
-      .post("/api/task-templates")
-      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: "<p></p>" });
+      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: "" });
 
     expect(mockState.insertCalls[0].defaultDescription).toBeNull();
   });
 
-  it("preserves valid TipTap HTML (bold, lists, headings) in defaultDescription", async () => {
-    const safeHtml = "<h2>Runbook</h2><ul><li><strong>Check logs</strong></li></ul>";
+  it("stores null when defaultDescription is whitespace-only", async () => {
     await request(buildApp())
       .post("/api/task-templates")
-      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: safeHtml });
+      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: "   \n  " });
 
-    expect(mockState.insertCalls[0].defaultDescription).toContain("<h2>Runbook</h2>");
-    expect(mockState.insertCalls[0].defaultDescription).toContain("<strong>Check logs</strong>");
+    expect(mockState.insertCalls[0].defaultDescription).toBeNull();
+  });
+
+  it("preserves markdown content as-is in defaultDescription", async () => {
+    const md = "## Runbook\n\n- [ ] Check logs\n- **Restart** the service";
+    await request(buildApp())
+      .post("/api/task-templates")
+      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: md });
+
+    expect(mockState.insertCalls[0].defaultDescription).toBe(md);
+  });
+
+  it("preserves code blocks and GFM task lists in defaultDescription", async () => {
+    const md = "Run `kubectl get pods`\n\n```bash\nkubectl logs pod\n```";
+    await request(buildApp())
+      .post("/api/task-templates")
+      .send({ ...VALID_TEMPLATE_BODY, defaultDescription: md });
+
+    expect(mockState.insertCalls[0].defaultDescription).toBe(md);
   });
 });
 
@@ -249,26 +237,24 @@ describe("PATCH /api/task-templates/:id - defaultDescription sanitization", () =
     mockState.deleteResult = [];
   });
 
-  it("strips <script> tags from defaultDescription on update", async () => {
+  it("preserves markdown content on update", async () => {
     mockState.selectQueue.push([MOCK_TEMPLATE]); // existing template lookup
 
+    const md = "## Steps\n\n- [ ] Notify on-call\n- [ ] Open ticket";
     await request(buildApp())
       .patch("/api/task-templates/1")
-      .send({ defaultDescription: '<p>Steps</p><script>alert("xss")</script>' });
+      .send({ defaultDescription: md });
 
-    // insertCalls[0] captures the _setData passed to db.update().set()
     const setData = mockState.insertCalls[0]?._setData;
-    expect(setData?.defaultDescription).not.toContain("<script>");
-    expect(setData?.defaultDescription).not.toContain("alert(");
-    expect(setData?.defaultDescription).toContain("Steps");
+    expect(setData?.defaultDescription).toBe(md);
   });
 
-  it("stores null when defaultDescription is empty TipTap on update", async () => {
+  it("stores null when defaultDescription is empty on update", async () => {
     mockState.selectQueue.push([MOCK_TEMPLATE]);
 
     await request(buildApp())
       .patch("/api/task-templates/1")
-      .send({ defaultDescription: "<p></p>" });
+      .send({ defaultDescription: "   " });
 
     const setData = mockState.insertCalls[0]?._setData;
     expect(setData?.defaultDescription).toBeNull();

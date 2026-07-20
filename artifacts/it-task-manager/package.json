@@ -44,12 +44,8 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
-    "@tiptap/extension-placeholder": "^2.11.7",
     "@tiptap/pm": "^2.11.7",
-    "@tiptap/react": "^2.11.7",
-    "@tiptap/starter-kit": "^2.11.7",
     "@types/canvas-confetti": "^1.9.0",
-    "@types/dompurify": "^3.2.0",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
@@ -87,7 +83,6 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "canvas-confetti": "^1.9.4",
-    "dompurify": "^3.4.12"
+    "canvas-confetti": "^1.9.4"
   }
 }

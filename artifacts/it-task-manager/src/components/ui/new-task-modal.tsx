@@ -26,7 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RichTextEditor } from "@/components/notes/rich-text-editor";
+import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import {
   Select,
   SelectContent,
@@ -234,7 +234,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
       {
         data: {
           title: title.trim(),
-          description: (description && description !== "<p></p>") ? description : undefined,
+          description: description.trim() || undefined,
           projectId: projectId !== "none" ? Number(projectId) : undefined,
           status,
           priority,
@@ -293,13 +293,12 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
 
           <div className="space-y-1">
             <Label>Description</Label>
-            <div className="rounded-md border border-input bg-background px-3 py-2">
-              <RichTextEditor
-                content={description}
-                onChange={setDescription}
-                placeholder="Optional details, runbook steps..."
-              />
-            </div>
+            <MarkdownEditor
+              value={description}
+              onChange={setDescription}
+              placeholder="Optional details, runbook steps..."
+              className="h-48 border border-input rounded-md overflow-hidden"
+            />
           </div>
 
           <div className="space-y-1">

@@ -1,45 +1,19 @@
 /**
- * Server-side HTML sanitizer for rich-text description fields.
+ * Server-side sanitizer for rich-text description fields.
  *
- * Allows only the tags and attributes that TipTap's StarterKit produces so that
- * arbitrary HTML (e.g. <script>, event handlers, <iframe>) is stripped before
- * content is stored in the database.
- *
- * This is the trusted sanitization boundary.  Client-side DOMPurify is applied
- * as a defense-in-depth layer before rendering, but this server-side pass is the
- * authoritative gate.
+ * Content is now stored as Markdown (plain text with lightweight syntax).
+ * react-markdown renders it safely by default — it does not execute raw HTML
+ * unless the `rehype-raw` plugin is explicitly added (it is not).  No HTML
+ * stripping library is needed; this function just normalises empty values to
+ * null so callers can distinguish "no description" from an empty one.
  */
-
-import sanitizeHtml from "sanitize-html";
-
-/** Allowlist of tags produced by TipTap StarterKit */
-const ALLOWED_TAGS: string[] = [
-  // Block
-  "p", "blockquote", "pre", "hr",
-  // Headings
-  "h1", "h2", "h3", "h4", "h5", "h6",
-  // Lists
-  "ul", "ol", "li",
-  // Inline
-  "strong", "em", "s", "code", "br",
-];
 
 /**
- * Sanitize a rich-text HTML string coming from the client.
- * Strips all disallowed tags and attributes; returns null if the input is null/undefined.
+ * Sanitise a Markdown string coming from the client.
+ * Returns null when the input is null/undefined or whitespace-only.
+ * Preserves the content as-is otherwise.
  */
-export function sanitizeRichText(html: string | null | undefined): string | null {
-  if (html == null) return null;
-
-  const clean = sanitizeHtml(html, {
-    allowedTags: ALLOWED_TAGS,
-    allowedAttributes: {},   // TipTap StarterKit produces no inline attributes we need
-    allowedSchemes: [],       // no href / src in allowed tags so no URL schemes needed
-    disallowedTagsMode: "discard",
-  });
-
-  // Treat a completely empty or whitespace-only result as null so callers can
-  // distinguish "no description" from "empty description"
-  const trimmed = clean.replace(/<p>\s*<\/p>/g, "").trim();
-  return trimmed.length > 0 ? clean : null;
+export function sanitizeRichText(text: string | null | undefined): string | null {
+  if (text == null) return null;
+  return text.trim().length > 0 ? text : null;
 }
