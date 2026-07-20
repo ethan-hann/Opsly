@@ -7,7 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useGetMyOrg, getGetMyOrgQueryKey } from "@workspace/api-client-react";
+import { useGetMyOrg } from "@workspace/api-client-react";
 import type { OrgMeResponse, Organization, PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
 
@@ -50,17 +50,17 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     data,
     isLoading,
     refetch,
-  } = useGetMyOrg({
-    query: {
-      // Long-interval poll as a fallback for missed SSE events (e.g. reconnects).
-      // The SSE connection provides near-instant delivery for the common path.
-      queryKey: getGetMyOrgQueryKey(),
-      refetchInterval: 60_000,
-    },
-  });
+  } = useGetMyOrg();
 
   const refetchOrg = useCallback(() => {
     refetch();
+  }, [refetch]);
+
+  // Long-interval poll as a fallback for missed SSE events (e.g. reconnects).
+  // The SSE connection provides near-instant delivery for the common path.
+  useEffect(() => {
+    const id = setInterval(() => { refetch(); }, 60_000);
+    return () => clearInterval(id);
   }, [refetch]);
 
   // ── SSE connection ─────────────────────────────────────────────────────────
