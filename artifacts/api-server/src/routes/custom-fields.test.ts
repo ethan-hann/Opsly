@@ -5,11 +5,13 @@
  * without a live database or auth session.
  *
  * Covered:
- *  - GET  /custom-fields          - list active definitions ordered by position
- *  - POST /custom-fields          - body validation, 201, admin-only enforcement
- *  - PATCH /custom-fields/:id     - update name/options, 200, 404, admin-only enforcement
- *  - DELETE /custom-fields/:id    - soft-delete, 204, 404, admin-only enforcement
- *  - POST /custom-fields/reorder  - reorder by ID list, 204, admin-only enforcement
+ *  - GET  /custom-fields              - list active definitions ordered by position
+ *  - POST /custom-fields              - body validation, 201, admin-only enforcement
+ *  - PATCH /custom-fields/:id         - update name/options, 200, 404, admin-only enforcement
+ *  - DELETE /custom-fields/:id        - soft-delete, 204, 404, admin-only enforcement
+ *  - POST /custom-fields/reorder      - reorder by ID list, 204, admin-only enforcement
+ *  - POST /custom-fields/:id/purge    - cross-org isolation: Org A cannot purge Org B's field
+ *  - POST /custom-fields/:id/restore  - cross-org isolation (update WHERE enforces orgId)
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -25,6 +27,10 @@ const mockState = vi.hoisted(() => ({
   updateResult: [] as any[],
   /** When false, the requireOrg mock sets manage_projects = false → requireAdmin blocks */
   isAdmin: true,
+  /** orgId injected by the requireOrg mock — override per test to simulate a different caller org */
+  orgId: "test-org",
+  /** Incremented each time db.delete() is invoked — lets tests assert no deletion occurred */
+  deleteCallCount: 0,
 }));
 
 /** Hoisted sql stub — must be created before vi.mock factories run. */
@@ -77,9 +83,10 @@ vi.mock("@workspace/db", () => {
         }),
       }),
     }),
-    delete: () => ({
-      where: () => Promise.resolve([]),
-    }),
+    delete: () => {
+      mockState.deleteCallCount += 1;
+      return { where: () => Promise.resolve([]) };
+    },
     transaction: async (fn: (tx: any) => Promise<any>) => fn(dbMock),
   };
 
@@ -101,7 +108,7 @@ vi.mock("drizzle-orm", () => ({
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
-    req.orgId = "test-org";
+    req.orgId = mockState.orgId;
     req.user = { id: "user-1", email: "user@example.com" };
     req.orgPermissions = {
       manage_projects: mockState.isAdmin,
@@ -531,6 +538,8 @@ describe("POST /api/custom-fields/:id/purge", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
+    mockState.deleteCallCount = 0;
   });
 
   it("returns 403 when a non-admin member calls the endpoint", async () => {
@@ -575,6 +584,32 @@ describe("POST /api/custom-fields/:id/purge", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ deletedFieldId: 1, affectedTaskCount: 7 });
+  });
+
+  // ── Cross-org isolation ────────────────────────────────────────────────────
+
+  it("returns 404 when an admin from org-a tries to purge a field belonging to org-b", async () => {
+    // The caller is authenticated as org-a
+    mockState.orgId = "org-a";
+    // The DB returns no row because the WHERE clause includes AND orgId = 'org-a',
+    // but field id=42 belongs to org-b — so the lookup comes back empty.
+    mockState.selectQueue.push([]); // field lookup → not found for this org
+
+    const res = await request(buildApp()).post("/api/custom-fields/42/purge");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not found/i);
+  });
+
+  it("does not call db.delete when the field belongs to a different org", async () => {
+    // Caller is org-a; field 42 belongs to org-b → lookup returns empty
+    mockState.orgId = "org-a";
+    mockState.selectQueue.push([]); // cross-org lookup yields no match
+
+    await request(buildApp()).post("/api/custom-fields/42/purge");
+
+    // delete must never be reached — no data from any org should be erased
+    expect(mockState.deleteCallCount).toBe(0);
   });
 });
 
