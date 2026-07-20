@@ -119,7 +119,7 @@ export function GlobalSearchPalette() {
         icon: <CheckSquare className="w-4 h-4" />,
         primary: t.title,
         secondary: [t.status, t.priority].filter(Boolean).join(" · "),
-        href: `/tasks/${t.id}`,
+        href: `/tasks/${t.id}?from=search`,
       });
     }
     for (const p of data.projects) {
@@ -128,7 +128,7 @@ export function GlobalSearchPalette() {
         icon: <FolderGit2 className="w-4 h-4" />,
         primary: p.name,
         secondary: p.status,
-        href: `/projects/${p.id}`,
+        href: `/projects/${p.id}?from=search`,
       });
     }
     for (const n of data.notes) {
@@ -259,7 +259,7 @@ export function GlobalSearchPalette() {
                     primary={t.title}
                     secondary={[t.status, t.priority].filter(Boolean).join(" · ")}
                     isActive={activeIndex === idx}
-                    onSelect={() => goTo(`/tasks/${t.id}`)}
+                    onSelect={() => goTo(`/tasks/${t.id}?from=search`)}
                     onMouseEnter={() => setActiveIndex(idx)}
                   />
                 );
@@ -292,7 +292,7 @@ export function GlobalSearchPalette() {
                     primary={p.name}
                     secondary={p.status}
                     isActive={activeIndex === idx}
-                    onSelect={() => goTo(`/projects/${p.id}`)}
+                    onSelect={() => goTo(`/projects/${p.id}?from=search`)}
                     onMouseEnter={() => setActiveIndex(idx)}
                   />
                 );

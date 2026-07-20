@@ -1,6 +1,6 @@
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -451,6 +451,8 @@ function CustomFieldReadOnly({ value }: { value: unknown }) {
 export default function TaskDetail({ params }: { params: { id: string } }) {
   const taskId = parseInt(params.id, 10);
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const fromSearch = new URLSearchParams(searchString).get("from") === "search";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -612,8 +614,21 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       <EditTaskModal open={editOpen} onOpenChange={setEditOpen} task={task} />
       {/* Navigation */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
+        {fromSearch && (
+          <>
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="hover:text-foreground flex items-center gap-1 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+            <span>/</span>
+          </>
+        )}
         <Link href="/tasks" className="hover:text-foreground flex items-center gap-1 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
+          {!fromSearch && <ArrowLeft className="w-4 h-4" />}
           Tasks
         </Link>
         <span>/</span>
