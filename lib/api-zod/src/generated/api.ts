@@ -1367,6 +1367,60 @@ export const DeleteTaskTemplateResponse = zod.void()
 
 
 /**
+ * Returns SLA policy overrides configured for this specific project. Only project-level overrides are returned; org-level defaults are not included. Omitted priorities fall back to the org-level policy.
+ * @summary Get project-level SLA policy overrides
+ */
+export const GetProjectSLAPoliciesParams = zod.object({
+  "projectId": zod.coerce.number()
+})
+
+export const GetProjectSLAPoliciesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
+  "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('SLA response and resolution targets for a single priority level.')
+export const GetProjectSLAPoliciesResponse = zod.array(GetProjectSLAPoliciesResponseItem)
+
+
+/**
+ * Replaces all project-level SLA policy overrides for this project. Send an empty policies array to clear all overrides and revert to org defaults. Requires manage_sla_policies permission.
+ * @summary Set project-level SLA policy overrides (admin only)
+ */
+export const UpsertProjectSLAPoliciesParams = zod.object({
+  "projectId": zod.coerce.number()
+})
+
+
+
+export const upsertProjectSLAPoliciesBodyPoliciesMax = 4;
+
+
+
+export const UpsertProjectSLAPoliciesBody = zod.object({
+  "policies": zod.array(zod.object({
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().min(1).nullish(),
+  "resolutionMinutes": zod.number().min(1).nullish()
+}).describe('One priority\'s SLA targets in the PUT request body.')).max(upsertProjectSLAPoliciesBodyPoliciesMax)
+}).describe('Full set of SLA policies for the org (up to four entries, one per priority).')
+
+export const UpsertProjectSLAPoliciesResponseItem = zod.object({
+  "id": zod.number(),
+  "orgId": zod.string(),
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
+  "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "createdAt": zod.string().optional(),
+  "updatedAt": zod.string().optional()
+}).describe('SLA response and resolution targets for a single priority level.')
+export const UpsertProjectSLAPoliciesResponse = zod.array(UpsertProjectSLAPoliciesResponseItem)
+
+
+/**
  * Returns the SLA response and resolution targets for each priority level. Priorities with no configured policy are omitted from the response.
  * @summary Get SLA policies for the current org
  */

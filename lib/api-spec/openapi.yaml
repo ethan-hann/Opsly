@@ -1593,6 +1593,68 @@ paths:
         "404":
           description: Template not found.
 
+  /projects/{projectId}/sla-policies:
+    get:
+      operationId: getProjectSLAPolicies
+      tags: [projects]
+      summary: Get project-level SLA policy overrides
+      description: >
+        Returns SLA policy overrides configured for this specific project.
+        Only project-level overrides are returned; org-level defaults are not included.
+        Omitted priorities fall back to the org-level policy.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Array of project-level SLA policy overrides.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlaPolicy"
+        "404":
+          description: Project not found.
+    put:
+      operationId: upsertProjectSLAPolicies
+      tags: [projects]
+      summary: Set project-level SLA policy overrides (admin only)
+      description: >
+        Replaces all project-level SLA policy overrides for this project.
+        Send an empty policies array to clear all overrides and revert to org defaults.
+        Requires manage_sla_policies permission.
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SLAPoliciesInput"
+      responses:
+        "200":
+          description: Updated project-level SLA policies.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SlaPolicy"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Permission required.
+        "404":
+          description: Project not found.
+
   /org/sla-policies:
     get:
       operationId: getSLAPolicies

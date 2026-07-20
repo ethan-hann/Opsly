@@ -4481,6 +4481,157 @@ export const useDeleteTaskTemplate = <TError = ErrorType<void>,
       return useMutation(getDeleteTaskTemplateMutationOptions(options));
     }
 
+export const getGetProjectSLAPoliciesUrl = (projectId: number,) => {
+
+
+
+
+  return `/api/projects/${projectId}/sla-policies`
+}
+
+/**
+ * Returns SLA policy overrides configured for this specific project. Only project-level overrides are returned; org-level defaults are not included. Omitted priorities fall back to the org-level policy.
+ * @summary Get project-level SLA policy overrides
+ */
+export const getProjectSLAPolicies = async (projectId: number, options?: RequestInit): Promise<SlaPolicy[]> => {
+
+  return customFetch<SlaPolicy[]>(getGetProjectSLAPoliciesUrl(projectId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProjectSLAPoliciesQueryKey = (projectId: number,) => {
+    return [
+    `/api/projects/${projectId}/sla-policies`
+    ] as const;
+    }
+
+
+export const getGetProjectSLAPoliciesQueryOptions = <TData = Awaited<ReturnType<typeof getProjectSLAPolicies>>, TError = ErrorType<void>>(projectId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectSLAPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProjectSLAPoliciesQueryKey(projectId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProjectSLAPolicies>>> = ({ signal }) => getProjectSLAPolicies(projectId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: projectId !== null && projectId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProjectSLAPolicies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetProjectSLAPoliciesQueryResult = NonNullable<Awaited<ReturnType<typeof getProjectSLAPolicies>>>
+export type GetProjectSLAPoliciesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get project-level SLA policy overrides
+ */
+
+export function useGetProjectSLAPolicies<TData = Awaited<ReturnType<typeof getProjectSLAPolicies>>, TError = ErrorType<void>>(
+ projectId: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getProjectSLAPolicies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetProjectSLAPoliciesQueryOptions(projectId,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpsertProjectSLAPoliciesUrl = (projectId: number,) => {
+
+
+
+
+  return `/api/projects/${projectId}/sla-policies`
+}
+
+/**
+ * Replaces all project-level SLA policy overrides for this project. Send an empty policies array to clear all overrides and revert to org defaults. Requires manage_sla_policies permission.
+ * @summary Set project-level SLA policy overrides (admin only)
+ */
+export const upsertProjectSLAPolicies = async (projectId: number,
+    sLAPoliciesInput: SLAPoliciesInput, options?: RequestInit): Promise<SlaPolicy[]> => {
+
+  return customFetch<SlaPolicy[]>(getUpsertProjectSLAPoliciesUrl(projectId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(sLAPoliciesInput)
+  }
+);}
+
+
+
+
+
+export const getUpsertProjectSLAPoliciesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertProjectSLAPolicies>>, TError,{projectId: number;data: BodyType<SLAPoliciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof upsertProjectSLAPolicies>>, TError,{projectId: number;data: BodyType<SLAPoliciesInput>}, TContext> => {
+
+const mutationKey = ['upsertProjectSLAPolicies'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof upsertProjectSLAPolicies>>, {projectId: number;data: BodyType<SLAPoliciesInput>}> = (props) => {
+          const {projectId,data} = props ?? {};
+
+          return  upsertProjectSLAPolicies(projectId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpsertProjectSLAPoliciesMutationResult = NonNullable<Awaited<ReturnType<typeof upsertProjectSLAPolicies>>>
+    export type UpsertProjectSLAPoliciesMutationBody = BodyType<SLAPoliciesInput>
+    export type UpsertProjectSLAPoliciesMutationError = ErrorType<void>
+
+    /**
+ * @summary Set project-level SLA policy overrides (admin only)
+ */
+export const useUpsertProjectSLAPolicies = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof upsertProjectSLAPolicies>>, TError,{projectId: number;data: BodyType<SLAPoliciesInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof upsertProjectSLAPolicies>>,
+        TError,
+        {projectId: number;data: BodyType<SLAPoliciesInput>},
+        TContext
+      > => {
+      return useMutation(getUpsertProjectSLAPoliciesMutationOptions(options));
+    }
+
 export const getGetSLAPoliciesUrl = () => {
 
 

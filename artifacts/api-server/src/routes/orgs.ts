@@ -1,5 +1,5 @@
 import { Router, type IRouter } from 'express';
-import { eq, and, or, sql } from 'drizzle-orm';
+import { eq, and, or, sql, isNull } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   db,
@@ -829,13 +829,13 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
 
 const VALID_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const;
 
-// GET /org/sla-policies - get SLA policies for the current org
+// GET /org/sla-policies - get SLA policies for the current org (org-level only)
 router.get('/org/sla-policies', requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const policies = await db
     .select()
     .from(slaPoliciesTable)
-    .where(eq(slaPoliciesTable.orgId, orgId));
+    .where(and(eq(slaPoliciesTable.orgId, orgId), isNull(slaPoliciesTable.projectId)));
   res.json(
     policies.map((p) => ({
       ...p,
@@ -874,8 +874,8 @@ router.put('/org/sla-policies', requireOrg, requirePermission('manage_sla_polici
 
   const orgId = req.orgId!;
 
-  // Delete all existing policies then re-insert (simpler than per-priority upsert)
-  await db.delete(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId));
+  // Delete all existing org-level policies then re-insert (simpler than per-priority upsert)
+  await db.delete(slaPoliciesTable).where(and(eq(slaPoliciesTable.orgId, orgId), isNull(slaPoliciesTable.projectId)));
 
   const toInsert = parsed.data.policies.filter(
     (p) => p.responseMinutes != null || p.resolutionMinutes != null,

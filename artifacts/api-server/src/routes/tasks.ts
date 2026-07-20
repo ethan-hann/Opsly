@@ -49,10 +49,25 @@ async function detectAndMarkSlaBreaches(
     );
     if (candidates.length === 0) return;
 
-    const policyMap = new Map(policies.map((p) => [p.priority, p]));
+    // Build two-level policy maps: project-level takes precedence over org-level
+    const orgPolicyMap = new Map<string, typeof slaPoliciesTable.$inferSelect>();
+    const projectPolicyMap = new Map<number, Map<string, typeof slaPoliciesTable.$inferSelect>>();
+    for (const p of policies) {
+      if (p.projectId == null) {
+        orgPolicyMap.set(p.priority, p);
+      } else {
+        if (!projectPolicyMap.has(p.projectId)) {
+          projectPolicyMap.set(p.projectId, new Map());
+        }
+        projectPolicyMap.get(p.projectId)!.set(p.priority, p);
+      }
+    }
 
     for (const task of candidates) {
-      const policy = policyMap.get(task.priority) ?? null;
+      const projectPolicy = task.projectId != null
+        ? projectPolicyMap.get(task.projectId)?.get(task.priority)
+        : undefined;
+      const policy = projectPolicy ?? orgPolicyMap.get(task.priority) ?? null;
       const slaResult = getSlaStatus(task.createdAt, task.status, task.priority, policy);
 
       if (slaResult.isResolutionBreached) {

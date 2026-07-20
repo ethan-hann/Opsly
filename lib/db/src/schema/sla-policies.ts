@@ -1,15 +1,24 @@
 import { pgTable, serial, varchar, integer, timestamp } from "drizzle-orm/pg-core";
 import { organizationsTable } from "./organizations";
+import { projectsTable } from "./projects";
 
 /**
- * Per-org SLA targets keyed by task priority.
- * One row per (orgId, priority) pair; upserted via PUT /org/sla-policies.
+ * SLA targets keyed by (orgId, priority).
+ * When projectId is null  → org-level default (applies to all projects).
+ * When projectId is set   → project-level override (takes precedence for that project).
+ * Upserted via PUT /org/sla-policies (org-level) or PUT /projects/:id/sla-policies (project-level).
  */
 export const slaPoliciesTable = pgTable("sla_policies", {
   id: serial("id").primaryKey(),
   orgId: varchar("org_id")
     .notNull()
     .references(() => organizationsTable.id, { onDelete: "cascade" }),
+  /**
+   * When set, this policy overrides the org-level default for the given project.
+   * Null means this row is an org-level default.
+   */
+  projectId: integer("project_id")
+    .references(() => projectsTable.id, { onDelete: "cascade" }),
   /** Task priority this policy applies to: low | medium | high | critical */
   priority: varchar("priority", { length: 16 }).notNull(),
   /** Maximum minutes before a first response is required. Null = no target. */

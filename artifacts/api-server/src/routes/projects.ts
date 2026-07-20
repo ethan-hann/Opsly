@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and } from "drizzle-orm";
-import { db, projectsTable, tasksTable } from "@workspace/db";
+import { eq, sql, and, isNull } from "drizzle-orm";
+import { db, projectsTable, tasksTable, slaPoliciesTable } from "@workspace/db";
+import { z } from "zod";
 import {
   CreateProjectBody,
   UpdateProjectBody,
@@ -12,7 +13,7 @@ import {
   GetProjectResponse,
   UpdateProjectResponse,
 } from "@workspace/api-zod";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchProjectCreated, dispatchProjectUpdated } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
@@ -157,5 +158,138 @@ router.delete("/projects/:id", requireOrg, async (req, res): Promise<void> => {
 
   res.sendStatus(204);
 });
+
+// ─── Project SLA policy overrides ────────────────────────────────────────────
+
+const VALID_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+
+const ProjectIdParams = z.object({ id: z.coerce.number().int().positive() });
+
+/**
+ * GET /projects/:id/sla-policies
+ * Returns the project-level SLA policy overrides for this project.
+ * Omits org-level policies — the caller should merge as needed.
+ */
+router.get("/projects/:id/sla-policies", requireOrg, async (req, res): Promise<void> => {
+  const params = ProjectIdParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  const id = params.data.id;
+
+  const [project] = await db
+    .select({ id: projectsTable.id })
+    .from(projectsTable)
+    .where(and(eq(projectsTable.id, id), eq(projectsTable.orgId, req.orgId!)))
+    .limit(1);
+
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+
+  const policies = await db
+    .select()
+    .from(slaPoliciesTable)
+    .where(and(eq(slaPoliciesTable.orgId, req.orgId!), eq(slaPoliciesTable.projectId, id)));
+
+  res.json(
+    policies.map((p) => ({
+      ...p,
+      createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+      updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+    })),
+  );
+});
+
+/**
+ * PUT /projects/:id/sla-policies
+ * Replace all SLA policy overrides for this project. Requires manage_sla_policies.
+ * Send an empty policies array to clear all overrides (revert to org defaults).
+ */
+router.put(
+  "/projects/:id/sla-policies",
+  requireOrg,
+  requirePermission("manage_sla_policies"),
+  async (req, res): Promise<void> => {
+    const projectParams = ProjectIdParams.safeParse(req.params);
+    if (!projectParams.success) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const id = projectParams.data.id;
+
+    const schema = z.object({
+      policies: z
+        .array(
+          z.object({
+            priority: z.enum(VALID_PRIORITIES),
+            responseMinutes: z.number().int().min(1).nullable().optional(),
+            resolutionMinutes: z.number().int().min(1).nullable().optional(),
+          }),
+        )
+        .max(4),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const priorities = parsed.data.policies.map((p) => p.priority);
+    if (new Set(priorities).size !== priorities.length) {
+      res.status(400).json({ error: "Duplicate priority values are not allowed." });
+      return;
+    }
+
+    const [project] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(and(eq(projectsTable.id, id), eq(projectsTable.orgId, req.orgId!)))
+      .limit(1);
+
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+
+    const orgId = req.orgId!;
+
+    // Delete existing project-level policies then re-insert
+    await db
+      .delete(slaPoliciesTable)
+      .where(and(eq(slaPoliciesTable.orgId, orgId), eq(slaPoliciesTable.projectId, id)));
+
+    const toInsert = parsed.data.policies.filter(
+      (p) => p.responseMinutes != null || p.resolutionMinutes != null,
+    );
+
+    let result: (typeof slaPoliciesTable.$inferSelect)[] = [];
+    if (toInsert.length > 0) {
+      result = await db
+        .insert(slaPoliciesTable)
+        .values(
+          toInsert.map((p) => ({
+            orgId,
+            projectId: id,
+            priority: p.priority,
+            responseMinutes: p.responseMinutes ?? null,
+            resolutionMinutes: p.resolutionMinutes ?? null,
+          })),
+        )
+        .returning();
+    }
+
+    res.json(
+      result.map((p) => ({
+        ...p,
+        createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
+        updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+      })),
+    );
+  },
+);
 
 export default router;

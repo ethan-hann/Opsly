@@ -76,6 +76,7 @@ vi.mock("@workspace/db", () => {
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
     usersTable: {},
+    slaPoliciesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -94,6 +95,14 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
+    req.orgPermissions = { manage_sla_policies: true };
+    next();
+  },
+  requirePermission: (_key: string) => (req: any, _res: any, next: any) => {
+    if (req.orgPermissions?.[_key] === false) {
+      _res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     next();
   },
 }));
