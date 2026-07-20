@@ -20,6 +20,10 @@ const router = Router();
 // (pg_trgm) created by the migrate:add-search-trigram-indexes migration in
 // lib/db.  If you add new searched columns or change the pattern style, run a
 // matching migration to keep the indexes in sync.
+//
+// Note visibility: the notes query enforces a visibility gate so private notes
+// only appear for their author.  Public notes (visibility = 'public_read') are
+// visible to every org member.
 router.get("/search", requireOrg, async (req, res) => {
   const parsed = SearchQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -28,6 +32,9 @@ router.get("/search", requireOrg, async (req, res) => {
 
   const { q, limit } = parsed.data;
   const orgId = req.orgId!;
+  // Empty string is a safe sentinel: no DB user_id is ever an empty string,
+  // so it won't accidentally match any note's createdBy when there is no session user.
+  const callerId = req.user?.id ?? "";
   const pattern = `%${q}%`;
 
   const [tasks, projects, notes] = await Promise.all([
@@ -58,6 +65,10 @@ router.get("/search", requireOrg, async (req, res) => {
         id: notesTable.id,
         title: notesTable.title,
         content: notesTable.content,
+        // visibility and createdBy are fetched for the WHERE predicate only;
+        // they are stripped from the response shape below.
+        visibility: notesTable.visibility,
+        createdBy: notesTable.createdBy,
       })
       .from(notesTable)
       .where(
@@ -66,6 +77,13 @@ router.get("/search", requireOrg, async (req, res) => {
           or(
             ilike(notesTable.title, pattern),
             ilike(notesTable.content, pattern)
+          ),
+          // Visibility gate: restrict notes to those the caller may read.
+          // public_read  → visible to every org member.
+          // private      → visible only to the note's author (createdBy).
+          or(
+            eq(notesTable.visibility, "public_read"),
+            eq(notesTable.createdBy, callerId),
           )
         )
       )
