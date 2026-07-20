@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import {
   useGetDashboardSummary,
@@ -23,7 +24,18 @@ import { formatTimeAgo, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
+type SlaPeriod = "7d" | "30d" | "90d" | "all";
+
+const SLA_PERIOD_OPTIONS: { value: SlaPeriod; label: string; heading: string }[] = [
+  { value: "7d",  label: "7d",  heading: "Last 7 Days" },
+  { value: "30d", label: "30d", heading: "Last 30 Days" },
+  { value: "90d", label: "90d", heading: "Last 90 Days" },
+  { value: "all", label: "All",  heading: "All Time" },
+];
+
 export default function Dashboard() {
+  const [slaPeriod, setSlaPeriod] = useState<SlaPeriod>("30d");
+
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
@@ -38,9 +50,11 @@ export default function Dashboard() {
   });
   const { data: slaPolicies } = useGetSLAPolicies();
   const { data: slaSummary, isLoading: isLoadingSlaSummary } = useGetDashboardSlaSummary(
-    { period: "30d" },
-    { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: "30d" }), refetchInterval: 30_000, refetchOnWindowFocus: true } },
+    { period: slaPeriod },
+    { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: slaPeriod }), refetchInterval: 30_000, refetchOnWindowFocus: true } },
   );
+
+  const activePeriod = SLA_PERIOD_OPTIONS.find(o => o.value === slaPeriod)!;
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -187,7 +201,7 @@ export default function Dashboard() {
                   <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
                     {slaSummary.totalTracked === 0
                       ? "No tracked tasks"
-                      : `${slaSummary.breachedCount} breached · 30d`}
+                      : `${slaSummary.breachedCount} breached · ${activePeriod.label}`}
                   </p>
                 </div>
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
@@ -205,63 +219,96 @@ export default function Dashboard() {
         ) : null}
       </div>
 
-      {/* SLA Compliance Detail Panel */}
-      {slaSummary && slaSummary.totalTracked > 0 && (
+      {/* SLA Compliance Detail Panel — always visible when data is loaded so the
+           period selector remains accessible even when a period has zero tasks */}
+      {(isLoadingSlaSummary || slaSummary) && (
         <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
+          {/* Header: title + segmented control always rendered */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500" />
-              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">SLA Compliance — Last 30 Days</h2>
+              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">
+                SLA Compliance — {activePeriod.heading}
+              </h2>
             </div>
-            <div className="flex items-center gap-4 text-sm text-stone-500 dark:text-stone-400">
-              {slaSummary.avgBreachMinutes != null && (
-                <span className="text-red-600 dark:text-red-400 font-medium">
-                  Avg overshoot: {slaSummary.avgBreachMinutes >= 60
-                    ? `${Math.round(slaSummary.avgBreachMinutes / 60 * 10) / 10}h`
-                    : `${Math.round(slaSummary.avgBreachMinutes)}m`}
-                </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Period segmented control — always visible */}
+              <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700 overflow-hidden text-xs font-medium">
+                {SLA_PERIOD_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setSlaPeriod(opt.value)}
+                    className={`px-3 py-1.5 transition-colors ${
+                      slaPeriod === opt.value
+                        ? "bg-amber-600 text-white"
+                        : "bg-white dark:bg-stone-900 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {slaSummary && slaSummary.totalTracked > 0 && (
+                <div className="flex items-center gap-4 text-sm text-stone-500 dark:text-stone-400">
+                  {slaSummary.avgBreachMinutes != null && (
+                    <span className="text-red-600 dark:text-red-400 font-medium">
+                      Avg overshoot: {slaSummary.avgBreachMinutes >= 60
+                        ? `${Math.round(slaSummary.avgBreachMinutes / 60 * 10) / 10}h`
+                        : `${Math.round(slaSummary.avgBreachMinutes)}m`}
+                    </span>
+                  )}
+                  <span>{slaSummary.withinSlaCount} within target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
+                </div>
               )}
-              <span>{slaSummary.withinSlaCount} within target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
             </div>
           </div>
 
           {/* Per-priority breakdown */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {slaSummary.byPriority.filter(p => p.totalTracked > 0).map((p) => {
-              const isGood = p.complianceRate >= 90;
-              const isMid = p.complianceRate >= 70;
-              return (
-                <div key={p.priority} className={`rounded-xl p-4 border ${
-                  isGood
-                    ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
-                    : isMid
-                      ? "bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
-                      : "bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
-                }`}>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400 mb-2 capitalize">{p.priority}</p>
-                  <p className={`text-2xl font-bold ${
-                    isGood ? "text-emerald-600 dark:text-emerald-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
-                  }`}>{p.complianceRate}%</p>
-                  <div className="mt-2 w-full h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        isGood ? "bg-emerald-500" : isMid ? "bg-amber-500" : "bg-red-500"
-                      }`}
-                      style={{ width: `${p.complianceRate}%` }}
-                    />
+          {isLoadingSlaSummary ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {Array(4).fill(0).map((_, i) => (
+                <Skeleton key={i} className="h-28 rounded-xl" />
+              ))}
+            </div>
+          ) : slaSummary && slaSummary.totalTracked > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {slaSummary.byPriority.filter(p => p.totalTracked > 0).map((p) => {
+                const isGood = p.complianceRate >= 90;
+                const isMid = p.complianceRate >= 70;
+                return (
+                  <div key={p.priority} className={`rounded-xl p-4 border ${
+                    isGood
+                      ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
+                      : isMid
+                        ? "bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
+                        : "bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
+                  }`}>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400 mb-2 capitalize">{p.priority}</p>
+                    <p className={`text-2xl font-bold ${
+                      isGood ? "text-emerald-600 dark:text-emerald-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
+                    }`}>{p.complianceRate}%</p>
+                    <div className="mt-2 w-full h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isGood ? "bg-emerald-500" : isMid ? "bg-amber-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${p.complianceRate}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
+                      {p.breachedCount > 0 ? `${p.breachedCount} breached` : "No breaches"} · {p.totalTracked} total
+                    </p>
                   </div>
-                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
-                    {p.breachedCount > 0 ? `${p.breachedCount} breached` : "No breaches"} · {p.totalTracked} total
-                  </p>
-                </div>
-              );
-            })}
-            {slaSummary.byPriority.every(p => p.totalTracked === 0) && (
-              <div className="col-span-4 text-center py-4 text-stone-400 dark:text-stone-500 text-sm">
-                No SLA data for this period.
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm flex flex-col items-center gap-2">
+              <ShieldCheck className="w-7 h-7 opacity-30" />
+              <p>No SLA data for this period. Select a different window above.</p>
+            </div>
+          )}
         </div>
       )}
 
