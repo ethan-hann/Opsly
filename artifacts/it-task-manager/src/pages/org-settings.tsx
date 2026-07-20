@@ -33,7 +33,7 @@ import {
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Copy, Crown, Download, FileText, GripVertical, Key, Link2, Loader2, LogOut,
+  AlertTriangle, Building2, Clock, Copy, Crown, Download, ExternalLink, FileText, GripVertical, Key, Link2, Loader2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
   Workflow, Check, Eye,
 } from "lucide-react";
@@ -1882,6 +1882,16 @@ export default function OrgSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+  // Check instance-admin status once on mount — used to show the admin console link.
+  const [isInstanceAdmin, setIsInstanceAdmin] = useState(false);
+  useEffect(() => {
+    fetch(`${BASE}/api/admin/me`, { credentials: "include" })
+      .then((r) => { if (r.ok) setIsInstanceAdmin(true); })
+      .catch(() => {});
+  }, []);
+
   const [inviteValue, setInviteValue] = useState("");
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
@@ -2456,6 +2466,31 @@ export default function OrgSettings() {
 
       {/* Export Data (admin only) */}
       {isAdmin && <ExportCard />}
+
+      {/* Instance Admin Console (instance admins only) */}
+      {isInstanceAdmin && (
+        <Card className="border-primary/30">
+          <CardHeader>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-primary" />
+                  Instance Admin Console
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Manage organizations, feature flags, and users across the entire instance. Only visible to instance administrators.
+                </CardDescription>
+              </div>
+              <a href={`${BASE}/admin`} target="_blank" rel="noreferrer">
+                <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Console
+                </Button>
+              </a>
+            </div>
+          </CardHeader>
+        </Card>
+      )}
 
       {/* Danger zone */}
       <Card className="border-destructive/30">
