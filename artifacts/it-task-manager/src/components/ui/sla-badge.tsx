@@ -68,7 +68,7 @@ export function SlaBadge({ createdAt, updatedAt, status, priority, policies, cla
   } else {
     const labelMap: Record<string, string> = {
       on_track: minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: on track",
-      warning:  minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: warning",
+      warning:  minutes != null ? `SLA at risk: ${formatSlaMinutes(minutes)} left` : "SLA: at risk",
       breached: minutes != null ? `SLA: breached ${formatSlaMinutes(Math.abs(minutes))} ago` : "SLA: breached",
       none:     "No SLA",
     };

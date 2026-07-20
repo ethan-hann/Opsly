@@ -45,6 +45,10 @@ export function getSlaStatus(
   const elapsedMinutes = (now - created) / 60_000;
 
   // --- Response SLA ---
+  // Warning threshold: percentage of the window elapsed before warning fires (default 80 %).
+  // Mirrors the server-side sla-detection logic.
+  const warningFraction = (policy.warningThresholdPercent ?? 80) / 100;
+
   let responseStatus: SlaStatus = "none";
   let responseMinutesRemaining: number | null = null;
   if (policy.responseMinutes != null) {
@@ -54,7 +58,7 @@ export function getSlaStatus(
       responseStatus = "on_track";
     } else if (remaining < 0) {
       responseStatus = "breached";
-    } else if (remaining / policy.responseMinutes <= 0.25) {
+    } else if (remaining / policy.responseMinutes <= 1 - warningFraction) {
       responseStatus = "warning";
     } else {
       responseStatus = "on_track";
@@ -83,7 +87,7 @@ export function getSlaStatus(
       if (remaining < 0) {
         resolutionStatus = "breached";
         isResolutionBreached = true;
-      } else if (remaining / policy.resolutionMinutes <= 0.25) {
+      } else if (remaining / policy.resolutionMinutes <= 1 - warningFraction) {
         resolutionStatus = "warning";
       } else {
         resolutionStatus = "on_track";

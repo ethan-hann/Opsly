@@ -67,24 +67,32 @@ describe("getSlaStatus", () => {
     expect(result.resolutionMinutesRemaining).toBe(420);
   });
 
-  it("returns warning when exactly 75% of response SLA has elapsed (remaining/total = 0.25)", () => {
-    // elapsed=60 out of response=80 → remaining=20 → 20/80 = 0.25 exactly
-    const result = getSlaStatus(minsAgo(60), "todo", "high", makePolicy(80, 480));
+  it("returns warning when >80% of response SLA has elapsed (default threshold)", () => {
+    // elapsed=70 out of response=80 → remaining=10 → 10/80 = 0.125 < 0.20 → warning
+    const result = getSlaStatus(minsAgo(70), "todo", "high", makePolicy(80, 480));
     expect(result.responseStatus).toBe("warning");
     expect(result.resolutionStatus).toBe("on_track");
   });
 
-  it("returns on_track when just below the 75% warning threshold", () => {
-    // elapsed=59 out of response=80 → remaining=21 → 21/80 = 0.2625 > 0.25
-    const result = getSlaStatus(minsAgo(59), "todo", "high", makePolicy(80, 480));
+  it("returns on_track when just below the 80% warning threshold", () => {
+    // elapsed=60 out of response=80 → remaining=20 → 20/80 = 0.25 > 0.20 → on_track
+    const result = getSlaStatus(minsAgo(60), "todo", "high", makePolicy(80, 480));
     expect(result.responseStatus).toBe("on_track");
   });
 
-  it("returns warning at exactly 75% of resolution SLA elapsed", () => {
-    // elapsed=360 out of resolution=480 → remaining=120 → 120/480 = 0.25 exactly
-    const result = getSlaStatus(minsAgo(360), "todo", "high", makePolicy(null, 480));
+  it("returns warning when >80% of resolution SLA has elapsed (default threshold)", () => {
+    // elapsed=400 out of resolution=480 → remaining=80 → 80/480 = 0.1667 < 0.20 → warning
+    const result = getSlaStatus(minsAgo(400), "todo", "high", makePolicy(null, 480));
     expect(result.resolutionStatus).toBe("warning");
     expect(result.responseStatus).toBe("none");
+  });
+
+  it("respects a custom warningThresholdPercent on the policy", () => {
+    // Policy with 75% threshold → warning when remaining/total ≤ 0.25
+    // elapsed=60 out of response=80 → remaining=20 → 20/80 = 0.25 exactly → warning
+    const policyWith75 = { ...makePolicy(80, null), warningThresholdPercent: 75 };
+    const result = getSlaStatus(minsAgo(60), "todo", "high", policyWith75);
+    expect(result.responseStatus).toBe("warning");
   });
 
   it("returns breached when past the response SLA deadline", () => {
