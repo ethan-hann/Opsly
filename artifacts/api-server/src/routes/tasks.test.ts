@@ -459,6 +459,37 @@ describe("GET /api/tasks", () => {
     expect(res.body[0].priority).toBe("critical");
     expect(res.body[0].slaBreachedAt).toBeDefined();
   });
+
+  // ── Custom field filter — cross-org isolation ──────────────────────────────
+
+  it("returns 400 when customFieldId belongs to another org (cross-org isolation)", async () => {
+    // The handler validates the field with WHERE id = :id AND orgId = :orgId.
+    // Returning [] simulates a field that exists in org-B but not in the
+    // caller's org-A — the server must not reveal whether the field exists
+    // elsewhere and must not fall through to a task list query.
+    mockState.selectQueue.push([]); // field lookup returns empty — cross-org field
+
+    const res = await request(buildApp()).get("/api/tasks?customFieldId=42");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: "Custom field not found" });
+  });
+
+  it("returns 200 with filtered tasks when customFieldId and customFieldValue belong to the same org", async () => {
+    // field lookup succeeds — field 7 belongs to the caller's org
+    mockState.selectQueue.push([{ id: 7, type: "text" }]);
+    // task query, stage map, SLA policies, comment count
+    mockState.selectQueue.push([{ ...MOCK_TASK, customFields: { "7": "hello" } }]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp()).get("/api/tasks?customFieldId=7&customFieldValue=hello");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ id: 1 });
+  });
 });
 
 // ---------------------------------------------------------------------------
