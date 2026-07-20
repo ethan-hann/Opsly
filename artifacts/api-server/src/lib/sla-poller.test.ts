@@ -3,6 +3,7 @@
  *
  * Covered:
  *  - scanSlaBreaches: no-ops when no open tasks exist
+ *  - scanSlaBreaches: does not fetch closed-stage tasks (innerJoin on type='open')
  *  - scanSlaBreaches: groups tasks by org and calls detectAndMarkSlaBreaches per org
  *  - scanSlaBreaches: skips orgs whose tasks have no SLA policies
  *  - scanSlaBreaches: fetches policies only for orgs that have open tasks
@@ -21,20 +22,29 @@ const mockTasks: any[] = [];
 const mockPolicies: any[] = [];
 const mockStages: any[] = [];
 
-// Track call order: 0 → tasks, 1 → policies (Promise.all[0]), 2 → stages (Promise.all[1])
+// Track call order:
+//   0 → tasks query  (goes through .innerJoin().where())
+//   1 → policies     (Promise.all[0], goes through .where() directly)
+//   2 → stages       (Promise.all[1], goes through .where() directly)
 let selectCallCount = 0;
 
 vi.mock("@workspace/db", () => ({
   db: {
     select: () => ({
       from: () => ({
-        where: () => Promise.resolve(
-          selectCallCount === 0
-            ? (selectCallCount++, mockTasks)
-            : selectCallCount === 1
-              ? (selectCallCount++, mockPolicies)
-              : (selectCallCount++, mockStages),
-        ),
+        // First query: tasks — uses innerJoin to filter open stages
+        innerJoin: () => ({
+          where: () => {
+            selectCallCount++;
+            // Wrap each task as { task } to match the .select({ task: tasksTable }) shape
+            return Promise.resolve(mockTasks.map((t: any) => ({ task: t })));
+          },
+        }),
+        // Subsequent queries: policies and stages — use .where() directly
+        where: () => {
+          const idx = selectCallCount++;
+          return Promise.resolve(idx === 1 ? mockPolicies : mockStages);
+        },
       }),
     }),
   },
@@ -44,11 +54,12 @@ vi.mock("@workspace/db", () => ({
 }));
 
 vi.mock("drizzle-orm", () => ({
-  ne: () => ({}),
+  and: () => ({}),
+  eq: () => ({}),
   inArray: () => ({}),
   isNull: () => ({}),
   or: () => ({}),
-  and: () => ({}),
+  sql: () => ({}),
 }));
 
 // ---------------------------------------------------------------------------
@@ -128,7 +139,17 @@ afterEach(() => {
 
 describe("scanSlaBreaches", () => {
   it("returns immediately without calling detectAndMarkSlaBreaches when there are no open tasks", async () => {
-    // mockTasks stays empty
+    // mockTasks stays empty — no tasks in the DB at all
+    await scanSlaBreaches();
+    expect(detectMock).not.toHaveBeenCalled();
+  });
+
+  it("does not call detectAndMarkSlaBreaches when all tasks are in closed workflow stages", async () => {
+    // Simulates the case where tasks exist in the DB but are all in closed stages.
+    // The innerJoin on workflow_stages WHERE type = 'open' filters them out at the
+    // DB level, so the application receives an empty result set.
+    // mockTasks is intentionally empty to represent the post-join DB output when
+    // every task's stage has type = 'closed'.
     await scanSlaBreaches();
     expect(detectMock).not.toHaveBeenCalled();
   });

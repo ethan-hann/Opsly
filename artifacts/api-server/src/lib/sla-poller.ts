@@ -16,7 +16,7 @@
  * passive read cannot double-fire the same webhook.
  */
 
-import { eq, inArray, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { db, tasksTable, slaPoliciesTable, workflowStagesTable } from "@workspace/db";
 import { detectAndMarkSlaBreaches } from "./sla-detection";
 import { logger } from "./logger";
@@ -27,16 +27,33 @@ import { logger } from "./logger";
  */
 export async function scanSlaBreaches(): Promise<void> {
   // Fetch all open tasks that still need SLA evaluation.
-  // "Still need" = at least one SLA timestamp is still unset.
-  // (Tasks already both-breached AND warned are finished — exclude them to keep
-  //  the query small on busy instances.)
-  const tasks = await db
-    .select()
+  //
+  // "Open" is determined by joining workflow_stages and requiring type = 'open'.
+  // This replaces the legacy ne(status, "done") string check that never matched
+  // anything after status was migrated to numeric stage IDs.
+  //
+  // "Still need evaluation" = at least one SLA timestamp is still unset.
+  // Tasks where both slaBreachedAt and slaWarningSentAt are already set are
+  // fully resolved — exclude them to avoid redundant work on busy instances.
+  const taskRows = await db
+    .select({ task: tasksTable })
     .from(tasksTable)
+    .innerJoin(
+      workflowStagesTable,
+      and(
+        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        eq(workflowStagesTable.orgId, tasksTable.orgId),
+        eq(workflowStagesTable.type, "open"),
+      ),
+    )
     .where(
-      // Not done AND at least one SLA flag still absent
-      ne(tasksTable.status, "done"),
+      or(
+        isNull(tasksTable.slaBreachedAt),
+        isNull(tasksTable.slaWarningSentAt),
+      ),
     );
+
+  const tasks = taskRows.map((r) => r.task);
 
   if (tasks.length === 0) return;
 
@@ -56,9 +73,8 @@ export async function scanSlaBreaches(): Promise<void> {
   if (orgIds.length === 0) return;
 
   // Fetch all SLA policies AND workflow stages for all affected orgs in parallel.
-  // Stages are needed so that tasks resolved via a "closed"-type custom stage are
-  // correctly excluded from SLA breach detection (ne(status,"done") only catches
-  // the legacy string status; numeric stage IDs need the stages map).
+  // Stages are needed so that detectAndMarkSlaBreaches can resolve numeric stage
+  // IDs to their type when deciding whether a task is still open.
   const [allPolicies, allStages] = await Promise.all([
     db.select().from(slaPoliciesTable).where(inArray(slaPoliciesTable.orgId, orgIds)),
     db.select().from(workflowStagesTable).where(inArray(workflowStagesTable.orgId, orgIds)),
