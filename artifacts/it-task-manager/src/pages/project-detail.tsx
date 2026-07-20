@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
@@ -221,6 +221,8 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
 export default function ProjectDetail({ params }: { params: { id: string } }) {
   const projectId = parseInt(params.id, 10);
   const [, setLocation] = useLocation();
+  const searchString = useSearch();
+  const fromSearch = new URLSearchParams(searchString).get("from") === "search";
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { hasPermission } = useOrgContext();
@@ -265,8 +267,21 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       <NewTaskModal open={newTaskOpen} onOpenChange={setNewTaskOpen} initialProjectId={projectId} />
       {/* Header / Nav */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
+        {fromSearch && (
+          <>
+            <button
+              type="button"
+              onClick={() => window.history.back()}
+              className="hover:text-foreground flex items-center gap-1 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </button>
+            <span>/</span>
+          </>
+        )}
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
-          <ArrowLeft className="w-4 h-4" />
+          {!fromSearch && <ArrowLeft className="w-4 h-4" />}
           Projects
         </Link>
         <span>/</span>
