@@ -235,6 +235,20 @@ vi.mock("../lib/notes-sse", () => ({
   broadcastNoteChange: () => {},
 }));
 
+// webhook-dispatcher uses outboundWebhooksTable which is not in the db mock;
+// stub it out so dispatch calls are silent no-ops in isolation tests.
+vi.mock("../lib/webhook-dispatcher", () => ({
+  dispatchTaskCreated: () => {},
+  dispatchTaskUpdated: () => {},
+  dispatchTaskCommented: () => {},
+  dispatchTaskSlaBreached: () => {},
+  dispatchNoteCreated: () => {},
+  dispatchNoteUpdated: () => {},
+  dispatchNoteDeleted: () => {},
+  dispatchProjectCreated: () => {},
+  dispatchProjectUpdated: () => {},
+}));
+
 // ---------------------------------------------------------------------------
 // Import routes AFTER mocks are in place
 // ---------------------------------------------------------------------------
