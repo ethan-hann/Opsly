@@ -129,6 +129,10 @@ vi.mock("@workspace/api-zod", () => {
     UpdateNoteParams: p, UpdateNoteBody: p, UpdateNoteResponse: p,
     DeleteNoteParams: p,
     GetDashboardSummaryResponse: p, GetRecentActivityResponse: p,
+    // saved views
+    ListViewsResponse: p, CreateViewBody: p, CreateViewResponse: p,
+    UpdateViewParams: p, UpdateViewBody: p, UpdateViewResponse: p,
+    DeleteViewParams: p,
   };
 });
 
@@ -155,6 +159,7 @@ import commentsRouter from "./comments.js";
 import notesRouter from "./notes.js";
 import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
+import savedViewsRouter from "./saved-views.js";
 
 // Real DB imports — not mocked, use the live database
 import {
@@ -169,6 +174,8 @@ import {
   commentsTable,
   notesTable,
   workflowStagesTable,
+  savedViewsTable,
+  slaPoliciesTable,
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
@@ -186,6 +193,7 @@ function buildApp(): Express {
   app.use("/api", notesRouter);
   app.use("/api", dashboardRouter);
   app.use("/api", orgsRouter);
+  app.use("/api", savedViewsRouter);
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
     res.status(500).json({ error: err?.message ?? String(err) });
@@ -208,6 +216,8 @@ let orgANoteId: number;
 let orgBNoteId: number;
 let orgAUserId: string;
 let orgBUserId: string;
+let orgASavedViewId: number;
+let orgBSavedViewId: number;
 
 // ---------------------------------------------------------------------------
 // Seed helpers
@@ -352,6 +362,43 @@ beforeAll(async () => {
     .values({ orgId: orgBId, title: "Org B Secret Note", content: "secret", visibility: "public_read", createdBy: orgBUserId })
     .returning({ id: notesTable.id });
   orgBNoteId = noteB.id;
+
+  // Seed saved views for both orgs
+  const [viewA] = await db
+    .insert(savedViewsTable)
+    .values({
+      orgId: orgAId,
+      createdBy: orgAUserId,
+      name: "Org A View",
+      filters: {},
+      isOrgWide: true,  // must be true so the GET filter (createdBy OR isOrgWide) returns it for any mock user
+      isDefault: false,
+    })
+    .returning({ id: savedViewsTable.id });
+  orgASavedViewId = viewA.id;
+
+  const [viewB] = await db
+    .insert(savedViewsTable)
+    .values({
+      orgId: orgBId,
+      createdBy: orgBUserId,
+      name: "Org B Secret View",
+      filters: {},
+      isOrgWide: false,
+      isDefault: false,
+    })
+    .returning({ id: savedViewsTable.id });
+  orgBSavedViewId = viewB.id;
+
+  // Seed an SLA policy override on Org B's project
+  await db.insert(slaPoliciesTable).values({
+    orgId: orgBId,
+    projectId: orgBProjectId,
+    priority: "high",
+    responseMinutes: 60,
+    resolutionMinutes: 480,
+    warningThresholdPercent: 80,
+  });
 
   // Seed invitations for Org B (so we can assert they don't appear in Org A)
   await db.insert(invitationsTable).values({
@@ -815,5 +862,114 @@ describeIf("DB isolation — POST /api/tasks/:id/comments (cross-org comment gua
       .from(commentsTable)
       .where(eq(commentsTable.taskId, orgBTaskId));
     expect(after[0].count).toBe(countBefore);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Saved-views isolation
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — GET /api/views (saved-views list)", () => {
+  it("returns only Org A views — Org B view is absent", async () => {
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    const ids = res.body.map((v: any) => v.id);
+    expect(ids).toContain(orgASavedViewId);
+    expect(ids).not.toContain(orgBSavedViewId);
+  });
+
+  it("every returned view has orgId === Org A", async () => {
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    for (const view of res.body) {
+      expect(view.orgId).toBe(orgAId);
+    }
+  });
+});
+
+describeIf("DB isolation — PATCH /api/views/:id (cross-org mutation guard)", () => {
+  it("returns 404 for an Org B view id and leaves the DB row unchanged", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/views/${orgBSavedViewId}`)
+      .send({ name: "Hacked View Name" });
+
+    expect(res.status).toBe(404);
+
+    // Verify the Org B view name was NOT changed
+    const [still] = await db
+      .select({ id: savedViewsTable.id, name: savedViewsTable.name })
+      .from(savedViewsTable)
+      .where(eq(savedViewsTable.id, orgBSavedViewId));
+    expect(still).toBeDefined();
+    expect(still.name).toBe("Org B Secret View");
+  });
+});
+
+describeIf("DB isolation — DELETE /api/views/:id (cross-org deletion guard)", () => {
+  it("returns 404 for an Org B view id and leaves the DB row in place", async () => {
+    const res = await request(buildApp()).delete(`/api/views/${orgBSavedViewId}`);
+    expect(res.status).toBe(404);
+
+    // Verify the Org B view was NOT deleted
+    const [still] = await db
+      .select({ id: savedViewsTable.id })
+      .from(savedViewsTable)
+      .where(eq(savedViewsTable.id, orgBSavedViewId));
+    expect(still).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Project SLA policy override isolation
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — GET /api/projects/:id/sla-policies (cross-org read guard)", () => {
+  it("returns 200 and the override list for an Org A project", async () => {
+    const res = await request(buildApp()).get(`/api/projects/${orgAProjectId}/sla-policies`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it("returns 404 for an Org B project id — cross-org SLA read blocked", async () => {
+    const res = await request(buildApp()).get(`/api/projects/${orgBProjectId}/sla-policies`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describeIf("DB isolation — PUT /api/projects/:id/sla-policies (cross-org write guard)", () => {
+  it("returns 404 for an Org B project id and inserts no policy row", async () => {
+    // Count existing SLA policies for Org B's project before the request
+    const before = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(slaPoliciesTable)
+      .where(eq(slaPoliciesTable.projectId, orgBProjectId));
+    const countBefore = before[0].count;
+
+    const res = await request(buildApp())
+      .put(`/api/projects/${orgBProjectId}/sla-policies`)
+      .send({ policies: [{ priority: "critical", responseMinutes: 1, resolutionMinutes: 5 }] });
+
+    expect(res.status).toBe(404);
+
+    // No new policy row must have been inserted
+    const after = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(slaPoliciesTable)
+      .where(eq(slaPoliciesTable.projectId, orgBProjectId));
+    expect(after[0].count).toBe(countBefore);
+  });
+
+  it("returns 200 and updates SLA policies for Org A project (positive control)", async () => {
+    const res = await request(buildApp())
+      .put(`/api/projects/${orgAProjectId}/sla-policies`)
+      .send({ policies: [{ priority: "low", responseMinutes: 120, resolutionMinutes: 600 }] });
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+
+    // Clean up: clear org-A project overrides so they don't affect other tests
+    await db
+      .delete(slaPoliciesTable)
+      .where(eq(slaPoliciesTable.projectId, orgAProjectId));
   });
 });
