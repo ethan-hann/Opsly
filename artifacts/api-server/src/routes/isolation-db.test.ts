@@ -133,6 +133,15 @@ vi.mock("@workspace/api-zod", () => {
     ListViewsResponse: p, CreateViewBody: p, CreateViewResponse: p,
     UpdateViewParams: p, UpdateViewBody: p, UpdateViewResponse: p,
     DeleteViewParams: p,
+    // custom field definitions
+    ListCustomFieldDefinitionsResponse: p,
+    CreateCustomFieldDefinitionBody: p, CreateCustomFieldDefinitionResponse: p,
+    UpdateCustomFieldDefinitionParams: p, UpdateCustomFieldDefinitionBody: p,
+    UpdateCustomFieldDefinitionResponse: p,
+    DeleteCustomFieldDefinitionParams: p,
+    PurgeCustomFieldDefinitionParams: p, PurgeCustomFieldDefinitionResponse: p,
+    RestoreCustomFieldDefinitionParams: p, RestoreCustomFieldDefinitionResponse: p,
+    ReorderCustomFieldDefinitionsBody: p,
   };
 });
 
@@ -160,6 +169,7 @@ import notesRouter from "./notes.js";
 import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
 import savedViewsRouter from "./saved-views.js";
+import customFieldsRouter from "./custom-fields.js";
 
 // Real DB imports — not mocked, use the live database
 import {
@@ -177,6 +187,7 @@ import {
   savedViewsTable,
   slaPoliciesTable,
   taskWatchersTable,
+  customFieldDefinitionsTable,
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
@@ -195,6 +206,7 @@ function buildApp(): Express {
   app.use("/api", dashboardRouter);
   app.use("/api", orgsRouter);
   app.use("/api", savedViewsRouter);
+  app.use("/api", customFieldsRouter);
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
     res.status(500).json({ error: err?.message ?? String(err) });
@@ -219,6 +231,8 @@ let orgAUserId: string;
 let orgBUserId: string;
 let orgASavedViewId: number;
 let orgBSavedViewId: number;
+let orgACustomFieldId: number;
+let orgBCustomFieldId: number;
 
 // ---------------------------------------------------------------------------
 // Seed helpers
@@ -410,6 +424,29 @@ beforeAll(async () => {
     status: "pending",
     expiresAt: new Date(Date.now() + 86400_000),
   });
+
+  // Seed one custom field definition per org
+  const [cfA] = await db
+    .insert(customFieldDefinitionsTable)
+    .values({
+      orgId: orgAId,
+      name: "Org A Priority Level",
+      type: "text",
+      position: 0,
+    })
+    .returning({ id: customFieldDefinitionsTable.id });
+  orgACustomFieldId = cfA.id;
+
+  const [cfB] = await db
+    .insert(customFieldDefinitionsTable)
+    .values({
+      orgId: orgBId,
+      name: "Org B Secret Field",
+      type: "text",
+      position: 0,
+    })
+    .returning({ id: customFieldDefinitionsTable.id });
+  orgBCustomFieldId = cfB.id;
 
   // Point the middleware at Org A
   orgAState.orgId = orgAId;
@@ -1037,5 +1074,61 @@ describeIf("DB isolation — GET /api/tasks/:id/events (cross-org audit-log guar
     const res = await request(buildApp()).get(`/api/tasks/${orgATaskId}/events`);
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Custom field definition isolation
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — GET /api/custom-fields (list)", () => {
+  it("returns only Org A custom fields — Org B field is absent", async () => {
+    const res = await request(buildApp()).get("/api/custom-fields");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    const ids = res.body.map((f: any) => f.id);
+    expect(ids).toContain(orgACustomFieldId);
+    expect(ids).not.toContain(orgBCustomFieldId);
+  });
+
+  it("every returned field has orgId === Org A", async () => {
+    const res = await request(buildApp()).get("/api/custom-fields");
+    expect(res.status).toBe(200);
+    for (const field of res.body) {
+      expect(field.orgId).toBe(orgAId);
+    }
+  });
+});
+
+describeIf("DB isolation — PATCH /api/custom-fields/:id (cross-org mutation guard)", () => {
+  it("returns 404 for an Org B field id and leaves the DB row unchanged", async () => {
+    const res = await request(buildApp())
+      .patch(`/api/custom-fields/${orgBCustomFieldId}`)
+      .send({ name: "Attempted cross-org rename" });
+    expect(res.status).toBe(404);
+
+    // Verify the DB row was not modified
+    const [row] = await db
+      .select({ name: customFieldDefinitionsTable.name })
+      .from(customFieldDefinitionsTable)
+      .where(eq(customFieldDefinitionsTable.id, orgBCustomFieldId));
+    expect(row?.name).toBe("Org B Secret Field");
+  });
+});
+
+describeIf("DB isolation — DELETE /api/custom-fields/:id (cross-org delete guard)", () => {
+  it("returns 404 for an Org B field id and the row remains present in the DB", async () => {
+    const res = await request(buildApp()).delete(
+      `/api/custom-fields/${orgBCustomFieldId}`,
+    );
+    expect(res.status).toBe(404);
+
+    // Row must still exist (not soft-deleted either)
+    const [row] = await db
+      .select({ id: customFieldDefinitionsTable.id, deletedAt: customFieldDefinitionsTable.deletedAt })
+      .from(customFieldDefinitionsTable)
+      .where(eq(customFieldDefinitionsTable.id, orgBCustomFieldId));
+    expect(row).toBeDefined();
+    expect(row?.deletedAt).toBeNull();
   });
 });
