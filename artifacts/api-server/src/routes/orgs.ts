@@ -20,6 +20,7 @@ import {
   requireAdmin,
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
+import { pushEvent } from '../lib/sse';
 
 const router: IRouter = Router();
 
@@ -750,6 +751,12 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
     .from(usersTable)
     .where(eq(usersTable.id, targetUserId))
     .limit(1);
+
+  // If this was an ownership transfer, instantly notify the new owner's
+  // open SSE connection so their session reacts without waiting for polling.
+  if (demoteActingOwnerToRoleId) {
+    pushEvent(targetUserId, 'role-changed', { newRole: 'Owner' });
+  }
 
   res.json({
     userId: updated.userId,

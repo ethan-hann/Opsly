@@ -52,9 +52,9 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     refetch,
   } = useGetMyOrg({
     query: {
-      // Poll every 15 s so a newly promoted owner sees the celebration
-      // without needing a manual page refresh.
-      refetchInterval: 15_000,
+      // Long-interval poll as a fallback for missed SSE events (e.g. reconnects).
+      // The SSE connection provides near-instant delivery for the common path.
+      refetchInterval: 60_000,
     },
   });
 
@@ -62,6 +62,46 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     refetch();
   }, [refetch]);
 
+  // ── SSE connection ─────────────────────────────────────────────────────────
+  // Open a persistent SSE connection so the server can push role-change events
+  // instantly rather than waiting for the next poll cycle.
+  useEffect(() => {
+    // BASE_URL includes the trailing slash; strip it before appending the path.
+    const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+    const url = `${base}/api/events`;
+
+    let es: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    let active = true;
+
+    function connect() {
+      if (!active) return;
+      es = new EventSource(url, { withCredentials: true });
+
+      es.addEventListener("role-changed", () => {
+        refetch();
+      });
+
+      es.onerror = () => {
+        es?.close();
+        es = null;
+        // Exponential-ish back-off capped at 30 s — reconnect after a brief pause
+        if (active) {
+          retryTimeout = setTimeout(connect, 5_000);
+        }
+      };
+    }
+
+    connect();
+
+    return () => {
+      active = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+      es?.close();
+    };
+  }, [refetch]);
+
+  // ── Ownership transition detection ─────────────────────────────────────────
   // Track whether the current user was already an owner on the *previous*
   // render so we can detect the false→true transition during a live session.
   // null = not yet observed (initial mount), so we don't fire on page load.
@@ -73,14 +113,14 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
 
   useEffect(() => {
     if (prevIsOwner.current === false && isOwner) {
-      // Transitioned from non-owner to owner in this session — celebrate!
       setShowCelebration(true);
     }
     if (data?.org) {
-      // Only record a known value once we have real org data.
       prevIsOwner.current = isOwner;
     }
   }, [isOwner, data?.org]);
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
