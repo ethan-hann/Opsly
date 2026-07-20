@@ -1043,6 +1043,113 @@ describe("GET /api/tasks/:id/events", () => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/tasks/:id/events — SLA audit events (system-generated, actorId null)
+// ---------------------------------------------------------------------------
+
+describe("GET /api/tasks/:id/events — SLA audit events", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  const SLA_BREACH_EVENT = {
+    id: 10,
+    taskId: 1,
+    orgId: "test-org",
+    actorId: null,
+    actorName: null,
+    field: "sla_breached",
+    oldValue: null,
+    newValue: new Date().toISOString(),
+    createdAt: new Date().toISOString(),
+  };
+
+  const SLA_WARNING_EVENT = {
+    id: 11,
+    taskId: 1,
+    orgId: "test-org",
+    actorId: null,
+    actorName: null,
+    field: "sla_warning",
+    oldValue: null,
+    newValue: new Date(Date.now() + 15 * 60_000).toISOString(), // projected breach in 15 min
+    createdAt: new Date().toISOString(),
+  };
+
+  it("returns sla_breached events with actorId and actorName null (system-generated)", async () => {
+    mockState.selectQueue.push([MOCK_TASK]);         // task ownership check
+    mockState.selectQueue.push([SLA_BREACH_EVENT]);  // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      field: "sla_breached",
+      actorId: null,
+      actorName: null,
+      oldValue: null,
+      newValue: expect.any(String),
+    });
+  });
+
+  it("returns sla_warning events with actorId and actorName null (system-generated)", async () => {
+    mockState.selectQueue.push([MOCK_TASK]);          // task ownership check
+    mockState.selectQueue.push([SLA_WARNING_EVENT]);  // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      field: "sla_warning",
+      actorId: null,
+      actorName: null,
+      oldValue: null,
+      newValue: expect.any(String), // projected breach ISO timestamp
+    });
+  });
+
+  it("returns both SLA and user-initiated events in the same history feed", async () => {
+    const userEvent = {
+      id: 5, taskId: 1, orgId: "test-org",
+      actorId: "user-owner", actorName: "Alice Smith",
+      field: "status", oldValue: "To Do", newValue: "In Progress",
+      createdAt: new Date(Date.now() - 10_000).toISOString(),
+    };
+    mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([userEvent, SLA_BREACH_EVENT]);
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body.some((e: any) => e.field === "status")).toBe(true);
+    expect(res.body.some((e: any) => e.field === "sla_breached")).toBe(true);
+  });
+
+  it("returns 404 when the task does not belong to the org (cross-org leak blocked)", async () => {
+    mockState.selectQueue.push([]); // task ownership check returns nothing
+
+    const res = await request(buildApp()).get("/api/tasks/999/events");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /tasks/:id/events returns 404 — no delete route exists for audit events", async () => {
+    const res = await request(buildApp()).delete("/api/tasks/1/events");
+    expect(res.status).toBe(404);
+  });
+
+  it("PATCH /tasks/:id/events returns 404 — no mutation route exists for audit events", async () => {
+    const res = await request(buildApp()).patch("/api/tasks/1/events").send({ field: "sla_breached" });
+    expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /tasks event emission
 // ---------------------------------------------------------------------------
 
