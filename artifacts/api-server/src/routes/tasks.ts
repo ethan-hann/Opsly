@@ -626,7 +626,7 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       res.status(400).json({ error: cfResult.error });
       return;
     }
-    sanitizedIncomingCf = cfResult.sanitized;
+    sanitizedIncomingCf = cfResult.sanitized ?? {};
     // Merge sanitized values with existing custom fields (partial update semantics)
     const [existing] = await db
       .select({ customFields: tasksTable.customFields })
