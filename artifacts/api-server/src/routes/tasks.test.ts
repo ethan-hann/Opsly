@@ -1348,6 +1348,150 @@ describe("PATCH /api/tasks/:id - event emission", () => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/tasks/:id — custom field audit event emission
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/tasks/:id — custom field audit event emission", () => {
+  const TEXT_FIELD_DEF = { id: 10, name: "Notes", type: "text", options: null, orgId: "test-org", deletedAt: null, position: 0, createdAt: "", updatedAt: "" };
+  const SELECT_FIELD_DEF = { id: 12, name: "Environment", type: "single_select", options: ["prod", "staging"], orgId: "test-org", deletedAt: null, position: 2, createdAt: "", updatedAt: "" };
+  const MULTI_SELECT_DEF = { id: 14, name: "Tags", type: "multi_select", options: ["bug", "feature", "hotfix"], orgId: "test-org", deletedAt: null, position: 4, createdAt: "", updatedAt: "" };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [MOCK_TASK];
+    mockState.deleteResult = [];
+  });
+
+  it("emits a cf:<fieldName> event when a text custom field value changes", async () => {
+    // prev customFields has { "10": "old note" }; PATCH sends "new note"
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);              // prev standard fields
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                  // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ customFields: { "10": "old note" } }]); // existing for merge
+    mockState.selectQueue.push([]); // getOrgStages (after update)
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                  // name lookup for cf event
+    mockState.selectQueue.push([{ count: 0 }]);                    // comment count
+    // MOCK_TASK has no customFields → resolveCustomFieldNames skips DB call
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "10": "new note" } });
+
+    // No standard-field changes → insertChangeEvents inserts nothing
+    // Custom-field changes → one separate insert batch for cf: events
+    expect(mockState.insertCalls).toHaveLength(1);
+    const cfEvents: any[] = mockState.insertCalls[0];
+    expect(cfEvents).toHaveLength(1);
+    expect(cfEvents[0]).toMatchObject({
+      taskId: 1,
+      orgId: "test-org",
+      field: "cf:Notes",
+      oldValue: "old note",
+      newValue: "new note",
+    });
+  });
+
+  it("emits a cf:<fieldName> event with newValue=null when a custom field is cleared", async () => {
+    // Task had "10": "existing note"; PATCH sends null to clear it.
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                  // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ customFields: { "10": "existing note" } }]); // existing for merge
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                  // name lookup for cf event
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "10": null } });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    const cfEvents: any[] = mockState.insertCalls[0];
+    expect(cfEvents).toHaveLength(1);
+    expect(cfEvents[0]).toMatchObject({
+      field: "cf:Notes",
+      oldValue: "existing note",
+      newValue: null,
+    });
+  });
+
+  it("emits no cf event when the custom field value is unchanged", async () => {
+    // Sending the same value that's already stored → no diff → no event.
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ customFields: { "12": "prod" } }]); // existing for merge (same value)
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "12": "prod" } });
+
+    // Neither standard fields nor custom fields changed → no inserts at all.
+    expect(mockState.insertCalls).toHaveLength(0);
+  });
+
+  it("serializes multi-select array values as JSON strings in the event", async () => {
+    // No prior value for field "14"; PATCH sets ["bug","feature"].
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ customFields: {} }]);            // existing (field not yet set)
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                // name lookup for cf event
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ customFields: { "14": ["bug", "feature"] } });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    const cfEvents: any[] = mockState.insertCalls[0];
+    expect(cfEvents).toHaveLength(1);
+    expect(cfEvents[0]).toMatchObject({
+      field: "cf:Tags",
+      oldValue: null,
+      newValue: JSON.stringify(["bug", "feature"]),
+    });
+  });
+
+  it("emits both standard-field and cf events when both change in the same PATCH", async () => {
+    // priority changes (medium → high) AND a custom field changes.
+    const updatedTask = { ...MOCK_TASK, priority: "high" };
+    mockState.updateResult = [updatedTask];
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                // validateAndSanitizeCustomFields
+    mockState.selectQueue.push([{ customFields: { "12": "prod" } }]); // existing for merge
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                // name lookup for cf event
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ priority: "high", customFields: { "12": "staging" } });
+
+    // Two separate db.insert().values() calls:
+    // insertCalls[0] = standard field events batch (from insertChangeEvents)
+    // insertCalls[1] = cf: events batch
+    expect(mockState.insertCalls).toHaveLength(2);
+
+    const standardEvents: any[] = mockState.insertCalls[0];
+    expect(standardEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "priority", oldValue: "medium", newValue: "high" }),
+      ]),
+    );
+
+    const cfEvents: any[] = mockState.insertCalls[1];
+    expect(cfEvents).toHaveLength(1);
+    expect(cfEvents[0]).toMatchObject({
+      field: "cf:Environment",
+      oldValue: "prod",
+      newValue: "staging",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/tasks - description sanitization (markdown mode)
 // ---------------------------------------------------------------------------
 
