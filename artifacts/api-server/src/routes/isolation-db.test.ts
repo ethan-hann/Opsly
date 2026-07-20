@@ -142,6 +142,11 @@ vi.mock("@workspace/api-zod", () => {
     PurgeCustomFieldDefinitionParams: p, PurgeCustomFieldDefinitionResponse: p,
     RestoreCustomFieldDefinitionParams: p, RestoreCustomFieldDefinitionResponse: p,
     ReorderCustomFieldDefinitionsBody: p,
+    // task templates
+    ListTaskTemplatesResponse: p,
+    CreateTaskTemplateBody: p, CreateTaskTemplateResponse: p,
+    UpdateTaskTemplateParams: p, UpdateTaskTemplateBody: p, UpdateTaskTemplateResponse: p,
+    DeleteTaskTemplateParams: p,
   };
 });
 
@@ -170,6 +175,7 @@ import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
 import savedViewsRouter from "./saved-views.js";
 import customFieldsRouter from "./custom-fields.js";
+import taskTemplatesRouter from "./task-templates.js";
 
 // Real DB imports — not mocked, use the live database
 import {
@@ -188,6 +194,7 @@ import {
   slaPoliciesTable,
   taskWatchersTable,
   customFieldDefinitionsTable,
+  taskTemplatesTable,
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
@@ -207,6 +214,7 @@ function buildApp(): Express {
   app.use("/api", orgsRouter);
   app.use("/api", savedViewsRouter);
   app.use("/api", customFieldsRouter);
+  app.use("/api", taskTemplatesRouter);
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
     res.status(500).json({ error: err?.message ?? String(err) });
@@ -233,6 +241,8 @@ let orgASavedViewId: number;
 let orgBSavedViewId: number;
 let orgACustomFieldId: number;
 let orgBCustomFieldId: number;
+let orgATemplateId: number;
+let orgBTemplateId: number;
 
 // ---------------------------------------------------------------------------
 // Seed helpers
@@ -447,6 +457,33 @@ beforeAll(async () => {
     })
     .returning({ id: customFieldDefinitionsTable.id });
   orgBCustomFieldId = cfB.id;
+
+  // Seed one task template per org
+  const [tmplA] = await db
+    .insert(taskTemplatesTable)
+    .values({
+      orgId: orgAId,
+      createdBy: orgAUserId,
+      name: "Org A Incident Template",
+      defaultTitle: "Incident: ",
+      defaultPriority: "high",
+      defaultCategory: "incident",
+    })
+    .returning({ id: taskTemplatesTable.id });
+  orgATemplateId = tmplA.id;
+
+  const [tmplB] = await db
+    .insert(taskTemplatesTable)
+    .values({
+      orgId: orgBId,
+      createdBy: orgBUserId,
+      name: "Org B Secret Template",
+      defaultTitle: "Secret: ",
+      defaultPriority: "medium",
+      defaultCategory: "other",
+    })
+    .returning({ id: taskTemplatesTable.id });
+  orgBTemplateId = tmplB.id;
 
   // Point the middleware at Org A
   orgAState.orgId = orgAId;
@@ -1130,5 +1167,27 @@ describeIf("DB isolation — DELETE /api/custom-fields/:id (cross-org delete gua
       .where(eq(customFieldDefinitionsTable.id, orgBCustomFieldId));
     expect(row).toBeDefined();
     expect(row?.deletedAt).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task template isolation
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — GET /api/task-templates", () => {
+  it("returns only Org A templates — Org B template is absent", async () => {
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+    const ids = res.body.map((t: any) => t.id);
+    expect(ids).toContain(orgATemplateId);
+    expect(ids).not.toContain(orgBTemplateId);
+  });
+
+  it("every returned template has orgId === Org A", async () => {
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+    for (const tmpl of res.body) {
+      expect(tmpl.orgId).toBe(orgAId);
+    }
   });
 });
