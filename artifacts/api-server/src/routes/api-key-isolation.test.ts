@@ -188,6 +188,7 @@ vi.mock("drizzle-orm", () => ({
   lte: () => ({}),
   gte: () => ({}),
   isNull: () => ({}),
+  isNotNull: () => ({}),
   inArray: () => ({}),
   asc: () => ({}),
   desc: () => ({}),

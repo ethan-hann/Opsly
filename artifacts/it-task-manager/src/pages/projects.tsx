@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, FolderGit2, Calendar, X } from "lucide-react";
+import { Plus, FolderGit2, Calendar, X, Shield } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import { NewProjectModal } from "@/components/ui/new-project-modal";
@@ -75,7 +75,13 @@ export default function ProjectsList() {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start mb-2">
                       <FolderGit2 className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap justify-end">
+                        {project.hasSlaOverrides && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+                            <Shield className="w-2.5 h-2.5" />
+                            Custom SLA
+                          </span>
+                        )}
                         <StatusBadge status={project.status} />
                       </div>
                     </div>

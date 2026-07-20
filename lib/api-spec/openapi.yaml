@@ -2557,6 +2557,9 @@ components:
         completedTaskCount:
           type: integer
           description: Number of tasks linked to this project with status `done`.
+        hasSlaOverrides:
+          type: boolean
+          description: True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.
         createdAt:
           type: string
           description: ISO 8601 timestamp when the project was created.

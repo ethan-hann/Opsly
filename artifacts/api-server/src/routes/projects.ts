@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, isNull } from "drizzle-orm";
+import { eq, sql, and, isNotNull } from "drizzle-orm";
 import { db, projectsTable, tasksTable, slaPoliciesTable } from "@workspace/db";
 import { z } from "zod";
 import {
@@ -18,17 +18,21 @@ import { dispatchProjectCreated, dispatchProjectUpdated, dispatchProjectDeleted 
 
 const router: IRouter = Router();
 
-function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, completedTaskCount = 0) {
+function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, completedTaskCount = 0, hasSlaOverrides = false) {
   return {
     ...p,
     dueDate: p.dueDate ?? null,
     description: p.description ?? null,
     taskCount,
     completedTaskCount,
+    hasSlaOverrides,
     createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
     updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
   };
 }
+
+const closedStageSubquery = (orgId: string) =>
+  sql`select id from "workflow_stages" where "org_id" = ${orgId} and "type" = 'closed'`;
 
 router.get("/projects", requireOrgOrApiKey, requireScope("projects:read"), async (req, res): Promise<void> => {
   const projects = await db
@@ -38,21 +42,29 @@ router.get("/projects", requireOrgOrApiKey, requireScope("projects:read"), async
     .orderBy(projectsTable.createdAt);
 
   const orgId = req.orgId!;
-  const taskCounts = await db
-    .select({
-      projectId: tasksTable.projectId,
-      total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${orgId} and "type" = 'closed')))::int`,
-    })
-    .from(tasksTable)
-    .where(eq(tasksTable.orgId, orgId))
-    .groupBy(tasksTable.projectId);
+  const [taskCounts, slaOverrideRows] = await Promise.all([
+    db
+      .select({
+        projectId: tasksTable.projectId,
+        total: sql<number>`count(*)::int`,
+        completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ ${'^[0-9]+$'} AND ${tasksTable.status}::int in (${closedStageSubquery(orgId)})))::int`,
+      })
+      .from(tasksTable)
+      .where(eq(tasksTable.orgId, orgId))
+      .groupBy(tasksTable.projectId),
+    db
+      .select({ projectId: slaPoliciesTable.projectId })
+      .from(slaPoliciesTable)
+      .where(and(eq(slaPoliciesTable.orgId, orgId), isNotNull(slaPoliciesTable.projectId)))
+      .groupBy(slaPoliciesTable.projectId),
+  ]);
 
   const countMap = new Map(taskCounts.map((r) => [r.projectId, r]));
+  const slaOverrideSet = new Set(slaOverrideRows.map((r) => r.projectId));
 
   const result = projects.map((p) => {
     const counts = countMap.get(p.id);
-    return serializeProject(p, counts?.total ?? 0, counts?.completed ?? 0);
+    return serializeProject(p, counts?.total ?? 0, counts?.completed ?? 0, slaOverrideSet.has(p.id));
   });
 
   res.json(ListProjectsResponse.parse(result));
@@ -96,7 +108,7 @@ router.get("/projects/:id", requireOrgOrApiKey, requireScope("projects:read"), a
   const [counts] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${getOrgId} and "type" = 'closed')))::int`,
+      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ ${'^[0-9]+$'} AND ${tasksTable.status}::int in (${closedStageSubquery(getOrgId)})))::int`,
     })
     .from(tasksTable)
     .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, getOrgId)));
@@ -132,7 +144,7 @@ router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write")
   const [counts] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${patchOrgId} and "type" = 'closed')))::int`,
+      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ ${'^[0-9]+$'} AND ${tasksTable.status}::int in (${closedStageSubquery(patchOrgId)})))::int`,
     })
     .from(tasksTable)
     .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, patchOrgId)));

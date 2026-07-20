@@ -156,6 +156,8 @@ export interface Project {
   taskCount?: number;
   /** Number of tasks linked to this project with status `done`. */
   completedTaskCount?: number;
+  /** True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults. */
+  hasSlaOverrides?: boolean;
   /** ISO 8601 timestamp when the project was created. */
   createdAt: string;
   /** ISO 8601 timestamp when the project was last updated. */
