@@ -719,7 +719,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                         return (
                           <div key={`comment-${item.id}`} className="flex gap-3 py-3 pl-1">
                             {/* Avatar dot on timeline */}
-                            <div className="w-8 h-8 rounded-full bg-primary/10 border border-primary/20 overflow-hidden shrink-0 flex items-center justify-center z-10">
+                            <div className="w-8 h-8 rounded-full bg-card border border-primary/40 overflow-hidden shrink-0 flex items-center justify-center z-10">
                               {isCurrentUser && user?.profileImageUrl
                                 ? <img src={user.profileImageUrl} alt={item.author ?? ""} className="w-full h-full object-cover" />
                                 : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
@@ -761,15 +761,16 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
                       return (
                         <div key={`event-${item.id}`} className="flex gap-3 py-2 pl-1 items-center">
-                          {/* Icon dot on timeline */}
-                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border ${
+                          {/* Icon dot on timeline — bg-card gives a solid opaque base so the
+                              timeline line doesn't bleed through the semi-transparent tint. */}
+                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border bg-card ${
                             isCreatedEvent
-                              ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+                              ? "border-green-500/50 text-green-600 dark:text-green-400"
                               : isBreachEvent
-                              ? "bg-destructive/10 border-destructive/30 text-destructive"
+                              ? "border-destructive/50 text-destructive"
                               : isWarningEvent
-                              ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                              : "bg-muted border-border text-muted-foreground"
+                              ? "border-amber-500/50 text-amber-600 dark:text-amber-400"
+                              : "border-border text-muted-foreground"
                           }`}>
                             {isCreatedEvent
                               ? <Activity className="w-3.5 h-3.5" />
