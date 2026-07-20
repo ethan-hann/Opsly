@@ -32,7 +32,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { AssigneeCombobox, validateAssignee } from "@/components/ui/assignee-combobox";
+import { AssigneeCombobox } from "@/components/ui/assignee-combobox";
+import { validateAssignee } from "@/lib/validate-assignee";
 
 interface Task {
   id: number;

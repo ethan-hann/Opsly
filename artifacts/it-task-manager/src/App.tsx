@@ -7,7 +7,7 @@ import { useAuth } from '@workspace/replit-auth-web';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
-import { OrgGuard } from '@/hooks/use-org-context';
+import { OrgGuard } from '@/hooks/org-guard';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
