@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useListOrgMembers,
@@ -33,7 +33,7 @@ import {
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Copy, Crown, FileText, GripVertical, Key, Link2, LogOut,
+  AlertTriangle, Building2, Clock, Copy, Crown, Download, FileText, GripVertical, Key, Link2, Loader2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
   Workflow, Check, Eye,
 } from "lucide-react";
@@ -359,6 +359,255 @@ function ApiKeysCard() {
             </div>
           </details>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── ExportCard ───────────────────────────────────────────────────────────────
+
+const EXPORT_SCOPE_OPTIONS = [
+  { value: "tasks", label: "Tasks & custom fields" },
+  { value: "comments", label: "Comments" },
+  { value: "projects", label: "Projects" },
+  { value: "notes", label: "Notes" },
+] as const;
+
+type ExportScopeValue = (typeof EXPORT_SCOPE_OPTIONS)[number]["value"];
+
+interface PendingExport {
+  token: string;
+  filename: string;
+  expiresAt: string;
+}
+
+function ExportCard() {
+  const { toast } = useToast();
+  const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+  const [scope, setScope] = useState<ExportScopeValue[]>(["tasks", "comments", "projects", "notes"]);
+  const [format, setFormat] = useState<"json" | "csv">("json");
+  const [isExporting, setIsExporting] = useState(false);
+  const [jobQueued, setJobQueued] = useState(false);
+  const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
+
+  // Check for a completed background export on mount.
+  useEffect(() => {
+    fetch(`${BASE}/api/export/pending`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { pending: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
+        if (data?.pending && data.token && data.filename && data.expiresAt) {
+          setPendingExport({ token: data.token, filename: data.filename, expiresAt: data.expiresAt });
+        }
+      })
+      .catch(() => {});
+  }, [BASE]);
+
+  function toggleScope(value: ExportScopeValue) {
+    setScope((s) =>
+      s.includes(value) ? s.filter((v) => v !== value) : [...s, value],
+    );
+  }
+
+  async function triggerDownload(token: string) {
+    const res = await fetch(`${BASE}/api/export/download/${token}`, {
+      credentials: "include",
+    });
+    if (!res.ok) {
+      toast({ title: "Export not found or expired", variant: "destructive" });
+      setPendingExport(null);
+      return;
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get("Content-Disposition") ?? "";
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match?.[1] ?? "export";
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleExport() {
+    if (scope.length === 0) return;
+    setIsExporting(true);
+    setJobQueued(false);
+    try {
+      const res = await fetch(`${BASE}/api/export`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope, format }),
+      });
+
+      if (res.status === 202) {
+        // Large org — background job queued.
+        setJobQueued(true);
+        toast({
+          title: "Export queued",
+          description: "You'll be notified when your export is ready to download.",
+        });
+      } else if (res.ok) {
+        // Small org — stream directly.
+        const blob = await res.blob();
+        const cd = res.headers.get("Content-Disposition") ?? "";
+        const match = cd.match(/filename="([^"]+)"/);
+        const filename = match?.[1] ?? `export.${format === "csv" ? "zip" : "json"}`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        toast({ title: "Export downloaded successfully" });
+      } else {
+        const body = await res.json().catch(() => ({ error: "Export failed" }));
+        toast({
+          title: "Export failed",
+          description: (body as { error?: string }).error ?? "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({ title: "Export failed", description: String(err), variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Download className="w-4 h-4" />
+          Export Data
+        </CardTitle>
+        <CardDescription>
+          Download a full copy of your organization's data as JSON or CSV. All exports are
+          org-scoped and exclude member credentials and notification preferences.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+
+        {/* Pending background export ready banner */}
+        {pendingExport && (
+          <div className="flex items-start gap-3 rounded-lg border border-green-500/40 bg-green-500/5 p-4">
+            <Download className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 space-y-2">
+              <div>
+                <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                  Your export is ready
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Available until {new Date(pendingExport.expiresAt).toLocaleString()}
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="gap-1.5"
+                onClick={() => triggerDownload(pendingExport.token)}
+              >
+                <Download className="w-3.5 h-3.5" />
+                Download {pendingExport.filename}
+              </Button>
+            </div>
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setPendingExport(null)}
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Scope selection */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Include
+          </Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {EXPORT_SCOPE_OPTIONS.map((opt) => (
+              <div key={opt.value} className="flex items-center gap-2">
+                <Switch
+                  id={`export-scope-${opt.value}`}
+                  checked={scope.includes(opt.value)}
+                  onCheckedChange={() => toggleScope(opt.value)}
+                  disabled={isExporting}
+                  className="h-4 w-7 data-[state=checked]:bg-primary"
+                />
+                <Label
+                  htmlFor={`export-scope-${opt.value}`}
+                  className="text-sm cursor-pointer"
+                >
+                  {opt.label}
+                </Label>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Format selection */}
+        <div className="space-y-2">
+          <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Format
+          </Label>
+          <div className="flex flex-col gap-2">
+            {(["json", "csv"] as const).map((fmt) => (
+              <label key={fmt} className="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="export-format"
+                  value={fmt}
+                  checked={format === fmt}
+                  onChange={() => setFormat(fmt)}
+                  disabled={isExporting}
+                  className="mt-0.5"
+                />
+                <span className="text-sm">
+                  {fmt === "json" ? (
+                    <>
+                      <span className="font-medium">JSON</span>
+                      <span className="text-muted-foreground"> — single self-describing file, designed for future import</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium">CSV</span>
+                      <span className="text-muted-foreground"> — ZIP archive, one spreadsheet per entity type</span>
+                    </>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Job queued notice */}
+        {jobQueued && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground rounded-md border border-border bg-muted/30 px-3 py-2">
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+            Preparing your export — you'll receive a notification when it's ready.
+          </div>
+        )}
+
+        <Button
+          onClick={handleExport}
+          disabled={isExporting || scope.length === 0}
+          className="gap-2"
+        >
+          {isExporting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          {isExporting ? "Preparing export…" : "Download export"}
+        </Button>
       </CardContent>
     </Card>
   );
@@ -2204,6 +2453,9 @@ export default function OrgSettings() {
           </CardContent>
         </Card>
       )}
+
+      {/* Export Data (admin only) */}
+      {isAdmin && <ExportCard />}
 
       {/* Danger zone */}
       <Card className="border-destructive/30">

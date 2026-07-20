@@ -54,8 +54,11 @@ function writeTsconfig(dir: string): void {
   );
 }
 
+// tsc can take several seconds even on a small fixture; give it ample headroom.
+const TSC_TIMEOUT_MS = 20_000;
+
 describe("typecheck guard — broken API import is caught by tsc", () => {
-  it("tsc exits non-zero when a file imports a symbol that does not exist in @workspace/api-zod", () => {
+  it("tsc exits non-zero when a file imports a symbol that does not exist in @workspace/api-zod", { timeout: TSC_TIMEOUT_MS }, () => {
     const dir = join(tmpdir(), `typecheck-guard-bad-${process.pid}`);
     mkdirSync(dir, { recursive: true });
 
@@ -85,7 +88,7 @@ describe("typecheck guard — broken API import is caught by tsc", () => {
     }
   });
 
-  it("tsc exits zero when a file imports using a namespace wildcard (no false positives)", () => {
+  it("tsc exits zero when a file imports using a namespace wildcard (no false positives)", { timeout: TSC_TIMEOUT_MS }, () => {
     const dir = join(tmpdir(), `typecheck-guard-good-${process.pid}`);
     mkdirSync(dir, { recursive: true });
 

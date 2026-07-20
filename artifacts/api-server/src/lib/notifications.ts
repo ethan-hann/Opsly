@@ -52,7 +52,7 @@ export async function createNotification(opts: {
   type: NotificationType;
   actorId?: string | null;
   actorName?: string | null;
-  entityType: "task" | "comment" | "project";
+  entityType: "task" | "comment" | "project" | "export";
   entityId: number;
   message: string;
 }): Promise<void> {

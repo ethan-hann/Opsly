@@ -27,6 +27,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "comment_added",
   "sla_breached",
   "mention",
+  "export_ready",
 ]);
 
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];

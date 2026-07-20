@@ -24,7 +24,8 @@ type NotificationType =
   | "task_updated"
   | "comment_added"
   | "sla_breached"
-  | "mention";
+  | "mention"
+  | "export_ready";
 
 // ─── Types (local, no codegen needed for this feature) ───────────────────────
 
@@ -105,6 +106,8 @@ function typeIcon(type: NotificationType): string {
       return "🚨";
     case "mention":
       return "👋";
+    case "export_ready":
+      return "📦";
     default:
       return "🔔";
   }
@@ -113,6 +116,7 @@ function typeIcon(type: NotificationType): string {
 function entityLink(entityType: string, entityId: number): string {
   if (entityType === "task") return `/tasks/${entityId}`;
   if (entityType === "project") return `/projects/${entityId}`;
+  if (entityType === "export") return `/org-settings`;
   return `/tasks`;
 }
 
