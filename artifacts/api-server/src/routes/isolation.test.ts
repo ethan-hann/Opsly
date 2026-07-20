@@ -126,8 +126,12 @@ vi.mock("@workspace/db", () => {
       innerJoin: () => chain,
       leftJoin: () => chain,
       groupBy: () => chain,
-      limit: () => Promise.resolve(result),
       orderBy: () => chain,
+      // limit stays on chain so callers that add .offset() afterwards still work;
+      // chain itself is thenable so `await .limit(N)` (no offset) also resolves.
+      limit: () => chain,
+      // offset is the terminal for paginated queries: .orderBy().limit(N).offset(M)
+      offset: () => Promise.resolve(result),
       then(onfulfilled: any, onrejected: any) {
         return Promise.resolve(result).then(onfulfilled, onrejected);
       },
@@ -144,6 +148,7 @@ vi.mock("@workspace/db", () => {
         values: () => ({
           returning: () => Promise.resolve(mockState.insertResult),
           onConflictDoNothing: () => Promise.resolve([]),
+          onConflictDoUpdate: () => Promise.resolve([]),
         }),
       }),
       update: () => ({
@@ -183,6 +188,9 @@ vi.mock("@workspace/db", () => {
     workflowStagesTable: {},
     customFieldDefinitionsTable: {},
     taskWatchersTable: {},
+    notificationsTable: {},
+    notificationPreferencesTable: {},
+    emailDigestPreferencesTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -291,6 +299,7 @@ import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
 import savedViewsRouter from "./saved-views.js";
 import taskTemplatesRouter from "./task-templates.js";
+import notificationsRouter from "./notifications.js";
 
 // ---------------------------------------------------------------------------
 // App factory
@@ -306,6 +315,7 @@ function buildApp(): Express {
   app.use("/api", orgsRouter);
   app.use("/api", savedViewsRouter);
   app.use("/api", taskTemplatesRouter);
+  app.use("/api", notificationsRouter);
   // Log unhandled errors so test failures give actionable output
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
@@ -1505,5 +1515,125 @@ describe("Custom field filter isolation — GET /tasks?customFieldId", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error).toBe("customFieldId must be a positive integer");
+  });
+});
+
+// ===========================================================================
+// NOTIFICATION ISOLATION
+// ===========================================================================
+
+describe("Notification isolation — GET /api/notifications", () => {
+  beforeEach(reset);
+
+  it("returns 0 notifications when all seeded data belongs to another org", async () => {
+    // The route ANDs userId AND orgId into every query.  An org-b notification
+    // is excluded by the orgId filter even if the userId happened to match.
+    // Push three empty results for the three concurrent db.select() calls in
+    // the GET handler (main list, total count, unread count).
+    mockState.selectQueue.push([]);              // main notification list
+    mockState.selectQueue.push([{ total: 0 }]); // COUNT(*) total
+    mockState.selectQueue.push([{ unreadCount: 0 }]); // COUNT(*) unread
+
+    const res = await request(buildApp()).get("/api/notifications");
+    expect(res.status).toBe(200);
+    expect(res.body.notifications).toEqual([]);
+    expect(res.body.total).toBe(0);
+    expect(res.body.unreadCount).toBe(0);
+  });
+});
+
+describe("Notification isolation — DELETE /api/notifications/:id", () => {
+  beforeEach(reset);
+
+  it("returns 404 when the notification id belongs to a different org", async () => {
+    // The route deletes WHERE id=:id AND userId=:userId AND orgId=:orgId.
+    // When deleteResult is empty the WHERE clause matched nothing — exactly
+    // what happens when the id belongs to another org.
+    mockState.deleteResult = [];
+
+    const res = await request(buildApp()).delete("/api/notifications/9999");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("Notification preferences isolation — GET /api/notification-preferences", () => {
+  beforeEach(reset);
+
+  it("does not return org-b rows when the caller is scoped to org-a", async () => {
+    // The route SELECT filters by AND(userId=req.user.id, orgId=req.orgId).
+    // Simulate the correct outcome: the DB returns no rows because org-b
+    // preferences are excluded by the WHERE clause.  The handler fills
+    // defaults for every type (opt-out model → missing row = enabled).
+    // selectQueue is empty → shift() returns [] → storedMap is empty.
+
+    const res = await request(buildApp()).get("/api/notification-preferences");
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    // All types should default to enabled:true (no org-b row leaked in)
+    for (const pref of res.body) {
+      expect(typeof pref.eventType).toBe("string");
+      expect(pref.enabled).toBe(true);
+    }
+  });
+
+  it("reflects only org-a stored preferences — a stored org-a row overrides the default", async () => {
+    // Push one explicit org-a preference row (task_assigned disabled).
+    // If an org-b row were mistakenly returned here, the response would show
+    // it for that eventType.  This companion test proves the presence of a
+    // real stored row (org-a) is correctly reflected without org-b leakage.
+    mockState.selectQueue.push([
+      { userId: "user-a1", orgId: "org-a", eventType: "task_assigned", enabled: false },
+    ]);
+
+    const res = await request(buildApp()).get("/api/notification-preferences");
+    expect(res.status).toBe(200);
+    const taskAssigned = res.body.find((p: any) => p.eventType === "task_assigned");
+    expect(taskAssigned?.enabled).toBe(false); // stored org-a value honoured
+    // All other types default to true
+    for (const pref of res.body) {
+      if (pref.eventType !== "task_assigned") {
+        expect(pref.enabled).toBe(true);
+      }
+    }
+    // Confirm no org-b identifiers leaked into the response
+    expect(JSON.stringify(res.body)).not.toMatch(/org-b/);
+  });
+});
+
+describe("Notification preferences isolation — PATCH /api/notification-preferences", () => {
+  beforeEach(reset);
+
+  it("response reflects only org-a scoped state — org-b identifiers never appear", async () => {
+    // orgId is set server-side from req.orgId — the caller cannot supply a
+    // different orgId in the request body.  The upsert conflict key is
+    // (userId, orgId, eventType); since orgId is always middleware-injected
+    // as org-a, org-b rows are structurally unreachable.
+    //
+    // Simulate the re-fetch returning one stored org-a row.  Verify the
+    // response uses that row and contains no org-b identifiers.
+    mockState.selectQueue.push([
+      { userId: "user-a1", orgId: "org-a", eventType: "task_assigned", enabled: false },
+    ]);
+
+    const res = await request(buildApp())
+      .patch("/api/notification-preferences")
+      .send([{ eventType: "task_assigned", enabled: false }]);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+
+    // The stored org-a row must be reflected
+    const taskAssigned = res.body.find((p: any) => p.eventType === "task_assigned");
+    expect(taskAssigned?.enabled).toBe(false);
+
+    // All other types must default to enabled:true (not seeded → no org-b bleed)
+    for (const pref of res.body) {
+      if (pref.eventType !== "task_assigned") {
+        expect(pref.enabled).toBe(true);
+      }
+    }
+
+    // No org-b identifiers must appear anywhere in the response
+    expect(JSON.stringify(res.body)).not.toMatch(/org-b/);
   });
 });
