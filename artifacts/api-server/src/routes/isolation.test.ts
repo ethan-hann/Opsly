@@ -201,6 +201,7 @@ vi.mock("drizzle-orm", () => ({
   isNull: () => ({}),
   inArray: () => ({}),
   asc: () => ({}),
+  desc: () => ({}),
   sql: () => ({}),
 }));
 

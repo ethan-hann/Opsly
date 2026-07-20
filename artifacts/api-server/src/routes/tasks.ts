@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, lte, gte, or, isNull, asc, inArray } from "drizzle-orm";
+import { eq, sql, and, lt, lte, gte, or, isNull, asc, desc, inArray } from "drizzle-orm";
 import {
   db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable,
   customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable, workflowStagesTable,
@@ -384,14 +384,14 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
         ),
       )
       .where(and(...conditions))
-      .orderBy(tasksTable.createdAt);
+      .orderBy(desc(tasksTable.createdAt));
     tasks = rows.map((r) => r.task);
   } else {
     tasks = await db
       .select()
       .from(tasksTable)
       .where(and(...conditions))
-      .orderBy(tasksTable.createdAt);
+      .orderBy(desc(tasksTable.createdAt));
   }
 
   const stages = tasks.length > 0 ? await getOrgStages(orgId) : new Map();

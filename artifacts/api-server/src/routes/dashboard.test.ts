@@ -57,6 +57,7 @@ vi.mock("@workspace/db", () => {
     lt: () => ({}),
     isNull: () => ({}),
     asc: () => ({}),
+    desc: () => ({}),
   };
 });
 
@@ -67,6 +68,7 @@ vi.mock("drizzle-orm", () => ({
   sql: () => ({}),
   isNull: () => ({}),
   asc: () => ({}),
+  desc: () => ({}),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({

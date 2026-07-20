@@ -108,6 +108,7 @@ vi.mock("drizzle-orm", () => ({
   ne: () => ({}),
   isNull: () => ({}),
   asc: () => ({}),
+  desc: () => ({}),
   inArray: () => ({}),
   sql: () => ({}),
   // getTableColumns is used in the overdue route; returning the table arg lets
