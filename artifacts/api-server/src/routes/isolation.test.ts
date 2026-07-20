@@ -80,6 +80,9 @@ vi.mock("@workspace/api-zod", () => {
     ListTasksQueryParams: p,
     ListTasksResponse: p, CreateTaskResponse: p, GetTaskResponse: p,
     UpdateTaskResponse: p, GetOverdueTasksResponse: p,
+    BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p,
+    BulkDeleteTasksBody: p, BulkDeleteTasksResponse: p,
+    ListTaskEventsParams: p, ListTaskEventsResponse: p,
     // projects
     CreateProjectBody: p, UpdateProjectBody: p,
     GetProjectParams: p, UpdateProjectParams: p, DeleteProjectParams: p,
@@ -184,6 +187,7 @@ vi.mock("drizzle-orm", () => ({
   lte: () => ({}),
   gte: () => ({}),
   isNull: () => ({}),
+  inArray: () => ({}),
   sql: () => ({}),
 }));
 
@@ -584,6 +588,38 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
       .send({ title: "Renamed" });
     expect(res.status).toBe(200);
     expect(res.body.title).toBe("Renamed");
+  });
+});
+
+describe("Bulk task permission — PATCH /api/tasks/bulk close_tasks guard", () => {
+  beforeEach(reset);
+
+  it("returns 403 when bulk-closing tasks without close_tasks permission", async () => {
+    // edit_tasks alone must not be sufficient to close tasks in bulk —
+    // the bulk endpoint must apply the same close_tasks guard as PATCH /tasks/:id.
+    mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [1, 2], patch: { status: "done" } });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/close/i) });
+  });
+
+  it("allows a bulk non-close update (priority) when close_tasks is false", async () => {
+    // close_tasks should only be required when status is being set to "done";
+    // changing an unrelated field (priority) must succeed with just edit_tasks.
+    mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    const prevRow = {
+      id: 1, status: "todo", priority: "medium", assignee: null,
+      category: "incident", title: "Task 1", dueDate: null, projectId: null,
+    };
+    mockState.selectQueue.push([prevRow]); // prevRows fetch
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [1], patch: { priority: "high" } });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 1 });
   });
 });
 
