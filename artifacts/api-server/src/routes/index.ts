@@ -16,6 +16,7 @@ import taskTemplatesRouter from "./task-templates";
 import eventsRouter from "./events";
 import workflowStagesRouter from "./workflow-stages";
 import notificationsRouter from "./notifications";
+import searchRouter from "./search";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(taskTemplatesRouter);
 router.use(eventsRouter);
 router.use(workflowStagesRouter);
 router.use(notificationsRouter);
+router.use(searchRouter);
 
 export default router;

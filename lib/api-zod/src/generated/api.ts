@@ -776,6 +776,43 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 
 
 /**
+ * Runs parallel ILIKE prefix queries on task titles, project names, and note titles/content. All results are scoped to the caller's organization. Returns up to `limit` results per entity type (default 5, max 20). Returns 400 if `q` is missing or blank.
+ * @summary Global search across tasks, projects, and notes
+ */
+export const globalSearchQueryQMax = 200;
+
+export const globalSearchQueryLimitDefault = 5;
+export const globalSearchQueryLimitMax = 20;
+
+
+
+export const GlobalSearchQueryParams = zod.object({
+  "q": zod.coerce.string().min(1).max(globalSearchQueryQMax).describe('Search query string (1–200 characters).'),
+  "limit": zod.coerce.number().min(1).max(globalSearchQueryLimitMax).default(globalSearchQueryLimitDefault).describe('Maximum results per entity type (1–20, default 5).')
+})
+
+export const GlobalSearchResponse = zod.object({
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "status": zod.string(),
+  "priority": zod.string(),
+  "projectId": zod.number().nullish()
+}).describe('A task result returned by the global search endpoint.')),
+  "projects": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string(),
+  "status": zod.string()
+}).describe('A project result returned by the global search endpoint.')),
+  "notes": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "excerpt": zod.string().nullish().describe('Plain-text excerpt of the note content (up to 120 chars, HTML stripped).')
+}).describe('A note result returned by the global search endpoint.'))
+}).describe('Search results grouped by entity type.')
+
+
+/**
  * Partially updates one or more fields across a set of tasks. All supplied `ids` must belong to the caller's organization — any that don't are silently skipped. Requires the `edit_tasks` permission. Inserts one audit event per changed field per task.
  * @summary Bulk update multiple tasks
  */

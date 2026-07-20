@@ -923,6 +923,44 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  /search:
+    get:
+      operationId: globalSearch
+      tags: [search]
+      summary: Global search across tasks, projects, and notes
+      description: >
+        Runs parallel ILIKE prefix queries on task titles, project names, and
+        note titles/content. All results are scoped to the caller's organization.
+        Returns up to `limit` results per entity type (default 5, max 20).
+        Returns 400 if `q` is missing or blank.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query string (1–200 characters).
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results per entity type (1–20, default 5).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+      responses:
+        "200":
+          description: Search results grouped by entity type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResults"
+        "400":
+          description: Missing or invalid query parameter.
+
   /tasks/bulk:
     patch:
       operationId: bulkUpdateTasks
@@ -4013,6 +4051,67 @@ components:
           items:
             type: integer
           description: Stage IDs in the desired display order. Each ID must belong to the caller's org.
+
+    SearchTaskResult:
+      description: A task result returned by the global search endpoint.
+      type: object
+      required: [id, title, status, priority]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+        projectId:
+          type: integer
+          nullable: true
+
+    SearchProjectResult:
+      description: A project result returned by the global search endpoint.
+      type: object
+      required: [id, name, status]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+
+    SearchNoteResult:
+      description: A note result returned by the global search endpoint.
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        excerpt:
+          type: string
+          nullable: true
+          description: Plain-text excerpt of the note content (up to 120 chars, HTML stripped).
+
+    SearchResults:
+      description: Search results grouped by entity type.
+      type: object
+      required: [tasks, projects, notes]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchTaskResult"
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchProjectResult"
+        notes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchNoteResult"
 
     WebhookIngestSuccess:
       description: Confirmation returned after a successful ingest.

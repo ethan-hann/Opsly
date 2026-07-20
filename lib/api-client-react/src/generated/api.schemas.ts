@@ -1885,6 +1885,45 @@ export interface WorkflowStageReorderInput {
 }
 
 /**
+ * A task result returned by the global search endpoint.
+ */
+export interface SearchTaskResult {
+  id: number;
+  title: string;
+  status: string;
+  priority: string;
+  projectId?: number | null;
+}
+
+/**
+ * A project result returned by the global search endpoint.
+ */
+export interface SearchProjectResult {
+  id: number;
+  name: string;
+  status: string;
+}
+
+/**
+ * A note result returned by the global search endpoint.
+ */
+export interface SearchNoteResult {
+  id: number;
+  title: string;
+  /** Plain-text excerpt of the note content (up to 120 chars, HTML stripped). */
+  excerpt?: string | null;
+}
+
+/**
+ * Search results grouped by entity type.
+ */
+export interface SearchResults {
+  tasks: SearchTaskResult[];
+  projects: SearchProjectResult[];
+  notes: SearchNoteResult[];
+}
+
+/**
  * Confirmation returned after a successful ingest.
  */
 export interface WebhookIngestSuccess {
@@ -1976,6 +2015,21 @@ projectId?: number;
  * Return only notes linked to this task ID.
  */
 taskId?: number;
+};
+
+export type GlobalSearchParams = {
+/**
+ * Search query string (1–200 characters).
+ * @minLength 1
+ * @maxLength 200
+ */
+q: string;
+/**
+ * Maximum results per entity type (1–20, default 5).
+ * @minimum 1
+ * @maximum 20
+ */
+limit?: number;
 };
 
 export type ListCustomFieldDefinitionsParams = {

@@ -21,6 +21,7 @@ import {
   Trash2,
   Star,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -43,6 +44,7 @@ import { useListViews, useUpdateView, useDeleteView } from "@workspace/api-clien
 import type { SavedView } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { NotificationBell } from "@/components/notification-bell";
+import { useGlobalSearch } from "@/hooks/use-global-search";
 
 const mainNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -269,6 +271,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { setTheme } = useTheme();
   const { user, logout } = useAuth();
   const { isAdmin, org } = useOrgContext();
+  const { open: openSearch } = useGlobalSearch();
 
   // Mobile: drawer open/closed
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -306,14 +309,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               Opsly
             </span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={() => setMobileOpen(!mobileOpen)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              aria-label="Search (Ctrl+K)"
+              onClick={openSearch}
+            >
+              <Search className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0"
+              onClick={() => setMobileOpen(!mobileOpen)}
+            >
+              <Menu className="w-5 h-5" />
+            </Button>
+          </div>
         </header>
 
         {/* ── Sidebar ─────────────────────────────────────────────────────── */}
@@ -393,6 +407,36 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <nav
             className={`flex-1 py-4 space-y-0.5 overflow-y-auto ${collapsed ? "px-2" : "px-3"}`}
           >
+            {/* Search trigger */}
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={openSearch}
+                    aria-label="Search (⌘K)"
+                    className="flex justify-center items-center w-full py-2.5 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+                  >
+                    <Search className="w-4 h-4 shrink-0" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">
+                  <p>Search <kbd className="ml-1 text-[10px] opacity-60">⌘K</kbd></p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <button
+                onClick={openSearch}
+                aria-label="Search (⌘K)"
+                className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+              >
+                <Search className="w-4 h-4 shrink-0" />
+                <span className="flex-1 text-left">Search</span>
+                <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-sidebar-border bg-sidebar-accent/30 px-1.5 text-[10px] font-medium text-sidebar-foreground/40">
+                  ⌘K
+                </kbd>
+              </button>
+            )}
+
             {allNavItems.map(({ href, label, icon: Icon }) => {
               const isActive =
                 location === href ||

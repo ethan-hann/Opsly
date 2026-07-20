@@ -8,6 +8,8 @@ import { useAuth } from '@workspace/replit-auth-web';
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
 import { OrgGuard } from '@/hooks/org-guard';
+import { GlobalSearchProvider } from '@/hooks/use-global-search';
+import { GlobalSearchPalette } from '@/components/global-search-palette';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
@@ -103,19 +105,22 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-            <Switch>
-              {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
-                  users can see the invite details before being asked to log in */}
-              <Route path="/invite/:token" component={InvitePage} />
-              <Route>
-                <AuthGuard>
-                  <OrgAwareApp />
-                </AuthGuard>
-              </Route>
-            </Switch>
-          </WouterRouter>
-          <Toaster />
+          <GlobalSearchProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <Switch>
+                {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
+                    users can see the invite details before being asked to log in */}
+                <Route path="/invite/:token" component={InvitePage} />
+                <Route>
+                  <AuthGuard>
+                    <OrgAwareApp />
+                  </AuthGuard>
+                </Route>
+              </Switch>
+            </WouterRouter>
+            <GlobalSearchPalette />
+            <Toaster />
+          </GlobalSearchProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
