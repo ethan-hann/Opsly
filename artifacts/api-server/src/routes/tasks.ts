@@ -1068,6 +1068,11 @@ router.delete("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asy
 });
 
 router.get("/tasks/:id/events", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "view_audit_log")) {
+    res.status(403).json({ error: "You do not have permission to view the audit log" });
+    return;
+  }
+
   const params = ListTaskEventsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

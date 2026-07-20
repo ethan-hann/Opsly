@@ -28,6 +28,8 @@ const mockState = vi.hoisted(() => ({
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
+  // Flipped to false in tests that simulate a member without audit-log access.
+  viewAuditLog: true,
 }));
 
 // ---------------------------------------------------------------------------
@@ -146,7 +148,8 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
       delete_tasks: true, manage_projects: true, manage_org_settings: true,
       manage_members: true, manage_webhooks: true, manage_api_keys: true,
       manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
-      manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+      manage_task_templates: true, manage_saved_views: true,
+      view_audit_log: mockState.viewAuditLog,
     };
     next();
   },
@@ -158,7 +161,8 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
       delete_tasks: true, manage_projects: true, manage_org_settings: true,
       manage_members: true, manage_webhooks: true, manage_api_keys: true,
       manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
-      manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+      manage_task_templates: true, manage_saved_views: true,
+      view_audit_log: mockState.viewAuditLog,
     };
     next();
   },
@@ -1059,6 +1063,7 @@ describe("GET /api/tasks/:id/events", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    mockState.viewAuditLog = true; // restore default so permission tests are isolated
   });
 
   const MOCK_EVENT = {
@@ -1129,6 +1134,27 @@ describe("GET /api/tasks/:id/events", () => {
       newValue: "in_progress",
       createdAt: expect.any(String),
     });
+  });
+
+  it("returns 403 when the caller lacks the view_audit_log permission", async () => {
+    mockState.viewAuditLog = false;
+    // No selectQueue entries needed — the permission check fires before any DB call.
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 200 when the caller has view_audit_log: true", async () => {
+    // viewAuditLog defaults to true in beforeEach — no override needed.
+    mockState.selectQueue.push([MOCK_TASK]);  // task ownership check
+    mockState.selectQueue.push([MOCK_EVENT]); // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
   });
 });
 
