@@ -1003,6 +1003,47 @@ describe("Saved view isolation — GET /api/views", () => {
     expect(res.body).toHaveLength(2);
     expect(res.body.every((v: any) => v.orgId === "org-a")).toBe(true);
   });
+
+  it("does not return user-a1's private view when caller is user-a2", async () => {
+    // Switch the authenticated caller to user-a2 (same org, different member).
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+
+    // The DB applies AND(orgId='org-a', OR(createdBy='user-a2', isOrgWide=true)).
+    // user-a1's private view (id: 10) is excluded by that clause — only user-a2's
+    // personal view (id: 5) comes back.
+    const a2PersonalView = { ...ORG_B_VIEW, id: 5, orgId: "org-a", createdBy: "user-a2", isOrgWide: false };
+    mockState.selectQueue.push([a2PersonalView]);
+
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].id).toBe(5);
+    expect(res.body[0].createdBy).toBe("user-a2");
+    // user-a1's private view must be absent
+    expect(res.body.some((v: any) => v.createdBy === "user-a1")).toBe(false);
+  });
+
+  it("includes an org-wide view created by user-a1 when caller is user-a2", async () => {
+    // Caller is user-a2; user-a1 has both a private view and an org-wide view.
+    // Only the org-wide view should appear (isOrgWide=true satisfies the OR clause).
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+
+    // DB returns the org-wide view (created by user-a1) together with user-a2's
+    // personal view — user-a1's private view (not in the queue) is absent.
+    const a1OrgWideView  = { ...ORG_B_VIEW, id: 3, orgId: "org-a", createdBy: "user-a1", isOrgWide: true };
+    const a2PersonalView = { ...ORG_B_VIEW, id: 5, orgId: "org-a", createdBy: "user-a2", isOrgWide: false };
+    mockState.selectQueue.push([a1OrgWideView, a2PersonalView]);
+
+    const res = await request(buildApp()).get("/api/views");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    // The org-wide view from user-a1 IS visible to user-a2
+    expect(res.body.some((v: any) => v.id === 3 && v.isOrgWide === true)).toBe(true);
+    // user-a2's own personal view IS also present
+    expect(res.body.some((v: any) => v.id === 5 && v.createdBy === "user-a2")).toBe(true);
+  });
 });
 
 describe("Saved view isolation — PATCH /api/views/:id", () => {
