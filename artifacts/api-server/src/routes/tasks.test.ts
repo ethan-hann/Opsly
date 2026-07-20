@@ -22,6 +22,9 @@ import express from "express";
 // ---------------------------------------------------------------------------
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
+  // Tracks every argument passed to db.insert(...).values(arg) in insertion order.
+  // insertCalls[0] is the first .values() call, insertCalls[1] the second, etc.
+  insertCalls: [] as any[],
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
@@ -54,9 +57,12 @@ vi.mock("@workspace/db", () => {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
       insert: () => ({
-        values: () => ({
-          returning: () => Promise.resolve(mockState.insertResult),
-        }),
+        values: (...args: any[]) => {
+          mockState.insertCalls.push(args[0]);
+          return {
+            returning: () => Promise.resolve(mockState.insertResult),
+          };
+        },
       }),
       update: () => ({
         set: () => ({
@@ -930,6 +936,26 @@ describe("GET /api/tasks/:id/events", () => {
     const res = await request(buildApp()).get("/api/tasks/bad-id/events");
     expect(res.status).toBe(400);
   });
+
+  it("returns the full event shape including all expected fields", async () => {
+    mockState.selectQueue.push([MOCK_TASK]); // task ownership check
+    mockState.selectQueue.push([MOCK_EVENT]); // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({
+      id: 1,
+      taskId: 1,
+      orgId: "test-org",
+      actorId: "user-owner",
+      actorName: "Alice Smith",
+      field: "status",
+      oldValue: "todo",
+      newValue: "in_progress",
+      createdAt: expect.any(String),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -939,6 +965,7 @@ describe("GET /api/tasks/:id/events", () => {
 describe("POST /api/tasks - event emission", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
     mockState.insertResult = [MOCK_TASK];
     mockState.updateResult = [];
     mockState.deleteResult = [];
@@ -956,15 +983,45 @@ describe("POST /api/tasks - event emission", () => {
 
     expect(res.status).toBe(201);
   });
+
+  it("inserts a 'created' event with field='created', newValue=task title, oldValue=null", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);   // comment count
+
+    await request(buildApp()).post("/api/tasks").send(VALID_TASK_BODY);
+
+    // insertCalls[0] = task row insert (.values() on tasksTable)
+    // insertCalls[1] = "created" event insert (.values() on taskEventsTable)
+    expect(mockState.insertCalls).toHaveLength(2);
+    expect(mockState.insertCalls[1]).toMatchObject({
+      taskId: MOCK_TASK.id,
+      orgId: "test-org",
+      field: "created",
+      oldValue: null,
+      newValue: MOCK_TASK.title,
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
 // PATCH /tasks event emission
 // ---------------------------------------------------------------------------
 
+// Full snapshot for all TRACKED_FIELDS — ensures no spurious diff events.
+const FULL_PREV_SNAPSHOT = {
+  status: "todo" as const,
+  priority: "medium" as const,
+  assignee: null as string | null,
+  category: "incident" as const,
+  title: "Fix the server",
+  dueDate: null as string | null,
+  projectId: null as number | null,
+};
+
 describe("PATCH /api/tasks/:id - event emission", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
     mockState.insertResult = [];
     mockState.updateResult = [MOCK_TASK];
     mockState.deleteResult = [];
@@ -993,6 +1050,83 @@ describe("PATCH /api/tasks/:id - event emission", () => {
       .send({ status: "done" });
 
     expect(res.status).toBe(404);
+  });
+
+  it("emits exactly one event for the changed field and none for unchanged fields", async () => {
+    // Only status changes: todo → in_progress.
+    // All other tracked fields are identical between prev and next.
+    const updated = { ...MOCK_TASK, status: "in_progress" };
+    mockState.updateResult = [updated];
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]); // prev state — all 7 tracked fields
+    mockState.selectQueue.push([{ count: 0 }]);        // comment count
+
+    await request(buildApp()).patch("/api/tasks/1").send({ status: "in_progress" });
+
+    // insertChangeEvents inserts one batch with exactly the changed fields
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      taskId: 1,
+      orgId: "test-org",
+      field: "status",
+      oldValue: "todo",
+      newValue: "in_progress",
+    });
+  });
+
+  it("emits no events for a no-op PATCH where all values are already identical", async () => {
+    // Sending { status: "todo" } when the task is already "todo" produces no diff.
+    // insertChangeEvents skips the DB insert entirely when there are no changed fields.
+    mockState.updateResult = [MOCK_TASK]; // returned task matches FULL_PREV_SNAPSHOT
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp()).patch("/api/tasks/1").send({ status: "todo" });
+
+    expect(mockState.insertCalls).toHaveLength(0);
+  });
+
+  it("records oldValue and sets newValue=null when a tracked field is cleared to null", async () => {
+    // Task currently has assignee set; PATCH clears it.
+    const prevWithAssignee = { ...FULL_PREV_SNAPSHOT, assignee: "alice@example.com" };
+    const updatedTask = { ...MOCK_TASK, assignee: null };
+    mockState.updateResult = [updatedTask];
+    mockState.selectQueue.push([prevWithAssignee]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    // assignee: null bypasses the assignee-validation guard (falsy check)
+    await request(buildApp()).patch("/api/tasks/1").send({ assignee: null });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      field: "assignee",
+      oldValue: "alice@example.com",
+      newValue: null,
+    });
+  });
+
+  it("emits one event per changed field when multiple fields change simultaneously", async () => {
+    const updated = { ...MOCK_TASK, status: "in_progress", priority: "high" };
+    mockState.updateResult = [updated];
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ status: "in_progress", priority: "high" });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(2);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: "status", oldValue: "todo", newValue: "in_progress" }),
+        expect.objectContaining({ field: "priority", oldValue: "medium", newValue: "high" }),
+      ]),
+    );
   });
 });
 
