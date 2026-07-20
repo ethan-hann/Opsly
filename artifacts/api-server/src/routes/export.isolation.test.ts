@@ -371,3 +371,114 @@ describe("Export isolation — POST /export", () => {
     expect(body.comments).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Background export job isolation
+//
+// Large-org exports (≥ 10k rows) return 202 immediately and run fetchExportData
+// inside a setTimeout callback. The orgId is captured from req.orgId in the
+// closure at POST time — not re-read from any client-supplied value — so the
+// background job is always scoped to the org that made the original request.
+//
+// These tests advance fake timers to let the job complete, then download the
+// result and verify isolation end-to-end:
+//
+//   POST /export  →  202
+//   vi.runAllTimersAsync()  (fires setTimeout, awaits all async work inside)
+//   GET /export/pending  →  { pending: true, token }
+//   GET /export/download/:token  →  org-a data only
+// ---------------------------------------------------------------------------
+
+describe("Background export job isolation — large-org path", () => {
+  beforeEach(() => {
+    reset();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("background job uses org-a's orgId captured at request time — org-b data never appears in the download", async () => {
+    const app = buildApp();
+
+    // countTotalRows: tasks count ≥ 10 000 → triggers the 202 background path.
+    mockState.selectQueue.push([{ c: 15_000 }]);
+
+    // The background job calls fetchExportData("org-a", ["tasks"]).
+    // The mock returns only org-a's row, simulating WHERE orgId='org-a'.
+    mockState.selectQueue.push([]);           // custom field definitions (none for org-a)
+    mockState.selectQueue.push([ORG_A_TASK]); // tasks rows — org-b task is absent
+
+    // Step 1: POST — route returns 202 immediately; background job is scheduled.
+    const postRes = await request(app)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json" });
+
+    expect(postRes.status).toBe(202);
+    expect(postRes.body).toMatchObject({ status: "pending" });
+
+    // Step 2: advance fake timers — fires setTimeout(callback, 0) and awaits
+    // all async operations inside (fetchExportData, serializeJson, createNotification).
+    await vi.runAllTimersAsync();
+
+    // Step 3: GET /export/pending — background job has stored the token.
+    const pendingRes = await request(app).get("/export/pending");
+
+    expect(pendingRes.status).toBe(200);
+    expect(pendingRes.body.pending).toBe(true);
+    const token = pendingRes.body.token as string;
+    expect(typeof token).toBe("string");
+
+    // Step 4: GET /export/download/:token — download and verify org isolation.
+    const dlRes = await request(app).get(`/export/download/${token}`);
+
+    expect(dlRes.status).toBe(200);
+    const body = JSON.parse(dlRes.text) as {
+      meta: { orgId: string };
+      tasks: Array<{ id: number }>;
+    };
+
+    // meta.orgId must be org-a — the orgId captured in the closure at POST time.
+    expect(body.meta.orgId).toBe("org-a");
+
+    // Org A task is present; Org B task is absent.
+    const taskIds = body.tasks.map((t) => t.id);
+    expect(taskIds).toContain(ORG_A_TASK.id);
+    expect(taskIds).not.toContain(ORG_B_TASK.id);
+  });
+
+  it("background job orgId is immutable — a forged body orgId has no effect on what data is exported", async () => {
+    const app = buildApp();
+
+    // Large-org count triggers 202 path regardless of what body orgId the client sends.
+    mockState.selectQueue.push([{ c: 20_000 }]);
+
+    // Background job will call fetchExportData("org-a", ["tasks"]) — the middleware
+    // always sets req.orgId = "org-a" and the handler captures that value.
+    // No org-b data is ever in the queue.
+    mockState.selectQueue.push([]);           // custom field defs
+    mockState.selectQueue.push([ORG_A_TASK]); // only org-a tasks
+
+    // Client attempts to inject orgId: "org-b" in the body — this field is ignored;
+    // ExportBodySchema only accepts scope and format.
+    const postRes = await request(app)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json", orgId: "org-b" });
+
+    expect(postRes.status).toBe(202);
+
+    await vi.runAllTimersAsync();
+
+    const pendingRes = await request(app).get("/export/pending");
+    expect(pendingRes.body.pending).toBe(true);
+
+    const dlRes = await request(app).get(`/export/download/${pendingRes.body.token}`);
+    expect(dlRes.status).toBe(200);
+
+    const body = JSON.parse(dlRes.text) as { meta: { orgId: string } };
+    // orgId in the export is always org-a — the server-side value, not the injected one.
+    expect(body.meta.orgId).toBe("org-a");
+    expect(body.meta.orgId).not.toBe("org-b");
+  });
+});
