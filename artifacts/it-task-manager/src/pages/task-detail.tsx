@@ -70,6 +70,27 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
     return `Task created: "${newValue ?? ""}"`;
   }
 
+  if (field === "sla_breached") {
+    return "SLA deadline breached";
+  }
+
+  if (field === "sla_warning") {
+    if (newValue) {
+      try {
+        const projected = new Date(newValue);
+        const now = new Date();
+        const diffMs = projected.getTime() - now.getTime();
+        const diffMin = Math.round(diffMs / 60_000);
+        if (diffMin > 0) {
+          return `SLA warning — breach projected in ${diffMin}m`;
+        }
+      } catch {
+        // fall through to generic label
+      }
+    }
+    return "SLA warning fired";
+  }
+
   // Custom-field audit events use a "cf:<fieldName>" prefix so they can be
   // distinguished from standard task fields and rendered with their real name.
   if (field.startsWith("cf:")) {

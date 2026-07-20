@@ -18,7 +18,7 @@
  */
 
 import { and, eq, isNull } from "drizzle-orm";
-import { db, tasksTable, slaPoliciesTable, workflowStagesTable } from "@workspace/db";
+import { db, tasksTable, slaPoliciesTable, workflowStagesTable, taskEventsTable } from "@workspace/db";
 import { getSlaStatus } from "./sla";
 import { dispatchTaskSlaBreached, dispatchSlaWarning } from "./webhook-dispatcher";
 import { logger } from "./logger";
@@ -107,6 +107,16 @@ export async function detectAndMarkSlaBreaches(
               ? (slaResult.resolutionMinutesRemaining ?? 0)
               : (slaResult.responseMinutesRemaining ?? 0),
           );
+          // Audit trail: record breach timestamp in task history
+          await db.insert(taskEventsTable).values({
+            taskId: task.id,
+            orgId,
+            actorId: null,
+            actorName: null,
+            field: "sla_breached",
+            oldValue: null,
+            newValue: now.toISOString(),
+          });
           logger.info(
             { taskId: task.id, orgId, minutesOverdue },
             "SLA breached — dispatching webhook",
@@ -166,6 +176,16 @@ export async function detectAndMarkSlaBreaches(
             .returning({ id: tasksTable.id });
 
           if (updated) {
+            // Audit trail: record warning timestamp in task history
+            await db.insert(taskEventsTable).values({
+              taskId: task.id,
+              orgId,
+              actorId: null,
+              actorName: null,
+              field: "sla_warning",
+              oldValue: null,
+              newValue: projectedBreachAt,
+            });
             logger.info(
               { taskId: task.id, orgId, percentElapsed: Math.round(maxFraction * 100) },
               "SLA warning — dispatching webhook",

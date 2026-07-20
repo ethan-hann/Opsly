@@ -29,6 +29,7 @@ const mockState = vi.hoisted(() => {
     ALL_PERMS,
     selectQueue: [] as any[][],
     insertQueue: [] as any[][],  // each entry → result of insert().values().returning()
+    insertPayloads: [] as any[], // capture of every .values(payload) call
     updateQueue: [] as any[][],  // each entry → result of update().set().where().returning()
     updateCalls: 0,
     deleteCalls: 0,
@@ -69,7 +70,8 @@ vi.mock("@workspace/db", () => {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
       insert: () => ({
-        values: () => {
+        values: (payload: any) => {
+          mockState.insertPayloads.push(payload);
           const next = mockState.insertQueue.shift() ?? [];
           return Object.assign(noop(), { returning: () => Promise.resolve(next) });
         },
@@ -329,6 +331,7 @@ beforeEach(() => {
 
   mockState.selectQueue.length = 0;
   mockState.insertQueue.length = 0;
+  mockState.insertPayloads.length = 0;
   mockState.updateQueue.length = 0;
   mockState.updateCalls = 0;
   mockState.deleteCalls = 0;
@@ -732,5 +735,90 @@ describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tas
     expect(res.status).toBe(200);
     expect(mockState.updateCalls).toBe(0);
     expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectAndMarkSlaBreaches — audit trail (task_events rows)
+// ---------------------------------------------------------------------------
+
+describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
+  it("inserts a task_event row with field='sla_breached' when the resolution SLA is breached", async () => {
+    mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages
+    mockState.selectQueue.push([BREACH_POLICY]);
+    mockState.updateQueue.push([{ id: BREACHED_TASK.id }]); // atomic update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    // The audit event insert must have been called with the breach payload
+    expect(mockState.insertPayloads).toContainEqual(
+      expect.objectContaining({
+        taskId: BREACHED_TASK.id,
+        orgId: "test-org",
+        actorId: null,
+        actorName: null,
+        field: "sla_breached",
+        oldValue: null,
+        newValue: expect.any(String), // ISO timestamp of breach
+      }),
+    );
+  });
+
+  it("does not insert a sla_breached event when the DB update returns empty (race lost)", async () => {
+    mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages
+    mockState.selectQueue.push([BREACH_POLICY]);
+    mockState.updateQueue.push([]);              // another process won
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    const slaBreachInserts = mockState.insertPayloads.filter(
+      (p: any) => p?.field === "sla_breached",
+    );
+    expect(slaBreachInserts).toHaveLength(0);
+  });
+
+  it("inserts a task_event row with field='sla_warning' when the warning threshold is crossed", async () => {
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages
+    mockState.selectQueue.push([WARNING_POLICY]);
+    mockState.updateQueue.push([{ id: WARNING_TASK.id }]); // atomic update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.insertPayloads).toContainEqual(
+      expect.objectContaining({
+        taskId: WARNING_TASK.id,
+        orgId: "test-org",
+        actorId: null,
+        actorName: null,
+        field: "sla_warning",
+        oldValue: null,
+        newValue: expect.any(String), // projected breach ISO timestamp
+      }),
+    );
+  });
+
+  it("does not insert a sla_warning event when the DB update returns empty (race lost)", async () => {
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages
+    mockState.selectQueue.push([WARNING_POLICY]);
+    mockState.updateQueue.push([]);              // another process won
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    const slaWarnInserts = mockState.insertPayloads.filter(
+      (p: any) => p?.field === "sla_warning",
+    );
+    expect(slaWarnInserts).toHaveLength(0);
   });
 });
