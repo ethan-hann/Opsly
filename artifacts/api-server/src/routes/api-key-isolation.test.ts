@@ -545,3 +545,66 @@ describe("API key org isolation — DELETE /api/tasks/:id (write)", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ===========================================================================
+// Project write isolation
+// ===========================================================================
+
+describe("API key org isolation — POST /api/projects (write)", () => {
+  beforeEach(reset);
+
+  it("creates a project under org-a even when the request body includes orgId: 'org-b'", async () => {
+    // The API key sets req.orgId = 'org-a' server-side. The handler always uses
+    // req.orgId! for the INSERT — any orgId field in the request body is ignored.
+    mockState.insertResult = [ORG_A_PROJECT];
+
+    const res = await request(buildApp())
+      .post("/api/projects")
+      .send({
+        name: "Injected project",
+        priority: "medium",
+        orgId: "org-b", // ← attacker attempts to inject a different org
+      });
+
+    expect(res.status).toBe(201);
+    // The returned project belongs to org-a (from insertResult) — org-b injection had no effect.
+    expect(res.body.orgId).toBe("org-a");
+  });
+
+  it("returns 403 when the key lacks projects:write scope", async () => {
+    authState.scopes = ["projects:read"]; // write scope absent
+
+    const res = await request(buildApp())
+      .post("/api/projects")
+      .send({ name: "New project", priority: "medium" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("insufficient_scope");
+  });
+});
+
+describe("API key org isolation — PATCH /api/projects/:id (write)", () => {
+  beforeEach(reset);
+
+  it("returns 404 for an org-b project ID — org-a key cannot update org-b projects", async () => {
+    // PATCH handler: UPDATE projects SET ... WHERE id=:id AND orgId=req.orgId ('org-a') RETURNING.
+    // The org-b project does not match → updateResult is [] → project undefined → 404.
+    const res = await request(buildApp())
+      .patch(`/api/projects/${ORG_B_PROJECT_ID}`)
+      .send({ name: "Renamed" });
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("API key org isolation — DELETE /api/projects/:id (write)", () => {
+  beforeEach(reset);
+
+  it("returns 404 for an org-b project ID — org-a key cannot delete org-b projects", async () => {
+    // DELETE handler: DELETE FROM projects WHERE id=:id AND orgId=req.orgId ('org-a') RETURNING.
+    // The org-b project does not match → deleteResult is [] → project undefined → 404.
+    const res = await request(buildApp()).delete(`/api/projects/${ORG_B_PROJECT_ID}`);
+
+    expect(res.status).toBe(404);
+  });
+});
