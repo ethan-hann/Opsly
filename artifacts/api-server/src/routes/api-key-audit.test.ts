@@ -220,6 +220,24 @@ function buildApiKeyApp() {
   return app;
 }
 
+/**
+ * API key app — like buildApiKeyApp() but apiKeyName is intentionally absent.
+ * Exercises the `req.apiKeyName ?? req.apiKeyId` fallback in resolveActor so
+ * that a middleware regression setting only apiKeyId never produces
+ * "API key: undefined" in the audit log.
+ */
+function buildApiKeyAppNoName() {
+  const app = express();
+  app.use(express.json());
+  app.use((req: any, _res: any, next: any) => {
+    req.apiKeyId = "key-abc-123";
+    // apiKeyName intentionally omitted — fallback must use apiKeyId
+    next();
+  });
+  app.use("/api", tasksRouter);
+  return app;
+}
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -296,6 +314,24 @@ describe("POST /api/tasks — API key actor attribution", () => {
     });
   });
 
+  it("falls back to the key ID in actorName when apiKeyName is absent (no 'undefined' leak)", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApiKeyAppNoName())
+      .post("/api/tasks")
+      .send(VALID_TASK_BODY);
+
+    expect(res.status).toBe(201);
+    expect(mockState.insertCalls[1]).toMatchObject({
+      field: "created",
+      actorId: "key-abc-123",
+      actorName: "API key: key-abc-123", // ID used as fallback — never "API key: undefined"
+    });
+  });
+
   it("writes actorId = user ID and actorName = display name when using session auth (control)", async () => {
     mockState.selectQueue.push([MOCK_STAGE]);
     mockState.selectQueue.push([{ nextNum: 1 }]);
@@ -346,6 +382,23 @@ describe("PATCH /api/tasks/:id — API key actor attribution", () => {
       field: "priority",
       actorId: "key-abc-123",
       actorName: "API key: CI Pipeline",
+    });
+  });
+
+  it("falls back to the key ID in actorName when apiKeyName is absent (no 'undefined' leak)", async () => {
+    mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApiKeyAppNoName())
+      .patch("/api/tasks/1")
+      .send({ priority: "high" });
+
+    expect(res.status).toBe(200);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events[0]).toMatchObject({
+      actorId: "key-abc-123",
+      actorName: "API key: key-abc-123",
     });
   });
 
@@ -402,6 +455,23 @@ describe("PATCH /api/tasks/bulk — API key actor attribution", () => {
         actorName: "API key: CI Pipeline",
       });
     }
+  });
+
+  it("falls back to the key ID in actorName when apiKeyName is absent (no 'undefined' leak)", async () => {
+    const prevRows = [{ id: 1, ...FULL_PREV_SNAPSHOT }];
+    mockState.selectQueue.push(prevRows);
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApiKeyAppNoName())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [1], patch: { priority: "high" } });
+
+    expect(res.status).toBe(200);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events[0]).toMatchObject({
+      actorId: "key-abc-123",
+      actorName: "API key: key-abc-123",
+    });
   });
 
   it("writes actorId = user ID on bulk change events when using session auth (control)", async () => {
