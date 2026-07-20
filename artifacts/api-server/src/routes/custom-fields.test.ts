@@ -386,6 +386,23 @@ describe("PATCH /api/custom-fields/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body.options).toEqual(["prod", "staging", "qa"]);
   });
+
+  it("renaming a field does not write any task_events rows (pre-existing audit history is preserved as-is)", async () => {
+    // A rename-only PATCH sends only { name } — no options update → the option-removal
+    // conflict guard is skipped entirely, so db.insert(taskEventsTable) is never called.
+    // This guarantees pre-existing events that say "cf:OldName" are never back-patched.
+    mockState.insertCalls.length = 0;
+    mockState.updateResult = [{ ...MOCK_DEF, name: "Impact" }];
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/1")
+      .send({ name: "Impact" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Impact");
+    // No taskEventsTable inserts — history rows written under "cf:Severity" are untouched
+    expect(mockState.insertCalls).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -600,6 +617,30 @@ describe("PATCH /api/custom-fields/:id — audit events for force cleanup", () =
 
     // 409 is returned before any event insertion
     expect(mockState.insertCalls).toHaveLength(0);
+  });
+
+  it("uses the pre-rename field name in audit events when name and options are updated together", async () => {
+    // When a PATCH sends both { name: "Env", options: [...], force: true }, the audit
+    // events are written BEFORE the definition update is applied, so currentDef.name
+    // ("Environment") is used — not the incoming new name ("Env").
+    // This means the audit trail reads "cf:Environment cleared" regardless of any
+    // subsequent rename, matching what older events already record.
+    const affectedTasks = [{ id: 10, customFields: { "2": "dev" } }];
+    mockState.selectQueue.push([SINGLE_SELECT_DEF]); // currentDef — name is still "Environment"
+    mockState.selectQueue.push(affectedTasks);
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, name: "Env", options: ["prod", "staging"] }];
+
+    await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ name: "Env", options: ["prod", "staging"], force: true });
+
+    expect(mockState.insertCalls).toHaveLength(1);
+    // Audit label reflects the name at the time of the event, not the new name "Env"
+    expect(mockState.insertCalls[0][0]).toMatchObject({
+      field: "cf:Environment",
+      oldValue: "dev",
+      newValue: null,
+    });
   });
 });
 
