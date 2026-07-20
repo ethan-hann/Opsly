@@ -99,6 +99,16 @@ const PERM_LABELS: Record<PermKey, string> = {
   view_audit_log: "Audit log",
 };
 
+// All permission keys in PERM_GROUPS order — used to build blank permission sets.
+const ALL_PERM_KEYS: PermKey[] = PERM_GROUPS.flatMap((g) => g.keys);
+
+// Starting state for a fresh custom role: every permission off.
+// The API merges over MEMBER_PERMISSIONS when permissions are omitted, but since
+// we always send an explicit object, the sent value is used as-is.
+const BLANK_PERMISSIONS: RolePermissions = Object.fromEntries(
+  ALL_PERM_KEYS.map((k) => [k, false]),
+) as unknown as RolePermissions;
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildInviteLink(token: string): string {
@@ -1443,12 +1453,15 @@ export default function OrgSettings() {
     e.preventDefault();
     const trimmed = newRoleName.trim();
     if (!trimmed) return;
+    // newRolePermissions is always set when the form is open (BLANK_PERMISSIONS
+    // for a fresh role, cloned permissions for a duplicate).
     createRole({
-      data: {
-        name: trimmed,
-        ...(newRolePermissions ? { permissions: newRolePermissions } : {}),
-      },
+      data: { name: trimmed, permissions: newRolePermissions ?? BLANK_PERMISSIONS },
     });
+  }
+
+  function handleNewRolePermToggle(key: PermKey, value: boolean) {
+    setNewRolePermissions((prev) => ({ ...(prev ?? BLANK_PERMISSIONS), [key]: value }));
   }
 
   function handleDuplicate(source: Role) {
@@ -1763,21 +1776,22 @@ export default function OrgSettings() {
               </CardDescription>
             </div>
             {isOwner && !isCreatingRole && (
-              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(null); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
+              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(BLANK_PERMISSIONS); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
                 <Plus className="w-3.5 h-3.5" />
                 New role
               </Button>
             )}
           </div>
           {isOwner && isCreatingRole && (
-            <div className="mt-3 space-y-2">
+            <form onSubmit={handleCreateRole} className="mt-4 rounded-lg border border-border bg-muted/30 p-4 space-y-4">
               {duplicateSourceName && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Copy className="w-3 h-3 shrink-0" />
-                  Duplicating permissions from <strong>{duplicateSourceName}</strong> — rename below, then create.
+                  Copied permissions from <strong>{duplicateSourceName}</strong> — adjust below then save.
                 </p>
               )}
-              <form onSubmit={handleCreateRole} className="flex gap-2">
+              {/* Name row */}
+              <div className="flex gap-2">
                 <Input
                   autoFocus
                   placeholder="Role name"
@@ -1785,16 +1799,43 @@ export default function OrgSettings() {
                   onChange={(e) => setNewRoleName(e.target.value)}
                   maxLength={100}
                   disabled={isCreatingRoleReq}
-                  className="h-8 text-sm"
+                  className="h-8 text-sm flex-1"
                 />
                 <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
-                  {isCreatingRoleReq ? "Creating…" : "Create"}
+                  {isCreatingRoleReq ? "Creating…" : "Create role"}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={cancelCreateRole}>
                   Cancel
                 </Button>
-              </form>
-            </div>
+              </div>
+              {/* Permission groups */}
+              <div className="space-y-3">
+                {PERM_GROUPS.map((group) => (
+                  <div key={group.label}>
+                    <p className="text-xs font-medium text-muted-foreground mb-1.5">{group.label}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {group.keys.map((key) => (
+                        <div key={key} className="flex items-center gap-2">
+                          <Switch
+                            id={`new-role-${key}`}
+                            checked={newRolePermissions?.[key] ?? false}
+                            onCheckedChange={(v) => handleNewRolePermToggle(key, v)}
+                            disabled={isCreatingRoleReq}
+                            className="h-4 w-7 data-[state=checked]:bg-primary"
+                          />
+                          <Label
+                            htmlFor={`new-role-${key}`}
+                            className="text-xs text-muted-foreground cursor-pointer"
+                          >
+                            {PERM_LABELS[key]}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </form>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
