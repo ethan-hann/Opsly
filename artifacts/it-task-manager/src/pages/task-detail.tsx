@@ -750,6 +750,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
                       // Change event
                       const isCreatedEvent = item.field === "created";
+                      const isBreachEvent  = item.field === "sla_breached";
+                      const isWarningEvent = item.field === "sla_warning";
                       const actorInitials = (item.actorName ?? "?")
                         .split(" ")
                         .filter(Boolean)
@@ -763,10 +765,18 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                           <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border ${
                             isCreatedEvent
                               ? "bg-green-500/10 border-green-500/30 text-green-600 dark:text-green-400"
+                              : isBreachEvent
+                              ? "bg-destructive/10 border-destructive/30 text-destructive"
+                              : isWarningEvent
+                              ? "bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400"
                               : "bg-muted border-border text-muted-foreground"
                           }`}>
                             {isCreatedEvent
                               ? <Activity className="w-3.5 h-3.5" />
+                              : isBreachEvent
+                              ? <Clock className="w-3.5 h-3.5" />
+                              : isWarningEvent
+                              ? <AlertTriangle className="w-3.5 h-3.5" />
                               : <History className="w-3.5 h-3.5" />
                             }
                           </div>
