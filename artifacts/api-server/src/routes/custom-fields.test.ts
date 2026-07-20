@@ -318,6 +318,7 @@ describe("PATCH /api/custom-fields/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [{ ...MOCK_DEF, name: "Updated Name" }];
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
   });
 
   it("returns 403 when a non-admin member calls the endpoint", async () => {
@@ -402,6 +403,21 @@ describe("PATCH /api/custom-fields/:id", () => {
     expect(res.body.name).toBe("Impact");
     // No taskEventsTable inserts — history rows written under "cf:Severity" are untouched
     expect(mockState.insertCalls).toHaveLength(0);
+  });
+
+  // ── Cross-org isolation ────────────────────────────────────────────────────
+
+  it("returns 404 when an admin from org-a tries to rename a field belonging to org-b", async () => {
+    // Caller is authenticated as org-a. The UPDATE WHERE clause enforces AND orgId = 'org-a',
+    // so field id=55 (which belongs to org-b) matches no rows → updateResult stays empty.
+    mockState.orgId = "org-a";
+    mockState.updateResult = []; // no matching row — cross-org update is a no-op
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/55")
+      .send({ name: "Stolen Name" });
+
+    expect(res.status).toBe(404);
   });
 });
 
@@ -514,6 +530,7 @@ describe("PATCH /api/custom-fields/:id — audit events for force cleanup", () =
     mockState.insertResult = [];
     mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
   });
 
   it("inserts one audit event per affected task when a single_select option is force-removed", async () => {
@@ -654,6 +671,7 @@ describe("DELETE /api/custom-fields/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [MOCK_DEF]; // soft-delete returns the updated row
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
   });
 
   it("returns 403 when a non-admin member calls the endpoint", async () => {
@@ -682,6 +700,19 @@ describe("DELETE /api/custom-fields/:id", () => {
     const res = await request(buildApp()).delete("/api/custom-fields/1");
 
     expect(res.status).toBe(204);
+  });
+
+  // ── Cross-org isolation ────────────────────────────────────────────────────
+
+  it("returns 404 when an admin from org-a tries to soft-delete a field belonging to org-b", async () => {
+    // Caller is authenticated as org-a. The UPDATE WHERE clause enforces AND orgId = 'org-a',
+    // so field id=55 (which belongs to org-b) matches no rows → updateResult stays empty.
+    mockState.orgId = "org-a";
+    mockState.updateResult = []; // no matching row — cross-org soft-delete is a no-op
+
+    const res = await request(buildApp()).delete("/api/custom-fields/55");
+
+    expect(res.status).toBe(404);
   });
 });
 
