@@ -88,12 +88,24 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
   if (field === "sla_warning") {
     if (newValue) {
       try {
-        const projected = new Date(newValue);
+        // New format: "<type>|<ISO timestamp>" e.g. "resolution|2025-06-01T12:45:00.000Z"
+        // Older events stored only an ISO string — detect by presence of "|".
+        const pipeIdx = newValue.indexOf("|");
+        const isoStr = pipeIdx !== -1 ? newValue.slice(pipeIdx + 1) : newValue;
+        const slaType = pipeIdx !== -1 ? newValue.slice(0, pipeIdx) : null;
+        const typeLabel = slaType === "resolution"
+          ? "resolution limit"
+          : slaType === "response"
+            ? "response limit"
+            : null;
+
+        const projected = new Date(isoStr);
         const now = new Date();
-        const diffMs = projected.getTime() - now.getTime();
-        const diffMin = Math.round(diffMs / 60_000);
+        const diffMin = Math.round((projected.getTime() - now.getTime()) / 60_000);
         if (diffMin > 0) {
-          return `SLA warning — breach projected in ${diffMin}m`;
+          return typeLabel
+            ? `SLA warning — ${typeLabel} breach in ${diffMin}m`
+            : `SLA warning — breach projected in ${diffMin}m`;
         }
       } catch {
         // fall through to generic label

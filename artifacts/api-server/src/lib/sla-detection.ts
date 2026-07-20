@@ -201,7 +201,10 @@ export async function detectAndMarkSlaBreaches(
             .returning({ id: tasksTable.id });
 
           if (updated) {
-            // Audit trail: record warning timestamp in task history
+            // Audit trail: encode the SLA type + projected breach timestamp so the
+            // history feed can display "resolution limit breach in Xm" vs "response
+            // limit breach in Xm".  Format mirrors sla_breached: "<type>|<ISO>"
+            const warningType = useResolution ? "resolution" : "response";
             await db.insert(taskEventsTable).values({
               taskId: task.id,
               orgId,
@@ -209,7 +212,7 @@ export async function detectAndMarkSlaBreaches(
               actorName: null,
               field: "sla_warning",
               oldValue: null,
-              newValue: projectedBreachAt,
+              newValue: `${warningType}|${projectedBreachAt}`,
             });
             logger.info(
               { taskId: task.id, orgId, percentElapsed: Math.round(maxFraction * 100) },

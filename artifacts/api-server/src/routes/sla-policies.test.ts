@@ -828,7 +828,31 @@ describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
         actorName: null,
         field: "sla_warning",
         oldValue: null,
-        newValue: expect.any(String), // projected breach ISO timestamp
+        // New format: "<type>|<ISO timestamp>" — WARNING_POLICY has resolutionMinutes only
+        newValue: expect.stringMatching(/^resolution\|/),
+      }),
+    );
+  });
+
+  it("inserts a sla_warning event with newValue='response|<ISO>' when only the response SLA is in warning", async () => {
+    // WARNING_TASK is 85 min old; RESPONSE_ONLY_WARNING_POLICY has responseMinutes=100 only
+    // → resolutionFraction=-Infinity, responseFraction=0.85 > 0.80 → warning fires
+    // → useResolution=false → warningType should be "response"
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);                                      // getOrgStages
+    mockState.selectQueue.push([RESPONSE_ONLY_WARNING_POLICY]);
+    mockState.updateQueue.push([{ id: WARNING_TASK.id }]);               // atomic update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.insertPayloads).toContainEqual(
+      expect.objectContaining({
+        taskId: WARNING_TASK.id,
+        field: "sla_warning",
+        oldValue: null,
+        newValue: expect.stringMatching(/^response\|/),
       }),
     );
   });
