@@ -361,9 +361,10 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
   const fieldId = String(params.data.id);
 
   const result = await db.transaction(async (tx) => {
-    // Confirm the field belongs to this org (soft-deleted or active — both can be purged)
+    // Confirm the field belongs to this org (soft-deleted or active — both can be purged).
+    // Capture the field name now — it's needed for audit events and will be gone after deletion.
     const [existing] = await tx
-      .select({ id: customFieldDefinitionsTable.id })
+      .select({ id: customFieldDefinitionsTable.id, name: customFieldDefinitionsTable.name })
       .from(customFieldDefinitionsTable)
       .where(
         and(
@@ -375,9 +376,10 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
 
     if (!existing) return null;
 
-    // Count tasks that carry a value for this field
-    const [countRow] = await tx
-      .select({ count: sql<number>`COUNT(*)::int` })
+    // Fetch every task that carries a value for this field — need the id and stored
+    // value so we can write one audit event per task before wiping the data.
+    const affectedTasks = await tx
+      .select({ id: tasksTable.id, customFields: tasksTable.customFields })
       .from(tasksTable)
       .where(
         and(
@@ -386,7 +388,7 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
         ),
       );
 
-    const affectedTaskCount = countRow?.count ?? 0;
+    const affectedTaskCount = affectedTasks.length;
 
     // Remove the field key from every task in a single UPDATE
     if (affectedTaskCount > 0) {
@@ -396,6 +398,28 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
         WHERE org_id = ${orgId}
           AND custom_fields ? ${fieldId}
       `);
+
+      // Write one audit event per affected task so admins can see why the value
+      // disappeared.  The field name is captured above before the definition is
+      // deleted; the "cf:" prefix distinguishes custom-field events in the UI.
+      const actorId = req.user?.id ?? null;
+      const actorName = actorDisplayName(req.user);
+      const auditField = `cf:${existing.name}`;
+
+      await tx.insert(taskEventsTable).values(
+        affectedTasks.map((task) => {
+          const rawValue = (task.customFields as Record<string, unknown>)[fieldId];
+          return {
+            taskId: task.id,
+            orgId,
+            actorId,
+            actorName,
+            field: auditField,
+            oldValue: JSON.stringify(rawValue),
+            newValue: null as null,
+          };
+        }),
+      );
     }
 
     // Hard-delete the field definition row

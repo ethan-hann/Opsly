@@ -784,6 +784,7 @@ describe("POST /api/custom-fields/:id/restore", () => {
 describe("POST /api/custom-fields/:id/purge", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.isAdmin = true;
@@ -816,8 +817,8 @@ describe("POST /api/custom-fields/:id/purge", () => {
   });
 
   it("returns 200 with affectedTaskCount=0 when no tasks carry a value", async () => {
-    mockState.selectQueue.push([{ id: 1 }]);          // field exists
-    mockState.selectQueue.push([{ count: 0 }]);        // task count
+    mockState.selectQueue.push([{ id: 1, name: "Priority Score" }]); // field exists
+    mockState.selectQueue.push([]);                                    // no affected tasks
 
     const res = await request(buildApp()).post("/api/custom-fields/1/purge");
 
@@ -826,8 +827,12 @@ describe("POST /api/custom-fields/:id/purge", () => {
   });
 
   it("returns 200 with the correct affectedTaskCount when tasks are wiped", async () => {
-    mockState.selectQueue.push([{ id: 1 }]);           // field exists
-    mockState.selectQueue.push([{ count: 7 }]);         // 7 tasks have a value
+    const affectedTasks = Array.from({ length: 7 }, (_, i) => ({
+      id: 100 + i,
+      customFields: { "1": "some-value" },
+    }));
+    mockState.selectQueue.push([{ id: 1, name: "Priority Score" }]); // field exists
+    mockState.selectQueue.push(affectedTasks);                         // 7 affected tasks
 
     const res = await request(buildApp()).post("/api/custom-fields/1/purge");
 
@@ -859,6 +864,108 @@ describe("POST /api/custom-fields/:id/purge", () => {
 
     // delete must never be reached — no data from any org should be erased
     expect(mockState.deleteCallCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/custom-fields/:id/purge — audit trail
+// ---------------------------------------------------------------------------
+
+describe("POST /api/custom-fields/:id/purge — audit trail", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.isAdmin = true;
+    mockState.orgId = "test-org";
+    mockState.deleteCallCount = 0;
+  });
+
+  it("inserts one audit event per affected task with field=cf:<name>, oldValue, and newValue=null (single value)", async () => {
+    // Field id=5, name="Environment"; two tasks store a single-select string value
+    const affectedTasks = [
+      { id: 10, customFields: { "5": "prod" } },
+      { id: 11, customFields: { "5": "staging" } },
+    ];
+    mockState.selectQueue.push([{ id: 5, name: "Environment" }]); // field definition
+    mockState.selectQueue.push(affectedTasks);                      // tasks carrying values
+
+    const res = await request(buildApp()).post("/api/custom-fields/5/purge");
+
+    expect(res.status).toBe(200);
+    // One insert batch for task_events
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      taskId: 10,
+      orgId: "test-org",
+      field: "cf:Environment",
+      oldValue: JSON.stringify("prod"),
+      newValue: null,
+    });
+    expect(events[1]).toMatchObject({
+      taskId: 11,
+      orgId: "test-org",
+      field: "cf:Environment",
+      oldValue: JSON.stringify("staging"),
+      newValue: null,
+    });
+  });
+
+  it("inserts one audit event per affected task for array (multi_select) values", async () => {
+    // Field id=3, name="Tags"; tasks store multi-select arrays
+    const affectedTasks = [
+      { id: 20, customFields: { "3": ["A", "B"] } },
+      { id: 21, customFields: { "3": ["B", "C"] } },
+    ];
+    mockState.selectQueue.push([{ id: 3, name: "Tags" }]); // field definition
+    mockState.selectQueue.push(affectedTasks);               // tasks carrying values
+
+    const res = await request(buildApp()).post("/api/custom-fields/3/purge");
+
+    expect(res.status).toBe(200);
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(2);
+    expect(events[0]).toMatchObject({
+      taskId: 20,
+      field: "cf:Tags",
+      oldValue: JSON.stringify(["A", "B"]),
+      newValue: null,
+    });
+    expect(events[1]).toMatchObject({
+      taskId: 21,
+      field: "cf:Tags",
+      oldValue: JSON.stringify(["B", "C"]),
+      newValue: null,
+    });
+  });
+
+  it("records the acting admin's id and name on every audit event", async () => {
+    const affectedTasks = [{ id: 30, customFields: { "5": "prod" } }];
+    mockState.selectQueue.push([{ id: 5, name: "Environment" }]);
+    mockState.selectQueue.push(affectedTasks);
+
+    await request(buildApp()).post("/api/custom-fields/5/purge");
+
+    // requireOrg mock sets req.user = { id: "user-1", email: "user@example.com" }
+    expect(mockState.insertCalls).toHaveLength(1);
+    expect(mockState.insertCalls[0][0]).toMatchObject({
+      actorId: "user-1",
+      actorName: "user@example.com",
+    });
+  });
+
+  it("inserts no audit events when no tasks carry a value for the purged field", async () => {
+    mockState.selectQueue.push([{ id: 5, name: "Environment" }]); // field exists
+    mockState.selectQueue.push([]);                                  // no affected tasks
+
+    const res = await request(buildApp()).post("/api/custom-fields/5/purge");
+
+    expect(res.status).toBe(200);
+    expect(mockState.insertCalls).toHaveLength(0);
   });
 });
 
