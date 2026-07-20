@@ -9,10 +9,25 @@ import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
 const router: IRouter = Router();
 
+/**
+ * Safe cast expression: only converts task.status to int when it is a
+ * purely numeric string (i.e. a workflow stage ID). Returns NULL for legacy
+ * string statuses ("todo", "in_progress", …) so those rows are simply
+ * excluded from stage-joined queries instead of throwing a cast error.
+ *
+ * PostgreSQL guarantees CASE WHEN short-circuits, so the ::int branch is
+ * never evaluated when the regex check fails.
+ */
+function safeStatusInt() {
+  return sql`CASE WHEN ${tasksTable.status} ~ '^[0-9]+$' THEN ${tasksTable.status}::int ELSE NULL END`;
+}
+
 router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
-  // Aggregate tasks by stage type using a join with workflow_stages
+  // Aggregate tasks by stage type using a join with workflow_stages.
+  // safeStatusInt() prevents a cast error when legacy string statuses are
+  // still present in the database for this org.
   const taskTypeAgg = await db
     .select({
       type: workflowStagesTable.type,
@@ -22,7 +37,7 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     .innerJoin(
       workflowStagesTable,
       and(
-        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        sql`${safeStatusInt()} = ${workflowStagesTable.id}`,
         eq(workflowStagesTable.orgId, orgId),
       ),
     )
@@ -33,7 +48,8 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
   const closedCount = taskTypeAgg.find((r) => r.type === "closed")?.count ?? 0;
   const total = openCount + closedCount;
 
-  // Per-stage breakdown (active stages only), ordered by position
+  // Per-stage breakdown (active stages only), ordered by position.
+  // LEFT JOIN so every stage appears even with zero tasks.
   const stageBreakdown = await db
     .select({
       stageId: workflowStagesTable.id,
@@ -46,7 +62,7 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     .leftJoin(
       tasksTable,
       and(
-        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        sql`${safeStatusInt()} = ${workflowStagesTable.id}`,
         eq(tasksTable.orgId, orgId),
       ),
     )
@@ -60,7 +76,7 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     )
     .orderBy(asc(workflowStagesTable.position));
 
-  // Priority breakdown
+  // Priority breakdown — counts all tasks regardless of status format
   const [taskStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
@@ -80,7 +96,7 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     .innerJoin(
       workflowStagesTable,
       and(
-        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        sql`${safeStatusInt()} = ${workflowStagesTable.id}`,
         eq(workflowStagesTable.orgId, orgId),
         eq(workflowStagesTable.type, "open"),
       ),

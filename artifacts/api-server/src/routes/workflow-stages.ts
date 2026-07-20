@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, asc, isNull, isNotNull, sql } from "drizzle-orm";
 import { db, workflowStagesTable, tasksTable } from "@workspace/db";
+import { getOrSeedStages } from "../lib/workflow-stages";
 import {
   ListWorkflowStagesResponse,
   CreateWorkflowStageBody,
@@ -31,11 +32,15 @@ function serializeStage(stage: typeof workflowStagesTable.$inferSelect) {
 router.get("/workflow-stages", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
-  const stages = await db
-    .select()
-    .from(workflowStagesTable)
-    .where(eq(workflowStagesTable.orgId, orgId))
-    .orderBy(asc(workflowStagesTable.position), asc(workflowStagesTable.id));
+  // getOrSeedStages returns existing stages, or seeds the four defaults if
+  // this org has never had any configured (handles orgs created before the
+  // workflow-stages feature was added, or freshly created orgs).
+  const stages = await getOrSeedStages(orgId);
+
+  // Sort: active stages by position, then archived at the end
+  stages.sort((a, b) =>
+    a.position !== b.position ? a.position - b.position : a.id - b.id,
+  );
 
   res.json(ListWorkflowStagesResponse.parse(stages.map(serializeStage)));
 });

@@ -22,6 +22,7 @@ import {
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse';
+import { seedDefaultStages } from '../lib/workflow-stages';
 
 const router: IRouter = Router();
 
@@ -193,12 +194,7 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
   const { ownerId } = await seedBuiltInRoles(org.id);
 
   // Seed default workflow stages for this new org
-  await db.insert(workflowStagesTable).values([
-    { orgId: org.id, name: "To Do",       color: "#6b7280", type: "open",   position: 0 },
-    { orgId: org.id, name: "In Progress", color: "#f59e0b", type: "open",   position: 1 },
-    { orgId: org.id, name: "Blocked",     color: "#ef4444", type: "open",   position: 2 },
-    { orgId: org.id, name: "Done",        color: "#10b981", type: "closed", position: 3 },
-  ]);
+  await seedDefaultStages(org.id);
 
   await db.insert(orgMembersTable).values({
     orgId: org.id,

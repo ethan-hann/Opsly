@@ -142,6 +142,7 @@ import {
   tasksTable,
   commentsTable,
   notesTable,
+  workflowStagesTable,
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
@@ -208,6 +209,24 @@ async function seedRoles(orgId: string): Promise<string> {
   return ownerRole.id;
 }
 
+/**
+ * Seed default workflow stages for an org; return the "To Do" stage id as a
+ * string so it can be used directly as task.status in test inserts.
+ */
+async function seedStages(orgId: string): Promise<string> {
+  const stages = await db
+    .insert(workflowStagesTable)
+    .values([
+      { orgId, name: "To Do",       color: "#6b7280", type: "open",   position: 0 },
+      { orgId, name: "In Progress", color: "#f59e0b", type: "open",   position: 1 },
+      { orgId, name: "Blocked",     color: "#ef4444", type: "open",   position: 2 },
+      { orgId, name: "Done",        color: "#10b981", type: "closed", position: 3 },
+    ])
+    .returning({ id: workflowStagesTable.id });
+  // Return the "To Do" stage id as a string (task.status is text)
+  return String(stages[0].id);
+}
+
 // ---------------------------------------------------------------------------
 // Seed two orgs before any test runs
 // ---------------------------------------------------------------------------
@@ -237,6 +256,11 @@ beforeAll(async () => {
   await db.insert(orgMembersTable).values({ orgId: orgAId, userId: orgAUserId, roleId: ownerRoleAId });
   await db.insert(orgMembersTable).values({ orgId: orgBId, userId: orgBUserId, roleId: ownerRoleBId });
 
+  // Seed default workflow stages for both orgs and capture the "To Do" stage
+  // id so tasks can reference it as a valid numeric status value.
+  const orgAToDoStageId = await seedStages(orgAId);
+  const orgBToDoStageId = await seedStages(orgBId);
+
   // Seed projects for both orgs
   const [projA] = await db
     .insert(projectsTable)
@@ -250,14 +274,14 @@ beforeAll(async () => {
     .returning({ id: projectsTable.id });
   orgBProjectId = projB.id;
 
-  // Seed tasks for both orgs
+  // Seed tasks for both orgs — status must be a valid stage id (numeric string)
   const [taskA] = await db
     .insert(tasksTable)
     .values({
       orgId: orgAId,
       orgTaskNumber: 1,
       title: "Org A Task",
-      status: "todo",
+      status: orgAToDoStageId,
       priority: "medium",
       category: "other",
     })
@@ -270,7 +294,7 @@ beforeAll(async () => {
       orgId: orgBId,
       orgTaskNumber: 1,
       title: "Org B Secret Task",
-      status: "todo",
+      status: orgBToDoStageId,
       priority: "medium",
       category: "other",
     })
@@ -498,9 +522,15 @@ describeIf("DB isolation — GET /api/dashboard/summary", () => {
     const before = await request(buildApp()).get("/api/dashboard/summary");
     const beforeTotal: number = before.body.totalTasks;
 
+    // Fetch Org B's "To Do" stage id so the extra task has a valid status
+    const [orgBStage] = await db
+      .select({ id: workflowStagesTable.id })
+      .from(workflowStagesTable)
+      .where(eq(workflowStagesTable.orgId, orgBId))
+      .limit(1);
     const [extraB] = await db
       .insert(tasksTable)
-      .values({ orgId: orgBId, orgTaskNumber: 2, title: "Extra Org B task", status: "todo", priority: "low", category: "other" })
+      .values({ orgId: orgBId, orgTaskNumber: 2, title: "Extra Org B task", status: String(orgBStage.id), priority: "low", category: "other" })
       .returning({ id: tasksTable.id });
 
     try {
