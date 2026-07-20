@@ -493,6 +493,8 @@ describe("POST /api/custom-fields/:id/restore", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
+    mockState.deleteCallCount = 0;
   });
 
   it("returns 403 when a non-admin member calls the endpoint", async () => {
@@ -525,6 +527,20 @@ describe("POST /api/custom-fields/:id/restore", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1, name: "Priority Score", deletedAt: null });
+  });
+
+  // ── Cross-org isolation ────────────────────────────────────────────────────
+
+  it("returns 404 when an admin from org-a tries to restore a soft-deleted field belonging to org-b", async () => {
+    // Caller authenticated as org-a; the UPDATE WHERE clause includes AND orgId = 'org-a',
+    // so field id=55 (which belongs to org-b) matches no rows → updateResult stays empty.
+    mockState.orgId = "org-a";
+    mockState.updateResult = []; // no matching row — cross-org update is a no-op
+
+    const res = await request(buildApp()).post("/api/custom-fields/55/restore");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/different org/i);
   });
 });
 
@@ -623,6 +639,8 @@ describe("POST /api/custom-fields/reorder", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.isAdmin = true;
+    mockState.orgId = "test-org";
+    mockState.deleteCallCount = 0;
   });
 
   it("returns 403 when a non-admin member calls the endpoint", async () => {
@@ -665,5 +683,23 @@ describe("POST /api/custom-fields/reorder", () => {
       .send({ ids: [1] });
 
     expect(res.status).toBe(204);
+  });
+
+  // ── Cross-org isolation ────────────────────────────────────────────────────
+
+  it("returns 204 and silently ignores IDs belonging to a different org", async () => {
+    // Caller is org-a. The supplied IDs (200, 201) belong to org-b.
+    // The UPDATE WHERE clause includes AND orgId = 'org-a', so each update
+    // matches 0 rows — the positions of org-b's fields are never touched.
+    // The endpoint returns 204 because a no-op reorder is not an error.
+    mockState.orgId = "org-a";
+
+    const res = await request(buildApp())
+      .post("/api/custom-fields/reorder")
+      .send({ ids: [200, 201] });
+
+    expect(res.status).toBe(204);
+    // No delete should have been triggered either
+    expect(mockState.deleteCallCount).toBe(0);
   });
 });
