@@ -249,3 +249,21 @@ export function dispatchMemberRemoved(
 ): void {
   void dispatch(orgId, "member.removed", null, { member });
 }
+
+export function dispatchWatcherAdded(
+  orgId: string,
+  projectId: number | null | undefined,
+  task: Record<string, unknown>,
+  watcher: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "task.watcher_added", projectId, { task, watcher });
+}
+
+export function dispatchWatcherRemoved(
+  orgId: string,
+  projectId: number | null | undefined,
+  task: Record<string, unknown>,
+  watcher: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "task.watcher_removed", projectId, { task, watcher });
+}

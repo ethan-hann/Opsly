@@ -26,6 +26,20 @@ const mockState = vi.hoisted(() => ({
   insertCalls: [] as any[],
   deleteCallCount: 0,
   orgId: "org-a",
+  /** Controls what onConflictDoNothing().returning() resolves to.
+   *  Non-empty → new row inserted; empty → already existed (idempotent). */
+  onConflictReturning: [] as any[],
+  /** Controls what delete().where().returning() resolves to.
+   *  Non-empty → row deleted; empty → was not watching (idempotent). */
+  deleteReturning: [] as any[],
+}));
+
+// ---------------------------------------------------------------------------
+// Captured dispatch calls
+// ---------------------------------------------------------------------------
+const mockDispatch = vi.hoisted(() => ({
+  watcherAdded: vi.fn(),
+  watcherRemoved: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------
@@ -58,7 +72,9 @@ vi.mock("@workspace/db", () => {
           mockState.insertCalls.push(args[0]);
           return {
             returning: () => Promise.resolve([]),
-            onConflictDoNothing: () => Promise.resolve([]),
+            onConflictDoNothing: () => ({
+              returning: () => Promise.resolve(mockState.onConflictReturning),
+            }),
           };
         },
       }),
@@ -66,10 +82,12 @@ vi.mock("@workspace/db", () => {
         set: () => ({ where: () => ({ returning: () => Promise.resolve([]) }) }),
       }),
       delete: () => ({
-        where: () => {
-          mockState.deleteCallCount++;
-          return Promise.resolve([]);
-        },
+        where: () => ({
+          returning: () => {
+            mockState.deleteCallCount++;
+            return Promise.resolve(mockState.deleteReturning);
+          },
+        }),
       }),
     },
     tasksTable: {},
@@ -122,6 +140,8 @@ vi.mock("../lib/webhook-dispatcher", () => ({
   dispatchTaskAssigned: () => {},
   dispatchTaskStatusChanged: () => {},
   dispatchTaskDeleted: () => {},
+  dispatchWatcherAdded: mockDispatch.watcherAdded,
+  dispatchWatcherRemoved: mockDispatch.watcherRemoved,
 }));
 
 vi.mock("../lib/resolve-custom-fields", () => ({
@@ -338,5 +358,91 @@ describe("DELETE /api/tasks/:id/watch — org isolation", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ watching: false });
     expect(mockState.deleteCallCount).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks/:id/watch — webhook dispatch
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/watch — webhook dispatch", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.deleteCallCount = 0;
+    mockState.onConflictReturning = [];
+    mockState.deleteReturning = [];
+    mockState.orgId = "org-a";
+    mockDispatch.watcherAdded.mockClear();
+    mockDispatch.watcherRemoved.mockClear();
+  });
+
+  it("fires dispatchWatcherAdded when a new watcher row is inserted", async () => {
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 42, projectId: 7 }]); // task found ✓
+    mockState.onConflictReturning = [{ taskId: 1 }]; // new row inserted
+
+    const res = await request(buildApp()).post("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(mockDispatch.watcherAdded).toHaveBeenCalledTimes(1);
+    expect(mockDispatch.watcherAdded).toHaveBeenCalledWith(
+      "org-a",
+      7,
+      expect.objectContaining({ id: 1, orgTaskNumber: 42 }),
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
+
+  it("does not fire dispatchWatcherAdded when the user is already watching (idempotent)", async () => {
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 42, projectId: 7 }]); // task found ✓
+    mockState.onConflictReturning = []; // conflict — already watching
+
+    const res = await request(buildApp()).post("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(mockDispatch.watcherAdded).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/tasks/:id/watch — webhook dispatch
+// ---------------------------------------------------------------------------
+
+describe("DELETE /api/tasks/:id/watch — webhook dispatch", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.deleteCallCount = 0;
+    mockState.onConflictReturning = [];
+    mockState.deleteReturning = [];
+    mockState.orgId = "org-a";
+    mockDispatch.watcherAdded.mockClear();
+    mockDispatch.watcherRemoved.mockClear();
+  });
+
+  it("fires dispatchWatcherRemoved when the watcher row is deleted", async () => {
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 42, projectId: 7 }]); // task found ✓
+    mockState.deleteReturning = [{ taskId: 1 }]; // row existed and was deleted
+
+    const res = await request(buildApp()).delete("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(mockDispatch.watcherRemoved).toHaveBeenCalledTimes(1);
+    expect(mockDispatch.watcherRemoved).toHaveBeenCalledWith(
+      "org-a",
+      7,
+      expect.objectContaining({ id: 1, orgTaskNumber: 42 }),
+      expect.objectContaining({ userId: "user-1" }),
+    );
+  });
+
+  it("does not fire dispatchWatcherRemoved when the user was not watching (idempotent)", async () => {
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 42, projectId: 7 }]); // task found ✓
+    mockState.deleteReturning = []; // no row to delete — wasn't watching
+
+    const res = await request(buildApp()).delete("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(mockDispatch.watcherRemoved).not.toHaveBeenCalled();
   });
 });

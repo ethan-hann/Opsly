@@ -18,6 +18,8 @@ export const OutboundWebhookEventsItem = {
   tasksla_breached: 'task.sla_breached',
   tasksla_warning: 'task.sla_warning',
   taskdeleted: 'task.deleted',
+  taskwatcher_added: 'task.watcher_added',
+  taskwatcher_removed: 'task.watcher_removed',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   projectdeleted: 'project.deleted',

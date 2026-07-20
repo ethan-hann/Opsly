@@ -61,7 +61,7 @@ vi.mock("@workspace/db", () => {
           mockState.insertCalls.push(args[0]);
           return {
             returning: () => Promise.resolve(mockState.insertResult),
-            onConflictDoNothing: () => Promise.resolve([]),
+            onConflictDoNothing: () => ({ returning: () => Promise.resolve([]) }),
           };
         },
       }),

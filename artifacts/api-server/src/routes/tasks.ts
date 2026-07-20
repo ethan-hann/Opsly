@@ -32,7 +32,13 @@ import {
   WatchingFilterParam,
 } from "@workspace/api-zod";
 import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
-import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskDeleted } from "../lib/webhook-dispatcher";
+import {
+  dispatchTaskCreated,
+  dispatchTaskUpdated,
+  dispatchTaskDeleted,
+  dispatchWatcherAdded,
+  dispatchWatcherRemoved,
+} from "../lib/webhook-dispatcher";
 import { sanitizeRichText } from "../lib/sanitize-rich-text";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { detectAndMarkSlaBreaches } from "../lib/sla-detection";
@@ -331,12 +337,15 @@ async function getWatcherUserIds(taskId: number): Promise<string[]> {
 
 /**
  * Upsert a watcher row (idempotent — safe to call even if already watching).
+ * Returns true when a new row was inserted, false when the user was already watching.
  */
-async function upsertWatcher(taskId: number, userId: string, orgId: string): Promise<void> {
-  await db
+async function upsertWatcher(taskId: number, userId: string, orgId: string): Promise<boolean> {
+  const rows = await db
     .insert(taskWatchersTable)
     .values({ taskId, userId, orgId })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ taskId: taskWatchersTable.taskId });
+  return rows.length > 0;
 }
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
@@ -1125,7 +1134,7 @@ router.post("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"),
 
   // Confirm task belongs to this org
   const [task] = await db
-    .select({ id: tasksTable.id })
+    .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber, projectId: tasksTable.projectId })
     .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .limit(1);
@@ -1135,7 +1144,16 @@ router.post("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"),
     return;
   }
 
-  await upsertWatcher(task.id, userId, orgId);
+  const isNewWatch = await upsertWatcher(task.id, userId, orgId);
+
+  if (isNewWatch) {
+    dispatchWatcherAdded(
+      orgId,
+      task.projectId,
+      { id: task.id, orgTaskNumber: task.orgTaskNumber, projectId: task.projectId },
+      { userId, email: req.user?.email ?? null },
+    );
+  }
 
   res.json(WatchTaskResponse.parse({ watching: true }));
 });
@@ -1159,7 +1177,7 @@ router.delete("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"
 
   // Confirm task belongs to this org (cross-org safety)
   const [task] = await db
-    .select({ id: tasksTable.id })
+    .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber, projectId: tasksTable.projectId })
     .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .limit(1);
@@ -1169,14 +1187,24 @@ router.delete("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"
     return;
   }
 
-  await db
+  const deleted = await db
     .delete(taskWatchersTable)
     .where(
       and(
         eq(taskWatchersTable.taskId, task.id),
         eq(taskWatchersTable.userId, userId),
       ),
+    )
+    .returning({ taskId: taskWatchersTable.taskId });
+
+  if (deleted.length > 0) {
+    dispatchWatcherRemoved(
+      orgId,
+      task.projectId,
+      { id: task.id, orgTaskNumber: task.orgTaskNumber, projectId: task.projectId },
+      { userId, email: req.user?.email ?? null },
     );
+  }
 
   res.json(UnwatchTaskResponse.parse({ watching: false }));
 });

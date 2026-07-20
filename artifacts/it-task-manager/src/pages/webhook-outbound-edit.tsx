@@ -69,6 +69,8 @@ const ALL_EVENTS = [
   { value: "task.sla_breached", label: "Task SLA breached" },
   { value: "task.sla_warning", label: "Task SLA warning (approaching deadline)" },
   { value: "task.deleted", label: "Task deleted" },
+  { value: "task.watcher_added", label: "Task watcher added" },
+  { value: "task.watcher_removed", label: "Task watcher removed" },
   { value: "project.created", label: "Project created" },
   { value: "project.updated", label: "Project updated" },
   { value: "project.deleted", label: "Project deleted" },
