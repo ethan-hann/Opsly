@@ -906,3 +906,78 @@ describe("DELETE /webhooks/outbound/:id", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ============================================================
+// Body field injection — role: "admin" in body must not
+// bypass creator-only enforcement on webhook write endpoints.
+//
+// Webhook PATCH/DELETE are gated by an explicit creator check
+// (existing.createdBy === req.user.id), not by requirePermission.
+// Authorization is entirely server-side; any role/isAdmin field
+// in the request body is parsed but never consulted.
+// ============================================================
+
+describe("Body field injection — role: admin in body never bypasses webhook creator guard", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    // Caller is a session user who is NOT the webhook creator.
+    currentUserId = "non-creator";
+  });
+
+  // ── Inbound webhook ────────────────────────────────────────────────────────
+
+  it("PATCH /webhooks/inbound/:id — returns 403 even when body includes role: 'admin'", async () => {
+    mockState.selectQueue.push([makeHook({ createdBy: "user-owner" })]);
+
+    const res = await request(buildApp())
+      .patch("/api/webhooks/inbound/1")
+      .send({ name: "Hacked", role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /webhooks/inbound/:id — returns 403 even when body includes role: 'admin'", async () => {
+    mockState.selectQueue.push([makeHook({ createdBy: "user-owner" })]);
+
+    const res = await request(buildApp())
+      .delete("/api/webhooks/inbound/1")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /webhooks/inbound/:id/rotate-secret — returns 403 even when body includes role: 'admin'", async () => {
+    mockState.selectQueue.push([makeHook({ createdBy: "user-owner" })]);
+
+    const res = await request(buildApp())
+      .post("/api/webhooks/inbound/1/rotate-secret")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  // ── Outbound webhook ───────────────────────────────────────────────────────
+
+  it("PATCH /webhooks/outbound/:id — returns 403 even when body includes role: 'admin'", async () => {
+    mockState.selectQueue.push([makeOutboundHook({ createdBy: "user-owner" })]);
+
+    const res = await request(buildApp())
+      .patch("/api/webhooks/outbound/1")
+      .send({ name: "Hacked", role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /webhooks/outbound/:id — returns 403 even when body includes role: 'admin'", async () => {
+    mockState.selectQueue.push([makeOutboundHook({ createdBy: "user-owner" })]);
+
+    const res = await request(buildApp())
+      .delete("/api/webhooks/outbound/1")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+});

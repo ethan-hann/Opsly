@@ -504,3 +504,56 @@ describe("DELETE /api-keys/:id", () => {
     expect(res.body).not.toHaveProperty("keyHash");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Body 'role' field injection — role: "admin" in the request body must never
+// elevate privileges. POST and DELETE /api-keys are gated by
+// requirePermission('manage_api_keys'); authorization derives entirely from
+// req.orgPermissions set server-side by requireOrgMiddleware.
+// ---------------------------------------------------------------------------
+
+describe("Body 'role' field injection — role: admin in body never grants manage_api_keys", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    app = await buildApp();
+    asSession();
+    mockState.selectQueue = [];
+    mockState.insertQueue = [];
+    mockState.updateQueue = [];
+    // Caller is a plain member — manage_api_keys permission is false.
+    mockState.orgPermissions = {
+      view_tasks: true, create_tasks: true, edit_tasks: true, close_tasks: true,
+      delete_tasks: true, manage_projects: true, manage_org_settings: false,
+      manage_members: false, manage_webhooks: false, manage_api_keys: false,
+      manage_custom_fields: false, manage_workflow_stages: false,
+      manage_sla_policies: false, manage_task_templates: false,
+      manage_saved_views: true, view_audit_log: false,
+    };
+  });
+
+  it("POST /api-keys — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(app)
+      .post("/api/api-keys")
+      .send({ name: "ci-key", scopes: ["tasks:read"], role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /api-keys/:id — returns 403 even when body includes role: 'admin'", async () => {
+    // requirePermission rejects before any DB query — no selectQueue entry needed.
+    const res = await request(app)
+      .delete("/api/api-keys/key-uuid-1")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /api-keys — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(app)
+      .get("/api/api-keys")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+});
