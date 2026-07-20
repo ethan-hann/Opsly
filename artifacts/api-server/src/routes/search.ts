@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { notesTable, projectsTable, tasksTable } from "@workspace/db";
-import { eq, and, ilike, or } from "drizzle-orm";
+import { eq, and, ilike, or, ne, isNull } from "drizzle-orm";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { z } from "zod";
 
@@ -21,9 +21,10 @@ const router = Router();
 // lib/db.  If you add new searched columns or change the pattern style, run a
 // matching migration to keep the indexes in sync.
 //
-// Note visibility: the notes query enforces a visibility gate so private notes
-// only appear for their author.  Public notes (visibility = 'public_read') are
-// visible to every org member.
+// Note visibility: the notes query enforces a visibility gate matching the notes
+// route's visibilityFilter.  Legacy notes (null createdBy) and non-private notes
+// (public_read / public_write) are visible to every org member; private notes
+// are visible only to their author.
 router.get("/search", requireOrg, async (req, res) => {
   const parsed = SearchQueryParams.safeParse(req.query);
   if (!parsed.success) {
@@ -79,11 +80,14 @@ router.get("/search", requireOrg, async (req, res) => {
             ilike(notesTable.content, pattern)
           ),
           // Visibility gate: restrict notes to those the caller may read.
-          // public_read  → visible to every org member.
-          // private      → visible only to the note's author (createdBy).
+          // Mirrors the notes-route visibilityFilter:
+          //   null createdBy  → legacy/system note, visible to all org members.
+          //   own note        → always visible to its author.
+          //   non-private     → public_read and public_write visible to all.
           or(
-            eq(notesTable.visibility, "public_read"),
+            isNull(notesTable.createdBy),
             eq(notesTable.createdBy, callerId),
+            ne(notesTable.visibility, "private"),
           )
         )
       )
