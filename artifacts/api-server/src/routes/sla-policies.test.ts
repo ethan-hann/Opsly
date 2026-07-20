@@ -743,7 +743,7 @@ describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tas
 // ---------------------------------------------------------------------------
 
 describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
-  it("inserts a task_event row with field='sla_breached' when the resolution SLA is breached", async () => {
+  it("inserts a task_event row with field='sla_breached' and newValue='resolution|<ISO>' when the resolution SLA is breached", async () => {
     mockState.selectQueue.push([BREACHED_TASK]);
     mockState.selectQueue.push([]);              // getOrgStages
     mockState.selectQueue.push([BREACH_POLICY]);
@@ -753,7 +753,8 @@ describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
     const res = await request(buildTasksApp()).get("/api/tasks");
 
     expect(res.status).toBe(200);
-    // The audit event insert must have been called with the breach payload
+    // The audit event must encode the SLA type so the history feed can label it correctly.
+    // Format: "<type>|<ISO timestamp>"
     expect(mockState.insertPayloads).toContainEqual(
       expect.objectContaining({
         taskId: BREACHED_TASK.id,
@@ -762,7 +763,29 @@ describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
         actorName: null,
         field: "sla_breached",
         oldValue: null,
-        newValue: expect.any(String), // ISO timestamp of breach
+        newValue: expect.stringMatching(/^resolution\|/), // resolution SLA was the limit crossed
+      }),
+    );
+  });
+
+  it("inserts a task_event row with newValue='response|<ISO>' when only the response SLA is breached", async () => {
+    // BREACHED_TASK is 120 min old; RESPONSE_ONLY_BREACH_POLICY has responseMinutes=60 only
+    // → isResolutionBreached=false, responseStatus="breached" → slaType must be "response"
+    mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([]);                            // getOrgStages
+    mockState.selectQueue.push([RESPONSE_ONLY_BREACH_POLICY]);
+    mockState.updateQueue.push([{ id: BREACHED_TASK.id }]);   // atomic update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.insertPayloads).toContainEqual(
+      expect.objectContaining({
+        taskId: BREACHED_TASK.id,
+        field: "sla_breached",
+        oldValue: null,
+        newValue: expect.stringMatching(/^response\|/), // response SLA was the limit crossed
       }),
     );
   });

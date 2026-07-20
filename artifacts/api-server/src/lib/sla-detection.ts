@@ -108,7 +108,11 @@ export async function detectAndMarkSlaBreaches(
               ? (slaResult.resolutionMinutesRemaining ?? 0)
               : (slaResult.responseMinutesRemaining ?? 0),
           );
-          // Audit trail: record breach timestamp in task history
+          // Encode the SLA type that was exceeded so the task history feed can
+          // display "resolution limit exceeded" vs "response limit exceeded".
+          // Format: "<type>|<ISO timestamp>"  e.g. "resolution|2025-06-01T12:00:00.000Z"
+          const slaType = slaResult.isResolutionBreached ? "resolution" : "response";
+          // Audit trail: record breach type + timestamp in task history
           await db.insert(taskEventsTable).values({
             taskId: task.id,
             orgId,
@@ -116,7 +120,7 @@ export async function detectAndMarkSlaBreaches(
             actorName: null,
             field: "sla_breached",
             oldValue: null,
-            newValue: now.toISOString(),
+            newValue: `${slaType}|${now.toISOString()}`,
           });
           logger.info(
             { taskId: task.id, orgId, minutesOverdue },

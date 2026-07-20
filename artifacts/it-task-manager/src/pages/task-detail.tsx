@@ -71,6 +71,16 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
   }
 
   if (field === "sla_breached") {
+    // newValue is encoded as "<type>|<ISO timestamp>" (e.g. "resolution|2025-06-01T12:00:00.000Z")
+    // Older events that stored only an ISO string fall back to the generic label.
+    if (newValue) {
+      const pipeIdx = newValue.indexOf("|");
+      if (pipeIdx !== -1) {
+        const slaType = newValue.slice(0, pipeIdx);
+        const typeLabel = slaType === "resolution" ? "resolution limit" : "response limit";
+        return `SLA deadline breached — ${typeLabel} exceeded`;
+      }
+    }
     return "SLA deadline breached";
   }
 
