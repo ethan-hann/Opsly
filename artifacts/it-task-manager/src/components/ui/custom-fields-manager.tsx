@@ -2,7 +2,7 @@
  * CustomFieldsManager — Admin UI for managing custom field definitions.
  * Rendered inside the Org Settings page.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   useListCustomFieldDefinitions,
   useCreateCustomFieldDefinition,
@@ -37,7 +37,22 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2 } from "lucide-react";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -68,14 +83,18 @@ function typeLabel(type: string) {
 
 interface FieldRowProps {
   field: CustomFieldDefinition;
-  isFirst: boolean;
-  isLast: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
   onDeleted: () => void;
 }
 
-function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: FieldRowProps) {
+function FieldRow({ field, onDeleted }: FieldRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id });
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [editingName, setEditingName] = useState(false);
@@ -138,10 +157,22 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
   }
 
   return (
-    <div className="rounded-md border border-border bg-card">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`rounded-md border border-border bg-card${isDragging ? " opacity-50 shadow-lg ring-2 ring-primary/30 z-10" : ""}`}
+    >
       <div className="flex items-center gap-2 p-3">
-        {/* Drag handle (visual only) */}
-        <GripVertical className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+        {/* Drag handle */}
+        <button
+          {...listeners}
+          {...attributes}
+          className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground shrink-0 touch-none"
+          tabIndex={-1}
+          aria-label="Drag to reorder"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
 
         {/* Name / edit name */}
         <div className="flex-1 min-w-0">
@@ -183,22 +214,6 @@ function FieldRow({ field, isFirst, isLast, onMoveUp, onMoveDown, onDeleted }: F
         <Badge variant={typeBadgeVariant(field.type)} className="text-xs shrink-0 capitalize">
           {typeLabel(field.type)}
         </Badge>
-
-        {/* Reorder */}
-        <div className="flex flex-col shrink-0">
-          <Button
-            variant="ghost" size="icon" className="h-5 w-5" disabled={isFirst}
-            onClick={onMoveUp} title="Move up"
-          >
-            <ChevronUp className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost" size="icon" className="h-5 w-5" disabled={isLast}
-            onClick={onMoveDown} title="Move down"
-          >
-            <ChevronDown className="w-3.5 h-3.5" />
-          </Button>
-        </div>
 
         {/* Options editor toggle (select types only) */}
         {isSelect && (
@@ -496,8 +511,16 @@ export function CustomFieldsManager() {
     { includeSoftDeleted: true },
   );
 
-  const fields = allFields.filter((f) => !f.deletedAt);
+  const serverFields = allFields.filter((f) => !f.deletedAt);
   const deletedFields = allFields.filter((f) => !!f.deletedAt);
+
+  // Local optimistic order — synced from server whenever the server list changes
+  const [fields, setFields] = useState<CustomFieldDefinition[]>(serverFields);
+  useEffect(() => { setFields(serverFields); }, [allFields]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+  );
 
   const { mutate: reorder } = useReorderCustomFieldDefinitions({
     mutation: {
@@ -505,17 +528,21 @@ export function CustomFieldsManager() {
         queryClient.invalidateQueries({ queryKey: getListCustomFieldDefinitionsQueryKey() });
       },
       onError: (err: Error) => {
+        // Roll back to server order on failure
+        setFields(serverFields);
         toast({ title: "Reorder failed", description: err.message, variant: "destructive" });
       },
     },
   });
 
-  function moveField(index: number, direction: -1 | 1) {
-    const newFields = [...fields];
-    const target = index + direction;
-    if (target < 0 || target >= newFields.length) return;
-    [newFields[index], newFields[target]] = [newFields[target], newFields[index]];
-    reorder({ data: { ids: newFields.map((f) => f.id) } });
+  function handleDragEnd({ active, over }: DragEndEvent) {
+    if (!over || active.id === over.id) return;
+    const oldIndex = fields.findIndex((f) => f.id === active.id);
+    const newIndex = fields.findIndex((f) => f.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(fields, oldIndex, newIndex);
+    setFields(reordered); // optimistic
+    reorder({ data: { ids: reordered.map((f) => f.id) } });
   }
 
   function invalidate() {
@@ -533,19 +560,19 @@ export function CustomFieldsManager() {
             No custom fields yet. Add a field to extend every task in your org.
           </p>
         ) : (
-          <div className="space-y-2">
-            {fields.map((field, i) => (
-              <FieldRow
-                key={field.id}
-                field={field}
-                isFirst={i === 0}
-                isLast={i === fields.length - 1}
-                onMoveUp={() => moveField(i, -1)}
-                onMoveDown={() => moveField(i, 1)}
-                onDeleted={invalidate}
-              />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {fields.map((field) => (
+                  <FieldRow
+                    key={field.id}
+                    field={field}
+                    onDeleted={invalidate}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
 
         {showAddForm ? (
