@@ -14,7 +14,7 @@ import {
   UpdateProjectResponse,
 } from "@workspace/api-zod";
 import { requireOrgOrApiKey, requirePermission, requireScope } from "../middlewares/requireOrgMiddleware";
-import { dispatchProjectCreated, dispatchProjectUpdated } from "../lib/webhook-dispatcher";
+import { dispatchProjectCreated, dispatchProjectUpdated, dispatchProjectDeleted } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
 
@@ -158,6 +158,8 @@ router.delete("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"
     res.status(404).json({ error: "Project not found" });
     return;
   }
+
+  dispatchProjectDeleted(req.orgId!, { id: project.id, name: project.name });
 
   res.sendStatus(204);
 });

@@ -124,6 +124,12 @@ vi.mock("drizzle-orm", () => ({
   sql: () => ({}),
 }));
 
+// Mock the outbound dispatcher so real HTTP calls are never attempted
+vi.mock("../lib/webhook-dispatcher", () => ({
+  dispatchMemberJoined: vi.fn(),
+  dispatchMemberRemoved: vi.fn(),
+}));
+
 // requireAuth injects req.user; requireOrg also injects orgId + role.
 // Guards are stubbed — we test business logic, not the guards themselves.
 const ALL_PERMS = {
@@ -170,6 +176,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
 }));
 
 import orgsRouter from "./orgs.js";
+import * as webhookDispatcher from "../lib/webhook-dispatcher.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -561,6 +568,7 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
     mockState.selectQueue.length = 0;
     mockState.insertQueue.length = 0;
     mockState.updateQueue.length = 0;
+    vi.mocked(webhookDispatcher.dispatchMemberJoined).mockClear();
   });
 
   it("returns 404 when the invitation does not exist or is expired", async () => {
@@ -611,6 +619,37 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, roleName: "Member" });
     expect(res.body).not.toHaveProperty("role");
+  });
+
+  it("calls dispatchMemberJoined with userId and email on successful accept", async () => {
+    mockState.selectQueue.push([{ email: "bob@example.com" }]); // user email
+    mockState.selectQueue.push([{ ...MOCK_INVITATION, invitedEmail: "bob@example.com" }]); // invitation
+    mockState.selectQueue.push([]); // no existing membership
+    mockState.selectQueue.push([{ id: "role-member" }]); // getMemberRoleId
+    mockState.insertQueue.push([]); // insert org member
+    mockState.updateQueue.push([]); // update invitation status
+    mockState.selectQueue.push([{
+      orgId: "test-org", roleId: "role-member", roleName: "Member",
+      isOwner: false, permissions: MEMBER_PERMS,
+      orgName: "Acme Corp", orgCreatedAt: new Date(),
+    }]);
+
+    await request(buildApp()).post("/api/orgs/invitations/abc123/accept");
+
+    expect(webhookDispatcher.dispatchMemberJoined).toHaveBeenCalledOnce();
+    expect(webhookDispatcher.dispatchMemberJoined).toHaveBeenCalledWith(
+      "test-org",
+      expect.objectContaining({ userId: "user-owner", email: "bob@example.com" }),
+    );
+  });
+
+  it("does not call dispatchMemberJoined when invitation is not found", async () => {
+    mockState.selectQueue.push([{ email: "owner@example.com" }]); // user
+    mockState.selectQueue.push([]); // invitation not found
+
+    await request(buildApp()).post("/api/orgs/invitations/bad-token/accept");
+
+    expect(webhookDispatcher.dispatchMemberJoined).not.toHaveBeenCalled();
   });
 });
 
@@ -663,6 +702,7 @@ describe("DELETE /api/orgs/members/:userId", () => {
     mockState.selectQueue.length = 0;
     mockState.isOrgOwner = true;
     mockState.deleteCalls = 0;
+    vi.mocked(webhookDispatcher.dispatchMemberRemoved).mockClear();
   });
 
   it("returns 400 when trying to remove yourself", async () => {
@@ -683,10 +723,33 @@ describe("DELETE /api/orgs/members/:userId", () => {
 
   it("returns 204 on successful removal", async () => {
     mockState.selectQueue.push([MOCK_MEMBER]); // member found
+    mockState.selectQueue.push([{ email: "other@example.com" }]); // user email lookup
 
     const res = await request(buildApp()).delete("/api/orgs/members/other-user");
 
     expect(res.status).toBe(204);
+  });
+
+  it("calls dispatchMemberRemoved with userId and email after successful removal", async () => {
+    mockState.selectQueue.push([MOCK_MEMBER]); // member found
+    mockState.selectQueue.push([{ email: "other@example.com" }]); // user email lookup
+
+    await request(buildApp()).delete("/api/orgs/members/other-user");
+
+    expect(webhookDispatcher.dispatchMemberRemoved).toHaveBeenCalledOnce();
+    expect(webhookDispatcher.dispatchMemberRemoved).toHaveBeenCalledWith(
+      "test-org",
+      expect.objectContaining({ userId: "other-user", email: "other@example.com" }),
+    );
+  });
+
+  it("does not call dispatchMemberRemoved when member is not found", async () => {
+    mockState.selectQueue.push([]); // member not found
+
+    const res = await request(buildApp()).delete("/api/orgs/members/other-user");
+
+    expect(res.status).toBe(404);
+    expect(webhookDispatcher.dispatchMemberRemoved).not.toHaveBeenCalled();
   });
 
   it("returns 403 when a non-owner admin tries to remove an Owner", async () => {
@@ -873,6 +936,7 @@ describe("POST /api/orgs/leave", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.updateQueue.length = 0;
+    vi.mocked(webhookDispatcher.dispatchMemberRemoved).mockClear();
   });
 
   it("deletes the org and returns success when the user is the sole member", async () => {
@@ -898,10 +962,33 @@ describe("POST /api/orgs/leave", () => {
   it("removes the member and returns success when there are multiple owners", async () => {
     mockState.selectQueue.push([{ count: 3 }]); // multiple members
     mockState.selectQueue.push([{ count: 2 }]); // 2 owners → safe to leave
+    mockState.selectQueue.push([{ email: "owner@example.com" }]); // leaver email lookup
 
     const res = await request(buildApp()).post("/api/orgs/leave");
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
+  });
+
+  it("calls dispatchMemberRemoved with userId and email on successful leave", async () => {
+    mockState.selectQueue.push([{ count: 3 }]); // multiple members
+    mockState.selectQueue.push([{ count: 2 }]); // 2 owners → safe to leave
+    mockState.selectQueue.push([{ email: "owner@example.com" }]); // leaver email
+
+    await request(buildApp()).post("/api/orgs/leave");
+
+    expect(webhookDispatcher.dispatchMemberRemoved).toHaveBeenCalledOnce();
+    expect(webhookDispatcher.dispatchMemberRemoved).toHaveBeenCalledWith(
+      "test-org",
+      expect.objectContaining({ userId: "user-owner", email: "owner@example.com" }),
+    );
+  });
+
+  it("does not call dispatchMemberRemoved when the sole member deletes the org", async () => {
+    mockState.selectQueue.push([{ count: 1 }]); // sole member → org deleted
+
+    await request(buildApp()).post("/api/orgs/leave");
+
+    expect(webhookDispatcher.dispatchMemberRemoved).not.toHaveBeenCalled();
   });
 });

@@ -24,6 +24,7 @@ import { pushEvent } from '../lib/sse';
 import { seedDefaultStages } from '../lib/workflow-stages';
 import { sendMail, buildInviteEmail, isEmailConfigured } from '../lib/email';
 import { logger } from '../lib/logger';
+import { dispatchMemberJoined, dispatchMemberRemoved } from '../lib/webhook-dispatcher';
 
 const router: IRouter = Router();
 
@@ -525,6 +526,8 @@ router.post('/orgs/invitations/:token/accept', requireAuth, async (req, res): Pr
     .set({ status: 'accepted' })
     .where(eq(invitationsTable.id, invitation.id));
 
+  dispatchMemberJoined(invitation.orgId, { userId, email: user?.email ?? null });
+
   const data = await getOrgMeData(userId);
   res.json(data);
 });
@@ -622,6 +625,13 @@ router.delete('/orgs/members/:userId', requireOrg, requirePermission('manage_mem
     }
   }
 
+  // Fetch email for webhook payload before delete
+  const [removedUser] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, targetUserId))
+    .limit(1);
+
   await db
     .delete(orgMembersTable)
     .where(
@@ -630,6 +640,8 @@ router.delete('/orgs/members/:userId', requireOrg, requirePermission('manage_mem
         eq(orgMembersTable.userId, targetUserId),
       ),
     );
+
+  dispatchMemberRemoved(req.orgId!, { userId: targetUserId, email: removedUser?.email ?? null });
 
   res.sendStatus(204);
 });
@@ -849,6 +861,13 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
     }
   }
 
+  // Fetch email for webhook payload before delete
+  const [leavingUser] = await db
+    .select({ email: usersTable.email })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
   await db
     .delete(orgMembersTable)
     .where(
@@ -857,6 +876,8 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
         eq(orgMembersTable.userId, userId),
       ),
     );
+
+  dispatchMemberRemoved(orgId, { userId, email: leavingUser?.email ?? null });
 
   res.json({ success: true });
 });

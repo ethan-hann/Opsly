@@ -220,3 +220,32 @@ export function dispatchProjectUpdated(
 ): void {
   void dispatch(orgId, "project.updated", project["id"] as number, { project });
 }
+
+export function dispatchTaskDeleted(
+  orgId: string,
+  projectId: number | null | undefined,
+  task: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "task.deleted", projectId, { task });
+}
+
+export function dispatchProjectDeleted(
+  orgId: string,
+  project: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "project.deleted", project["id"] as number, { project });
+}
+
+export function dispatchMemberJoined(
+  orgId: string,
+  member: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "member.joined", null, { member });
+}
+
+export function dispatchMemberRemoved(
+  orgId: string,
+  member: Record<string, unknown>,
+): void {
+  void dispatch(orgId, "member.removed", null, { member });
+}

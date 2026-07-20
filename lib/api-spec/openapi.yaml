@@ -3760,7 +3760,7 @@ components:
           type: array
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, task.deleted, project.created, project.updated, project.deleted, member.joined, member.removed, note.created, note.updated, note.deleted]
           description: Event types this webhook subscribes to.
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
@@ -3821,7 +3821,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, task.deleted, project.created, project.updated, project.deleted, member.joined, member.removed, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3845,7 +3845,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, task.deleted, project.created, project.updated, project.deleted, member.joined, member.removed, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:

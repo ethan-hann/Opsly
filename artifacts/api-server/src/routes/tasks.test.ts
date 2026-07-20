@@ -119,19 +119,19 @@ vi.mock("drizzle-orm", () => ({
 // Webhook dispatcher makes unawaited async DB calls that would race with the
 // next test's selectQueue. Mock it as a no-op for all unit tests here.
 vi.mock("../lib/webhook-dispatcher", () => ({
-  dispatchTaskCreated: () => {},
-  dispatchTaskUpdated: () => {},
-  dispatchTaskCommented: () => {},
-  dispatchNoteCreated: () => {},
-  dispatchNoteUpdated: () => {},
-  dispatchNoteDeleted: () => {},
-  dispatchTaskSlaBreached: () => {},
-  dispatchProjectCreated: () => {},
-  dispatchProjectUpdated: () => {},
-  dispatchProjectDeleted: () => {},
-  dispatchTaskAssigned: () => {},
-  dispatchTaskStatusChanged: () => {},
-  dispatchTaskDeleted: () => {},
+  dispatchTaskCreated: vi.fn(),
+  dispatchTaskUpdated: vi.fn(),
+  dispatchTaskCommented: vi.fn(),
+  dispatchNoteCreated: vi.fn(),
+  dispatchNoteUpdated: vi.fn(),
+  dispatchNoteDeleted: vi.fn(),
+  dispatchTaskSlaBreached: vi.fn(),
+  dispatchProjectCreated: vi.fn(),
+  dispatchProjectUpdated: vi.fn(),
+  dispatchProjectDeleted: vi.fn(),
+  dispatchTaskAssigned: vi.fn(),
+  dispatchTaskStatusChanged: vi.fn(),
+  dispatchTaskDeleted: vi.fn(),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -164,6 +164,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
 }));
 
 import tasksRouter from "./tasks.js";
+import * as webhookDispatcher from "../lib/webhook-dispatcher.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1692,19 +1693,54 @@ describe("DELETE /api/tasks/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    vi.mocked(webhookDispatcher.dispatchTaskDeleted).mockClear();
   });
 
   it("returns 204 on successful delete", async () => {
     // Ownership check: select returns the task (belongs to org)
-    mockState.selectQueue.push([{ id: 1 }]);
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 5, title: "Fix the server", projectId: null }]);
 
     const res = await request(buildApp()).delete("/api/tasks/1");
 
     expect(res.status).toBe(204);
   });
 
-  it("returns 404 when the task does not exist", async () => {
+  it("calls dispatchTaskDeleted with task data after successful delete", async () => {
+    mockState.selectQueue.push([{ id: 1, orgTaskNumber: 5, title: "Fix the server", projectId: null }]);
+
+    await request(buildApp()).delete("/api/tasks/1");
+
+    expect(webhookDispatcher.dispatchTaskDeleted).toHaveBeenCalledOnce();
+    expect(webhookDispatcher.dispatchTaskDeleted).toHaveBeenCalledWith(
+      "test-org",
+      null,
+      expect.objectContaining({ id: 1, orgTaskNumber: 5, title: "Fix the server", orgId: "test-org" }),
+    );
+  });
+
+  it("calls dispatchTaskDeleted with projectId when task has a project", async () => {
+    mockState.selectQueue.push([{ id: 2, orgTaskNumber: 3, title: "Project task", projectId: 7 }]);
+
+    await request(buildApp()).delete("/api/tasks/2");
+
+    expect(webhookDispatcher.dispatchTaskDeleted).toHaveBeenCalledWith(
+      "test-org",
+      7,
+      expect.objectContaining({ id: 2, orgTaskNumber: 3, title: "Project task" }),
+    );
+  });
+
+  it("does not call dispatchTaskDeleted when the task is not found", async () => {
     // Ownership check: select returns [] (not in this org)
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).delete("/api/tasks/999");
+
+    expect(res.status).toBe(404);
+    expect(webhookDispatcher.dispatchTaskDeleted).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 when the task does not exist", async () => {
     mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).delete("/api/tasks/999");

@@ -32,7 +32,7 @@ import {
   WatchingFilterParam,
 } from "@workspace/api-zod";
 import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
-import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
+import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskDeleted } from "../lib/webhook-dispatcher";
 import { sanitizeRichText } from "../lib/sanitize-rich-text";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { detectAndMarkSlaBreaches } from "../lib/sla-detection";
@@ -983,7 +983,12 @@ router.delete("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asy
 
   // Verify the task belongs to this org BEFORE touching comments (cross-org safety)
   const [existing] = await db
-    .select({ id: tasksTable.id })
+    .select({
+      id: tasksTable.id,
+      orgTaskNumber: tasksTable.orgTaskNumber,
+      title: tasksTable.title,
+      projectId: tasksTable.projectId,
+    })
     .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .limit(1);
@@ -995,6 +1000,13 @@ router.delete("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asy
 
   await db.delete(commentsTable).where(eq(commentsTable.taskId, existing.id));
   await db.delete(tasksTable).where(and(eq(tasksTable.id, existing.id), eq(tasksTable.orgId, orgId)));
+
+  dispatchTaskDeleted(orgId, existing.projectId, {
+    id: existing.id,
+    orgTaskNumber: existing.orgTaskNumber,
+    title: existing.title,
+    orgId,
+  });
 
   res.sendStatus(204);
 });

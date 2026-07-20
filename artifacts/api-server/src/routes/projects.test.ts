@@ -98,6 +98,13 @@ vi.mock("drizzle-orm", () => ({
   sql: () => ({}),
 }));
 
+// Mock the outbound dispatcher so real HTTP calls are never attempted
+vi.mock("../lib/webhook-dispatcher", () => ({
+  dispatchProjectCreated: vi.fn(),
+  dispatchProjectUpdated: vi.fn(),
+  dispatchProjectDeleted: vi.fn(),
+}));
+
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
   requireScope: () => (_req: any, _res: any, next: any) => next(),
@@ -121,6 +128,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
 }));
 
 import projectsRouter from "./projects.js";
+import * as webhookDispatcher from "../lib/webhook-dispatcher.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -336,6 +344,7 @@ describe("DELETE /api/projects/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    vi.mocked(webhookDispatcher.dispatchProjectDeleted).mockClear();
   });
 
   it("returns 204 on successful delete", async () => {
@@ -344,6 +353,27 @@ describe("DELETE /api/projects/:id", () => {
     const res = await request(buildApp()).delete("/api/projects/1");
 
     expect(res.status).toBe(204);
+  });
+
+  it("calls dispatchProjectDeleted with project id and name after successful delete", async () => {
+    mockState.deleteResult = [MOCK_PROJECT];
+
+    await request(buildApp()).delete("/api/projects/1");
+
+    expect(webhookDispatcher.dispatchProjectDeleted).toHaveBeenCalledOnce();
+    expect(webhookDispatcher.dispatchProjectDeleted).toHaveBeenCalledWith(
+      "test-org",
+      expect.objectContaining({ id: 1, name: "Infra Upgrade" }),
+    );
+  });
+
+  it("does not call dispatchProjectDeleted when project is not found", async () => {
+    mockState.deleteResult = [];
+
+    const res = await request(buildApp()).delete("/api/projects/999");
+
+    expect(res.status).toBe(404);
+    expect(webhookDispatcher.dispatchProjectDeleted).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the project does not exist", async () => {
