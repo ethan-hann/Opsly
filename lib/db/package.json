@@ -23,7 +23,8 @@
     "migrate:add-sla-warning-support": "pnpm dlx tsx src/migrations/add-sla-warning-support.ts",
     "migrate:create-workflow-stages": "pnpm dlx tsx src/migrations/create-workflow-stages.ts",
     "migrate:add-search-trigram-indexes": "pnpm dlx tsx src/migrations/add-search-trigram-indexes.ts",
-    "migrate:add-inbound-webhook-task-template-id": "pnpm dlx tsx src/migrations/add-inbound-webhook-task-template-id.ts"
+    "migrate:add-inbound-webhook-task-template-id": "pnpm dlx tsx src/migrations/add-inbound-webhook-task-template-id.ts",
+    "migrate:add-task-watchers": "pnpm dlx tsx src/migrations/add-task-watchers.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

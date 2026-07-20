@@ -83,6 +83,10 @@ vi.mock("@workspace/api-zod", () => {
     BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p,
     BulkDeleteTasksBody: p, BulkDeleteTasksResponse: p,
     ListTaskEventsParams: p, ListTaskEventsResponse: p,
+    // task watchers
+    WatchingFilterParam: p, WatchTaskParams: p, UnwatchTaskParams: p,
+    GetTaskWatchersParams: p, GetTaskWatchersResponse: p,
+    WatchTaskResponse: p, UnwatchTaskResponse: p,
     // projects
     CreateProjectBody: p, UpdateProjectBody: p,
     GetProjectParams: p, UpdateProjectParams: p, DeleteProjectParams: p,
@@ -139,6 +143,7 @@ vi.mock("@workspace/db", () => {
       insert: () => ({
         values: () => ({
           returning: () => Promise.resolve(mockState.insertResult),
+          onConflictDoNothing: () => Promise.resolve([]),
         }),
       }),
       update: () => ({
@@ -177,6 +182,7 @@ vi.mock("@workspace/db", () => {
     taskEventsTable: {},
     workflowStagesTable: {},
     customFieldDefinitionsTable: {},
+    taskWatchersTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},

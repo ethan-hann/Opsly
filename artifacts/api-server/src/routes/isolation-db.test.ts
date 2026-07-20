@@ -90,6 +90,10 @@ vi.mock("@workspace/api-zod", () => {
     BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p,
     BulkDeleteTasksBody: p, BulkDeleteTasksResponse: p,
     ListTaskEventsParams: p, ListTaskEventsResponse: p,
+    // task watchers
+    WatchingFilterParam: p, WatchTaskParams: p, UnwatchTaskParams: p,
+    GetTaskWatchersParams: p, GetTaskWatchersResponse: p,
+    WatchTaskResponse: p, UnwatchTaskResponse: p,
     CreateProjectBody: p, UpdateProjectBody: p,
     GetProjectParams: p, UpdateProjectParams: p, DeleteProjectParams: p,
     ListProjectsResponse: p, CreateProjectResponse: p,

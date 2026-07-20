@@ -7,7 +7,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
-import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff } from "lucide-react";
+import { useGetTaskWatchers, useWatchTask, useUnwatchTask } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -472,6 +473,27 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
 
+  // ── Watchers ──────────────────────────────────────────────────────────────
+  const { data: watchersData } = useGetTaskWatchers(taskId);
+  const watchMutation = useWatchTask(taskId);
+  const unwatchMutation = useUnwatchTask(taskId);
+  const isWatching = watchersData?.isWatching ?? false;
+  const watcherCount = watchersData?.count ?? 0;
+
+  const handleToggleWatch = () => {
+    if (isWatching) {
+      unwatchMutation.mutate(undefined, {
+        onSuccess: () => toast({ title: "Unwatched task" }),
+        onError: () => toast({ title: "Failed to unwatch task", variant: "destructive" }),
+      });
+    } else {
+      watchMutation.mutate(undefined, {
+        onSuccess: () => toast({ title: "Watching task" }),
+        onError: () => toast({ title: "Failed to watch task", variant: "destructive" }),
+      });
+    }
+  };
+
   const { data: task, isLoading: isLoadingTask } = useGetTask(taskId, {
     query: { enabled: !!taskId, queryKey: ["getTask", taskId] }
   });
@@ -653,6 +675,24 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               <div className="flex justify-between items-start gap-4">
                 <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
                 <div className="flex gap-2 shrink-0">
+                  {/* Watch / Unwatch button */}
+                  <Button
+                    variant={isWatching ? "secondary" : "outline"}
+                    size="sm"
+                    className="gap-1.5 text-xs"
+                    onClick={handleToggleWatch}
+                    disabled={watchMutation.isPending || unwatchMutation.isPending}
+                    title={isWatching ? "Click to stop watching" : "Watch this task to get notified of changes"}
+                  >
+                    {isWatching ? (
+                      <><EyeOff className="w-3.5 h-3.5" /> Unwatch</>
+                    ) : (
+                      <><Eye className="w-3.5 h-3.5" /> Watch</>
+                    )}
+                    {watcherCount > 0 && (
+                      <span className="ml-0.5 text-muted-foreground">· {watcherCount}</span>
+                    )}
+                  </Button>
                   <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
                     <Edit className="w-3.5 h-3.5" /> Edit Task
                   </Button>

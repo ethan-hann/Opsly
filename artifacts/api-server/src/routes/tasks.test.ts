@@ -61,6 +61,7 @@ vi.mock("@workspace/db", () => {
           mockState.insertCalls.push(args[0]);
           return {
             returning: () => Promise.resolve(mockState.insertResult),
+            onConflictDoNothing: () => Promise.resolve([]),
           };
         },
       }),
@@ -88,6 +89,7 @@ vi.mock("@workspace/db", () => {
     workflowStagesTable: {},
     taskEventsTable: {},
     slaPoliciesTable: {},
+    taskWatchersTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -1387,6 +1389,137 @@ describe("POST /api/tasks - description sanitization", () => {
       .send({ ...VALID_TASK_BODY, description: md });
 
     expect(mockState.insertCalls[0].description).toBe(md);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/tasks/:id/watchers
+// ---------------------------------------------------------------------------
+
+describe("GET /api/tasks/:id/watchers", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.insertCalls = [];
+  });
+
+  it("returns count, isWatching and watchers array for an existing task", async () => {
+    // 1. Task ownership check
+    mockState.selectQueue.push([{ id: 1 }]);
+    // 2. Watcher list join
+    mockState.selectQueue.push([
+      { userId: "user-owner", firstName: "Alice", lastName: "Smith", email: "alice@org.com", profileImageUrl: null },
+    ]);
+
+    const res = await request(buildApp()).get("/api/tasks/1/watchers");
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(1);
+    // The middleware sets req.user.id = "user-owner", so isWatching = true
+    expect(res.body.isWatching).toBe(true);
+    expect(res.body.watchers).toHaveLength(1);
+    expect(res.body.watchers[0].userId).toBe("user-owner");
+  });
+
+  it("returns count=0 and isWatching=false when no one is watching", async () => {
+    mockState.selectQueue.push([{ id: 1 }]); // task found
+    mockState.selectQueue.push([]);           // no watchers
+
+    const res = await request(buildApp()).get("/api/tasks/1/watchers");
+
+    expect(res.status).toBe(200);
+    expect(res.body.count).toBe(0);
+    expect(res.body.isWatching).toBe(false);
+    expect(res.body.watchers).toEqual([]);
+  });
+
+  it("returns 404 when task does not belong to the org", async () => {
+    mockState.selectQueue.push([]); // task not found in this org
+
+    const res = await request(buildApp()).get("/api/tasks/999/watchers");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for a non-integer task id", async () => {
+    const res = await request(buildApp()).get("/api/tasks/bad-id/watchers");
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks/:id/watch
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/watch", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.insertCalls = [];
+  });
+
+  it("returns { watching: true } for an existing task (idempotent upsert)", async () => {
+    // Task ownership check — found
+    mockState.selectQueue.push([{ id: 1 }]);
+
+    const res = await request(buildApp()).post("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(res.body.watching).toBe(true);
+  });
+
+  it("returns 404 when task does not belong to the org", async () => {
+    mockState.selectQueue.push([]); // task not in this org
+
+    const res = await request(buildApp()).post("/api/tasks/999/watch");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for a non-integer task id", async () => {
+    const res = await request(buildApp()).post("/api/tasks/not-a-number/watch");
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /api/tasks/:id/watch
+// ---------------------------------------------------------------------------
+
+describe("DELETE /api/tasks/:id/watch", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.insertCalls = [];
+  });
+
+  it("returns { watching: false } after removing watch (idempotent)", async () => {
+    // Task ownership check — found
+    mockState.selectQueue.push([{ id: 1 }]);
+
+    const res = await request(buildApp()).delete("/api/tasks/1/watch");
+
+    expect(res.status).toBe(200);
+    expect(res.body.watching).toBe(false);
+  });
+
+  it("returns 404 when task does not belong to the org", async () => {
+    mockState.selectQueue.push([]); // task not in this org
+
+    const res = await request(buildApp()).delete("/api/tasks/999/watch");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for a non-integer task id", async () => {
+    const res = await request(buildApp()).delete("/api/tasks/not-a-number/watch");
+    expect(res.status).toBe(400);
   });
 });
 

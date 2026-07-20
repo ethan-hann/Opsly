@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -32,6 +32,7 @@ interface ActiveFilters {
   dateTo: string;
   projectFilter: ProjectFilter;
   search: string;
+  watching: boolean;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ function useTaskFilters() {
     dateTo: params.get("dateTo") ?? "",
     projectFilter: (params.get("project") as ProjectFilter) ?? "all",
     search: params.get("search") ?? "",
+    watching: params.get("watching") === "true",
   };
 
   const activeViewId = params.get("viewId") ? Number(params.get("viewId")) : null;
@@ -133,6 +135,20 @@ function useTaskFilters() {
     [setLocation],
   );
 
+  const setWatching = useCallback(
+    (value: boolean) => {
+      const next = new URLSearchParams(urlSearch);
+      if (value) {
+        next.set("watching", "true");
+      } else {
+        next.delete("watching");
+      }
+      next.delete("viewId");
+      setLocation("?" + next.toString(), { replace: true });
+    },
+    [urlSearch, setLocation],
+  );
+
   const hasActiveFilters =
     !!filters.status ||
     !!filters.priority ||
@@ -140,9 +156,10 @@ function useTaskFilters() {
     !!filters.assignee ||
     !!filters.dateFrom ||
     !!filters.dateTo ||
-    !!filters.search;
+    !!filters.search ||
+    filters.watching;
 
-  return { filters, setFilter, setSearch, clearAll, applyView, hasActiveFilters, activeViewId };
+  return { filters, setFilter, setSearch, setWatching, clearAll, applyView, hasActiveFilters, activeViewId };
 }
 
 // ─── Filter chip component ────────────────────────────────────────────────────
@@ -618,7 +635,7 @@ export default function TasksList() {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { filters, setFilter, setSearch, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
+  const { filters, setFilter, setSearch, setWatching, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -640,6 +657,7 @@ export default function TasksList() {
   const queryClient = useQueryClient();
 
   // Build API query params from active filters (server-side filtering)
+  // `watching` is not in the generated ListTasksQueryParams type so we cast.
   const apiParams = {
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.priority ? { priority: filters.priority } : {}),
@@ -647,10 +665,11 @@ export default function TasksList() {
     ...(filters.assignee ? { assignee: filters.assignee } : {}),
     ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
     ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
-  };
+    ...(filters.watching ? { watching: "true" } : {}),
+  } as Parameters<typeof useListTasks>[0];
 
   const { data: tasks, isLoading } = useListTasks(
-    Object.keys(apiParams).length ? apiParams : undefined,
+    Object.keys(apiParams ?? {}).length ? apiParams : undefined,
   );
   const { data: members } = useListOrgMembers();
   const { data: views } = useListViews();
@@ -980,6 +999,20 @@ export default function TasksList() {
               </div>
             </div>
           </FilterChip>
+
+          {/* Watching toggle */}
+          <button
+            onClick={() => setWatching(!filters.watching)}
+            className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-md font-medium border transition-colors ${
+              filters.watching
+                ? "bg-primary text-primary-foreground border-primary"
+                : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
+            }`}
+            title={filters.watching ? "Showing only watched tasks — click to clear" : "Show only tasks you're watching"}
+          >
+            <Eye className="w-3.5 h-3.5" />
+            Watching
+          </button>
 
           {/* Clear all */}
           {hasActiveFilters && (

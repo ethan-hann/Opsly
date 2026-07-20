@@ -3,6 +3,7 @@ import { eq, sql, and, lt, lte, gte, or, isNull, asc, inArray } from "drizzle-or
 import {
   db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable,
   customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable, workflowStagesTable,
+  taskWatchersTable,
 } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -22,6 +23,13 @@ import {
   BulkUpdateTasksResponse,
   BulkDeleteTasksBody,
   BulkDeleteTasksResponse,
+  WatchTaskParams,
+  UnwatchTaskParams,
+  GetTaskWatchersParams,
+  GetTaskWatchersResponse,
+  WatchTaskResponse,
+  UnwatchTaskResponse,
+  WatchingFilterParam,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
@@ -283,6 +291,30 @@ async function insertChangeEvents(
   }
 }
 
+// ─── Watcher helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Return all user IDs watching a given task.
+ * Used to fan out notifications after task changes and new comments.
+ */
+async function getWatcherUserIds(taskId: number): Promise<string[]> {
+  const rows = await db
+    .select({ userId: taskWatchersTable.userId })
+    .from(taskWatchersTable)
+    .where(eq(taskWatchersTable.taskId, taskId));
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * Upsert a watcher row (idempotent — safe to call even if already watching).
+ */
+async function upsertWatcher(taskId: number, userId: string, orgId: string): Promise<void> {
+  await db
+    .insert(taskWatchersTable)
+    .values({ taskId, userId, orgId })
+    .onConflictDoNothing();
+}
+
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
 router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
@@ -322,9 +354,11 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
     res.status(400).json({ error: queryParams.error.message });
     return;
   }
+  const watchingParam = WatchingFilterParam.safeParse(req.query);
 
   const orgId = req.orgId!;
   const { projectId, status, priority, category, assignee, dateFrom, dateTo } = queryParams.data;
+  const watchingOnly = watchingParam.success && watchingParam.data.watching === true;
 
   const conditions = [eq(tasksTable.orgId, orgId)];
   if (projectId != null) conditions.push(eq(tasksTable.projectId, projectId));
@@ -335,11 +369,30 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
   if (dateFrom) conditions.push(gte(tasksTable.dueDate, dateFrom));
   if (dateTo) conditions.push(lte(tasksTable.dueDate, dateTo));
 
-  const tasks = await db
-    .select()
-    .from(tasksTable)
-    .where(and(...conditions))
-    .orderBy(tasksTable.createdAt);
+  let tasks: (typeof tasksTable.$inferSelect)[];
+
+  if (watchingOnly && req.user?.id) {
+    // Join with task_watchers to return only tasks the current user watches
+    const rows = await db
+      .select({ task: tasksTable })
+      .from(tasksTable)
+      .innerJoin(
+        taskWatchersTable,
+        and(
+          eq(taskWatchersTable.taskId, tasksTable.id),
+          eq(taskWatchersTable.userId, req.user.id),
+        ),
+      )
+      .where(and(...conditions))
+      .orderBy(tasksTable.createdAt);
+    tasks = rows.map((r) => r.task);
+  } else {
+    tasks = await db
+      .select()
+      .from(tasksTable)
+      .where(and(...conditions))
+      .orderBy(tasksTable.createdAt);
+  }
 
   const stages = tasks.length > 0 ? await getOrgStages(orgId) : new Map();
 
@@ -445,10 +498,11 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
 
-  // Notify the assignee (fire-and-forget)
+  // Auto-watch the assignee + fire assignment notification (fire-and-forget)
   if (task.assignee) {
-    void resolveAssigneeUserId(task.assignee, orgId).then((assigneeUserId) => {
+    void resolveAssigneeUserId(task.assignee, orgId).then(async (assigneeUserId) => {
       if (assigneeUserId) {
+        await upsertWatcher(task.id, assigneeUserId, orgId);
         notifyTaskAssigned({
           taskId: task.id,
           taskTitle: task.title,
@@ -766,6 +820,17 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
 
+  // Auto-watch the new assignee (fire-and-forget — errors are non-fatal)
+  void (async () => {
+    const assigneeChanged = "assignee" in parsed.data && parsed.data.assignee !== prev.assignee;
+    if (assigneeChanged && task.assignee) {
+      const assigneeUserId = await resolveAssigneeUserId(task.assignee, orgId);
+      if (assigneeUserId) {
+        await upsertWatcher(task.id, assigneeUserId, orgId);
+      }
+    }
+  })();
+
   // Fire notifications (fire-and-forget)
   void (async () => {
     const assigneeChanged = "assignee" in parsed.data && parsed.data.assignee !== prev.assignee;
@@ -786,37 +851,51 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       }
     }
 
-    // Status / priority change notifications — notify current assignee
+    // Status / priority / assignee change notifications — notify all watchers
     const statusChanged = parsed.data.status !== undefined && parsed.data.status !== prev.status;
     const priorityChanged = parsed.data.priority !== undefined && parsed.data.priority !== prev.priority;
+    const assigneeFieldChanged = "assignee" in parsed.data && parsed.data.assignee !== prev.assignee;
 
-    if ((statusChanged || priorityChanged) && task.assignee) {
-      const assigneeUserId = await resolveAssigneeUserId(task.assignee, orgId);
-      if (assigneeUserId) {
-        if (statusChanged) {
-          await notifyTaskUpdated({
-            taskId: task.id,
-            taskTitle: task.title,
-            orgId,
-            actorId,
-            actorName: actorNameStr,
-            recipientUserIds: [assigneeUserId],
-            changedField: "status",
-            newValue: task.status,
-          });
-        }
-        if (priorityChanged) {
-          await notifyTaskUpdated({
-            taskId: task.id,
-            taskTitle: task.title,
-            orgId,
-            actorId,
-            actorName: actorNameStr,
-            recipientUserIds: [assigneeUserId],
-            changedField: "priority",
-            newValue: task.priority,
-          });
-        }
+    if (statusChanged || priorityChanged || assigneeFieldChanged) {
+      const watcherIds = await getWatcherUserIds(task.id);
+      // Deduplicate (assignee might also be a watcher)
+      const uniqueWatcherIds = [...new Set(watcherIds)];
+
+      if (statusChanged) {
+        await notifyTaskUpdated({
+          taskId: task.id,
+          taskTitle: task.title,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          recipientUserIds: uniqueWatcherIds,
+          changedField: "status",
+          newValue: task.status,
+        });
+      }
+      if (priorityChanged) {
+        await notifyTaskUpdated({
+          taskId: task.id,
+          taskTitle: task.title,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          recipientUserIds: uniqueWatcherIds,
+          changedField: "priority",
+          newValue: task.priority,
+        });
+      }
+      if (assigneeFieldChanged) {
+        await notifyTaskUpdated({
+          taskId: task.id,
+          taskTitle: task.title,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          recipientUserIds: uniqueWatcherIds,
+          changedField: "assignee",
+          newValue: task.assignee ?? "(unassigned)",
+        });
       }
     }
   })();
@@ -932,6 +1011,135 @@ router.get("/tasks/:id/events", requireOrg, async (req, res): Promise<void> => {
       })),
     ),
   );
+});
+
+// ─── Watch / Unwatch / Watchers ──────────────────────────────────────────────
+
+/**
+ * GET /tasks/:id/watchers
+ * Returns watcher count, whether the current user is watching, and up to 10
+ * watcher avatars (enough for the task-detail header).
+ */
+router.get("/tasks/:id/watchers", requireOrg, async (req, res): Promise<void> => {
+  const params = GetTaskWatchersParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  // Confirm task belongs to this org
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+
+  // Fetch watchers joined with user profiles
+  const rows = await db
+    .select({
+      userId: taskWatchersTable.userId,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      email: usersTable.email,
+      profileImageUrl: usersTable.profileImageUrl,
+    })
+    .from(taskWatchersTable)
+    .innerJoin(usersTable, eq(taskWatchersTable.userId, usersTable.id))
+    .where(eq(taskWatchersTable.taskId, params.data.id))
+    .orderBy(taskWatchersTable.createdAt);
+
+  const currentUserId = req.user?.id ?? null;
+  const isWatching = currentUserId !== null && rows.some((r) => r.userId === currentUserId);
+
+  res.json(
+    GetTaskWatchersResponse.parse({
+      count: rows.length,
+      isWatching,
+      watchers: rows.slice(0, 10),
+    }),
+  );
+});
+
+/**
+ * POST /tasks/:id/watch — idempotent; safe to call even if already watching.
+ */
+router.post("/tasks/:id/watch", requireOrg, async (req, res): Promise<void> => {
+  const params = WatchTaskParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  // Confirm task belongs to this org
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+
+  await upsertWatcher(task.id, userId, orgId);
+
+  res.json(WatchTaskResponse.parse({ watching: true }));
+});
+
+/**
+ * DELETE /tasks/:id/watch — idempotent; safe to call even if not watching.
+ */
+router.delete("/tasks/:id/watch", requireOrg, async (req, res): Promise<void> => {
+  const params = UnwatchTaskParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+  const userId = req.user?.id;
+  if (!userId) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+
+  // Confirm task belongs to this org (cross-org safety)
+  const [task] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found" });
+    return;
+  }
+
+  await db
+    .delete(taskWatchersTable)
+    .where(
+      and(
+        eq(taskWatchersTable.taskId, task.id),
+        eq(taskWatchersTable.userId, userId),
+      ),
+    );
+
+  res.json(UnwatchTaskResponse.parse({ watching: false }));
 });
 
 export default router;

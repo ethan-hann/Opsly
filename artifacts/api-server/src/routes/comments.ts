@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, commentsTable, tasksTable, orgMembersTable, usersTable } from "@workspace/db";
+import { db, commentsTable, tasksTable, orgMembersTable, usersTable, taskWatchersTable } from "@workspace/db";
 import {
   CreateCommentBody,
   CreateCommentParams,
@@ -114,37 +114,30 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
         serializedComment,
       );
 
-      // Notify the task assignee (if any)
-      if (fullTask.assignee) {
-        const [assigneeRow] = await db
-          .select({ userId: orgMembersTable.userId })
-          .from(orgMembersTable)
-          .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
-          .where(
-            and(
-              eq(orgMembersTable.orgId, req.orgId!),
-              eq(usersTable.email, fullTask.assignee),
-            ),
-          )
-          .limit(1);
+      // Notify all watchers (includes assignee if they're watching)
+      const watcherRows = await db
+        .select({ userId: taskWatchersTable.userId })
+        .from(taskWatchersTable)
+        .where(eq(taskWatchersTable.taskId, fullTask.id));
 
-        if (assigneeRow) {
-          const actorId = req.user?.id ?? null;
-          const actorName = req.user
-            ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
-              req.user.email ||
-              "Someone"
-            : "Someone";
+      const watcherIds = watcherRows.map((r) => r.userId);
 
-          await notifyCommentAdded({
-            taskId: fullTask.id,
-            taskTitle: fullTask.title,
-            orgId: req.orgId!,
-            actorId,
-            actorName,
-            recipientUserIds: [assigneeRow.userId],
-          });
-        }
+      if (watcherIds.length > 0) {
+        const actorId = req.user?.id ?? null;
+        const actorName = req.user
+          ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
+            req.user.email ||
+            "Someone"
+          : "Someone";
+
+        await notifyCommentAdded({
+          taskId: fullTask.id,
+          taskTitle: fullTask.title,
+          orgId: req.orgId!,
+          actorId,
+          actorName,
+          recipientUserIds: [...new Set(watcherIds)],
+        });
       }
     }
   })();
