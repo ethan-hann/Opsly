@@ -220,11 +220,17 @@ function LeaveOrgSection({ orgName, isOwner, isOnlyMember, isLeaving, onLeave }:
 interface RoleCardProps {
   role: Role;
   canEdit: boolean; // owner only
+  members: OrgMemberInfo[]; // full org member list, used to warn before deletion
   onUpdated: () => void;
   onDeleted: () => void;
 }
 
-function RoleCard({ role, canEdit, onUpdated, onDeleted }: RoleCardProps) {
+function memberDisplayName(m: OrgMemberInfo): string {
+  const name = [m.firstName, m.lastName].filter(Boolean).join(" ");
+  return name || m.email || m.userId;
+}
+
+function RoleCard({ role, canEdit, members, onUpdated, onDeleted }: RoleCardProps) {
   const { toast } = useToast();
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(role.name);
@@ -271,6 +277,10 @@ function RoleCard({ role, canEdit, onUpdated, onDeleted }: RoleCardProps) {
   // All built-in roles (Owner, Admin, Member) are read-only at both the API
   // and UI layers. Only custom roles may have their permissions edited.
   const isImmutable = role.isBuiltIn;
+
+  // Members currently assigned to this role — shown in the delete dialog so
+  // the owner knows exactly who will be downgraded to the Member built-in role.
+  const affectedMembers = members.filter((m) => m.roleId === role.id);
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
@@ -345,9 +355,35 @@ function RoleCard({ role, canEdit, onUpdated, onDeleted }: RoleCardProps) {
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete "{role.name}" role?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  All members assigned to this role will be automatically reassigned to the Member
-                  built-in role. This cannot be undone.
+                <AlertDialogDescription asChild>
+                  <div className="space-y-3">
+                    {affectedMembers.length === 0 ? (
+                      <p>
+                        No members are currently assigned to this role. Deleting it is safe
+                        and cannot be undone.
+                      </p>
+                    ) : (
+                      <>
+                        <p>
+                          <strong>{affectedMembers.length} {affectedMembers.length === 1 ? "member" : "members"}</strong>{" "}
+                          will be moved to the built-in <strong>Member</strong> role, which may
+                          reduce their permissions. This cannot be undone.
+                        </p>
+                        <ul className="text-xs rounded-md border border-border bg-muted/40 px-3 py-2 space-y-1 max-h-36 overflow-y-auto">
+                          {affectedMembers.slice(0, 8).map((m) => (
+                            <li key={m.userId} className="truncate text-foreground">
+                              {memberDisplayName(m)}
+                            </li>
+                          ))}
+                          {affectedMembers.length > 8 && (
+                            <li className="text-muted-foreground">
+                              …and {affectedMembers.length - 8} more
+                            </li>
+                          )}
+                        </ul>
+                      </>
+                    )}
+                  </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -1688,7 +1724,7 @@ export default function OrgSettings() {
               </CardTitle>
               <CardDescription className="mt-1">
                 {isOwner
-                  ? "Define what each role can do. Built-in roles can have their permissions adjusted; the Owner role is immutable."
+                  ? "Define what each role can do. Built-in roles are read-only; create a custom role to apply different permissions."
                   : "Permission levels for each role in this organization."}
               </CardDescription>
             </div>
@@ -1725,6 +1761,7 @@ export default function OrgSettings() {
               key={role.id}
               role={role}
               canEdit={isOwner}
+              members={members}
               onUpdated={refetchRoles}
               onDeleted={() => { refetchRoles(); refetchMembers(); }}
             />
