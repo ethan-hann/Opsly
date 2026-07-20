@@ -120,7 +120,6 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
         setOptionConflict(null);
       },
       onError: (err: Error) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const apiErr = err as any;
         if (apiErr?.status === 409 && typeof apiErr?.data?.affectedTaskCount === "number") {
           const opts = optionsText.split("\n").map((s: string) => s.trim()).filter(Boolean);
@@ -533,7 +532,7 @@ export function CustomFieldsManager() {
 
   // Local optimistic order — synced from server whenever the server list changes
   const [fields, setFields] = useState<CustomFieldDefinition[]>(serverFields);
-  useEffect(() => { setFields(serverFields); }, [allFields]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setFields(serverFields); }, [allFields]); // intentional: allFields triggers the sync but applyTemplate is not a dep
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),

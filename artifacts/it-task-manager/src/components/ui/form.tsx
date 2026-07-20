@@ -167,7 +167,7 @@ const FormMessage = React.forwardRef<
 FormMessage.displayName = 'FormMessage';
 
 export {
-  useFormField,
+  useFormField, // eslint-disable-line react-refresh/only-export-components -- hook intentionally co-exported with form components (shadcn/ui pattern)
   Form,
   FormItem,
   FormLabel,

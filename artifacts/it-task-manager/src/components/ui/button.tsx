@@ -61,4 +61,5 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 );
 Button.displayName = 'Button';
 
+// eslint-disable-next-line react-refresh/only-export-components -- buttonVariants is a shadcn/ui pattern: CVA variant exported alongside the component
 export { Button, buttonVariants };

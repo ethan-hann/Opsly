@@ -90,6 +90,7 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
  * Opens a popup window containing the rendered markdown.
  * Call this when the user chooses "New Window" dock mode.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- utility co-located with the component by design
 export function openPreviewWindow(title: string, content: string) {
   const win = window.open("", "md-preview", "width=760,height=600,resizable=yes,scrollbars=yes");
   if (!win) return;

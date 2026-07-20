@@ -190,7 +190,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
     if (open && initialTemplate) {
       applyTemplate(initialTemplate);
     }
-  }, [open, initialTemplate]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, initialTemplate]); // intentional: applyTemplate is stable; re-running on its ref change would cause duplicate application
 
   function applyTemplate(t: TaskTemplate) {
     setAppliedTemplate(t);

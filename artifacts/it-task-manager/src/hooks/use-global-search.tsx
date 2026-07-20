@@ -44,6 +44,7 @@ export function GlobalSearchProvider({ children }: { children: React.ReactNode }
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- useGlobalSearch hook is intentionally co-located with GlobalSearchProvider
 export function useGlobalSearch() {
   const ctx = useContext(GlobalSearchContext);
   if (!ctx) throw new Error("useGlobalSearch must be used inside GlobalSearchProvider");

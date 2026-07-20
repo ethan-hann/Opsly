@@ -78,5 +78,5 @@ export {
   ButtonGroup,
   ButtonGroupSeparator,
   ButtonGroupText,
-  buttonGroupVariants,
+  buttonGroupVariants, // eslint-disable-line react-refresh/only-export-components -- CVA variant intentionally co-exported
 };
