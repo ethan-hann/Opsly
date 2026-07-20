@@ -8,6 +8,7 @@ import {
   useCreateCustomFieldDefinition,
   useUpdateCustomFieldDefinition,
   useDeleteCustomFieldDefinition,
+  usePurgeCustomFieldDefinition,
   useReorderCustomFieldDefinitions,
   getListCustomFieldDefinitionsQueryKey,
 } from "@workspace/api-client-react";
@@ -35,7 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Check, X, Settings2 } from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Check, X, Settings2, Flame } from "lucide-react";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -390,6 +391,74 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
   );
 }
 
+// ─── DeletedFieldRow ──────────────────────────────────────────────────────────
+
+interface DeletedFieldRowProps {
+  field: CustomFieldDefinition;
+  onPurged: () => void;
+}
+
+function DeletedFieldRow({ field, onPurged }: DeletedFieldRowProps) {
+  const { toast } = useToast();
+
+  const { mutate: purgeField, isPending: isPurging } = usePurgeCustomFieldDefinition({
+    mutation: {
+      onSuccess: (data) => {
+        const count = data.affectedTaskCount;
+        toast({
+          title: "Field permanently erased",
+          description: count === 0
+            ? "No task data was affected."
+            : `Removed data from ${count} task${count === 1 ? "" : "s"}.`,
+        });
+        onPurged();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Purge failed", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/30 px-3 py-2 opacity-60">
+      <span className="flex-1 text-sm text-muted-foreground line-through truncate">{field.name}</span>
+      <Badge variant="secondary" className="text-xs shrink-0 capitalize">{field.type.replace("_", " ")}</Badge>
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+            disabled={isPurging}
+          >
+            <Flame className="w-3.5 h-3.5" />
+            Purge all data
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Permanently erase "{field.name}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the field definition and remove its stored value from
+              every task in your org. <span className="font-semibold text-destructive">This cannot be undone.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => purgeField({ id: field.id })}
+            >
+              Erase permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 // ─── CustomFieldsManager ──────────────────────────────────────────────────────
 
 export function CustomFieldsManager() {
@@ -397,7 +466,13 @@ export function CustomFieldsManager() {
   const { toast } = useToast();
   const [showAddForm, setShowAddForm] = useState(false);
 
-  const { data: fields = [], isLoading } = useListCustomFieldDefinitions();
+  // Fetch all fields including soft-deleted so we can show the purge section
+  const { data: allFields = [], isLoading } = useListCustomFieldDefinitions(
+    { includeSoftDeleted: true },
+  );
+
+  const fields = allFields.filter((f) => !f.deletedAt);
+  const deletedFields = allFields.filter((f) => !!f.deletedAt);
 
   const { mutate: reorder } = useReorderCustomFieldDefinitions({
     mutation: {
@@ -418,47 +493,64 @@ export function CustomFieldsManager() {
     reorder({ data: { ids: newFields.map((f) => f.id) } });
   }
 
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: getListCustomFieldDefinitionsQueryKey() });
+  }
+
   return (
-    <div className="space-y-3">
-      {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading fields…</p>
-      ) : fields.length === 0 && !showAddForm ? (
-        <p className="text-sm text-muted-foreground italic">
-          No custom fields yet. Add a field to extend every task in your org.
-        </p>
-      ) : (
+    <div className="space-y-4">
+      {/* Active fields */}
+      <div className="space-y-3">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Loading fields…</p>
+        ) : fields.length === 0 && !showAddForm ? (
+          <p className="text-sm text-muted-foreground italic">
+            No custom fields yet. Add a field to extend every task in your org.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {fields.map((field, i) => (
+              <FieldRow
+                key={field.id}
+                field={field}
+                isFirst={i === 0}
+                isLast={i === fields.length - 1}
+                onMoveUp={() => moveField(i, -1)}
+                onMoveDown={() => moveField(i, 1)}
+                onDeleted={invalidate}
+              />
+            ))}
+          </div>
+        )}
+
+        {showAddForm ? (
+          <AddFieldForm
+            onCancel={() => setShowAddForm(false)}
+            onCreated={() => setShowAddForm(false)}
+          />
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 w-full border-dashed"
+            onClick={() => setShowAddForm(true)}
+          >
+            <Plus className="w-4 h-4" />
+            Add field
+          </Button>
+        )}
+      </div>
+
+      {/* Soft-deleted fields awaiting purge */}
+      {deletedFields.length > 0 && (
         <div className="space-y-2">
-          {fields.map((field, i) => (
-            <FieldRow
-              key={field.id}
-              field={field}
-              isFirst={i === 0}
-              isLast={i === fields.length - 1}
-              onMoveUp={() => moveField(i, -1)}
-              onMoveDown={() => moveField(i, 1)}
-              onDeleted={() =>
-                queryClient.invalidateQueries({ queryKey: getListCustomFieldDefinitionsQueryKey() })
-              }
-            />
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Deleted fields — data still on file
+          </p>
+          {deletedFields.map((field) => (
+            <DeletedFieldRow key={field.id} field={field} onPurged={invalidate} />
           ))}
         </div>
-      )}
-
-      {showAddForm ? (
-        <AddFieldForm
-          onCancel={() => setShowAddForm(false)}
-          onCreated={() => setShowAddForm(false)}
-        />
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 w-full border-dashed"
-          onClick={() => setShowAddForm(true)}
-        >
-          <Plus className="w-4 h-4" />
-          Add field
-        </Button>
       )}
     </div>
   );

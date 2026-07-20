@@ -62,23 +62,29 @@ vi.mock("@workspace/db", () => {
     return chain;
   }
 
+  const dbMock: any = {
+    select: () => makeChain(mockState.selectQueue.shift() ?? []),
+    execute: () => Promise.resolve([]),
+    insert: () => ({
+      values: () => ({
+        returning: () => Promise.resolve(mockState.insertResult),
+      }),
+    }),
+    update: () => ({
+      set: () => ({
+        where: () => ({
+          returning: () => Promise.resolve(mockState.updateResult),
+        }),
+      }),
+    }),
+    delete: () => ({
+      where: () => Promise.resolve([]),
+    }),
+    transaction: async (fn: (tx: any) => Promise<any>) => fn(dbMock),
+  };
+
   return {
-    db: {
-      select: () => makeChain(mockState.selectQueue.shift() ?? []),
-      execute: () => Promise.resolve([]),
-      insert: () => ({
-        values: () => ({
-          returning: () => Promise.resolve(mockState.insertResult),
-        }),
-      }),
-      update: () => ({
-        set: () => ({
-          where: () => ({
-            returning: () => Promise.resolve(mockState.updateResult),
-          }),
-        }),
-      }),
-    },
+    db: dbMock,
     customFieldDefinitionsTable: {},
     tasksTable: {},
   };
@@ -466,6 +472,63 @@ describe("DELETE /api/custom-fields/:id", () => {
     const res = await request(buildApp()).delete("/api/custom-fields/1");
 
     expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/custom-fields/:id/purge — hard-delete + data wipe (admin only)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/custom-fields/:id/purge", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.isAdmin = true;
+  });
+
+  it("returns 403 when a non-admin member calls the endpoint", async () => {
+    mockState.isAdmin = false;
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/purge");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for a non-integer id", async () => {
+    const res = await request(buildApp()).post("/api/custom-fields/abc/purge");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the field does not exist in the org", async () => {
+    // transaction → first select returns [] (field not found)
+    mockState.selectQueue.push([]); // existing field lookup → not found
+
+    const res = await request(buildApp()).post("/api/custom-fields/999/purge");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/not found/i);
+  });
+
+  it("returns 200 with affectedTaskCount=0 when no tasks carry a value", async () => {
+    mockState.selectQueue.push([{ id: 1 }]);          // field exists
+    mockState.selectQueue.push([{ count: 0 }]);        // task count
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/purge");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ deletedFieldId: 1, affectedTaskCount: 0 });
+  });
+
+  it("returns 200 with the correct affectedTaskCount when tasks are wiped", async () => {
+    mockState.selectQueue.push([{ id: 1 }]);           // field exists
+    mockState.selectQueue.push([{ count: 7 }]);         // 7 tasks have a value
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/purge");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ deletedFieldId: 1, affectedTaskCount: 7 });
   });
 });
 

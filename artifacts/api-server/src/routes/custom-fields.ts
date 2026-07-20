@@ -9,6 +9,8 @@ import {
   UpdateCustomFieldDefinitionBody,
   UpdateCustomFieldDefinitionResponse,
   DeleteCustomFieldDefinitionParams,
+  PurgeCustomFieldDefinitionParams,
+  PurgeCustomFieldDefinitionResponse,
   ReorderCustomFieldDefinitionsBody,
 } from "@workspace/api-zod";
 import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
@@ -25,13 +27,20 @@ function serializeDef(def: typeof customFieldDefinitionsTable.$inferSelect) {
   };
 }
 
-/** GET /custom-fields — list non-deleted definitions for the org, ordered by position */
+/** GET /custom-fields — list definitions for the org, ordered by position.
+ *  Pass ?includeSoftDeleted=true to also receive soft-deleted definitions. */
 router.get("/custom-fields", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
+  const includeSoftDeleted = req.query.includeSoftDeleted === "true";
+
+  const whereClause = includeSoftDeleted
+    ? eq(customFieldDefinitionsTable.orgId, orgId)
+    : and(eq(customFieldDefinitionsTable.orgId, orgId), isNull(customFieldDefinitionsTable.deletedAt));
+
   const definitions = await db
     .select()
     .from(customFieldDefinitionsTable)
-    .where(and(eq(customFieldDefinitionsTable.orgId, orgId), isNull(customFieldDefinitionsTable.deletedAt)))
+    .where(whereClause)
     .orderBy(asc(customFieldDefinitionsTable.position), asc(customFieldDefinitionsTable.id));
 
   res.json(ListCustomFieldDefinitionsResponse.parse(definitions.map(serializeDef)));
@@ -251,6 +260,76 @@ router.delete("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): 
   }
 
   res.sendStatus(204);
+});
+
+/** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (admin only) */
+router.post("/custom-fields/:id/purge", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+  const params = PurgeCustomFieldDefinitionParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+  const fieldId = String(params.data.id);
+
+  const result = await db.transaction(async (tx) => {
+    // Confirm the field belongs to this org (soft-deleted or active — both can be purged)
+    const [existing] = await tx
+      .select({ id: customFieldDefinitionsTable.id })
+      .from(customFieldDefinitionsTable)
+      .where(
+        and(
+          eq(customFieldDefinitionsTable.id, params.data.id),
+          eq(customFieldDefinitionsTable.orgId, orgId),
+        ),
+      )
+      .limit(1);
+
+    if (!existing) return null;
+
+    // Count tasks that carry a value for this field
+    const [countRow] = await tx
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(tasksTable)
+      .where(
+        and(
+          eq(tasksTable.orgId, orgId),
+          sql`${tasksTable.customFields} ? ${fieldId}`,
+        ),
+      );
+
+    const affectedTaskCount = countRow?.count ?? 0;
+
+    // Remove the field key from every task in a single UPDATE
+    if (affectedTaskCount > 0) {
+      await tx.execute(sql`
+        UPDATE tasks
+        SET custom_fields = custom_fields - ${fieldId}
+        WHERE org_id = ${orgId}
+          AND custom_fields ? ${fieldId}
+      `);
+    }
+
+    // Hard-delete the field definition row
+    await tx
+      .delete(customFieldDefinitionsTable)
+      .where(
+        and(
+          eq(customFieldDefinitionsTable.id, params.data.id),
+          eq(customFieldDefinitionsTable.orgId, orgId),
+        ),
+      );
+
+    return affectedTaskCount;
+  });
+
+  if (result === null) {
+    res.status(404).json({ error: "Custom field not found" });
+    return;
+  }
+
+  res.json(PurgeCustomFieldDefinitionResponse.parse({ deletedFieldId: params.data.id, affectedTaskCount: result }));
 });
 
 /** POST /custom-fields/reorder — reorder field definitions (admin only) */
