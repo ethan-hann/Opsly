@@ -15,6 +15,11 @@ const router = Router();
 // GET /search?q=&limit=5
 // Runs parallel ILIKE queries on tasks.title, projects.name, and notes.title/content.
 // All results are scoped to the caller's org.
+//
+// Performance: these ILIKE '%query%' patterns rely on GIN trigram indexes
+// (pg_trgm) created by the migrate:add-search-trigram-indexes migration in
+// lib/db.  If you add new searched columns or change the pattern style, run a
+// matching migration to keep the indexes in sync.
 router.get("/search", requireOrg, async (req, res) => {
   const parsed = SearchQueryParams.safeParse(req.query);
   if (!parsed.success) {
