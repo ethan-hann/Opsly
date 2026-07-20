@@ -1565,6 +1565,109 @@ describe("PATCH /api/tasks/:id — custom field audit event emission", () => {
 });
 
 // ---------------------------------------------------------------------------
+// PATCH /api/tasks/bulk — audit event emission
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/tasks/bulk - event emission", () => {
+  // Two minimal prev-row snapshots that match the fields selected by the handler
+  const PREV_TASK_1 = {
+    id: 1,
+    status: "todo",
+    priority: "medium" as const,
+    assignee: null as string | null,
+    category: "incident" as const,
+    title: "Fix the server",
+    dueDate: null as string | null,
+    projectId: null as number | null,
+  };
+  const PREV_TASK_2 = {
+    id: 2,
+    status: "todo",
+    priority: "medium" as const,
+    assignee: null as string | null,
+    category: "incident" as const,
+    title: "Fix the client",
+    dueDate: null as string | null,
+    projectId: null as number | null,
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  it("emits one event per task when both tasks have the changed field", async () => {
+    // Patch changes priority for two tasks that are both at "medium".
+    // No status change → resolveStage not called; no assignee → assigneeBelongsToOrg not called.
+    mockState.selectQueue.push([PREV_TASK_1, PREV_TASK_2]); // prevRows SELECT
+    mockState.selectQueue.push([]);                          // getOrgStages (empty — no stage name lookup needed)
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [1, 2], patch: { priority: "high" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 2 });
+
+    // insertChangeEvents is called once per prevRow that has changes.
+    // Each call produces one db.insert().values() call with the diffed fields.
+    expect(mockState.insertCalls).toHaveLength(2);
+
+    // Task 1 event
+    const eventsForTask1: any[] = mockState.insertCalls[0];
+    expect(eventsForTask1).toHaveLength(1);
+    expect(eventsForTask1[0]).toMatchObject({
+      taskId: 1,
+      orgId: "test-org",
+      field: "priority",
+      oldValue: "medium",
+      newValue: "high",
+    });
+
+    // Task 2 event
+    const eventsForTask2: any[] = mockState.insertCalls[1];
+    expect(eventsForTask2).toHaveLength(1);
+    expect(eventsForTask2[0]).toMatchObject({
+      taskId: 2,
+      orgId: "test-org",
+      field: "priority",
+      oldValue: "medium",
+      newValue: "high",
+    });
+  });
+
+  it("emits no event for a task that is already at the new value", async () => {
+    // Task 1 is at "medium" (will change) but task 2 is already at "high" (no diff → no event).
+    const prevTask2AlreadyHigh = { ...PREV_TASK_2, priority: "high" as const };
+
+    mockState.selectQueue.push([PREV_TASK_1, prevTask2AlreadyHigh]); // prevRows SELECT
+    mockState.selectQueue.push([]);                                   // getOrgStages
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [1, 2], patch: { priority: "high" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 2 });
+
+    // Only task 1 produced a diff; insertChangeEvents skips the DB insert entirely
+    // when there are no changed fields, so only one insert call should appear.
+    expect(mockState.insertCalls).toHaveLength(1);
+    const events: any[] = mockState.insertCalls[0];
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      taskId: 1,
+      field: "priority",
+      oldValue: "medium",
+      newValue: "high",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/tasks - description sanitization (markdown mode)
 // ---------------------------------------------------------------------------
 
