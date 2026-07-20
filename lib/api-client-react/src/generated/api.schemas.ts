@@ -1845,6 +1845,10 @@ export interface SavedViewFilters {
   projectFilter?: SavedViewFiltersProjectFilter;
   /** Free-text search string. */
   search?: string;
+  /** Custom field definition ID to filter by. */
+  customFieldId?: number;
+  /** Exact option value to match for the custom field identified by customFieldId. */
+  customFieldValue?: string;
 }
 
 /**
@@ -2118,6 +2122,14 @@ dateTo?: string;
  * When `"true"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `"false"` to return all tasks regardless of SLA breach status.
  */
 slaBreached?: ListTasksSlaBreached;
+/**
+ * Filter by a custom field. Must be a positive integer matching a non-deleted custom field definition that belongs to the caller's org. When provided alone, returns tasks that have any non-null value for this field. Combine with `customFieldValue` to match a specific value.
+ */
+customFieldId?: number;
+/**
+ * Exact value to match for the custom field identified by `customFieldId`. Only meaningful when `customFieldId` is also supplied; ignored otherwise. For single_select and multi_select fields this is the option string to match.
+ */
+customFieldValue?: string;
 };
 
 export type ListTasksSlaBreached = typeof ListTasksSlaBreached[keyof typeof ListTasksSlaBreached];

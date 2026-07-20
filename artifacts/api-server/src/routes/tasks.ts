@@ -413,6 +413,10 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   // lookup returns no row (field absent from this org, deleted, or from another
   // org) the request is rejected with a generic 400 so callers cannot probe
   // field names, types, or options across org boundaries.
+  //
+  // Read customFieldId from req.query directly (using Number() coercion) rather
+  // than from queryParams.data so that integer validation and DB lookup work
+  // correctly even when test mocks return the raw query string as-is.
   const rawCfId = req.query.customFieldId;
   if (rawCfId !== undefined) {
     const cfId = Number(rawCfId);
@@ -420,8 +424,9 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
       res.status(400).json({ error: "customFieldId must be a positive integer" });
       return;
     }
+    const cfIdKey = String(cfId);
     const [cfDef] = await db
-      .select({ id: customFieldDefinitionsTable.id })
+      .select({ id: customFieldDefinitionsTable.id, type: customFieldDefinitionsTable.type })
       .from(customFieldDefinitionsTable)
       .where(and(
         eq(customFieldDefinitionsTable.id, cfId),
@@ -433,8 +438,20 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
       res.status(400).json({ error: "Custom field not found" });
       return;
     }
-    // Filter to tasks that have a non-null value for this custom field.
-    conditions.push(sql`(${tasksTable.customFields}->>${String(cfId)}) IS NOT NULL`);
+    const cfValue = req.query.customFieldValue as string | undefined;
+    if (cfValue != null && cfValue !== "") {
+      if (cfDef.type === "multi_select") {
+        // multi_select values are stored as JSON arrays (e.g. ["A","B"]).
+        // Use the JSONB containment operator to test array membership.
+        conditions.push(sql`(${tasksTable.customFields}->${cfIdKey}) @> ${JSON.stringify(cfValue)}::jsonb`);
+      } else {
+        // Scalar types (text, number, date, single_select): exact text match.
+        conditions.push(sql`(${tasksTable.customFields}->>${cfIdKey}) = ${cfValue}`);
+      }
+    } else {
+      // No value specified — filter to tasks that have any non-null value for this field.
+      conditions.push(sql`(${tasksTable.customFields}->>${cfIdKey}) IS NOT NULL`);
+    }
   }
 
   let tasks: (typeof tasksTable.$inferSelect)[];

@@ -27,4 +27,8 @@ export interface SavedViewFilters {
   projectFilter?: SavedViewFiltersProjectFilter;
   /** Free-text search string. */
   search?: string;
+  /** Custom field definition ID to filter by. */
+  customFieldId?: number;
+  /** Exact option value to match for the custom field identified by customFieldId. */
+  customFieldValue?: string;
 }

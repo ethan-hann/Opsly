@@ -1,4 +1,4 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks, useListWorkflowStages } from "@workspace/api-client-react";
+import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks, useListWorkflowStages, useListCustomFieldDefinitions } from "@workspace/api-client-react";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert, Clock } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert, Clock, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -36,6 +36,8 @@ interface ActiveFilters {
   slaBreached: boolean;
   stageType: string;   // "open" | "closed" | ""
   overdue: boolean;
+  customFieldId: string;    // numeric ID as string, or ""
+  customFieldValue: string; // option value, or ""
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -86,6 +88,8 @@ function useTaskFilters() {
     slaBreached: params.get("slaBreached") === "true",
     stageType: params.get("stageType") ?? "",
     overdue: params.get("overdue") === "true",
+    customFieldId: params.get("customFieldId") ?? "",
+    customFieldValue: params.get("customFieldValue") ?? "",
   };
 
   const activeViewId = params.get("viewId") ? Number(params.get("viewId")) : null;
@@ -135,6 +139,10 @@ function useTaskFilters() {
       if (f.dateTo) next.set("dateTo", f.dateTo);
       if (f.projectFilter && f.projectFilter !== "all") next.set("project", f.projectFilter);
       if (f.search) next.set("search", f.search);
+      if (f.customFieldId) {
+        next.set("customFieldId", String(f.customFieldId));
+        if (f.customFieldValue) next.set("customFieldValue", f.customFieldValue);
+      }
       next.set("viewId", String(view.id));
       setLocation("?" + next.toString(), { replace: true });
     },
@@ -197,6 +205,26 @@ function useTaskFilters() {
     [urlSearch, setLocation],
   );
 
+  const setCustomFieldFilter = useCallback(
+    (fieldId: string, fieldValue: string) => {
+      const next = new URLSearchParams(urlSearch);
+      if (fieldId) {
+        next.set("customFieldId", fieldId);
+        if (fieldValue) {
+          next.set("customFieldValue", fieldValue);
+        } else {
+          next.delete("customFieldValue");
+        }
+      } else {
+        next.delete("customFieldId");
+        next.delete("customFieldValue");
+      }
+      next.delete("viewId");
+      setLocation("?" + next.toString(), { replace: true });
+    },
+    [urlSearch, setLocation],
+  );
+
   const hasActiveFilters =
     !!filters.status ||
     !!filters.priority ||
@@ -208,9 +236,10 @@ function useTaskFilters() {
     filters.watching ||
     filters.slaBreached ||
     !!filters.stageType ||
-    filters.overdue;
+    filters.overdue ||
+    !!filters.customFieldId;
 
-  return { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, clearAll, applyView, hasActiveFilters, activeViewId };
+  return { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, setCustomFieldFilter, clearAll, applyView, hasActiveFilters, activeViewId };
 }
 
 // ─── Filter chip component ────────────────────────────────────────────────────
@@ -325,6 +354,8 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
       dateTo: filters.dateTo || undefined,
       projectFilter: filters.projectFilter !== "all" ? filters.projectFilter : undefined,
       search: search || undefined,
+      customFieldId: filters.customFieldId ? Number(filters.customFieldId) : undefined,
+      customFieldValue: filters.customFieldId && filters.customFieldValue ? filters.customFieldValue : undefined,
     };
     await createView.mutateAsync({
       data: { name: name.trim(), filters: filterPayload, isOrgWide, isDefault },
@@ -686,7 +717,7 @@ export default function TasksList() {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
+  const { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, setCustomFieldFilter, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -718,6 +749,8 @@ export default function TasksList() {
     ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
     ...(filters.watching ? { watching: "true" } : {}),
     ...(filters.slaBreached ? { slaBreached: "true" } : {}),
+    ...(filters.customFieldId ? { customFieldId: Number(filters.customFieldId) } : {}),
+    ...(filters.customFieldId && filters.customFieldValue ? { customFieldValue: filters.customFieldValue } : {}),
   } as Parameters<typeof useListTasks>[0];
 
   const { data: tasks, isLoading } = useListTasks(
@@ -727,6 +760,7 @@ export default function TasksList() {
   const { data: views } = useListViews();
   const { data: slaPolicies } = useGetSLAPolicies();
   const { data: stages = [] } = useListWorkflowStages();
+  const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
 
   // Build dynamic status options from org stages
   const stageStatusOptions = stages
@@ -809,6 +843,18 @@ export default function TasksList() {
         .filter(Boolean)
         .join(" ")
     : undefined;
+
+  // Custom-field filter: only non-deleted definitions
+  const activeCustomFields = customFieldDefs.filter((f) => !f.deletedAt);
+  const activeCustomField = filters.customFieldId
+    ? activeCustomFields.find((f) => String(f.id) === filters.customFieldId) ?? null
+    : null;
+  const isCustomFieldSelect = activeCustomField?.type === "single_select" || activeCustomField?.type === "multi_select";
+  const customFieldChipLabel = activeCustomField
+    ? filters.customFieldValue
+      ? `${activeCustomField.name}: ${filters.customFieldValue}`
+      : `${activeCustomField.name}: any`
+    : "Custom field";
 
   // ─── Selection helpers ────────────────────────────────────────────────────
 
@@ -1128,6 +1174,92 @@ export default function TasksList() {
             <Eye className="w-3.5 h-3.5" />
             Watching
           </button>
+
+          {/* Custom field filter chip — only rendered when org has custom fields */}
+          {activeCustomFields.length > 0 && (
+            <Popover>
+              <div className="flex items-center">
+                <PopoverTrigger asChild>
+                  <button
+                    className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-l-md font-medium border transition-colors ${
+                      filters.customFieldId
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
+                    }`}
+                  >
+                    <SlidersHorizontal className="w-3 h-3" />
+                    {customFieldChipLabel}
+                    <ChevronDown className="w-3 h-3 opacity-60" />
+                  </button>
+                </PopoverTrigger>
+                {filters.customFieldId && (
+                  <button
+                    onClick={() => setCustomFieldFilter("", "")}
+                    className="flex items-center justify-center w-6 h-8 rounded-r-md border border-l-0 border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
+                    aria-label="Clear custom field filter"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+                {!filters.customFieldId && <div className="w-0 border-r-0" />}
+              </div>
+              <PopoverContent className="w-52 p-1" align="start">
+                {!filters.customFieldId ? (
+                  /* Step 1 — pick a field */
+                  <div className="flex flex-col gap-0.5">
+                    <p className="px-2 py-1 text-xs text-muted-foreground font-medium">Pick a field</p>
+                    {activeCustomFields.map((f) => (
+                      <button
+                        key={f.id}
+                        onClick={() => setCustomFieldFilter(String(f.id), "")}
+                        className="w-full text-left px-3 py-1.5 text-xs rounded-sm hover:bg-muted transition-colors"
+                      >
+                        {f.name}
+                        <span className="ml-1.5 text-muted-foreground capitalize text-[10px]">
+                          {f.type.replace("_", " ")}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  /* Step 2 — pick a value (select types) or confirm (others) */
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      onClick={() => setCustomFieldFilter("", "")}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      ← Back
+                    </button>
+                    <p className="px-2 pb-1 text-xs font-medium truncate">{activeCustomField?.name}</p>
+                    {isCustomFieldSelect && activeCustomField?.options ? (
+                      (activeCustomField.options as string[]).map((opt) => (
+                        <button
+                          key={opt}
+                          onClick={() =>
+                            setCustomFieldFilter(
+                              filters.customFieldId,
+                              filters.customFieldValue === opt ? "" : opt,
+                            )
+                          }
+                          className={`w-full text-left px-3 py-1.5 text-xs rounded-sm transition-colors ${
+                            filters.customFieldValue === opt
+                              ? "bg-primary text-primary-foreground"
+                              : "hover:bg-muted"
+                          }`}
+                        >
+                          {opt}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-1.5 text-xs text-muted-foreground">
+                        Showing tasks with any value
+                      </p>
+                    )}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
+          )}
 
           {/* Clear all */}
           {hasActiveFilters && (

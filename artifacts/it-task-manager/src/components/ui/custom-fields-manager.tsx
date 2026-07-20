@@ -102,11 +102,12 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
   const [nameVal, setNameVal] = useState(field.name);
   const [editingOptions, setEditingOptions] = useState(false);
   const [optionsText, setOptionsText] = useState((field.options ?? []).join("\n"));
-  /** Set when the API returns 409 — holds pending opts, count, and IDs of affected tasks. */
+  /** Set when the API returns 409 — holds pending opts, count, IDs, and removed option values of affected tasks. */
   const [optionConflict, setOptionConflict] = useState<{
     opts: string[];
     affectedCount: number;
     affectedTaskIds: number[];
+    removedOptions: string[];
   } | null>(null);
 
   const isSelect = field.type === "single_select" || field.type === "multi_select";
@@ -126,7 +127,9 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
           const affectedTaskIds: number[] = Array.isArray(apiErr?.data?.affectedTaskIds)
             ? apiErr.data.affectedTaskIds
             : [];
-          setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount, affectedTaskIds });
+          const currentOptions = (field.options as string[]) ?? [];
+          const removedOptions = currentOptions.filter((o) => !opts.includes(o));
+          setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount, affectedTaskIds, removedOptions });
           return;
         }
         toast({ title: "Update failed", description: err.message, variant: "destructive" });
@@ -279,7 +282,11 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
               </p>
               {optionConflict.affectedTaskIds.length > 0 && (
                 <Link
-                  href={`/tasks?ids=${optionConflict.affectedTaskIds.join(",")}`}
+                  href={
+                    optionConflict.removedOptions.length === 1
+                      ? `/tasks?customFieldId=${field.id}&customFieldValue=${encodeURIComponent(optionConflict.removedOptions[0])}`
+                      : `/tasks?ids=${optionConflict.affectedTaskIds.join(",")}`
+                  }
                   className="inline-flex items-center gap-1 text-xs text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200"
                 >
                   View affected tasks

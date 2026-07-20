@@ -240,7 +240,9 @@ export const ListTasksQueryParams = zod.object({
   "assignee": zod.coerce.string().optional().describe('Filter by assignee email address. Returns only tasks assigned to this org member.\n'),
   "dateFrom": zod.coerce.string().optional().describe('Filter tasks with a due date on or after this date (ISO 8601, YYYY-MM-DD). Use together with `dateTo` for a date range.\n'),
   "dateTo": zod.coerce.string().optional().describe('Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.\n'),
-  "slaBreached": zod.enum(['true', 'false']).optional().describe('When `\"true\"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `\"false\"` to return all tasks regardless of SLA breach status.\n')
+  "slaBreached": zod.enum(['true', 'false']).optional().describe('When `\"true\"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `\"false\"` to return all tasks regardless of SLA breach status.\n'),
+  "customFieldId": zod.coerce.number().optional().describe('Filter by a custom field. Must be a positive integer matching a non-deleted custom field definition that belongs to the caller\'s org. When provided alone, returns tasks that have any non-null value for this field. Combine with `customFieldValue` to match a specific value.\n'),
+  "customFieldValue": zod.coerce.string().optional().describe('Exact value to match for the custom field identified by `customFieldId`. Only meaningful when `customFieldId` is also supplied; ignored otherwise. For single_select and multi_select fields this is the option string to match.\n')
 })
 
 export const ListTasksResponseItem = zod.object({
@@ -498,7 +500,9 @@ export const ListViewsResponseItem = zod.object({
   "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
   "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
-  "search": zod.string().optional().describe('Free-text search string.')
+  "search": zod.string().optional().describe('Free-text search string.'),
+  "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
@@ -525,7 +529,9 @@ export const CreateViewBody = zod.object({
   "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
   "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
-  "search": zod.string().optional().describe('Free-text search string.')
+  "search": zod.string().optional().describe('Free-text search string.'),
+  "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().optional().describe('Whether the view is visible to all org members. Defaults to false.'),
   "isDefault": zod.boolean().optional().describe('Whether this view should load automatically for the creator. Defaults to false.')
@@ -544,7 +550,9 @@ export const CreateViewResponse = zod.object({
   "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
   "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
-  "search": zod.string().optional().describe('Free-text search string.')
+  "search": zod.string().optional().describe('Free-text search string.'),
+  "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
@@ -574,7 +582,9 @@ export const UpdateViewBody = zod.object({
   "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
   "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
-  "search": zod.string().optional().describe('Free-text search string.')
+  "search": zod.string().optional().describe('Free-text search string.'),
+  "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
 }).optional().describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().optional().describe('Change org-wide visibility.'),
   "isDefault": zod.boolean().optional().describe('Pin or unpin as the user\'s default view.')
@@ -593,7 +603,9 @@ export const UpdateViewResponse = zod.object({
   "dateFrom": zod.string().optional().describe('Due date lower bound in YYYY-MM-DD format.'),
   "dateTo": zod.string().optional().describe('Due date upper bound in YYYY-MM-DD format.'),
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
-  "search": zod.string().optional().describe('Free-text search string.')
+  "search": zod.string().optional().describe('Free-text search string.'),
+  "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
