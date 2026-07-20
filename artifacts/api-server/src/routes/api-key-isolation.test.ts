@@ -453,3 +453,95 @@ describe("API key org isolation — projects", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── Task write isolation ──────────────────────────────────────────────────────
+
+const MOCK_STAGE = {
+  id: 1, orgId: "org-a", name: "To Do", color: "#6b7280",
+  type: "open", position: 0, archivedAt: null,
+};
+
+describe("API key org isolation — POST /api/tasks (write)", () => {
+  beforeEach(reset);
+
+  it("creates a task under org-a even when the request body includes orgId: 'org-b'", async () => {
+    // The key sets req.orgId = 'org-a' server-side. The route always uses req.orgId
+    // for all queries and the INSERT — any orgId field in the request body is ignored.
+    mockState.selectQueue.push([{ isDisabled: false }]); // requireOrgOrApiKey org suspension check
+    mockState.selectQueue.push([MOCK_STAGE]);             // resolveStage — stage belongs to org-a
+    mockState.selectQueue.push([{ nextNum: 1 }]);        // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                       // getOrgStages (for response enrichment)
+    mockState.selectQueue.push([{ count: 0 }]);           // comment count
+    mockState.insertResult = [ORG_A_TASK];
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({
+        title: "Injected task",
+        priority: "medium",
+        category: "incident",
+        status: "1",
+        orgId: "org-b",  // ← attacker attempts to inject a different org
+      });
+
+    expect(res.status).toBe(201);
+    // The returned task belongs to org-a (from insertResult) — org-b injection had no effect.
+    expect(res.body.orgId).toBe("org-a");
+  });
+
+  it("returns 403 when the key lacks tasks:write scope", async () => {
+    authState.scopes = ["tasks:read"]; // write scope absent
+
+    const res = await request(buildApp())
+      .post("/api/tasks")
+      .send({ title: "T", priority: "medium", category: "incident", status: "1" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe("insufficient_scope");
+  });
+});
+
+describe("API key org isolation — PATCH /api/tasks/:id (write)", () => {
+  beforeEach(reset);
+
+  it("returns 404 for an org-b task ID — org-a key cannot update org-b tasks", async () => {
+    // PATCH handler: SELECT prev state WHERE id=:id AND orgId=req.orgId ('org-a').
+    // The org-b task does not match, so the DB returns [] → 404.
+    // selectQueue is empty; shift() returns [] — simulating the cross-org miss.
+    const res = await request(buildApp())
+      .patch(`/api/tasks/${ORG_B_TASK_ID}`)
+      .send({ priority: "high" });
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("API key org isolation — PATCH /api/tasks/bulk (write)", () => {
+  beforeEach(reset);
+
+  it("reports 0 updated tasks when all IDs belong to a different org", async () => {
+    // Bulk PATCH: SELECT prevRows WHERE id IN (...) AND orgId=req.orgId ('org-a').
+    // Org-b IDs don't match → prevRows is empty → handler returns { updated: 0 }.
+    mockState.selectQueue.push([]); // prevRows query returns no matching org-a tasks
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [ORG_B_TASK_ID, ORG_B_TASK_ID + 1], patch: { priority: "high" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ updated: 0 });
+  });
+});
+
+describe("API key org isolation — DELETE /api/tasks/:id (write)", () => {
+  beforeEach(reset);
+
+  it("returns 404 for an org-b task ID — org-a key cannot delete org-b tasks", async () => {
+    // DELETE handler: SELECT task WHERE id=:id AND orgId=req.orgId ('org-a').
+    // The org-b task does not match → [] → 404, db.delete is never reached.
+    // selectQueue is empty; shift() returns [] — simulating the cross-org miss.
+    const res = await request(buildApp()).delete(`/api/tasks/${ORG_B_TASK_ID}`);
+
+    expect(res.status).toBe(404);
+  });
+});
