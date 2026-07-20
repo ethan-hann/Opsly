@@ -11,3 +11,4 @@ export * from "./saved-views";
 export * from "./sla-policies";
 export * from "./task-templates";
 export * from "./workflow-stages";
+export * from "./notifications";

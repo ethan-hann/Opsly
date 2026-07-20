@@ -42,6 +42,7 @@ import { useState, useEffect } from "react";
 import { useListViews, useUpdateView, useDeleteView } from "@workspace/api-client-react";
 import type { SavedView } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
+import { NotificationBell } from "@/components/notification-bell";
 
 const mainNavItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -475,10 +476,29 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             />
           </nav>
 
-          {/* Bottom: theme + user */}
+          {/* Bottom: notifications + theme + user */}
           <div
             className={`border-t border-sidebar-border shrink-0 ${collapsed ? "p-2 space-y-2" : "p-4 space-y-3"}`}
           >
+            {/* Notification bell */}
+            {collapsed ? (
+              <Tooltip>
+                <div className="flex justify-center">
+                  <NotificationBell collapsed />
+                </div>
+                <TooltipContent side="right">
+                  <p>Notifications</p>
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+                  Notifications
+                </span>
+                <NotificationBell />
+              </div>
+            )}
+
             {/* Theme toggle */}
             {collapsed ? (
               <Tooltip>

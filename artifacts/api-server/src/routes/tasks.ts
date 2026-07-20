@@ -28,6 +28,10 @@ import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatc
 import { sanitizeRichText } from "../lib/sanitize-rich-text";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { detectAndMarkSlaBreaches } from "../lib/sla-detection";
+import {
+  notifyTaskAssigned,
+  notifyTaskUpdated,
+} from "../lib/notifications";
 
 const router: IRouter = Router();
 
@@ -205,6 +209,18 @@ async function assigneeBelongsToOrg(assignee: string | null | undefined, orgId: 
     .where(and(eq(orgMembersTable.orgId, orgId), eq(usersTable.email, assignee)))
     .limit(1);
   return !!row;
+}
+
+/** Resolve an assignee email to a user ID within the org. Returns null if not found. */
+async function resolveAssigneeUserId(assignee: string | null | undefined, orgId: string): Promise<string | null> {
+  if (!assignee) return null;
+  const [row] = await db
+    .select({ userId: orgMembersTable.userId })
+    .from(orgMembersTable)
+    .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
+    .where(and(eq(orgMembersTable.orgId, orgId), eq(usersTable.email, assignee)))
+    .limit(1);
+  return row?.userId ?? null;
 }
 
 function displayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null }): string {
@@ -428,6 +444,23 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
   const enriched = await buildTaskWithProject(task, orgId, stagesMap);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
+
+  // Notify the assignee (fire-and-forget)
+  if (task.assignee) {
+    void resolveAssigneeUserId(task.assignee, orgId).then((assigneeUserId) => {
+      if (assigneeUserId) {
+        notifyTaskAssigned({
+          taskId: task.id,
+          taskTitle: task.title,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          newAssigneeUserId: assigneeUserId,
+        });
+      }
+    });
+  }
+
   res.status(201).json(CreateTaskResponse.parse(enriched));
 });
 
@@ -732,6 +765,62 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   const enriched = await buildTaskWithProject(task, orgId, stagesMap);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
+
+  // Fire notifications (fire-and-forget)
+  void (async () => {
+    const assigneeChanged = "assignee" in parsed.data && parsed.data.assignee !== prev.assignee;
+    const newAssigneeEmail = task.assignee;
+
+    // Assignee notification — tell the new assignee they've been assigned
+    if (assigneeChanged && newAssigneeEmail) {
+      const assigneeUserId = await resolveAssigneeUserId(newAssigneeEmail, orgId);
+      if (assigneeUserId) {
+        await notifyTaskAssigned({
+          taskId: task.id,
+          taskTitle: task.title,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          newAssigneeUserId: assigneeUserId,
+        });
+      }
+    }
+
+    // Status / priority change notifications — notify current assignee
+    const statusChanged = parsed.data.status !== undefined && parsed.data.status !== prev.status;
+    const priorityChanged = parsed.data.priority !== undefined && parsed.data.priority !== prev.priority;
+
+    if ((statusChanged || priorityChanged) && task.assignee) {
+      const assigneeUserId = await resolveAssigneeUserId(task.assignee, orgId);
+      if (assigneeUserId) {
+        if (statusChanged) {
+          await notifyTaskUpdated({
+            taskId: task.id,
+            taskTitle: task.title,
+            orgId,
+            actorId,
+            actorName: actorNameStr,
+            recipientUserIds: [assigneeUserId],
+            changedField: "status",
+            newValue: task.status,
+          });
+        }
+        if (priorityChanged) {
+          await notifyTaskUpdated({
+            taskId: task.id,
+            taskTitle: task.title,
+            orgId,
+            actorId,
+            actorName: actorNameStr,
+            recipientUserIds: [assigneeUserId],
+            changedField: "priority",
+            newValue: task.priority,
+          });
+        }
+      }
+    }
+  })();
+
   res.json(UpdateTaskResponse.parse(enriched));
 });
 

@@ -18,9 +18,10 @@
  */
 
 import { and, eq, isNull } from "drizzle-orm";
-import { db, tasksTable, slaPoliciesTable, workflowStagesTable, taskEventsTable } from "@workspace/db";
+import { db, tasksTable, slaPoliciesTable, workflowStagesTable, taskEventsTable, orgMembersTable, usersTable } from "@workspace/db";
 import { getSlaStatus } from "./sla";
 import { dispatchTaskSlaBreached, dispatchSlaWarning } from "./webhook-dispatcher";
+import { notifySlaBreached } from "./notifications";
 import { logger } from "./logger";
 
 type StagesMap = Map<number, typeof workflowStagesTable.$inferSelect>;
@@ -129,6 +130,26 @@ export async function detectAndMarkSlaBreaches(
             status: task.status,
             slaBreachedAt: now.toISOString(),
           }, minutesOverdue);
+
+          // Notify the task assignee (if any) — fire-and-forget
+          if (task.assignee) {
+            void (async () => {
+              const [row] = await db
+                .select({ userId: orgMembersTable.userId })
+                .from(orgMembersTable)
+                .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
+                .where(and(eq(orgMembersTable.orgId, orgId), eq(usersTable.email, task.assignee!)))
+                .limit(1);
+              if (row) {
+                notifySlaBreached({
+                  taskId: task.id,
+                  taskTitle: task.title,
+                  orgId,
+                  recipientUserIds: [row.userId],
+                });
+              }
+            })();
+          }
         }
 
       // ── Warning detection ───────────────────────────────────────────────────

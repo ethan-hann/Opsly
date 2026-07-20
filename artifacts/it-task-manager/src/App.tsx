@@ -23,6 +23,7 @@ import WebhooksPage from '@/pages/webhooks';
 import WebhookInboundEditPage from '@/pages/webhook-inbound-edit';
 import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
+import { NotificationPreferencesPage } from '@/pages/notification-preferences';
 import type { PendingInvitation } from '@workspace/api-client-react';
 
 const queryClient = new QueryClient({
@@ -71,6 +72,7 @@ function Router() {
         <Route path="/webhooks" component={WebhooksPage} />
         <Route path="/webhooks/inbound/:id" component={WebhookInboundEditPage} />
         <Route path="/webhooks/outbound/:id" component={WebhookOutboundEditPage} />
+        <Route path="/settings/notifications" component={NotificationPreferencesPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

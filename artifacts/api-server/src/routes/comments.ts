@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and } from "drizzle-orm";
-import { db, commentsTable, tasksTable } from "@workspace/db";
+import { db, commentsTable, tasksTable, orgMembersTable, usersTable } from "@workspace/db";
 import {
   CreateCommentBody,
   CreateCommentParams,
@@ -13,6 +13,7 @@ import {
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
+import { notifyCommentAdded } from "../lib/notifications";
 
 const router: IRouter = Router();
 
@@ -89,20 +90,62 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
     createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
   };
 
-  // Fire outbound webhook async — fetch full task for payload
+  // Fire outbound webhook + in-app notifications async
   void (async () => {
-    const [fullTask] = await db.select().from(tasksTable).where(eq(tasksTable.id, params.data.id)).limit(1);
+    const [fullTask] = await db
+      .select()
+      .from(tasksTable)
+      .where(eq(tasksTable.id, params.data.id))
+      .limit(1);
     if (fullTask) {
       const webhookCustomFields = await resolveCustomFieldNames(
-        fullTask.customFields as Record<string, unknown> ?? {},
+        (fullTask.customFields as Record<string, unknown>) ?? {},
         req.orgId!,
       );
-      dispatchTaskCommented(req.orgId!, fullTask.projectId, {
-        ...fullTask,
-        customFields: webhookCustomFields,
-        createdAt: fullTask.createdAt.toISOString(),
-        updatedAt: fullTask.updatedAt.toISOString(),
-      }, serializedComment);
+      dispatchTaskCommented(
+        req.orgId!,
+        fullTask.projectId,
+        {
+          ...fullTask,
+          customFields: webhookCustomFields,
+          createdAt: fullTask.createdAt.toISOString(),
+          updatedAt: fullTask.updatedAt.toISOString(),
+        },
+        serializedComment,
+      );
+
+      // Notify the task assignee (if any)
+      if (fullTask.assignee) {
+        const [assigneeRow] = await db
+          .select({ userId: orgMembersTable.userId })
+          .from(orgMembersTable)
+          .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
+          .where(
+            and(
+              eq(orgMembersTable.orgId, req.orgId!),
+              eq(usersTable.email, fullTask.assignee),
+            ),
+          )
+          .limit(1);
+
+        if (assigneeRow) {
+          const actorId = req.user?.id ?? null;
+          const actorName = req.user
+            ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
+              req.user.email ||
+              "Someone"
+            : "Someone";
+
+          await notifyCommentAdded({
+            taskId: fullTask.id,
+            taskTitle: fullTask.title,
+            orgId: req.orgId!,
+            actorId,
+            actorName,
+            recipientUserIds: [assigneeRow.userId],
+          });
+        }
+      }
     }
   })();
 
