@@ -20,7 +20,8 @@
     "migrate:create-saved-views": "pnpm dlx tsx src/migrations/create-saved-views.ts",
     "migrate:create-sla-policies": "pnpm dlx tsx src/migrations/create-sla-policies.ts",
     "migrate:add-project-sla-overrides": "pnpm dlx tsx src/migrations/add-project-sla-overrides.ts",
-    "migrate:add-sla-warning-support": "pnpm dlx tsx src/migrations/add-sla-warning-support.ts"
+    "migrate:add-sla-warning-support": "pnpm dlx tsx src/migrations/add-sla-warning-support.ts",
+    "migrate:create-workflow-stages": "pnpm dlx tsx src/migrations/create-workflow-stages.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

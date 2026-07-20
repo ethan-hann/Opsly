@@ -5,8 +5,9 @@
  * Opsly API
  * OpenAPI spec version: 0.1.0
  */
+import type { DashboardSummaryStageBreakdownItem } from './dashboardSummaryStageBreakdownItem';
 import type { DashboardSummaryTasksByPriority } from './dashboardSummaryTasksByPriority';
-import type { DashboardSummaryTasksByStatus } from './dashboardSummaryTasksByStatus';
+import type { DashboardSummaryTasksByStageType } from './dashboardSummaryTasksByStageType';
 
 /**
  * Aggregated statistics for the caller's organization, computed in real time.
@@ -16,11 +17,13 @@ export interface DashboardSummary {
   totalTasks: number;
   /** Total number of projects in the organization regardless of status. */
   totalProjects: number;
-  /** Task counts grouped by status value. */
-  tasksByStatus: DashboardSummaryTasksByStatus;
+  /** Task counts grouped by stage type (open vs closed). */
+  tasksByStageType: DashboardSummaryTasksByStageType;
+  /** Per-stage task counts, ordered by stage position. */
+  stageBreakdown?: DashboardSummaryStageBreakdownItem[];
   /** Task counts grouped by priority level. */
   tasksByPriority: DashboardSummaryTasksByPriority;
-  /** Number of tasks whose `dueDate` is before today and whose status is not `done`. */
+  /** Number of tasks whose `dueDate` is before today and whose stage type is 'open' (not yet resolved). */
   overdueCount: number;
   /** Number of projects with status `active`. */
   activeProjects: number;

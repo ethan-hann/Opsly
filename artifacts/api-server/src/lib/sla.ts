@@ -20,15 +20,18 @@ export interface SlaResult {
  * Pure function — no DB access. Runs on every task read (no scheduled job needed).
  *
  * @param createdAt - Task creation timestamp
- * @param status    - Current task status (breaches don't count for "done" tasks)
+ * @param status    - Current task status string (legacy: "done" counts as resolved)
  * @param priority  - Task priority
  * @param policy    - SLA policy for this priority (null if none configured)
+ * @param stageType - Optional: explicit stage type ("open" | "closed"). When provided,
+ *                    takes precedence over the legacy `status === "done"` check.
  */
 export function getSlaStatus(
   createdAt: Date | string,
   status: string,
   priority: string,
   policy: SlaPolicy | null | undefined,
+  stageType?: "open" | "closed",
 ): SlaResult {
   if (!policy || (policy.responseMinutes == null && policy.resolutionMinutes == null)) {
     return {
@@ -40,7 +43,8 @@ export function getSlaStatus(
     };
   }
 
-  const isDone = status === "done";
+  // Resolve "done" from either the explicit stage type or the legacy status string
+  const isDone = stageType === "closed" || (stageType == null && status === "done");
   const now = Date.now();
   const created = new Date(createdAt).getTime();
   const elapsedMinutes = (now - created) / 60_000;

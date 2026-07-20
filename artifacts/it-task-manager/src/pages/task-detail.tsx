@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -443,6 +443,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     query: { enabled: !!taskId, queryKey: ["getTask", taskId] }
   });
 
+  const { data: stages = [] } = useListWorkflowStages();
+
   const { data: comments, isLoading: isLoadingComments } = useListComments(taskId, {
     query: { enabled: !!taskId, queryKey: ["listComments", taskId] }
   });
@@ -635,7 +637,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge status={task.status} />
+                <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                 <PriorityBadge priority={task.priority} />
                 <span className="text-xs font-mono uppercase bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border">
                   {task.category}
@@ -646,6 +648,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   status={task.status}
                   priority={task.priority}
                   policies={slaPolicies}
+                  stageType={task.stageType as "open" | "closed" | undefined}
                 />
               </div>
             </CardHeader>
@@ -834,14 +837,19 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="todo">To Do</SelectItem>
-                        <SelectItem value="in_progress">In Progress</SelectItem>
-                        <SelectItem value="blocked">Blocked</SelectItem>
-                        <SelectItem value="done">Done</SelectItem>
+                        {stages.filter((s) => !s.archivedAt).map((s) => (
+                          <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                        ))}
+                        {/* Show current archived stage so it doesn't disappear */}
+                        {task.stageArchived && (
+                          <SelectItem value={task.status} className="text-muted-foreground">
+                            {task.stageName} (archived)
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <StatusBadge status={task.status} />
+                    <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                   )}
                 </PropertyRow>
 

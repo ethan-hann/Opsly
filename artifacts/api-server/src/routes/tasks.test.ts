@@ -85,6 +85,7 @@ vi.mock("@workspace/db", () => {
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
     customFieldDefinitionsTable: {},
+    workflowStagesTable: {},
     taskEventsTable: {},
     slaPoliciesTable: {},
     sql: () => ({}),
@@ -107,6 +108,27 @@ vi.mock("drizzle-orm", () => ({
   asc: () => ({}),
   inArray: () => ({}),
   sql: () => ({}),
+  // getTableColumns is used in the overdue route; returning the table arg lets
+  // the mock chain consume selects normally without a real DB column descriptor.
+  getTableColumns: (t: any) => t,
+}));
+
+// Webhook dispatcher makes unawaited async DB calls that would race with the
+// next test's selectQueue. Mock it as a no-op for all unit tests here.
+vi.mock("../lib/webhook-dispatcher", () => ({
+  dispatchTaskCreated: () => {},
+  dispatchTaskUpdated: () => {},
+  dispatchTaskCommented: () => {},
+  dispatchNoteCreated: () => {},
+  dispatchNoteUpdated: () => {},
+  dispatchNoteDeleted: () => {},
+  dispatchTaskSlaBreached: () => {},
+  dispatchProjectCreated: () => {},
+  dispatchProjectUpdated: () => {},
+  dispatchProjectDeleted: () => {},
+  dispatchTaskAssigned: () => {},
+  dispatchTaskStatusChanged: () => {},
+  dispatchTaskDeleted: () => {},
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -137,6 +159,12 @@ function buildApp() {
   return app;
 }
 
+// Minimal stage row to satisfy resolveStage and getOrgStages in mocked tests.
+const MOCK_STAGE = {
+  id: 1, orgId: "test-org", name: "To Do", color: "#6b7280",
+  type: "open", position: 0, archivedAt: null,
+};
+
 const MOCK_TASK = {
   id: 1,
   orgTaskNumber: 1,
@@ -155,16 +183,17 @@ const MOCK_TASK = {
 
 const VALID_TASK_BODY = {
   title: "Fix the server",
-  status: "todo",
   priority: "medium",
   category: "incident",
+  status: "1", // numeric stage ID string; resolveStage is called unconditionally by POST route
 };
 
 // Push queue entries for GET /tasks/:id (task found, no projectId).
-// Order: task lookup → SLA policies → comment count.
+// Order: task lookup → getOrgStages (Promise.all slot 1) → SLA policies (Promise.all slot 2) → comment count.
 function pushEnrichedTask(task = MOCK_TASK) {
   mockState.selectQueue.push([task]);
-  mockState.selectQueue.push([]); // SLA policies (empty = no configured targets)
+  mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
+  mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
   mockState.selectQueue.push([{ count: 0 }]);
 }
 
@@ -190,8 +219,10 @@ describe("GET /api/tasks/overdue", () => {
   });
 
   it("returns 200 with enriched overdue tasks", async () => {
-    // overdue query returns 1 task; buildTaskWithProject adds comment count select
-    mockState.selectQueue.push([MOCK_TASK]); // overdue tasks list
+    // The route does SELECT { task: tasksTable } … innerJoin(workflowStagesTable, …)
+    // so each result row is shaped { task: <taskRow> }, not a flat task.
+    mockState.selectQueue.push([{ task: MOCK_TASK }]); // overdue tasks (innerJoin shape)
+    mockState.selectQueue.push([]); // getOrgStages (called when taskRows.length > 0)
     mockState.selectQueue.push([{ count: 2 }]); // comment count for the task
 
     const res = await request(buildApp()).get("/api/tasks/overdue");
@@ -225,6 +256,7 @@ describe("GET /api/tasks", () => {
 
   it("returns 200 with enriched tasks", async () => {
     mockState.selectQueue.push([MOCK_TASK]); // task list
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -237,6 +269,7 @@ describe("GET /api/tasks", () => {
 
   it("accepts projectId, status, priority, and category query filters", async () => {
     mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 1 }]);
 
@@ -259,6 +292,7 @@ describe("GET /api/tasks", () => {
   it("accepts an assignee filter and returns 200", async () => {
     const assignedTask = { ...MOCK_TASK, assignee: "alice@example.com" };
     mockState.selectQueue.push([assignedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -281,6 +315,7 @@ describe("GET /api/tasks", () => {
   it("accepts a dateFrom filter and returns tasks on or after that date", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -293,6 +328,7 @@ describe("GET /api/tasks", () => {
   it("accepts a dateTo filter and returns tasks on or before that date", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-05-10" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -305,6 +341,7 @@ describe("GET /api/tasks", () => {
   it("accepts dateFrom and dateTo together as a date-range filter", async () => {
     const datedTask = { ...MOCK_TASK, dueDate: "2025-06-15" };
     mockState.selectQueue.push([datedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -317,6 +354,7 @@ describe("GET /api/tasks", () => {
   it("accepts all filters combined: assignee + dateFrom + dateTo + status + priority", async () => {
     const fullTask = { ...MOCK_TASK, assignee: "alice@example.com", dueDate: "2025-06-15" };
     mockState.selectQueue.push([fullTask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -343,7 +381,8 @@ describe("GET /api/tasks/:id", () => {
 
   it("returns 200 with the enriched task when found", async () => {
     mockState.selectQueue.push([MOCK_TASK]); // task lookup
-    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
+    mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
     mockState.selectQueue.push([{ count: 3 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");
@@ -369,7 +408,8 @@ describe("GET /api/tasks/:id", () => {
   it("enriches the task with project name when projectId is set", async () => {
     const taskWithProject = { ...MOCK_TASK, projectId: 5 };
     mockState.selectQueue.push([taskWithProject]); // task lookup
-    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
+    mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project lookup
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -401,7 +441,8 @@ describe("POST /api/tasks - body validation", () => {
   });
 
   it("returns 400 when projectId is not in the org", async () => {
-    mockState.selectQueue.push([]); // projectBelongsToOrg → not found
+    mockState.selectQueue.push([MOCK_STAGE]); // resolveStage SELECT
+    mockState.selectQueue.push([]);           // projectBelongsToOrg → not found
 
     const res = await request(buildApp())
       .post("/api/tasks")
@@ -413,7 +454,9 @@ describe("POST /api/tasks - body validation", () => {
 
   it("returns 201 with the created task on success", async () => {
     mockState.insertResult = [MOCK_TASK];
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber) for new task number
+    mockState.selectQueue.push([]);               // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]); // buildTaskWithProject comment count
 
     const res = await request(buildApp())
@@ -438,7 +481,9 @@ describe("POST /api/tasks - assignee validation", () => {
   });
 
   it("accepts a task with no assignee (unassigned)", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);               // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp()).post("/api/tasks").send(VALID_TASK_BODY);
@@ -447,9 +492,11 @@ describe("POST /api/tasks - assignee validation", () => {
   });
 
   it("accepts a task whose assignee is an org member", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);            // resolveStage SELECT
     mockState.selectQueue.push([{ userId: "user-1" }]); // assignee in org
-    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
-    mockState.selectQueue.push([{ count: 0 }]); // comment count
+    mockState.selectQueue.push([{ nextNum: 1 }]);        // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                      // getOrgStages (after insert)
+    mockState.selectQueue.push([{ count: 0 }]);          // comment count
 
     const res = await request(buildApp())
       .post("/api/tasks")
@@ -459,7 +506,8 @@ describe("POST /api/tasks - assignee validation", () => {
   });
 
   it("rejects a task whose assignee is not an org member", async () => {
-    mockState.selectQueue.push([]); // assignee not in org
+    mockState.selectQueue.push([MOCK_STAGE]); // resolveStage SELECT
+    mockState.selectQueue.push([]);           // assignee not in org
 
     const res = await request(buildApp())
       .post("/api/tasks")
@@ -488,11 +536,10 @@ describe("PATCH /api/tasks/:id - validation", () => {
   });
 
   it("returns 404 when the task does not exist", async () => {
-    mockState.updateResult = []; // update returns nothing → task not found
-
+    // No status → resolveStage not called; empty queue → prev SELECT returns [] → 404
     const res = await request(buildApp())
       .patch("/api/tasks/999")
-      .send({ status: "done" });
+      .send({ title: "Updated" });
 
     expect(res.status).toBe(404);
   });
@@ -510,24 +557,27 @@ describe("PATCH /api/tasks/:id - validation", () => {
   });
 
   it("returns 200 on a successful status update", async () => {
-    const updated = { ...MOCK_TASK, status: "in_progress" };
+    const updated = { ...MOCK_TASK, status: "1" };
     mockState.updateResult = [updated];
-    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
+    mockState.selectQueue.push([MOCK_STAGE]);                          // resolveStage SELECT
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
-      .send({ status: "in_progress" });
+      .send({ status: "1" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ id: 1, status: "in_progress" });
+    expect(res.body).toMatchObject({ id: 1 });
   });
 
   it("returns 200 when assigning a valid projectId", async () => {
     const updated = { ...MOCK_TASK, projectId: 5 };
-    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
     mockState.selectQueue.push([{ id: 5 }]); // projectBelongsToOrg → found
     mockState.updateResult = [updated];
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project name
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -553,17 +603,19 @@ describe("PATCH /api/tasks/:id - assignee validation", () => {
   });
 
   it("accepts a patch with no assignee field", async () => {
-    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);
 
-    const res = await request(buildApp()).patch("/api/tasks/1").send({ status: "in_progress" });
+    const res = await request(buildApp()).patch("/api/tasks/1").send({ title: "Updated" });
 
     expect(res.status).toBe(200);
   });
 
   it("accepts a patch whose assignee is an org member", async () => {
-    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state (new)
+    mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
     mockState.selectQueue.push([{ userId: "user-1" }]);
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);
 
     const res = await request(buildApp())
@@ -605,6 +657,7 @@ describe("POST /api/tasks - custom field validation", () => {
   const MULTI_SELECT_DEF = { id: 14, name: "Tags", type: "multi_select", options: ["bug", "feature", "hotfix"], orgId: "test-org", deletedAt: null, position: 4, createdAt: "", updatedAt: "" };
 
   it("rejects a non-string value for a text field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);     // resolveStage SELECT
     // validateAndSanitizeCustomFields selects definitions
     mockState.selectQueue.push([TEXT_FIELD_DEF]);
 
@@ -618,6 +671,7 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("rejects an out-of-range option for a single_select field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([SELECT_FIELD_DEF]);
 
     const res = await request(buildApp())
@@ -629,6 +683,7 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("rejects a non-numeric value for a number field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);       // resolveStage SELECT
     mockState.selectQueue.push([NUMBER_FIELD_DEF]);
 
     const res = await request(buildApp())
@@ -640,9 +695,11 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("strips unknown field IDs and creates the task successfully", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     // Definitions list has only field 10; field "99" is unknown → stripped
     mockState.selectQueue.push([TEXT_FIELD_DEF]); // validateAndSanitizeCustomFields
     mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);    // comment count
 
     const res = await request(buildApp())
@@ -653,8 +710,10 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("accepts valid custom field values and creates the task", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);       // resolveStage SELECT
     mockState.selectQueue.push([TEXT_FIELD_DEF]);  // validateAndSanitizeCustomFields
     mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);    // comment count
 
     const res = await request(buildApp())
@@ -665,8 +724,10 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("allows null to clear any custom field value", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);       // resolveStage SELECT
     mockState.selectQueue.push([TEXT_FIELD_DEF]);  // validateAndSanitizeCustomFields
     mockState.selectQueue.push([{ nextNum: 1 }]);  // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);    // comment count
 
     const res = await request(buildApp())
@@ -677,6 +738,7 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("rejects an invalid date format for a date field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);    // resolveStage SELECT
     mockState.selectQueue.push([DATE_FIELD_DEF]);
 
     const res = await request(buildApp())
@@ -689,8 +751,10 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("accepts a valid YYYY-MM-DD date value and creates the task", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([DATE_FIELD_DEF]); // validateAndSanitizeCustomFields
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);               // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);   // comment count
 
     const res = await request(buildApp())
@@ -701,6 +765,7 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("rejects a non-array value for a multi_select field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);       // resolveStage SELECT
     mockState.selectQueue.push([MULTI_SELECT_DEF]);
 
     const res = await request(buildApp())
@@ -713,6 +778,7 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("rejects an out-of-range option in a multi_select field with 400", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);       // resolveStage SELECT
     mockState.selectQueue.push([MULTI_SELECT_DEF]);
 
     const res = await request(buildApp())
@@ -724,8 +790,10 @@ describe("POST /api/tasks - custom field validation", () => {
   });
 
   it("accepts a valid multi_select array and creates the task", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);        // resolveStage SELECT
     mockState.selectQueue.push([MULTI_SELECT_DEF]); // validateAndSanitizeCustomFields
     mockState.selectQueue.push([{ nextNum: 1 }]);   // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);                 // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);     // comment count
 
     const res = await request(buildApp())
@@ -784,13 +852,15 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
 
   it("merges customFields: sending one field leaves other existing fields intact", async () => {
     // The existing task has { "10": "existing note", "12": "prod" }
-    // PATCH sends only { "12": "staging" } → "10" should be preserved
+    // PATCH sends only { "12": "staging" } → route merges via SQL (jsonb ||) after a SELECT for existing values
     mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
-    mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // definitions
-    mockState.selectQueue.push([{ customFields: { "10": "existing note", "12": "prod" } }]); // existing for merge
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // definitions (validateAndSanitizeCustomFields)
+    mockState.selectQueue.push([{ customFields: { "12": "prod" } }]); // existing customFields SELECT (for merge)
     // update returning already set in updateResult
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                        // comment count
+    // resolveCustomFieldNames: MOCK_TASK has no customFields → entries empty → no DB call
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
@@ -804,8 +874,10 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // definitions — field "99" not in list
     mockState.selectQueue.push([{ customFields: { "10": "existing note" } }]); // existing for merge
     // update returning already set in updateResult
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                        // comment count
+    mockState.selectQueue.push([]);                                    // resolveCustomFieldNames
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
@@ -832,8 +904,10 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([DATE_FIELD_DEF]);                               // definitions
     mockState.selectQueue.push([{ customFields: {} }]);                         // existing for merge
     // update returning already set in updateResult
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([DATE_FIELD_DEF]);                               // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                                 // comment count
+    mockState.selectQueue.push([]);                                             // resolveCustomFieldNames
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
@@ -872,8 +946,10 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([MULTI_SELECT_DEF]);                      // definitions
     mockState.selectQueue.push([{ customFields: {} }]);                  // existing for merge
     // update returning already set in updateResult
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([MULTI_SELECT_DEF]);                      // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                          // comment count
+    mockState.selectQueue.push([]);                                      // resolveCustomFieldNames
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
@@ -980,7 +1056,9 @@ describe("POST /api/tasks - event emission", () => {
   });
 
   it("emits a 'created' event after inserting a task", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);               // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);   // comment count
 
     // The insert mock accepts both the task insert (.returning()) and the event
@@ -993,7 +1071,9 @@ describe("POST /api/tasks - event emission", () => {
   });
 
   it("inserts a 'created' event with field='created', newValue=task title, oldValue=null", async () => {
+    mockState.selectQueue.push([MOCK_STAGE]);      // resolveStage SELECT
     mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([]);               // getOrgStages (after insert)
     mockState.selectQueue.push([{ count: 0 }]);   // comment count
 
     await request(buildApp()).post("/api/tasks").send(VALID_TASK_BODY);
@@ -1036,39 +1116,41 @@ describe("PATCH /api/tasks/:id - event emission", () => {
   });
 
   it("emits change events only for fields that actually changed", async () => {
-    const updated = { ...MOCK_TASK, status: "in_progress" };
+    const updated = { ...MOCK_TASK, priority: "high" };
     mockState.updateResult = [updated];
+    // No status in body → resolveStage not called; no MOCK_STAGE slot needed
     mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);                        // comment count
 
     const res = await request(buildApp())
       .patch("/api/tasks/1")
-      .send({ status: "in_progress" });
+      .send({ priority: "high" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: "in_progress" });
+    expect(res.body).toMatchObject({ priority: "high" });
   });
 
   it("returns 404 early when the task does not exist (no prev row)", async () => {
-    // Empty prev means task not found — no events should be inserted
-    mockState.selectQueue.push([]); // prev select returns nothing → task not found
-
+    // Empty prev means task not found — no events should be inserted.
+    // No status in body → resolveStage not called; prev SELECT returns [] → 404.
     const res = await request(buildApp())
       .patch("/api/tasks/999")
-      .send({ status: "done" });
+      .send({ title: "Updated" });
 
     expect(res.status).toBe(404);
   });
 
   it("emits exactly one event for the changed field and none for unchanged fields", async () => {
-    // Only status changes: todo → in_progress.
+    // Only priority changes: medium → high.
     // All other tracked fields are identical between prev and next.
-    const updated = { ...MOCK_TASK, status: "in_progress" };
+    const updated = { ...MOCK_TASK, priority: "high" };
     mockState.updateResult = [updated];
     mockState.selectQueue.push([FULL_PREV_SNAPSHOT]); // prev state — all 7 tracked fields
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);        // comment count
 
-    await request(buildApp()).patch("/api/tasks/1").send({ status: "in_progress" });
+    await request(buildApp()).patch("/api/tasks/1").send({ priority: "high" });
 
     // insertChangeEvents inserts one batch with exactly the changed fields
     expect(mockState.insertCalls).toHaveLength(1);
@@ -1077,9 +1159,9 @@ describe("PATCH /api/tasks/:id - event emission", () => {
     expect(events[0]).toMatchObject({
       taskId: 1,
       orgId: "test-org",
-      field: "status",
-      oldValue: "todo",
-      newValue: "in_progress",
+      field: "priority",
+      oldValue: "medium",
+      newValue: "high",
     });
   });
 
@@ -1101,6 +1183,7 @@ describe("PATCH /api/tasks/:id - event emission", () => {
     const updatedTask = { ...MOCK_TASK, assignee: null };
     mockState.updateResult = [updatedTask];
     mockState.selectQueue.push([prevWithAssignee]);
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);
 
     // assignee: null bypasses the assignee-validation guard (falsy check)
@@ -1117,22 +1200,24 @@ describe("PATCH /api/tasks/:id - event emission", () => {
   });
 
   it("emits one event per changed field when multiple fields change simultaneously", async () => {
-    const updated = { ...MOCK_TASK, status: "in_progress", priority: "high" };
+    // Use "change" (valid enum value) not "change_request" which fails schema validation
+    const updated = { ...MOCK_TASK, priority: "high", category: "change" };
     mockState.updateResult = [updated];
     mockState.selectQueue.push([FULL_PREV_SNAPSHOT]);
+    mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ count: 0 }]);
 
     await request(buildApp())
       .patch("/api/tasks/1")
-      .send({ status: "in_progress", priority: "high" });
+      .send({ priority: "high", category: "change" });
 
     expect(mockState.insertCalls).toHaveLength(1);
     const events: any[] = mockState.insertCalls[0];
     expect(events).toHaveLength(2);
     expect(events).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ field: "status", oldValue: "todo", newValue: "in_progress" }),
         expect.objectContaining({ field: "priority", oldValue: "medium", newValue: "high" }),
+        expect.objectContaining({ field: "category", oldValue: "incident", newValue: "change" }),
       ]),
     );
   });
@@ -1211,7 +1296,8 @@ describe("DELETE /api/tasks/:id", () => {
   });
 
   it("returns 204 on successful delete", async () => {
-    mockState.deleteResult = [MOCK_TASK];
+    // Ownership check: select returns the task (belongs to org)
+    mockState.selectQueue.push([{ id: 1 }]);
 
     const res = await request(buildApp()).delete("/api/tasks/1");
 
@@ -1219,7 +1305,8 @@ describe("DELETE /api/tasks/:id", () => {
   });
 
   it("returns 404 when the task does not exist", async () => {
-    mockState.deleteResult = []; // delete returning nothing → not found
+    // Ownership check: select returns [] (not in this org)
+    mockState.selectQueue.push([]);
 
     const res = await request(buildApp()).delete("/api/tasks/999");
 

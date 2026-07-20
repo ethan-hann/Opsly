@@ -6,10 +6,10 @@ import {
   useListOrgMembers,
   useListCustomFieldDefinitions,
   useListTaskTemplates,
+  useListWorkflowStages,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
-  TaskInputStatus,
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
@@ -47,12 +47,6 @@ interface NewTaskModalProps {
   initialTemplate?: TaskTemplate;
 }
 
-const STATUS_OPTIONS: { value: TaskInputStatus; label: string }[] = [
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "blocked", label: "Blocked" },
-  { value: "done", label: "Done" },
-];
 
 const PRIORITY_OPTIONS: { value: TaskInputPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -156,6 +150,8 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
   const { data: templates = [] } = useListTaskTemplates();
+  const { data: stages = [] } = useListWorkflowStages();
+  const activeStages = stages.filter((s) => !s.archivedAt);
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
@@ -165,7 +161,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [projectId, setProjectId] = useState<string>(initialProjectId ? String(initialProjectId) : "none");
-  const [status, setStatus] = useState<TaskInputStatus>("todo");
+  const [status, setStatus] = useState<string>("");
   const [priority, setPriority] = useState<TaskInputPriority>("medium");
   const [category, setCategory] = useState<TaskInputCategory>("other");
   const [assignee, setAssignee] = useState("");
@@ -181,6 +177,13 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
       setProjectId(initialProjectId ? String(initialProjectId) : "none");
     }
   }, [open, initialProjectId]);
+
+  // Default status to first active stage when stages load and status is not yet set
+  useEffect(() => {
+    if (activeStages.length > 0 && !status) {
+      setStatus(String(activeStages[0].id));
+    }
+  }, [activeStages, status]);
 
   // Apply initialTemplate when modal opens
   useEffect(() => {
@@ -206,7 +209,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
     setTitle("");
     setDescription("");
     setProjectId(initialProjectId ? String(initialProjectId) : "none");
-    setStatus("todo");
+    setStatus(activeStages.length > 0 ? String(activeStages[0].id) : "");
     setPriority("medium");
     setCategory("other");
     setAssignee("");
@@ -319,13 +322,13 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as TaskInputStatus)}>
+              <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select stage…" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  {activeStages.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

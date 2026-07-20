@@ -1,6 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, lt, lte, gte, or, isNull, asc, inArray } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable, customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable } from "@workspace/db";
+import {
+  db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable,
+  customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable, workflowStagesTable,
+} from "@workspace/db";
 import {
   CreateTaskBody,
   UpdateTaskBody,
@@ -28,17 +31,52 @@ import { detectAndMarkSlaBreaches } from "../lib/sla-detection";
 
 const router: IRouter = Router();
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+// ─── Stage helpers ────────────────────────────────────────────────────────────
+
+type StageRow = typeof workflowStagesTable.$inferSelect;
+type StagesMap = Map<number, StageRow>;
+
+/** Fetch all workflow stages for an org as a Map keyed by ID. */
+async function getOrgStages(orgId: string): Promise<StagesMap> {
+  const stages = await db
+    .select()
+    .from(workflowStagesTable)
+    .where(eq(workflowStagesTable.orgId, orgId));
+  return new Map(stages.map((s) => [s.id, s]));
+}
 
 /**
- * Build enriched task payload.
- * Project lookup is scoped to orgId to prevent cross-tenant metadata leaks.
+ * Validate a status string (stage ID) against the org's stages.
+ * Returns { ok: true, stage } or { ok: false, error }.
  */
+async function resolveStage(
+  stageIdStr: string,
+  orgId: string,
+  opts: { allowArchived?: boolean } = {},
+): Promise<{ ok: true; stage: StageRow } | { ok: false; error: string }> {
+  const id = parseInt(stageIdStr, 10);
+  if (isNaN(id)) return { ok: false, error: `Invalid stage ID: "${stageIdStr}"` };
+  const [stage] = await db
+    .select()
+    .from(workflowStagesTable)
+    .where(and(eq(workflowStagesTable.id, id), eq(workflowStagesTable.orgId, orgId)))
+    .limit(1);
+  if (!stage) return { ok: false, error: "Workflow stage not found" };
+  if (!opts.allowArchived && stage.archivedAt != null) {
+    return { ok: false, error: "Cannot assign to an archived stage" };
+  }
+  return { ok: true, stage };
+}
+
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 async function buildTaskWithProject(
   task: typeof tasksTable.$inferSelect,
   orgId: string,
+  stages?: StagesMap,
 ) {
-  // Only expose project name if the project belongs to the same org
   const [project] = task.projectId
     ? await db
         .select({ name: projectsTable.name })
@@ -56,6 +94,10 @@ async function buildTaskWithProject(
     .from(commentsTable)
     .where(eq(commentsTable.taskId, task.id));
 
+  // Resolve stage info
+  const stageId = parseInt(task.status, 10);
+  const stage = !isNaN(stageId) ? stages?.get(stageId) : undefined;
+
   return {
     ...task,
     projectId: task.projectId ?? null,
@@ -68,16 +110,15 @@ async function buildTaskWithProject(
     slaBreachedAt: task.slaBreachedAt instanceof Date ? task.slaBreachedAt.toISOString() : (task.slaBreachedAt ?? null),
     createdAt: task.createdAt instanceof Date ? task.createdAt.toISOString() : task.createdAt,
     updatedAt: task.updatedAt instanceof Date ? task.updatedAt.toISOString() : task.updatedAt,
+    // Stage enrichment
+    stageId: stage?.id ?? (isNaN(stageId) ? undefined : stageId),
+    stageName: stage?.name ?? task.status,
+    stageColor: stage?.color ?? "#6b7280",
+    stageType: stage?.type ?? "open",
+    stageArchived: stage?.archivedAt != null,
   };
 }
 
-/**
- * Validate and strip custom field values against the org's active field definitions.
- *
- * - Returns { error } if a value violates the field's type contract.
- * - Returns { sanitized } with unknown field IDs removed, ready for persistence.
- * - null/undefined values are allowed for any field (semantics: clear the field).
- */
 async function validateAndSanitizeCustomFields(
   customFields: Record<string, unknown>,
   orgId: string,
@@ -95,11 +136,9 @@ async function validateAndSanitizeCustomFields(
   const sanitized: Record<string, unknown> = {};
 
   for (const [fieldId, value] of Object.entries(customFields)) {
-    // Unknown field IDs are silently stripped — not persisted
     const def = defMap.get(fieldId);
     if (!def) continue;
 
-    // null/undefined clears the field — always permitted
     if (value === null || value === undefined) {
       sanitized[fieldId] = null;
       continue;
@@ -148,9 +187,6 @@ async function validateAndSanitizeCustomFields(
   return { sanitized };
 }
 
-/**
- * Verify a projectId belongs to the org. Returns false if it doesn't.
- */
 async function projectBelongsToOrg(projectId: number, orgId: string): Promise<boolean> {
   const [row] = await db
     .select({ id: projectsTable.id })
@@ -160,10 +196,6 @@ async function projectBelongsToOrg(projectId: number, orgId: string): Promise<bo
   return !!row;
 }
 
-/**
- * Verify an assignee email belongs to an org member. Returns false if not found.
- * A null/undefined assignee is always considered valid (unassigned).
- */
 async function assigneeBelongsToOrg(assignee: string | null | undefined, orgId: string): Promise<boolean> {
   if (!assignee) return true;
   const [row] = await db
@@ -175,24 +207,18 @@ async function assigneeBelongsToOrg(assignee: string | null | undefined, orgId: 
   return !!row;
 }
 
-/**
- * Derive a human-readable display name from a user object.
- */
 function displayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null }): string {
   const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
   return full || user.email || "Unknown";
 }
 
-/** Fields we track in the audit log and their serializers. */
 const TRACKED_FIELDS = ["status", "priority", "assignee", "category", "title", "dueDate", "projectId"] as const;
 type TrackedField = typeof TRACKED_FIELDS[number];
-
 type TaskSnapshot = Pick<typeof tasksTable.$inferSelect, TrackedField>;
 
 /**
- * Insert one task_events row per field that changed between prev and next.
- * Must be called inside the same logical operation as the update (no separate tx needed
- * since we do these as sequential inserts in the same request handler).
+ * Insert audit events for changed fields.
+ * For status changes, stage names are stored (not IDs) via stagesMap.
  */
 async function insertChangeEvents(
   taskId: number,
@@ -201,18 +227,28 @@ async function insertChangeEvents(
   actorName: string | null,
   prev: TaskSnapshot,
   next: TaskSnapshot,
+  stagesMap?: StagesMap,
 ): Promise<void> {
   const events: Array<typeof taskEventsTable.$inferInsert> = [];
+
+  const resolveStageName = (val: string | null): string | null => {
+    if (val == null) return null;
+    const id = parseInt(val, 10);
+    if (!isNaN(id) && stagesMap) {
+      return stagesMap.get(id)?.name ?? val;
+    }
+    return val;
+  };
 
   for (const field of TRACKED_FIELDS) {
     const oldVal = prev[field];
     const newVal = next[field];
-
-    // Normalize null/undefined to null for comparison
     const oldNorm = oldVal ?? null;
     const newNorm = newVal ?? null;
-
     if (oldNorm === newNorm) continue;
+
+    const oldStr = oldNorm !== null ? String(oldNorm) : null;
+    const newStr = newNorm !== null ? String(newNorm) : null;
 
     events.push({
       taskId,
@@ -220,8 +256,9 @@ async function insertChangeEvents(
       actorId,
       actorName,
       field,
-      oldValue: oldNorm !== null ? String(oldNorm) : null,
-      newValue: newNorm !== null ? String(newNorm) : null,
+      // For status field, record human-readable stage names (not IDs)
+      oldValue: field === "status" ? resolveStageName(oldStr) : oldStr,
+      newValue: field === "status" ? resolveStageName(newStr) : newStr,
     });
   }
 
@@ -235,12 +272,21 @@ async function insertChangeEvents(
 router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const today = new Date().toISOString().split("T")[0];
+
+  // Join with workflow_stages to filter by stage type "open"
   const tasks = await db
-    .select()
+    .select({ task: tasksTable })
     .from(tasksTable)
+    .innerJoin(
+      workflowStagesTable,
+      and(
+        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        eq(workflowStagesTable.orgId, orgId),
+        eq(workflowStagesTable.type, "open"),
+      ),
+    )
     .where(and(
       eq(tasksTable.orgId, orgId),
-      sql`${tasksTable.status} != 'done'`,
       or(
         lt(tasksTable.dueDate, today),
         eq(tasksTable.priority, "critical"),
@@ -248,7 +294,9 @@ router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
     ))
     .orderBy(tasksTable.dueDate);
 
-  const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId)));
+  const taskRows = tasks.map((r) => r.task);
+  const stages = taskRows.length > 0 ? await getOrgStages(orgId) : new Map();
+  const result = await Promise.all(taskRows.map((t) => buildTaskWithProject(t, orgId, stages)));
   res.json(GetOverdueTasksResponse.parse(result));
 });
 
@@ -277,15 +325,15 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
     .where(and(...conditions))
     .orderBy(tasksTable.createdAt);
 
-  // Pre-fetch SLA policies for breach detection (deterministic queue position, only when needed)
+  const stages = tasks.length > 0 ? await getOrgStages(orgId) : new Map();
+
   const slaPolicies = tasks.length > 0
     ? await db.select().from(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId))
     : [];
 
-  // Detect and mark newly breached SLA tasks (fire-and-forget, non-blocking)
-  void detectAndMarkSlaBreaches(tasks, orgId, slaPolicies);
+  void detectAndMarkSlaBreaches(tasks, orgId, slaPolicies, stages);
 
-  const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId)));
+  const result = await Promise.all(tasks.map((t) => buildTaskWithProject(t, orgId, stages)));
   res.json(ListTasksResponse.parse(result));
 });
 
@@ -298,13 +346,24 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Enforce create_tasks permission server-side (frontend gate alone is insufficient)
   if (!req.orgPermissions?.create_tasks) {
     res.status(403).json({ error: "You do not have permission to create tasks" });
     return;
   }
 
-  // Validate that projectId (if provided) belongs to this org
+  // Validate the stage ID
+  const stageResult = await resolveStage(parsed.data.status, orgId);
+  if (!stageResult.ok) {
+    res.status(400).json({ error: stageResult.error });
+    return;
+  }
+
+  // Closing a task requires the close_tasks permission
+  if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+    res.status(403).json({ error: "You do not have permission to create tasks in a closed stage" });
+    return;
+  }
+
   if (parsed.data.projectId != null) {
     const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
     if (!valid) {
@@ -313,7 +372,6 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  // Validate that assignee (if provided) is an org member
   if (parsed.data.assignee) {
     const validAssignee = await assigneeBelongsToOrg(parsed.data.assignee, orgId);
     if (!validAssignee) {
@@ -322,7 +380,6 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  // Validate and sanitize custom field values (strip unknown field IDs, enforce types)
   let sanitizedCustomFields: Record<string, unknown> | undefined;
   if (parsed.data.customFields) {
     const result = await validateAndSanitizeCustomFields(
@@ -336,7 +393,6 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     sanitizedCustomFields = result.sanitized;
   }
 
-  // Compute the next per-org sequential task number atomically within the insert
   const [{ nextNum }] = await db
     .select({ nextNum: sql<number>`COALESCE(MAX(${tasksTable.orgTaskNumber}), 0) + 1` })
     .from(tasksTable)
@@ -356,7 +412,6 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     })
     .returning();
 
-  // Emit a "created" event for the new task
   const actorId = req.user?.id ?? null;
   const actorNameStr = req.user ? displayName(req.user) : null;
   await db.insert(taskEventsTable).values({
@@ -369,7 +424,8 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     newValue: task.title,
   });
 
-  const enriched = await buildTaskWithProject(task, orgId);
+  const stagesMap = await getOrgStages(orgId);
+  const enriched = await buildTaskWithProject(task, orgId, stagesMap);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
   res.status(201).json(CreateTaskResponse.parse(enriched));
@@ -393,13 +449,14 @@ router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Pre-fetch SLA policies for breach detection (awaited for deterministic queue position)
-  const slaPolicies = await db.select().from(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId));
+  const [stages, slaPolicies] = await Promise.all([
+    getOrgStages(orgId),
+    db.select().from(slaPoliciesTable).where(eq(slaPoliciesTable.orgId, orgId)),
+  ]);
 
-  // Detect and mark breach on single-task reads too (fire-and-forget, non-blocking)
-  void detectAndMarkSlaBreaches([task], orgId, slaPolicies);
+  void detectAndMarkSlaBreaches([task], orgId, slaPolicies, stages);
 
-  const enriched = await buildTaskWithProject(task, orgId);
+  const enriched = await buildTaskWithProject(task, orgId, stages);
   res.json(GetTaskResponse.parse(enriched));
 });
 
@@ -425,13 +482,19 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Enforce close_tasks permission when any task is being moved to "done"
-  if (patch.status === "done" && !req.orgPermissions?.close_tasks) {
-    res.status(403).json({ error: "You do not have permission to close tasks" });
-    return;
+  // Validate the target stage (if status is being changed) and enforce close_tasks permission
+  if (patch.status !== undefined) {
+    const stageResult = await resolveStage(patch.status, orgId);
+    if (!stageResult.ok) {
+      res.status(400).json({ error: stageResult.error });
+      return;
+    }
+    if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+      res.status(403).json({ error: "You do not have permission to close tasks" });
+      return;
+    }
   }
 
-  // Validate assignee belongs to org (if provided)
   if (patch.assignee) {
     const validAssignee = await assigneeBelongsToOrg(patch.assignee, orgId);
     if (!validAssignee) {
@@ -440,7 +503,6 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  // Fetch current state for diffing — only rows belonging to this org
   const prevRows = await db
     .select({
       id: tasksTable.id,
@@ -460,7 +522,6 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Build update payload — only include fields present in the patch
   const setData: Partial<typeof tasksTable.$inferInsert> = {};
   if (patch.status !== undefined) setData.status = patch.status;
   if (patch.priority !== undefined) setData.priority = patch.priority;
@@ -473,9 +534,9 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
     .set(setData)
     .where(and(inArray(tasksTable.id, orgIds), eq(tasksTable.orgId, orgId)));
 
-  // Insert audit events per task per changed field
   const actorId = req.user?.id ?? null;
   const actorNameStr = req.user ? displayName(req.user) : null;
+  const stagesMap = await getOrgStages(orgId);
 
   for (const prev of prevRows) {
     const next = {
@@ -487,7 +548,7 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
       dueDate: prev.dueDate,
       projectId: prev.projectId,
     };
-    await insertChangeEvents(prev.id, orgId, actorId, actorNameStr, prev, next);
+    await insertChangeEvents(prev.id, orgId, actorId, actorNameStr, prev, next, stagesMap);
   }
 
   res.json(BulkUpdateTasksResponse.parse({ updated: prevRows.length }));
@@ -508,20 +569,25 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Enforce edit_tasks permission server-side (frontend gate alone is insufficient)
   if (!req.orgPermissions?.edit_tasks) {
     res.status(403).json({ error: "You do not have permission to edit tasks" });
     return;
   }
 
-  // Closing a task (setting status to "done") is governed by the distinct
-  // close_tasks permission, not edit_tasks.
-  if (parsed.data.status === "done" && !req.orgPermissions?.close_tasks) {
-    res.status(403).json({ error: "You do not have permission to close tasks" });
-    return;
+  // Validate and resolve the target stage (if status is being changed)
+  if (parsed.data.status !== undefined) {
+    const stageResult = await resolveStage(parsed.data.status, orgId);
+    if (!stageResult.ok) {
+      res.status(400).json({ error: stageResult.error });
+      return;
+    }
+    // Moving to a closed stage requires close_tasks permission
+    if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+      res.status(403).json({ error: "You do not have permission to close tasks" });
+      return;
+    }
   }
 
-  // Capture previous values for change-event diffing and outbound webhook dispatch
   const [prev] = await db
     .select({
       status: tasksTable.status,
@@ -541,7 +607,6 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Validate that projectId (if being changed) belongs to this org
   if (parsed.data.projectId != null) {
     const valid = await projectBelongsToOrg(parsed.data.projectId, orgId);
     if (!valid) {
@@ -550,7 +615,6 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  // Validate that assignee (if being changed) is an org member
   if (parsed.data.assignee) {
     const validAssignee = await assigneeBelongsToOrg(parsed.data.assignee, orgId);
     if (!validAssignee) {
@@ -559,23 +623,21 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  // Validate, sanitize, and merge custom field values
-  const { customFields: incomingCustomFields, ...restUpdateData } = parsed.data;
   let mergedCustomFields: Record<string, unknown> | undefined;
   // Hoisted so custom-field change events can be emitted after the update
   let prevCustomFields: Record<string, unknown> = {};
   let sanitizedIncomingCf: Record<string, unknown> = {};
 
-  if (incomingCustomFields !== undefined) {
-    const cfResult = await validateAndSanitizeCustomFields(
-      incomingCustomFields as Record<string, unknown>,
+  if (parsed.data.customFields !== undefined) {
+    const result = await validateAndSanitizeCustomFields(
+      parsed.data.customFields as Record<string, unknown>,
       orgId,
     );
-    if (cfResult.error) {
-      res.status(400).json({ error: cfResult.error });
+    if (result.error) {
+      res.status(400).json({ error: result.error });
       return;
     }
-    sanitizedIncomingCf = cfResult.sanitized ?? {};
+    sanitizedIncomingCf = result.sanitized ?? {};
     // Merge sanitized values with existing custom fields (partial update semantics)
     const [existing] = await db
       .select({ customFields: tasksTable.customFields })
@@ -586,6 +648,8 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     mergedCustomFields = { ...prevCustomFields, ...sanitizedIncomingCf };
   }
 
+  const { customFields: _rawCf, ...restUpdateData } = parsed.data;
+
   // Sanitize rich-text HTML before persistence (blocks stored XSS)
   if ("description" in restUpdateData) {
     (restUpdateData as Record<string, unknown>).description = sanitizeRichText(
@@ -593,13 +657,14 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     );
   }
 
-  const setData = mergedCustomFields !== undefined
-    ? { ...restUpdateData, customFields: mergedCustomFields }
-    : restUpdateData;
-
   const [task] = await db
     .update(tasksTable)
-    .set(setData)
+    .set({
+      ...restUpdateData,
+      ...(mergedCustomFields !== undefined
+        ? { customFields: sql`${tasksTable.customFields}::jsonb || ${JSON.stringify(mergedCustomFields)}::jsonb` }
+        : {}),
+    })
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
     .returning();
 
@@ -608,25 +673,22 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Diff prev vs updated values and emit one event per changed tracked field
+  const next: TaskSnapshot = {
+    status: task.status,
+    priority: task.priority,
+    assignee: task.assignee,
+    category: task.category,
+    title: task.title,
+    dueDate: task.dueDate,
+    projectId: task.projectId,
+  };
+
   const actorId = req.user?.id ?? null;
   const actorNameStr = req.user ? displayName(req.user) : null;
-  await insertChangeEvents(
-    task.id,
-    orgId,
-    actorId,
-    actorNameStr,
-    prev,
-    {
-      status: task.status,
-      priority: task.priority,
-      assignee: task.assignee,
-      category: task.category,
-      title: task.title,
-      dueDate: task.dueDate,
-      projectId: task.projectId,
-    },
-  );
+  const stagesMap = await getOrgStages(orgId);
+
+  // Emit standard field change events (status, priority, assignee, etc.)
+  await insertChangeEvents(params.data.id, orgId, actorId, actorNameStr, prev, next, stagesMap);
 
   // Emit one event per custom field that changed in this update.
   // Uses "cf:<fieldName>" to match the convention set in the force-cleanup path.
@@ -667,13 +729,11 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
     }
   }
 
-  const enriched = await buildTaskWithProject(task, orgId);
+  const enriched = await buildTaskWithProject(task, orgId, stagesMap);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
-  dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields }, prev.status, prev.assignee);
+  dispatchTaskUpdated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
   res.json(UpdateTaskResponse.parse(enriched));
 });
-
-// ─── Bulk delete ─────────────────────────────────────────────────────────────
 
 router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
   const parsed = BulkDeleteTasksBody.safeParse(req.body);
@@ -695,27 +755,22 @@ router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  // Delete comments first (in case DB doesn't cascade), then tasks — org-scoped
-  const orgTaskIds = await db
+  // Only delete tasks that belong to this org
+  const existing = await db
     .select({ id: tasksTable.id })
     .from(tasksTable)
     .where(and(inArray(tasksTable.id, ids), eq(tasksTable.orgId, orgId)));
 
-  if (orgTaskIds.length === 0) {
+  if (existing.length === 0) {
     res.json(BulkDeleteTasksResponse.parse({ deleted: 0 }));
     return;
   }
 
-  const safeIds = orgTaskIds.map((r) => r.id);
+  const ownedIds = existing.map((r) => r.id);
+  await db.delete(commentsTable).where(inArray(commentsTable.taskId, ownedIds));
+  await db.delete(tasksTable).where(and(inArray(tasksTable.id, ownedIds), eq(tasksTable.orgId, orgId)));
 
-  await db.delete(commentsTable).where(inArray(commentsTable.taskId, safeIds));
-
-  const deleted = await db
-    .delete(tasksTable)
-    .where(and(inArray(tasksTable.id, safeIds), eq(tasksTable.orgId, orgId)))
-    .returning({ id: tasksTable.id });
-
-  res.json(BulkDeleteTasksResponse.parse({ deleted: deleted.length }));
+  res.json(BulkDeleteTasksResponse.parse({ deleted: ownedIds.length }));
 });
 
 router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
@@ -727,21 +782,25 @@ router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Enforce delete_tasks permission server-side (frontend gate alone is insufficient)
   if (!req.orgPermissions?.delete_tasks) {
     res.status(403).json({ error: "You do not have permission to delete tasks" });
     return;
   }
 
-  const [task] = await db
-    .delete(tasksTable)
+  // Verify the task belongs to this org BEFORE touching comments (cross-org safety)
+  const [existing] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
-    .returning();
+    .limit(1);
 
-  if (!task) {
+  if (!existing) {
     res.status(404).json({ error: "Task not found" });
     return;
   }
+
+  await db.delete(commentsTable).where(eq(commentsTable.taskId, existing.id));
+  await db.delete(tasksTable).where(and(eq(tasksTable.id, existing.id), eq(tasksTable.orgId, orgId)));
 
   res.sendStatus(204);
 });
@@ -755,7 +814,6 @@ router.get("/tasks/:id/events", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  // Verify task belongs to the org
   const [task] = await db
     .select({ id: tasksTable.id })
     .from(tasksTable)

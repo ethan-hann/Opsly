@@ -8,10 +8,10 @@
 import type { TaskCategory } from './taskCategory';
 import type { TaskCustomFields } from './taskCustomFields';
 import type { TaskPriority } from './taskPriority';
-import type { TaskStatus } from './taskStatus';
+import type { TaskStageType } from './taskStageType';
 
 /**
- * An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.
+ * An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org's active workflow stage details.
  */
 export interface Task {
   /** Auto-incremented primary key. */
@@ -35,8 +35,18 @@ export interface Task {
      * @nullable
      */
   description?: string | null;
-  /** Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete. */
-  status: TaskStatus;
+  /** Numeric ID of the task's current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open/closed logic. */
+  status: string;
+  /** Numeric ID of the workflow stage. Matches `status` parsed as integer. */
+  stageId?: number;
+  /** Display name of the current workflow stage (e.g. "In Progress"). */
+  stageName?: string;
+  /** Hex color of the current workflow stage (e.g. "#f59e0b"). */
+  stageColor?: string;
+  /** Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts. */
+  stageType?: TaskStageType;
+  /** Whether the current stage is archived. Archived tasks should be shown with an indicator. */
+  stageArchived?: boolean;
   /** Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred. */
   priority: TaskPriority;
   /** IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn't fit. */

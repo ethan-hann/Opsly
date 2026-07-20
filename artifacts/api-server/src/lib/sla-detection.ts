@@ -18,10 +18,12 @@
  */
 
 import { and, eq, isNull } from "drizzle-orm";
-import { db, tasksTable, slaPoliciesTable } from "@workspace/db";
+import { db, tasksTable, slaPoliciesTable, workflowStagesTable } from "@workspace/db";
 import { getSlaStatus } from "./sla";
 import { dispatchTaskSlaBreached, dispatchSlaWarning } from "./webhook-dispatcher";
 import { logger } from "./logger";
+
+type StagesMap = Map<number, typeof workflowStagesTable.$inferSelect>;
 
 /**
  * For a list of tasks (all from the same org), detect any that have breached
@@ -30,17 +32,29 @@ import { logger } from "./logger";
  *
  * Fire-and-forget safe: all errors are caught and logged so detection never
  * blocks or rejects the calling request.
+ *
+ * @param stages  Optional map of workflow stages keyed by ID. When provided,
+ *                stage type is used to determine open/closed; otherwise falls
+ *                back to the legacy `status !== "done"` check.
  */
 export async function detectAndMarkSlaBreaches(
   tasks: (typeof tasksTable.$inferSelect)[],
   orgId: string,
   policies: (typeof slaPoliciesTable.$inferSelect)[],
+  stages?: StagesMap,
 ): Promise<void> {
   try {
     // Only evaluate open tasks that haven't been fully flagged yet
-    const candidates = tasks.filter(
-      (t) => t.status !== "done" && t.slaBreachedAt == null,
-    );
+    const candidates = tasks.filter((t) => {
+      if (t.slaBreachedAt != null) return false;
+      const stageId = parseInt(t.status, 10);
+      if (!isNaN(stageId) && stages) {
+        const stage = stages.get(stageId);
+        return stage?.type === "open";
+      }
+      // Fallback for unmigrated rows: use legacy "done" check
+      return t.status !== "done";
+    });
     if (candidates.length === 0) return;
 
     // Build two-level policy maps: project-level takes precedence over org-level

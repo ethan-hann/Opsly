@@ -249,7 +249,12 @@ export const ListTasksResponseItem = zod.object({
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
   "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.\n'),
+  "status": zod.string().describe('Numeric ID of the task\'s current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open\/closed logic.\n'),
+  "stageId": zod.number().optional().describe('Numeric ID of the workflow stage. Matches `status` parsed as integer.'),
+  "stageName": zod.string().optional().describe('Display name of the current workflow stage (e.g. \"In Progress\").'),
+  "stageColor": zod.string().optional().describe('Hex color of the current workflow stage (e.g. \"#f59e0b\").'),
+  "stageType": zod.enum(['open', 'closed']).optional().describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "stageArchived": zod.boolean().optional().describe('Whether the current stage is archived. Archived tasks should be shown with an indicator.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn\'t fit.\n'),
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
@@ -259,7 +264,7 @@ export const ListTasksResponseItem = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
   "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
-}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 export const ListTasksResponse = zod.array(ListTasksResponseItem)
 
 
@@ -274,7 +279,7 @@ export const CreateTaskBody = zod.object({
   "projectId": zod.number().optional().describe('ID of the project to link this task to. Must belong to the caller\'s org; omit to create an unlinked task.\n'),
   "title": zod.string().min(1).describe('Short, descriptive title for the task (must be non-empty).'),
   "description": zod.string().optional().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Initial status of the task.'),
+  "status": zod.string().describe('Workflow stage ID (as a string) for the initial task status. Must be a valid, non-archived stage belonging to the caller\'s org.\n'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency level of the task.'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category for the task.'),
   "assignee": zod.string().optional().describe('Email address of the org member to assign. Must match an existing org member; omit to leave unassigned.\n'),
@@ -289,7 +294,12 @@ export const CreateTaskResponse = zod.object({
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
   "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.\n'),
+  "status": zod.string().describe('Numeric ID of the task\'s current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open\/closed logic.\n'),
+  "stageId": zod.number().optional().describe('Numeric ID of the workflow stage. Matches `status` parsed as integer.'),
+  "stageName": zod.string().optional().describe('Display name of the current workflow stage (e.g. \"In Progress\").'),
+  "stageColor": zod.string().optional().describe('Hex color of the current workflow stage (e.g. \"#f59e0b\").'),
+  "stageType": zod.enum(['open', 'closed']).optional().describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "stageArchived": zod.boolean().optional().describe('Whether the current stage is archived. Archived tasks should be shown with an indicator.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn\'t fit.\n'),
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
@@ -299,7 +309,7 @@ export const CreateTaskResponse = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
   "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
-}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
 /**
@@ -317,7 +327,12 @@ export const GetTaskResponse = zod.object({
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
   "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.\n'),
+  "status": zod.string().describe('Numeric ID of the task\'s current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open\/closed logic.\n'),
+  "stageId": zod.number().optional().describe('Numeric ID of the workflow stage. Matches `status` parsed as integer.'),
+  "stageName": zod.string().optional().describe('Display name of the current workflow stage (e.g. \"In Progress\").'),
+  "stageColor": zod.string().optional().describe('Hex color of the current workflow stage (e.g. \"#f59e0b\").'),
+  "stageType": zod.enum(['open', 'closed']).optional().describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "stageArchived": zod.boolean().optional().describe('Whether the current stage is archived. Archived tasks should be shown with an indicator.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn\'t fit.\n'),
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
@@ -327,7 +342,7 @@ export const GetTaskResponse = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
   "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
-}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
 /**
@@ -345,7 +360,7 @@ export const UpdateTaskBody = zod.object({
   "projectId": zod.number().nullish().describe('Updated project link. Pass `null` to unlink from the current project. Must belong to the caller\'s org if non-null.\n'),
   "title": zod.string().min(1).optional().describe('New task title.'),
   "description": zod.string().optional().describe('Updated description.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional().describe('New task status.'),
+  "status": zod.string().optional().describe('New workflow stage ID (as a string). Must be a valid stage belonging to the caller\'s org.\n'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('New IT operational category.'),
   "assignee": zod.string().nullish().describe('Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged.\n'),
@@ -360,7 +375,12 @@ export const UpdateTaskResponse = zod.object({
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
   "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.\n'),
+  "status": zod.string().describe('Numeric ID of the task\'s current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open\/closed logic.\n'),
+  "stageId": zod.number().optional().describe('Numeric ID of the workflow stage. Matches `status` parsed as integer.'),
+  "stageName": zod.string().optional().describe('Display name of the current workflow stage (e.g. \"In Progress\").'),
+  "stageColor": zod.string().optional().describe('Hex color of the current workflow stage (e.g. \"#f59e0b\").'),
+  "stageType": zod.enum(['open', 'closed']).optional().describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "stageArchived": zod.boolean().optional().describe('Whether the current stage is archived. Archived tasks should be shown with an indicator.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn\'t fit.\n'),
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
@@ -370,7 +390,7 @@ export const UpdateTaskResponse = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
   "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
-}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
 /**
@@ -718,19 +738,24 @@ export const DeleteNoteResponse = zod.void()
 export const GetDashboardSummaryResponse = zod.object({
   "totalTasks": zod.number().describe('Total number of tasks in the organization regardless of status.'),
   "totalProjects": zod.number().describe('Total number of projects in the organization regardless of status.'),
-  "tasksByStatus": zod.object({
-  "todo": zod.number().describe('Number of tasks with status `todo`.'),
-  "in_progress": zod.number().describe('Number of tasks with status `in_progress`.'),
-  "blocked": zod.number().describe('Number of tasks with status `blocked`.'),
-  "done": zod.number().describe('Number of tasks with status `done`.')
-}).describe('Task counts grouped by status value.'),
+  "tasksByStageType": zod.object({
+  "open": zod.number().describe('Number of tasks in an \'open\' stage (unresolved).'),
+  "closed": zod.number().describe('Number of tasks in a \'closed\' stage (resolved).')
+}).describe('Task counts grouped by stage type (open vs closed).'),
+  "stageBreakdown": zod.array(zod.object({
+  "stageId": zod.number(),
+  "stageName": zod.string(),
+  "stageColor": zod.string(),
+  "stageType": zod.enum(['open', 'closed']),
+  "count": zod.number()
+})).optional().describe('Per-stage task counts, ordered by stage position.'),
   "tasksByPriority": zod.object({
   "low": zod.number().describe('Number of tasks with priority `low`.'),
   "medium": zod.number().describe('Number of tasks with priority `medium`.'),
   "high": zod.number().describe('Number of tasks with priority `high`.'),
   "critical": zod.number().describe('Number of tasks with priority `critical`.')
 }).describe('Task counts grouped by priority level.'),
-  "overdueCount": zod.number().describe('Number of tasks whose `dueDate` is before today and whose status is not `done`.\n'),
+  "overdueCount": zod.number().describe('Number of tasks whose `dueDate` is before today and whose stage type is \'open\' (not yet resolved).\n'),
   "activeProjects": zod.number().describe('Number of projects with status `active`.')
 }).describe('Aggregated statistics for the caller\'s organization, computed in real time.')
 
@@ -760,7 +785,7 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 export const BulkUpdateTasksBody = zod.object({
   "ids": zod.array(zod.number()).min(1).describe('IDs of tasks to update. Tasks not belonging to the org are skipped.'),
   "patch": zod.object({
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).optional(),
+  "status": zod.string().optional().describe('Workflow stage ID (as a string). Must be a valid stage belonging to the caller\'s org.\n'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional(),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional(),
   "assignee": zod.string().nullish().describe('Email of an org member, or null to unassign.')
@@ -799,7 +824,12 @@ export const GetOverdueTasksResponseItem = zod.object({
   "projectName": zod.string().nullish().describe('Display name of the linked project, resolved at query time and scoped to the org. Null if no project is linked or the project belongs to another org.\n'),
   "title": zod.string().describe('Short, descriptive title of the task.'),
   "description": zod.string().nullish().describe('Optional detailed description of the work to be done.'),
-  "status": zod.enum(['todo', 'in_progress', 'blocked', 'done']).describe('Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.\n'),
+  "status": zod.string().describe('Numeric ID of the task\'s current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open\/closed logic.\n'),
+  "stageId": zod.number().optional().describe('Numeric ID of the workflow stage. Matches `status` parsed as integer.'),
+  "stageName": zod.string().optional().describe('Display name of the current workflow stage (e.g. \"In Progress\").'),
+  "stageColor": zod.string().optional().describe('Hex color of the current workflow stage (e.g. \"#f59e0b\").'),
+  "stageType": zod.enum(['open', 'closed']).optional().describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "stageArchived": zod.boolean().optional().describe('Whether the current stage is archived. Archived tasks should be shown with an indicator.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).describe('Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred.\n'),
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).describe('IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn\'t fit.\n'),
   "assignee": zod.string().nullish().describe('Email address of the org member assigned to this task. Must match a current org member when set. Null if unassigned.\n'),
@@ -809,7 +839,7 @@ export const GetOverdueTasksResponseItem = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
   "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
-}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.\n')
+}).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
 
@@ -1266,6 +1296,107 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "email": zod.string().nullish().describe('Member\'s email address. Null if not set in their profile.'),
   "profileImageUrl": zod.string().nullish().describe('URL of the member\'s profile picture. Null if not set.')
 }).describe('Profile and membership information for a single org member.')
+
+
+/**
+ * Returns all workflow stages for the org ordered by position, then ID. Active stages come first; archived stages are included for display purposes. Available to all org members.
+ * @summary List workflow stages for the current org
+ */
+export const ListWorkflowStagesResponseItem = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the owning organization.'),
+  "name": zod.string().describe('Display name of the stage (e.g. \"In Review\").'),
+  "color": zod.string().describe('Hex color for display (e.g. \"#f59e0b\").'),
+  "type": zod.enum(['open', 'closed']).describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "position": zod.number().describe('Sort order within the org (0-based, ascending).'),
+  "archivedAt": zod.string().nullish().describe('ISO 8601 timestamp when the stage was archived. Null if active.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('An org-defined workflow stage. Replaces the hardcoded task status enum.')
+export const ListWorkflowStagesResponse = zod.array(ListWorkflowStagesResponseItem)
+
+
+/**
+ * Creates a new workflow stage appended at the end of the position list. Requires the `manage_workflow_stages` permission.
+ * @summary Create a workflow stage (admin only)
+ */
+
+
+
+export const CreateWorkflowStageBody = zod.object({
+  "name": zod.string().min(1).describe('Display name for the stage.'),
+  "color": zod.string().optional().describe('Hex color code (e.g. \"#6b7280\"). Defaults to gray if omitted.'),
+  "type": zod.enum(['open', 'closed']).optional().describe('Stage type. Defaults to `open`.')
+}).describe('Fields for creating a new workflow stage.')
+
+export const CreateWorkflowStageResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the owning organization.'),
+  "name": zod.string().describe('Display name of the stage (e.g. \"In Review\").'),
+  "color": zod.string().describe('Hex color for display (e.g. \"#f59e0b\").'),
+  "type": zod.enum(['open', 'closed']).describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "position": zod.number().describe('Sort order within the org (0-based, ascending).'),
+  "archivedAt": zod.string().nullish().describe('ISO 8601 timestamp when the stage was archived. Null if active.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('An org-defined workflow stage. Replaces the hardcoded task status enum.')
+
+
+/**
+ * Accepts an ordered array of stage IDs and reassigns `position` values to match. Requires the `manage_workflow_stages` permission.
+ * @summary Reorder workflow stages (admin only)
+ */
+export const ReorderWorkflowStagesBody = zod.object({
+  "ids": zod.array(zod.number()).describe('Stage IDs in the desired display order. Each ID must belong to the caller\'s org.')
+}).describe('Ordered list of stage IDs for reordering.')
+
+export const ReorderWorkflowStagesResponse = zod.void()
+
+
+/**
+ * Partially updates a stage: rename, recolor, change type, archive, or restore. Requires the `manage_workflow_stages` permission. The org must always retain at least one active `open` and one active `closed` stage.
+ * @summary Update a workflow stage (admin only)
+ */
+export const UpdateWorkflowStageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+export const UpdateWorkflowStageBody = zod.object({
+  "name": zod.string().min(1).optional().describe('New display name.'),
+  "color": zod.string().optional().describe('New hex color code.'),
+  "type": zod.enum(['open', 'closed']).optional().describe('Change the stage type. The org must retain at least one active stage of the other type.\n'),
+  "archived": zod.boolean().optional().describe('Pass `true` to archive (hide from new assignments) or `false` to restore. The org must retain at least one active stage of each type.\n')
+}).describe('Partial update for a workflow stage.')
+
+export const UpdateWorkflowStageResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "orgId": zod.string().describe('ID of the owning organization.'),
+  "name": zod.string().describe('Display name of the stage (e.g. \"In Review\").'),
+  "color": zod.string().describe('Hex color for display (e.g. \"#f59e0b\").'),
+  "type": zod.enum(['open', 'closed']).describe('Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.\n'),
+  "position": zod.number().describe('Sort order within the org (0-based, ascending).'),
+  "archivedAt": zod.string().nullish().describe('ISO 8601 timestamp when the stage was archived. Null if active.'),
+  "createdAt": zod.string().describe('ISO 8601 creation timestamp.'),
+  "updatedAt": zod.string().describe('ISO 8601 last-updated timestamp.')
+}).describe('An org-defined workflow stage. Replaces the hardcoded task status enum.')
+
+
+/**
+ * Permanently deletes a stage. If tasks currently use this stage, provide the `reassignTo` query parameter with a target stage ID; all affected tasks are reassigned before deletion. Returns 409 if tasks exist and no reassignment target is provided. Requires the `manage_workflow_stages` permission.
+ * @summary Delete a workflow stage (admin only)
+ */
+export const RemoveWorkflowStageParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RemoveWorkflowStageQueryParams = zod.object({
+  "reassignTo": zod.coerce.number().optional().describe('Stage ID to reassign existing tasks to before deleting this stage.')
+})
+
+export const RemoveWorkflowStageResponse = zod.void()
 
 
 /**

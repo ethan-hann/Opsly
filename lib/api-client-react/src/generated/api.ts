@@ -69,6 +69,7 @@ import type {
   Project,
   ProjectInput,
   ProjectUpdate,
+  RemoveWorkflowStageParams,
   RenameOrgInput,
   Role,
   SLAPoliciesInput,
@@ -87,7 +88,11 @@ import type {
   UpdateMemberRoleInput,
   UpdateRoleInput,
   WebhookIngestPayload,
-  WebhookIngestSuccess
+  WebhookIngestSuccess,
+  WorkflowStage,
+  WorkflowStageInput,
+  WorkflowStageReorderInput,
+  WorkflowStageUpdate
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -4184,6 +4189,382 @@ export const useUpdateOrgMemberRole = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getUpdateOrgMemberRoleMutationOptions(options));
+    }
+
+export const getListWorkflowStagesUrl = () => {
+
+
+
+
+  return `/api/workflow-stages`
+}
+
+/**
+ * Returns all workflow stages for the org ordered by position, then ID. Active stages come first; archived stages are included for display purposes. Available to all org members.
+ * @summary List workflow stages for the current org
+ */
+export const listWorkflowStages = async ( options?: RequestInit): Promise<WorkflowStage[]> => {
+
+  return customFetch<WorkflowStage[]>(getListWorkflowStagesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWorkflowStagesQueryKey = () => {
+    return [
+    `/api/workflow-stages`
+    ] as const;
+    }
+
+
+export const getListWorkflowStagesQueryOptions = <TData = Awaited<ReturnType<typeof listWorkflowStages>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkflowStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWorkflowStagesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWorkflowStages>>> = ({ signal }) => listWorkflowStages({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWorkflowStages>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListWorkflowStagesQueryResult = NonNullable<Awaited<ReturnType<typeof listWorkflowStages>>>
+export type ListWorkflowStagesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List workflow stages for the current org
+ */
+
+export function useListWorkflowStages<TData = Awaited<ReturnType<typeof listWorkflowStages>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listWorkflowStages>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListWorkflowStagesQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateWorkflowStageUrl = () => {
+
+
+
+
+  return `/api/workflow-stages`
+}
+
+/**
+ * Creates a new workflow stage appended at the end of the position list. Requires the `manage_workflow_stages` permission.
+ * @summary Create a workflow stage (admin only)
+ */
+export const createWorkflowStage = async (workflowStageInput: WorkflowStageInput, options?: RequestInit): Promise<WorkflowStage> => {
+
+  return customFetch<WorkflowStage>(getCreateWorkflowStageUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(workflowStageInput)
+  }
+);}
+
+
+
+
+
+export const getCreateWorkflowStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkflowStage>>, TError,{data: BodyType<WorkflowStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createWorkflowStage>>, TError,{data: BodyType<WorkflowStageInput>}, TContext> => {
+
+const mutationKey = ['createWorkflowStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createWorkflowStage>>, {data: BodyType<WorkflowStageInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createWorkflowStage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateWorkflowStageMutationResult = NonNullable<Awaited<ReturnType<typeof createWorkflowStage>>>
+    export type CreateWorkflowStageMutationBody = BodyType<WorkflowStageInput>
+    export type CreateWorkflowStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a workflow stage (admin only)
+ */
+export const useCreateWorkflowStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createWorkflowStage>>, TError,{data: BodyType<WorkflowStageInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createWorkflowStage>>,
+        TError,
+        {data: BodyType<WorkflowStageInput>},
+        TContext
+      > => {
+      return useMutation(getCreateWorkflowStageMutationOptions(options));
+    }
+
+export const getReorderWorkflowStagesUrl = () => {
+
+
+
+
+  return `/api/workflow-stages/reorder`
+}
+
+/**
+ * Accepts an ordered array of stage IDs and reassigns `position` values to match. Requires the `manage_workflow_stages` permission.
+ * @summary Reorder workflow stages (admin only)
+ */
+export const reorderWorkflowStages = async (workflowStageReorderInput: WorkflowStageReorderInput, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getReorderWorkflowStagesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(workflowStageReorderInput)
+  }
+);}
+
+
+
+
+
+export const getReorderWorkflowStagesMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderWorkflowStages>>, TError,{data: BodyType<WorkflowStageReorderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reorderWorkflowStages>>, TError,{data: BodyType<WorkflowStageReorderInput>}, TContext> => {
+
+const mutationKey = ['reorderWorkflowStages'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reorderWorkflowStages>>, {data: BodyType<WorkflowStageReorderInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  reorderWorkflowStages(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReorderWorkflowStagesMutationResult = NonNullable<Awaited<ReturnType<typeof reorderWorkflowStages>>>
+    export type ReorderWorkflowStagesMutationBody = BodyType<WorkflowStageReorderInput>
+    export type ReorderWorkflowStagesMutationError = ErrorType<void>
+
+    /**
+ * @summary Reorder workflow stages (admin only)
+ */
+export const useReorderWorkflowStages = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reorderWorkflowStages>>, TError,{data: BodyType<WorkflowStageReorderInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reorderWorkflowStages>>,
+        TError,
+        {data: BodyType<WorkflowStageReorderInput>},
+        TContext
+      > => {
+      return useMutation(getReorderWorkflowStagesMutationOptions(options));
+    }
+
+export const getUpdateWorkflowStageUrl = (id: number,) => {
+
+
+
+
+  return `/api/workflow-stages/${id}`
+}
+
+/**
+ * Partially updates a stage: rename, recolor, change type, archive, or restore. Requires the `manage_workflow_stages` permission. The org must always retain at least one active `open` and one active `closed` stage.
+ * @summary Update a workflow stage (admin only)
+ */
+export const updateWorkflowStage = async (id: number,
+    workflowStageUpdate: WorkflowStageUpdate, options?: RequestInit): Promise<WorkflowStage> => {
+
+  return customFetch<WorkflowStage>(getUpdateWorkflowStageUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(workflowStageUpdate)
+  }
+);}
+
+
+
+
+
+export const getUpdateWorkflowStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStage>>, TError,{id: number;data: BodyType<WorkflowStageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStage>>, TError,{id: number;data: BodyType<WorkflowStageUpdate>}, TContext> => {
+
+const mutationKey = ['updateWorkflowStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateWorkflowStage>>, {id: number;data: BodyType<WorkflowStageUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateWorkflowStage(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateWorkflowStageMutationResult = NonNullable<Awaited<ReturnType<typeof updateWorkflowStage>>>
+    export type UpdateWorkflowStageMutationBody = BodyType<WorkflowStageUpdate>
+    export type UpdateWorkflowStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a workflow stage (admin only)
+ */
+export const useUpdateWorkflowStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateWorkflowStage>>, TError,{id: number;data: BodyType<WorkflowStageUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateWorkflowStage>>,
+        TError,
+        {id: number;data: BodyType<WorkflowStageUpdate>},
+        TContext
+      > => {
+      return useMutation(getUpdateWorkflowStageMutationOptions(options));
+    }
+
+export const getRemoveWorkflowStageUrl = (id: number,
+    params?: RemoveWorkflowStageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/workflow-stages/${id}?${stringifiedParams}` : `/api/workflow-stages/${id}`
+}
+
+/**
+ * Permanently deletes a stage. If tasks currently use this stage, provide the `reassignTo` query parameter with a target stage ID; all affected tasks are reassigned before deletion. Returns 409 if tasks exist and no reassignment target is provided. Requires the `manage_workflow_stages` permission.
+ * @summary Delete a workflow stage (admin only)
+ */
+export const removeWorkflowStage = async (id: number,
+    params?: RemoveWorkflowStageParams, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getRemoveWorkflowStageUrl(id,params),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getRemoveWorkflowStageMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeWorkflowStage>>, TError,{id: number;params?: RemoveWorkflowStageParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof removeWorkflowStage>>, TError,{id: number;params?: RemoveWorkflowStageParams}, TContext> => {
+
+const mutationKey = ['removeWorkflowStage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof removeWorkflowStage>>, {id: number;params?: RemoveWorkflowStageParams}> = (props) => {
+          const {id,params} = props ?? {};
+
+          return  removeWorkflowStage(id,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RemoveWorkflowStageMutationResult = NonNullable<Awaited<ReturnType<typeof removeWorkflowStage>>>
+
+    export type RemoveWorkflowStageMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a workflow stage (admin only)
+ */
+export const useRemoveWorkflowStage = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof removeWorkflowStage>>, TError,{id: number;params?: RemoveWorkflowStageParams}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof removeWorkflowStage>>,
+        TError,
+        {id: number;params?: RemoveWorkflowStageParams},
+        TContext
+      > => {
+      return useMutation(getRemoveWorkflowStageMutationOptions(options));
     }
 
 export const getListTaskTemplatesUrl = () => {

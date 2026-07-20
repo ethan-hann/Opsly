@@ -39,16 +39,25 @@ const apiZodSnapshot = new Map<string, string>();
       encoding: "utf8",
     });
     for (const relPath of listed.trim().split("\n").filter(Boolean)) {
+      const absPath = path.resolve(repoRoot, relPath);
+      // Prefer the on-disk (working-tree) file when it exists.  This is safe
+      // because `vitest run` never runs concurrently with orval-sync, so the
+      // disk files are stable.  It also handles rebase scenarios where HEAD
+      // predates working-tree api-zod changes that are not yet committed.
+      if (fs.existsSync(absPath)) {
+        apiZodSnapshot.set(absPath, fs.readFileSync(absPath, "utf8"));
+        continue;
+      }
+      // File is tracked but deleted in the working tree — fall back to the
+      // committed content so the load hook can serve a stub.
       try {
         const content = execSync(`git show HEAD:${relPath}`, {
           cwd: repoRoot,
           encoding: "utf8",
         });
-        const absPath = path.resolve(repoRoot, relPath);
         apiZodSnapshot.set(absPath, content);
       } catch {
-        // File tracked but not at HEAD (e.g. added but not committed) — skip;
-        // the load hook will fall through to disk for this file.
+        // File not at HEAD either — skip; load hook will serve an empty stub.
       }
     }
   } catch {
@@ -71,20 +80,39 @@ const apiZodSnapshot = new Map<string, string>();
  * from deps.inline means it goes through the normal Vite module graph that
  * vi.mock hooks into.
  */
+// Absolute path to lib/api-zod/src/ — used to identify api-zod files whose
+// importer IS in the snapshot but whose own path is not (e.g. a file that
+// existed in HEAD but was removed in the working-tree during a rebase).
+const apiZodSrcRoot = path.resolve(repoRoot, "lib/api-zod/src");
+
 const stableApiZod = {
   name: "stable-api-zod",
   enforce: "pre" as const,
   resolveId(source: string, importer?: string) {
-    // Only handle relative imports — check snapshot membership to confirm the
-    // resolved path is an api-zod file we own (no apiZodSrcRoot reference
-    // needed; the map only contains api-zod files).
+    // Only handle relative imports from within the api-zod src tree.
     if (!importer || !source.startsWith(".")) return null;
-    const dir = path.dirname(importer.split("?")[0]);
-    for (const ext of ["", ".ts"]) {
+    const importerClean = importer.split("?")[0];
+    const dir = path.dirname(importerClean);
+    // Try plain, .ts, and /index.ts (handles directory-style imports like
+    // './generated/types' → './generated/types/index.ts').
+    for (const ext of ["", ".ts", "/index.ts"]) {
       const candidate = path.resolve(dir, source + ext);
       if (apiZodSnapshot.has(candidate)) {
         return candidate; // stable path; load hook will serve the content
       }
+    }
+    // The importer is a snapshot file but the required .ts module is not in the
+    // snapshot (e.g. a file removed during a rebase while HEAD's index.ts still
+    // references it).  Claim only concrete .ts paths — never bare directories —
+    // so the load hook can serve a stub without breaking Vite's own directory
+    // → index.ts resolution for modules we DO have on disk.
+    const tsCandidate = path.resolve(dir, source + ".ts");
+    if (
+      tsCandidate.startsWith(apiZodSrcRoot) &&
+      apiZodSnapshot.has(importerClean) &&
+      !apiZodSnapshot.has(tsCandidate)
+    ) {
+      return tsCandidate;
     }
     return null;
   },
@@ -94,6 +122,16 @@ const stableApiZod = {
     const snapshot = apiZodSnapshot.get(cleanId);
     if (snapshot !== undefined) {
       return { code: snapshot, map: null };
+    }
+    // Stub .ts files claimed by resolveId that are not in the snapshot and not
+    // on disk (e.g. a type file removed in this branch while HEAD still exports
+    // it).  Guard with endsWith(".ts") so we never stub a directory path.
+    if (
+      cleanId.startsWith(apiZodSrcRoot) &&
+      cleanId.endsWith(".ts") &&
+      !fs.existsSync(cleanId)
+    ) {
+      return { code: "export {};", map: null };
     }
     return null;
   },

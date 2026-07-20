@@ -105,6 +105,7 @@ vi.mock("@workspace/db", () => {
     rolesTable: {},
     invitationsTable: {},
     usersTable: {},
+    workflowStagesTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},

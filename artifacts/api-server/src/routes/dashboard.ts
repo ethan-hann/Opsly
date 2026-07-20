@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, lt, and } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable } from "@workspace/db";
+import { eq, sql, lt, and, isNull, asc } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable, workflowStagesTable } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
   GetRecentActivityResponse,
@@ -12,13 +12,58 @@ const router: IRouter = Router();
 router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
+  // Aggregate tasks by stage type using a join with workflow_stages
+  const taskTypeAgg = await db
+    .select({
+      type: workflowStagesTable.type,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tasksTable)
+    .innerJoin(
+      workflowStagesTable,
+      and(
+        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        eq(workflowStagesTable.orgId, orgId),
+      ),
+    )
+    .where(eq(tasksTable.orgId, orgId))
+    .groupBy(workflowStagesTable.type);
+
+  const openCount = taskTypeAgg.find((r) => r.type === "open")?.count ?? 0;
+  const closedCount = taskTypeAgg.find((r) => r.type === "closed")?.count ?? 0;
+  const total = openCount + closedCount;
+
+  // Per-stage breakdown (active stages only), ordered by position
+  const stageBreakdown = await db
+    .select({
+      stageId: workflowStagesTable.id,
+      stageName: workflowStagesTable.name,
+      stageColor: workflowStagesTable.color,
+      stageType: workflowStagesTable.type,
+      count: sql<number>`count(${tasksTable.id})::int`,
+    })
+    .from(workflowStagesTable)
+    .leftJoin(
+      tasksTable,
+      and(
+        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        eq(tasksTable.orgId, orgId),
+      ),
+    )
+    .where(and(eq(workflowStagesTable.orgId, orgId), isNull(workflowStagesTable.archivedAt)))
+    .groupBy(
+      workflowStagesTable.id,
+      workflowStagesTable.name,
+      workflowStagesTable.color,
+      workflowStagesTable.type,
+      workflowStagesTable.position,
+    )
+    .orderBy(asc(workflowStagesTable.position));
+
+  // Priority breakdown
   const [taskStats] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      todo: sql<number>`count(*) filter (where ${tasksTable.status} = 'todo')::int`,
-      in_progress: sql<number>`count(*) filter (where ${tasksTable.status} = 'in_progress')::int`,
-      blocked: sql<number>`count(*) filter (where ${tasksTable.status} = 'blocked')::int`,
-      done: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
       low: sql<number>`count(*) filter (where ${tasksTable.priority} = 'low')::int`,
       medium: sql<number>`count(*) filter (where ${tasksTable.priority} = 'medium')::int`,
       high: sql<number>`count(*) filter (where ${tasksTable.priority} = 'high')::int`,
@@ -27,15 +72,20 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     .from(tasksTable)
     .where(eq(tasksTable.orgId, orgId));
 
+  // Overdue: past due date and in an open stage
   const today = new Date().toISOString().split("T")[0];
   const [overdueResult] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(tasksTable)
-    .where(and(
-      eq(tasksTable.orgId, orgId),
-      lt(tasksTable.dueDate, today),
-      sql`${tasksTable.status} != 'done'`,
-    ));
+    .innerJoin(
+      workflowStagesTable,
+      and(
+        sql`${tasksTable.status}::int = ${workflowStagesTable.id}`,
+        eq(workflowStagesTable.orgId, orgId),
+        eq(workflowStagesTable.type, "open"),
+      ),
+    )
+    .where(and(eq(tasksTable.orgId, orgId), lt(tasksTable.dueDate, today)));
 
   const [projectStats] = await db
     .select({
@@ -46,14 +96,19 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
     .where(eq(projectsTable.orgId, orgId));
 
   const summary = {
-    totalTasks: taskStats?.total ?? 0,
+    totalTasks: taskStats?.total ?? total,
     totalProjects: projectStats?.total ?? 0,
-    tasksByStatus: {
-      todo: taskStats?.todo ?? 0,
-      in_progress: taskStats?.in_progress ?? 0,
-      blocked: taskStats?.blocked ?? 0,
-      done: taskStats?.done ?? 0,
+    tasksByStageType: {
+      open: openCount,
+      closed: closedCount,
     },
+    stageBreakdown: stageBreakdown.map((s) => ({
+      stageId: s.stageId,
+      stageName: s.stageName,
+      stageColor: s.stageColor,
+      stageType: s.stageType,
+      count: s.count,
+    })),
     tasksByPriority: {
       low: taskStats?.low ?? 0,
       medium: taskStats?.medium ?? 0,

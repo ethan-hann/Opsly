@@ -14,6 +14,7 @@ import customFieldsRouter from "./custom-fields";
 import savedViewsRouter from "./saved-views";
 import taskTemplatesRouter from "./task-templates";
 import eventsRouter from "./events";
+import workflowStagesRouter from "./workflow-stages";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use(customFieldsRouter);
 router.use(savedViewsRouter);
 router.use(taskTemplatesRouter);
 router.use(eventsRouter);
+router.use(workflowStagesRouter);
 
 export default router;

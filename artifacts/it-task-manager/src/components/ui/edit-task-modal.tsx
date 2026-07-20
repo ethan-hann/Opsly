@@ -5,10 +5,10 @@ import {
   useListProjects,
   useListOrgMembers,
   useListCustomFieldDefinitions,
+  useListWorkflowStages,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
-  TaskInputStatus,
   TaskInputPriority,
   TaskInputCategory,
 } from "@workspace/api-client-react";
@@ -40,7 +40,7 @@ interface Task {
   title: string;
   description?: string | null;
   projectId?: number | null;
-  status: TaskInputStatus;
+  status: string;
   priority: TaskInputPriority;
   category: TaskInputCategory;
   assignee?: string | null;
@@ -54,12 +54,6 @@ interface EditTaskModalProps {
   task: Task;
 }
 
-const STATUS_OPTIONS: { value: TaskInputStatus; label: string }[] = [
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "blocked", label: "Blocked" },
-  { value: "done", label: "Done" },
-];
 
 const PRIORITY_OPTIONS: { value: TaskInputPriority; label: string }[] = [
   { value: "low", label: "Low" },
@@ -83,6 +77,8 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
   const { data: customFields = [] } = useListCustomFieldDefinitions();
+  const { data: stages = [] } = useListWorkflowStages();
+  const activeStages = stages.filter((s) => !s.archivedAt);
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
@@ -93,7 +89,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const [projectId, setProjectId] = useState<string>(
     task.projectId != null ? String(task.projectId) : "none"
   );
-  const [status, setStatus] = useState<TaskInputStatus>(task.status);
+  const [status, setStatus] = useState<string>(task.status);
   const [priority, setPriority] = useState<TaskInputPriority>(task.priority);
   const [category, setCategory] = useState<TaskInputCategory>(task.category);
   const [assignee, setAssignee] = useState(task.assignee ?? "");
@@ -109,7 +105,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
       setTitle(task.title);
       setDescription(task.description ?? "");
       setProjectId(task.projectId != null ? String(task.projectId) : "none");
-      setStatus(task.status);
+      setStatus(task.status as string);
       setPriority(task.priority);
       setCategory(task.category);
       setAssignee(task.assignee ?? "");
@@ -204,12 +200,17 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Status</Label>
-              <Select value={status} onValueChange={(v) => setStatus(v as TaskInputStatus)}>
+              <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map(o => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  {activeStages.map((s) => (
+                    <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                   ))}
+                  {status && !activeStages.some((s) => String(s.id) === status) && (
+                    <SelectItem value={status} className="text-muted-foreground">
+                      {stages.find((s) => String(s.id) === status)?.name ?? status} (archived)
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

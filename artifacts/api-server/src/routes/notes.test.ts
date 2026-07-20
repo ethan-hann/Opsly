@@ -73,6 +73,7 @@ vi.mock("@workspace/db", () => {
     orgMembersTable: {},
     commentsTable: {},
     usersTable: {},
+    workflowStagesTable: {},
     eq: () => ({}),
     and: () => ({}),
     or: () => ({}),

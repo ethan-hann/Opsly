@@ -175,6 +175,7 @@ vi.mock("@workspace/db", () => {
     taskTemplatesTable: {},
     slaPoliciesTable: {},
     taskEventsTable: {},
+    workflowStagesTable: {},
     customFieldDefinitionsTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
@@ -193,6 +194,7 @@ vi.mock("drizzle-orm", () => ({
   gte: () => ({}),
   isNull: () => ({}),
   inArray: () => ({}),
+  asc: () => ({}),
   sql: () => ({}),
 }));
 
@@ -404,6 +406,7 @@ describe("Task isolation — GET /api/tasks", () => {
   it("returns only org-a tasks when org-a has data", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
     mockState.selectQueue.push([orgATask]); // tasks list
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -440,6 +443,7 @@ describe("Task filter isolation — assignee filter", () => {
   it("returns only org-a's task when both orgs have tasks with the same assignee", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE };
     mockState.selectQueue.push([orgATask]); // DB returns only the org-a task (orgId scoped)
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -463,6 +467,7 @@ describe("Task filter isolation — dateFrom filter", () => {
   it("returns only org-a's task when both orgs have tasks on or after dateFrom", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: SHARED_DATE };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -485,6 +490,7 @@ describe("Task filter isolation — dateTo filter", () => {
   it("returns only org-a's task when both orgs have tasks before dateTo", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", dueDate: "2025-03-10" };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -509,6 +515,7 @@ describe("Task filter isolation — combined assignee + dateFrom + dateTo", () =
   it("returns only org-a's task when both orgs match all combined filter criteria", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a", assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -535,6 +542,7 @@ describe("Task filter isolation — combined assignee + dateFrom + dateTo", () =
       assignee: SHARED_ASSIGNEE, dueDate: SHARED_DATE,
     };
     mockState.selectQueue.push([orgATask]);
+    mockState.selectQueue.push([]); // getOrgStages
     mockState.selectQueue.push([]); // SLA policies
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -569,7 +577,8 @@ describe("Task isolation — GET /api/tasks/:id", () => {
   it("returns 200 for a task that belongs to org-a", async () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
     mockState.selectQueue.push([orgATask]); // task found
-    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
+    mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");
@@ -582,10 +591,11 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
   beforeEach(reset);
 
   it("returns 404 when attempting to update an org-b task", async () => {
-    // update().set().where().returning() → [] because orgId filter excluded it
+    // selectQueue is empty → prev SELECT returns [] → 404 before any update
+    // (no status field so resolveStage is not called)
     const res = await request(buildApp())
       .patch("/api/tasks/42")
-      .send({ status: "done" });
+      .send({ title: "Renamed" });
     expect(res.status).toBe(404);
   });
 
@@ -600,11 +610,14 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
   });
 
   it("returns 403 when setting status to done without close_tasks permission", async () => {
-    // edit_tasks alone must not be sufficient to close a task
+    // edit_tasks alone must not be sufficient to close a task.
+    // Push a closed-type stage so resolveStage succeeds, then the close_tasks
+    // permission guard triggers the 403.
     mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    mockState.selectQueue.push([{ id: 1, orgId: "org-a", name: "Done", type: "closed", color: "#10b981", position: 3, archivedAt: null }]); // resolveStage
     const res = await request(buildApp())
       .patch("/api/tasks/1")
-      .send({ status: "done" });
+      .send({ status: "1" });
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: expect.stringMatching(/close/i) });
   });
@@ -614,6 +627,7 @@ describe("Task isolation — PATCH /api/tasks/:id", () => {
     const orgATask = { ...ORG_B_TASK, id: 1, orgId: "org-a" };
     mockState.selectQueue.push([orgATask]); // prev snapshot found
     mockState.updateResult = [{ ...orgATask, title: "Renamed" }];
+    mockState.selectQueue.push([]); // getOrgStages (after update, before buildTaskWithProject)
     // projectId is null → project lookup skipped; next select is comment count
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -631,10 +645,13 @@ describe("Bulk task permission — PATCH /api/tasks/bulk close_tasks guard", () 
   it("returns 403 when bulk-closing tasks without close_tasks permission", async () => {
     // edit_tasks alone must not be sufficient to close tasks in bulk —
     // the bulk endpoint must apply the same close_tasks guard as PATCH /tasks/:id.
+    // Push a closed-type stage so resolveStage succeeds, then the close_tasks
+    // permission guard triggers the 403.
     mockState.permissions = { ...mockState.permissions, close_tasks: false };
+    mockState.selectQueue.push([{ id: 1, orgId: "org-a", name: "Done", type: "closed", color: "#10b981", position: 3, archivedAt: null }]); // resolveStage
     const res = await request(buildApp())
       .patch("/api/tasks/bulk")
-      .send({ ids: [1, 2], patch: { status: "done" } });
+      .send({ ids: [1, 2], patch: { status: "1" } });
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ error: expect.stringMatching(/close/i) });
   });
@@ -648,6 +665,7 @@ describe("Bulk task permission — PATCH /api/tasks/bulk close_tasks guard", () 
       category: "incident", title: "Task 1", dueDate: null, projectId: null,
     };
     mockState.selectQueue.push([prevRow]); // prevRows fetch
+    mockState.selectQueue.push([]); // getOrgStages (after update, before insertChangeEvents)
 
     const res = await request(buildApp())
       .patch("/api/tasks/bulk")
@@ -891,9 +909,11 @@ describe("Dashboard isolation — GET /api/dashboard/summary", () => {
 
   it("returns zero counters when org-a has no data", async () => {
     // All aggregates return empty rows → defaults to 0
-    mockState.selectQueue.push([{ total: 0, todo: 0, in_progress: 0, blocked: 0, done: 0, low: 0, medium: 0, high: 0, critical: 0 }]);
-    mockState.selectQueue.push([{ count: 0 }]);
-    mockState.selectQueue.push([{ total: 0, active: 0 }]);
+    mockState.selectQueue.push([]); // taskTypeAgg (open/closed counts)
+    mockState.selectQueue.push([]); // stageBreakdown
+    mockState.selectQueue.push([{ total: 0, low: 0, medium: 0, high: 0, critical: 0 }]); // taskStats
+    mockState.selectQueue.push([{ count: 0 }]); // overdueResult
+    mockState.selectQueue.push([{ total: 0, active: 0 }]); // projectStats
 
     const res = await request(buildApp()).get("/api/dashboard/summary");
     expect(res.status).toBe(200);

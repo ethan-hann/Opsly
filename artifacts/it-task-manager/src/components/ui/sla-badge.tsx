@@ -11,6 +11,7 @@ interface SlaBadgeProps {
   priority: string;
   policies?: SlaPolicy[];
   className?: string;
+  stageType?: "open" | "closed";
 }
 
 /** Re-compute SLA status on a 30-second heartbeat so the countdown is live. */
@@ -20,27 +21,29 @@ function useSlaResult(
   status: string,
   priority: string,
   policy: SlaPolicy | null | undefined,
+  stageType?: "open" | "closed",
 ): SlaResult {
   const [result, setResult] = useState<SlaResult>(() =>
-    getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt),
+    getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt),
   );
 
   useEffect(() => {
-    setResult(getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt));
+    // Recompute immediately when props change
+    setResult(getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt));
 
     const id = setInterval(() => {
-      setResult(getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt));
+      setResult(getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt));
     }, 30_000);
 
     return () => clearInterval(id);
-  }, [createdAt, updatedAt, status, priority, policy]);
+  }, [createdAt, updatedAt, status, priority, policy, stageType]);
 
   return result;
 }
 
-export function SlaBadge({ createdAt, updatedAt, status, priority, policies, className }: SlaBadgeProps) {
+export function SlaBadge({ createdAt, updatedAt, status, priority, policies, className, stageType }: SlaBadgeProps) {
   const policy = policies?.find((p) => p.priority === priority) ?? null;
-  const result = useSlaResult(createdAt, updatedAt, status, priority, policy);
+  const result = useSlaResult(createdAt, updatedAt, status, priority, policy, stageType);
 
   if (result.resolutionStatus === "none" && result.responseStatus === "none") {
     return null;

@@ -1,4 +1,4 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks } from "@workspace/api-client-react";
+import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks, useListWorkflowStages } from "@workspace/api-client-react";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -36,12 +36,8 @@ interface ActiveFilters {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const STATUS_OPTIONS = [
-  { value: "todo", label: "To Do" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "blocked", label: "Blocked" },
-  { value: "done", label: "Done" },
-];
+// Status options are now dynamic — fetched from the org's workflow stages
+const STATUS_OPTIONS: { value: string; label: string }[] = [];
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -438,7 +434,8 @@ function BulkActionBar({
   onBulkUpdate,
   onBulkDelete,
   isPending,
-}: BulkActionBarProps) {
+  stageOptions,
+}: BulkActionBarProps & { stageOptions: { value: string; label: string }[] }) {
   const count = selectedIds.size;
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -504,7 +501,7 @@ function BulkActionBar({
         </PopoverTrigger>
         <PopoverContent className="w-44 p-1" align="center" side="top">
           <div className="flex flex-col gap-0.5">
-            {STATUS_OPTIONS.map((opt) => (
+            {stageOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => handleUpdate({ status: opt.value })}
@@ -658,6 +655,12 @@ export default function TasksList() {
   const { data: members } = useListOrgMembers();
   const { data: views } = useListViews();
   const { data: slaPolicies } = useGetSLAPolicies();
+  const { data: stages = [] } = useListWorkflowStages();
+
+  // Build dynamic status options from org stages
+  const stageStatusOptions = stages
+    .filter((s) => !s.archivedAt)
+    .map((s) => ({ value: String(s.id), label: s.name }));
   const { data: templates = [] } = useListTaskTemplates();
 
   const bulkUpdate = useBulkUpdateTasks();
@@ -708,7 +711,8 @@ export default function TasksList() {
     }));
 
   // Human-readable labels for active filters
-  const statusLabel = STATUS_OPTIONS.find((o) => o.value === filters.status)?.label;
+  const statusLabel = stageStatusOptions.find((o) => o.value === filters.status)?.label
+    ?? stages.find((s) => String(s.id) === filters.status)?.name;
   const priorityLabel = PRIORITY_OPTIONS.find((o) => o.value === filters.priority)?.label;
   const categoryLabel = CATEGORY_OPTIONS.find((o) => o.value === filters.category)?.label;
   const assigneeLabel =
@@ -896,7 +900,7 @@ export default function TasksList() {
             onClear={() => setFilter("status", "")}
           >
             <OptionList
-              options={STATUS_OPTIONS}
+              options={stageStatusOptions}
               value={filters.status}
               onChange={(v) => setFilter("status", v)}
             />
@@ -1094,8 +1098,9 @@ export default function TasksList() {
                           status={task.status}
                           priority={task.priority}
                           policies={slaPolicies}
+                          stageType={task.stageType as "open" | "closed" | undefined}
                         />
-                        <StatusBadge status={task.status} />
+                        <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                         <PriorityBadge priority={task.priority} />
                       </div>
                     </div>
@@ -1109,7 +1114,7 @@ export default function TasksList() {
             </div>
           </Card>
         ) : (
-          <KanbanBoard tasks={filteredTasks ?? []} />
+          <KanbanBoard tasks={filteredTasks ?? []} stages={stages} />
         )}
       </div>
 
@@ -1122,6 +1127,7 @@ export default function TasksList() {
         onBulkUpdate={handleBulkUpdate}
         onBulkDelete={handleBulkDelete}
         isPending={isBulkPending}
+        stageOptions={stageStatusOptions}
       />
 
       <NewTaskModal

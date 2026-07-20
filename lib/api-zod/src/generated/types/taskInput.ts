@@ -8,7 +8,6 @@
 import type { TaskInputCategory } from './taskInputCategory';
 import type { TaskInputCustomFields } from './taskInputCustomFields';
 import type { TaskInputPriority } from './taskInputPriority';
-import type { TaskInputStatus } from './taskInputStatus';
 
 /**
  * Fields required to create a new task.
@@ -23,8 +22,8 @@ export interface TaskInput {
   title: string;
   /** Optional detailed description of the work to be done. */
   description?: string;
-  /** Initial status of the task. */
-  status: TaskInputStatus;
+  /** Workflow stage ID (as a string) for the initial task status. Must be a valid, non-archived stage belonging to the caller's org. */
+  status: string;
   /** Urgency level of the task. */
   priority: TaskInputPriority;
   /** IT operational category for the task. */

@@ -43,9 +43,9 @@ export default function Dashboard() {
 
   // Compute SLA-breached tasks from the overdue list (fire once policies are available)
   const slaBreachedTasks = (overdueTasks ?? []).filter((task) => {
-    if (task.status === "done") return false;
+    if (task.stageType === "closed") return false;
     const policy = slaPolicies?.find((p) => p.priority === task.priority) ?? null;
-    const result = getSlaStatus(task.createdAt, task.status, task.priority, policy);
+    const result = getSlaStatus(task.createdAt, task.status, task.priority, policy, task.stageType as "open" | "closed" | undefined);
     return result.isResolutionBreached;
   });
 
@@ -100,7 +100,7 @@ export default function Dashboard() {
                   <div>
                     <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Open Tasks</p>
                     <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">
-                      {summary.tasksByStatus.todo + summary.tasksByStatus.in_progress}
+                      {summary.tasksByStageType.open}
                     </p>
                     <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Requires attention</p>
                   </div>
@@ -112,24 +112,17 @@ export default function Dashboard() {
             </Link>
 
             <Link href="/tasks">
-              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
-                summary.tasksByStatus.blocked > 0
-                  ? "border-rose-200 dark:border-rose-800 hover:border-rose-300 dark:hover:border-rose-700"
-                  : "border-stone-200 dark:border-stone-700 hover:border-amber-200 dark:hover:border-amber-700"
-              }`}>
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Blocked Issues</p>
-                    <p className={`text-3xl font-bold mt-2 ${summary.tasksByStatus.blocked > 0 ? "text-rose-600 dark:text-rose-400" : "text-stone-800 dark:text-stone-100"}`}>
-                      {summary.tasksByStatus.blocked}
+                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Closed Tasks</p>
+                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">
+                      {summary.tasksByStageType.closed}
                     </p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Resolved</p>
                   </div>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
-                    summary.tasksByStatus.blocked > 0
-                      ? "bg-rose-100 text-rose-500 dark:bg-rose-900/40 dark:text-rose-400"
-                      : "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
-                  }`}>
-                    <AlertCircle className="w-6 h-6" />
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 group-hover:scale-110 transition-transform">
+                    <CheckCircle2 className="w-6 h-6" />
                   </div>
                 </div>
               </div>

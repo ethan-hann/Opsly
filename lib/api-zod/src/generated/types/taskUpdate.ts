@@ -8,7 +8,6 @@
 import type { TaskUpdateCategory } from './taskUpdateCategory';
 import type { TaskUpdateCustomFields } from './taskUpdateCustomFields';
 import type { TaskUpdatePriority } from './taskUpdatePriority';
-import type { TaskUpdateStatus } from './taskUpdateStatus';
 
 /**
  * Partial update for an existing task. All fields are optional.
@@ -26,8 +25,8 @@ export interface TaskUpdate {
   title?: string;
   /** Updated description. */
   description?: string;
-  /** New task status. */
-  status?: TaskUpdateStatus;
+  /** New workflow stage ID (as a string). Must be a valid stage belonging to the caller's org. */
+  status?: string;
   /** New priority level. */
   priority?: TaskUpdatePriority;
   /** New IT operational category. */

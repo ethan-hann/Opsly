@@ -50,10 +50,13 @@ vi.mock("@workspace/db", () => {
     tasksTable: {},
     projectsTable: {},
     commentsTable: {},
+    workflowStagesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
     lt: () => ({}),
+    isNull: () => ({}),
+    asc: () => ({}),
   };
 });
 
@@ -62,6 +65,8 @@ vi.mock("drizzle-orm", () => ({
   and: () => ({}),
   lt: () => ({}),
   sql: () => ({}),
+  isNull: () => ({}),
+  asc: () => ({}),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -84,12 +89,16 @@ function buildApp() {
   return app;
 }
 
-// summary makes 3 selects: taskStats, overdueResult, projectStats
+// summary makes 5 selects: taskTypeAgg, stageBreakdown, taskStats (priority), overdueResult, projectStats
 function pushSummarySelects(
-  taskStats = { total: 0, todo: 0, in_progress: 0, blocked: 0, done: 0, low: 0, medium: 0, high: 0, critical: 0 },
+  taskTypeAgg: any[] = [],
+  stageBreakdown: any[] = [],
+  taskStats = { total: 0, low: 0, medium: 0, high: 0, critical: 0 },
   overdueCount = 0,
   projectStats = { total: 0, active: 0 },
 ) {
+  mockState.selectQueue.push(taskTypeAgg);
+  mockState.selectQueue.push(stageBreakdown);
   mockState.selectQueue.push([taskStats]);
   mockState.selectQueue.push([{ count: overdueCount }]);
   mockState.selectQueue.push([projectStats]);
@@ -115,16 +124,18 @@ describe("GET /api/dashboard/summary", () => {
       totalProjects: 0,
       overdueCount: 0,
       activeProjects: 0,
-      tasksByStatus: { todo: 0, in_progress: 0, blocked: 0, done: 0 },
+      tasksByStageType: { open: 0, closed: 0 },
       tasksByPriority: { low: 0, medium: 0, high: 0, critical: 0 },
     });
   });
 
   it("returns 200 with populated counts", async () => {
     pushSummarySelects(
-      { total: 12, todo: 4, in_progress: 3, blocked: 2, done: 3, low: 1, medium: 5, high: 4, critical: 2 },
-      3,
-      { total: 4, active: 2 },
+      [{ type: "open", count: 9 }, { type: "closed", count: 3 }], // taskTypeAgg
+      [], // stageBreakdown
+      { total: 12, low: 1, medium: 5, high: 4, critical: 2 },     // taskStats
+      3,                                                           // overdueCount
+      { total: 4, active: 2 },                                     // projectStats
     );
 
     const res = await request(buildApp()).get("/api/dashboard/summary");
@@ -135,16 +146,18 @@ describe("GET /api/dashboard/summary", () => {
       totalProjects: 4,
       overdueCount: 3,
       activeProjects: 2,
-      tasksByStatus: { todo: 4, in_progress: 3, blocked: 2, done: 3 },
+      tasksByStageType: { open: 9, closed: 3 },
       tasksByPriority: { low: 1, medium: 5, high: 4, critical: 2 },
     });
   });
 
   it("falls back to zero when DB rows are missing", async () => {
-    // Push empty arrays - the handler uses ?? 0 fallbacks
-    mockState.selectQueue.push([]);
-    mockState.selectQueue.push([]);
-    mockState.selectQueue.push([]);
+    // Push 5 empty arrays — the handler uses ?? 0 fallbacks for all fields
+    mockState.selectQueue.push([]); // taskTypeAgg
+    mockState.selectQueue.push([]); // stageBreakdown
+    mockState.selectQueue.push([]); // taskStats
+    mockState.selectQueue.push([]); // overdueResult
+    mockState.selectQueue.push([]); // projectStats
 
     const res = await request(buildApp()).get("/api/dashboard/summary");
 

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useListOrgMembers,
   useListOrgInvitations,
@@ -18,12 +19,19 @@ import {
   useCreateTaskTemplate,
   useUpdateTaskTemplate,
   useDeleteTaskTemplate,
+  useListWorkflowStages,
+  useCreateWorkflowStage,
+  useUpdateWorkflowStage,
+  useRemoveWorkflowStage,
+  useReorderWorkflowStages,
+  getListWorkflowStagesQueryKey,
 } from "@workspace/api-client-react";
-import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate } from "@workspace/api-client-react";
+import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Crown, FileText, Link2, LogOut,
+  AlertTriangle, Building2, Clock, Crown, FileText, GripVertical, Link2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
+  Workflow,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -614,6 +622,263 @@ function TemplateRow({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Workflow Stages Card ─────────────────────────────────────────────────────
+
+function WorkflowStagesCard() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: stages = [], isLoading } = useListWorkflowStages();
+
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editColor, setEditColor] = useState("#6b7280");
+  const [editType, setEditType] = useState<"open" | "closed">("open");
+  const [isCreating, setIsCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newColor, setNewColor] = useState("#6b7280");
+  const [newType, setNewType] = useState<"open" | "closed">("open");
+  const [deleteTarget, setDeleteTarget] = useState<WorkflowStage | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<string>("");
+
+  const { mutate: createStage, isPending: isCreatingStage } = useCreateWorkflowStage({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Stage created" });
+        setIsCreating(false);
+        setNewName("");
+        setNewColor("#6b7280");
+        setNewType("open");
+        queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+      },
+      onError: (e: unknown) => toast({ title: "Failed to create stage", description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+    },
+  });
+
+  const { mutate: updateStage, isPending: isUpdatingStage } = useUpdateWorkflowStage({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Stage updated" });
+        setEditingId(null);
+        queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+      },
+      onError: (e: unknown) => toast({ title: "Failed to update stage", description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+    },
+  });
+
+  const { mutate: performDelete, isPending: isDeletingStage } = useMutation({
+    mutationFn: async ({ id, reassignTo }: { id: number; reassignTo?: number }) => {
+      const url = reassignTo
+        ? `/api/workflow-stages/${id}?reassignTo=${reassignTo}`
+        : `/api/workflow-stages/${id}`;
+      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as { error?: string };
+        throw new Error(body.error ?? res.statusText);
+      }
+    },
+    onSuccess: () => {
+      toast({ title: "Stage deleted" });
+      setDeleteTarget(null);
+      setReassignTarget("");
+      queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+    },
+    onError: (e: unknown) => toast({ title: "Failed to delete stage", description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+  });
+
+  const { mutate: reorderStages } = useReorderWorkflowStages({
+    mutation: {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() }),
+      onError: (e: unknown) => toast({ title: "Failed to reorder stages", description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+    },
+  });
+
+  function startEdit(s: WorkflowStage) {
+    setEditingId(s.id);
+    setEditName(s.name);
+    setEditColor(s.color);
+    setEditType(s.type as "open" | "closed");
+  }
+
+  function moveStage(index: number, direction: "up" | "down") {
+    const sorted = [...stages].sort((a, b) => a.position - b.position);
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sorted.length) return;
+    const ids = sorted.map((s) => s.id);
+    ids.splice(newIndex, 0, ids.splice(index, 1)[0]);
+    reorderStages({ data: { ids } });
+  }
+
+  const sorted = [...stages].sort((a, b) => a.position - b.position);
+  const activeStages = sorted.filter((s) => !s.archivedAt);
+  const archivedStages = sorted.filter((s) => s.archivedAt);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Workflow className="w-4 h-4" />
+          Workflow Stages
+        </CardTitle>
+        <CardDescription>
+          Define the stages tasks move through in your organisation. Each stage has a name, colour,
+          and type (open or closed). Closed stages count as resolved for SLA and dashboard metrics.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+
+        {sorted.map((stage, index) => {
+          const isEditing = editingId === stage.id;
+          const isActive = !stage.archivedAt;
+          return (
+            <div key={stage.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-background" : "border-dashed border-border/50 bg-muted/30"}`}>
+              {/* Color dot */}
+              <div className="w-4 h-4 rounded-full shrink-0 border border-border/50" style={{ backgroundColor: isEditing ? editColor : stage.color }} />
+
+              {isEditing ? (
+                /* ── Edit mode ── */
+                <div className="flex-1 flex flex-wrap items-center gap-2">
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="h-7 w-36 text-sm"
+                    placeholder="Stage name"
+                    maxLength={50}
+                  />
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs text-muted-foreground">Color</label>
+                    <input
+                      type="color"
+                      value={editColor}
+                      onChange={(e) => setEditColor(e.target.value)}
+                      className="w-7 h-7 rounded cursor-pointer border border-border"
+                    />
+                  </div>
+                  <Select value={editType} onValueChange={(v) => setEditType(v as "open" | "closed")}>
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" className="h-7 text-xs" disabled={isUpdatingStage || !editName.trim()} onClick={() => updateStage({ id: stage.id, data: { name: editName.trim(), color: editColor, type: editType } })}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingId(null)}>Cancel</Button>
+                </div>
+              ) : (
+                /* ── View mode ── */
+                <div className="flex-1 flex items-center gap-2 min-w-0">
+                  <span className={`text-sm font-medium truncate ${!isActive ? "text-muted-foreground line-through" : ""}`}>{stage.name}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${stage.type === "closed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
+                    {stage.type}
+                  </span>
+                  {!isActive && <span className="text-xs text-muted-foreground">(archived)</span>}
+                </div>
+              )}
+
+              {/* Actions */}
+              {!isEditing && (
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Move up" disabled={index === 0} onClick={() => moveStage(index, "up")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Move down" disabled={index === sorted.length - 1} onClick={() => moveStage(index, "down")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit" onClick={() => startEdit(stage)}>
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title={isActive ? "Archive" : "Unarchive"} onClick={() => updateStage({ id: stage.id, data: { archived: isActive } })}>
+                    {isActive ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete" onClick={() => { setDeleteTarget(stage); setReassignTarget(""); }} disabled={!isActive}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* Create new stage */}
+        {isCreating ? (
+          <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg border border-dashed border-primary/40 bg-primary/5">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Stage name"
+              className="h-7 w-36 text-sm"
+              maxLength={50}
+              autoFocus
+            />
+            <div className="flex items-center gap-1">
+              <label className="text-xs text-muted-foreground">Color</label>
+              <input
+                type="color"
+                value={newColor}
+                onChange={(e) => setNewColor(e.target.value)}
+                className="w-7 h-7 rounded cursor-pointer border border-border"
+              />
+            </div>
+            <Select value={newType} onValueChange={(v) => setNewType(v as "open" | "closed")}>
+              <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="h-7 text-xs" disabled={isCreatingStage || !newName.trim()} onClick={() => createStage({ data: { name: newName.trim(), color: newColor, type: newType } })}>
+              Add
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsCreating(false); setNewName(""); }}>Cancel</Button>
+          </div>
+        ) : (
+          <Button variant="outline" size="sm" className="gap-1.5 text-xs mt-1" onClick={() => setIsCreating(true)}>
+            <Plus className="w-3.5 h-3.5" /> Add stage
+          </Button>
+        )}
+
+        {/* Delete confirmation dialog */}
+        {deleteTarget && (
+          <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setReassignTarget(""); } }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete "{deleteTarget.name}"?</AlertDialogTitle>
+                <AlertDialogDescription className="space-y-2">
+                  <span>This stage will be permanently removed.</span>
+                  {activeStages.filter((s) => s.id !== deleteTarget.id).length > 0 && (
+                    <span className="block mt-2">
+                      Select a stage to reassign existing tasks (leave blank to keep current status string):
+                      <Select value={reassignTarget} onValueChange={setReassignTarget}>
+                        <SelectTrigger className="h-8 mt-2"><SelectValue placeholder="Reassign tasks to…" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="">No reassignment</SelectItem>
+                          {activeStages.filter((s) => s.id !== deleteTarget.id).map((s) => (
+                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </span>
+                  )}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={isDeletingStage}
+                  onClick={() => performDelete({ id: deleteTarget.id, reassignTo: reassignTarget ? Number(reassignTarget) : undefined })}
+                >
+                  {isDeletingStage ? "Deleting…" : "Delete"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1461,6 +1726,9 @@ export default function OrgSettings() {
 
       {/* SLA Policies (admin only) */}
       {isAdmin && <SlaPoliciesCard />}
+
+      {/* Workflow Stages (admin only) */}
+      {isAdmin && <WorkflowStagesCard />}
 
       {/* Task Templates (admin only) */}
       {isAdmin && <TaskTemplatesCard />}

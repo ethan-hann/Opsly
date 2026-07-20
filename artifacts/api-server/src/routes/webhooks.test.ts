@@ -83,6 +83,7 @@ vi.mock("@workspace/db", () => {
     orgMembersTable: {},
     orgsTable: {},
     commentsTable: {},
+    workflowStagesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -98,6 +99,7 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   ne: () => ({}),
   isNull: () => ({}),
+  asc: () => ({}),
   sql: () => ({}),
   lt: () => ({}),
 }));
@@ -205,6 +207,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([]);                    // cf defs (none)
     // no projectId → skip project validation
     mockState.selectQueue.push([{ nextNum: 7 }]);     // orgTaskNumber
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage lookup
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -230,6 +233,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage lookup
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -292,6 +296,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ recentCount: 3 }]); // 3 of 10 used
     mockState.selectQueue.push([]);                    // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage lookup
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -324,6 +329,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage lookup
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -350,6 +356,7 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
     mockState.selectQueue.push([{ recentCount: 0 }]);
     mockState.selectQueue.push([]);                   // cf defs (none)
     mockState.selectQueue.push([{ nextNum: 2 }]);
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage lookup
     mockState.insertResult = [task];
 
     const res = await request(buildApp())
@@ -358,6 +365,82 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.title).toBe("Unknown Alert");
+  });
+
+  it("ignores a legacy status string ('todo') and falls back to the default open stage", async () => {
+    // Non-numeric status values like "todo" or "in_progress" are no longer valid;
+    // parseInt returns NaN → validation SELECT is skipped → default stage is used.
+    const hook = makeHook();
+    const task = {
+      id: 50, orgId: "test-org", orgTaskNumber: 1,
+      title: "Alert", priority: "medium", category: "incident",
+      status: "1", projectId: null, description: null,
+      assignee: null, dueDate: null, sourceWebhookId: 1,
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    // non-numeric → no validation SELECT; falls through to default stage lookup
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage
+    mockState.insertResult = [task];
+
+    const res = await request(buildApp())
+      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
+      .send({ title: "Alert", status: "todo" });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects a numeric stage ID that doesn't belong to the org and falls back to default", async () => {
+    // Stage 999 is numeric but not in this org → validation SELECT returns [] → default used.
+    const hook = makeHook();
+    const task = {
+      id: 51, orgId: "test-org", orgTaskNumber: 1,
+      title: "Alert", priority: "medium", category: "incident",
+      status: "1", projectId: null, description: null,
+      assignee: null, dueDate: null, sourceWebhookId: 1,
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([]);                   // stage 999 not found → falls back
+    mockState.selectQueue.push([{ id: 1 }]);          // default open stage
+    mockState.insertResult = [task];
+
+    const res = await request(buildApp())
+      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
+      .send({ title: "Alert", status: "999" });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("uses a valid numeric stage ID after confirming it belongs to the org", async () => {
+    // Stage 3 is valid and active → validation SELECT returns it → inserted directly.
+    const hook = makeHook();
+    const task = {
+      id: 52, orgId: "test-org", orgTaskNumber: 1,
+      title: "Alert", priority: "medium", category: "incident",
+      status: "3", projectId: null, description: null,
+      assignee: null, dueDate: null, sourceWebhookId: 1,
+      createdAt: new Date(), updatedAt: new Date(),
+    };
+    mockState.selectQueue.push([hook]);
+    mockState.selectQueue.push([{ recentCount: 0 }]);
+    mockState.selectQueue.push([]);                   // cf defs (none)
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ id: 3 }]);          // stage 3 validated → used as-is
+    // no default stage lookup needed
+    mockState.insertResult = [task];
+
+    const res = await request(buildApp())
+      .post(`/api/webhooks/inbound/${TEST_TOKEN}/ingest`)
+      .send({ title: "Alert", status: "3" });
+
+    expect(res.status).toBe(201);
   });
 });
 

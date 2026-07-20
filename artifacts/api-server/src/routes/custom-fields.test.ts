@@ -97,6 +97,7 @@ vi.mock("@workspace/db", () => {
     customFieldDefinitionsTable: {},
     tasksTable: {},
     taskEventsTable: {},
+    workflowStagesTable: {},
   };
 });
 

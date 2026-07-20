@@ -37,14 +37,15 @@ router.get("/projects", requireOrg, async (req, res): Promise<void> => {
     .where(eq(projectsTable.orgId, req.orgId!))
     .orderBy(projectsTable.createdAt);
 
+  const orgId = req.orgId!;
   const taskCounts = await db
     .select({
       projectId: tasksTable.projectId,
       total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
+      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${orgId} and "type" = 'closed')))::int`,
     })
     .from(tasksTable)
-    .where(eq(tasksTable.orgId, req.orgId!))
+    .where(eq(tasksTable.orgId, orgId))
     .groupBy(tasksTable.projectId);
 
   const countMap = new Map(taskCounts.map((r) => [r.projectId, r]));
@@ -91,13 +92,14 @@ router.get("/projects/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
+  const getOrgId = req.orgId!;
   const [counts] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
+      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${getOrgId} and "type" = 'closed')))::int`,
     })
     .from(tasksTable)
-    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, req.orgId!)));
+    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, getOrgId)));
 
   res.json(GetProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
 });
@@ -126,13 +128,14 @@ router.patch("/projects/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
+  const patchOrgId = req.orgId!;
   const [counts] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      completed: sql<number>`count(*) filter (where ${tasksTable.status} = 'done')::int`,
+      completed: sql<number>`count(*) filter (where (${tasksTable.status} ~ '^[0-9]+$' AND ${tasksTable.status}::int in (select id from "workflow_stages" where "org_id" = ${patchOrgId} and "type" = 'closed')))::int`,
     })
     .from(tasksTable)
-    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, req.orgId!)));
+    .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, patchOrgId)));
 
   const serializedUpdate = serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0);
   dispatchProjectUpdated(req.orgId!, serializedUpdate);

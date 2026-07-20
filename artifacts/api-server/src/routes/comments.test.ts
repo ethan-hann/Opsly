@@ -67,6 +67,7 @@ vi.mock("@workspace/db", () => {
     projectsTable: {},
     notesTable: {},
     usersTable: {},
+    workflowStagesTable: {},
   };
 });
 

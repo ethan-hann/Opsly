@@ -18,7 +18,7 @@
 import crypto from "node:crypto";
 import { Router } from "express";
 import { z } from "zod/v4";
-import { eq, and, or, ne, desc, inArray } from "drizzle-orm";
+import { eq, and, or, ne, desc, inArray, isNull, asc } from "drizzle-orm";
 import {
   db,
   inboundWebhooksTable,
@@ -27,6 +27,7 @@ import {
   tasksTable,
   projectsTable,
   customFieldDefinitionsTable,
+  workflowStagesTable,
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
@@ -236,10 +237,11 @@ function applyTemplate(
   // Validate enums — fall back to defaults on invalid values
   const validPriorities = ["low", "medium", "high", "critical"];
   const validCategories = ["incident", "change", "maintenance", "deployment", "support", "other"];
-  const validStatuses = ["todo", "in_progress", "blocked", "done"];
   if (!validPriorities.includes(priority)) priority = "medium";
   if (!validCategories.includes(category)) category = "incident";
-  if (status !== undefined && !validStatuses.includes(status)) status = undefined;
+  // status is passed through as-is here; the ingest handler validates it against
+  // the org's active workflow stages and falls back to the default open stage if
+  // the value is absent, non-numeric, archived, or belongs to a different org.
 
   return { title, description, priority, category, dueDate, assignee, status, projectId, customFields };
 }
@@ -419,6 +421,43 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
     .from(tasksTable)
     .where(eq(tasksTable.orgId, hook.orgId));
 
+  // Resolve status: validate any provided value against the org's active stages,
+  // then fall back to the first open stage when absent or invalid.
+  let taskStatus: string | undefined;
+  const providedStatus = taskFields.status;
+  if (providedStatus) {
+    const stageId = parseInt(providedStatus, 10);
+    if (!isNaN(stageId)) {
+      const [validStage] = await db
+        .select({ id: workflowStagesTable.id })
+        .from(workflowStagesTable)
+        .where(
+          and(
+            eq(workflowStagesTable.id, stageId),
+            eq(workflowStagesTable.orgId, hook.orgId),
+            isNull(workflowStagesTable.archivedAt),
+          ),
+        )
+        .limit(1);
+      if (validStage) taskStatus = String(validStage.id);
+    }
+  }
+  if (!taskStatus) {
+    const [defaultStage] = await db
+      .select({ id: workflowStagesTable.id })
+      .from(workflowStagesTable)
+      .where(
+        and(
+          eq(workflowStagesTable.orgId, hook.orgId),
+          eq(workflowStagesTable.type, "open"),
+          isNull(workflowStagesTable.archivedAt),
+        ),
+      )
+      .orderBy(asc(workflowStagesTable.position))
+      .limit(1);
+    taskStatus = defaultStage ? String(defaultStage.id) : undefined;
+  }
+
   const [task] = await db
     .insert(tasksTable)
     .values({
@@ -431,7 +470,7 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
       priority: taskFields.priority,
       category: taskFields.category,
       dueDate: taskFields.dueDate,
-      status: taskFields.status ?? "todo",
+      status: taskStatus,
       assignee: taskFields.assignee,
       ...(Object.keys(taskFields.customFields).length > 0
         ? { customFields: taskFields.customFields }

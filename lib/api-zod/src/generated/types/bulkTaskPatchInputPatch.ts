@@ -7,13 +7,13 @@
  */
 import type { BulkTaskPatchInputPatchCategory } from './bulkTaskPatchInputPatchCategory';
 import type { BulkTaskPatchInputPatchPriority } from './bulkTaskPatchInputPatchPriority';
-import type { BulkTaskPatchInputPatchStatus } from './bulkTaskPatchInputPatchStatus';
 
 /**
  * Fields to apply to each task. Identical semantics to TaskUpdate.
  */
 export type BulkTaskPatchInputPatch = {
-  status?: BulkTaskPatchInputPatchStatus;
+  /** Workflow stage ID (as a string). Must be a valid stage belonging to the caller's org. */
+  status?: string;
   priority?: BulkTaskPatchInputPatchPriority;
   category?: BulkTaskPatchInputPatchCategory;
   /** Email of an org member, or null to unassign. */

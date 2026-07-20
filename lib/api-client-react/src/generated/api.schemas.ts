@@ -253,16 +253,14 @@ export interface ProjectUpdate {
 }
 
 /**
- * Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete.
+ * Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.
  */
-export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
+export type TaskStageType = typeof TaskStageType[keyof typeof TaskStageType];
 
 
-export const TaskStatus = {
-  todo: 'todo',
-  in_progress: 'in_progress',
-  blocked: 'blocked',
-  done: 'done',
+export const TaskStageType = {
+  open: 'open',
+  closed: 'closed',
 } as const;
 
 /**
@@ -299,7 +297,7 @@ export const TaskCategory = {
 export type TaskCustomFields = { [key: string]: unknown };
 
 /**
- * An individual work item within an organization, optionally linked to a project. Enriched with the project name and the number of comments.
+ * An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org's active workflow stage details.
  */
 export interface Task {
   /** Auto-incremented primary key. */
@@ -323,8 +321,18 @@ export interface Task {
      * @nullable
      */
   description?: string | null;
-  /** Current state of the task. `todo` - not yet started; `in_progress` - actively being worked on; `blocked` - waiting on an external dependency; `done` - work is complete. */
-  status: TaskStatus;
+  /** Numeric ID of the task's current workflow stage, stored as a string. Use `stageName` for display and `stageType` for open/closed logic. */
+  status: string;
+  /** Numeric ID of the workflow stage. Matches `status` parsed as integer. */
+  stageId?: number;
+  /** Display name of the current workflow stage (e.g. "In Progress"). */
+  stageName?: string;
+  /** Hex color of the current workflow stage (e.g. "#f59e0b"). */
+  stageColor?: string;
+  /** Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts. */
+  stageType?: TaskStageType;
+  /** Whether the current stage is archived. Archived tasks should be shown with an indicator. */
+  stageArchived?: boolean;
   /** Urgency of the task. `critical` tasks require immediate attention; `low` tasks can be deferred. */
   priority: TaskPriority;
   /** IT operational category. `incident` - unplanned disruption; `change` - planned modification; `maintenance` - routine upkeep; `deployment` - software release; `support` - user-facing assistance; `other` - anything that doesn't fit. */
@@ -353,19 +361,6 @@ export interface Task {
      */
   slaBreachedAt?: string | null;
 }
-
-/**
- * Initial status of the task.
- */
-export type TaskInputStatus = typeof TaskInputStatus[keyof typeof TaskInputStatus];
-
-
-export const TaskInputStatus = {
-  todo: 'todo',
-  in_progress: 'in_progress',
-  blocked: 'blocked',
-  done: 'done',
-} as const;
 
 /**
  * Urgency level of the task.
@@ -413,8 +408,8 @@ export interface TaskInput {
   title: string;
   /** Optional detailed description of the work to be done. */
   description?: string;
-  /** Initial status of the task. */
-  status: TaskInputStatus;
+  /** Workflow stage ID (as a string) for the initial task status. Must be a valid, non-archived stage belonging to the caller's org. */
+  status: string;
   /** Urgency level of the task. */
   priority: TaskInputPriority;
   /** IT operational category for the task. */
@@ -426,19 +421,6 @@ export interface TaskInput {
   /** Custom field values to set on creation. Keyed by field definition ID. Values must match the field type. Omit to use empty defaults. */
   customFields?: TaskInputCustomFields;
 }
-
-/**
- * New task status.
- */
-export type TaskUpdateStatus = typeof TaskUpdateStatus[keyof typeof TaskUpdateStatus];
-
-
-export const TaskUpdateStatus = {
-  todo: 'todo',
-  in_progress: 'in_progress',
-  blocked: 'blocked',
-  done: 'done',
-} as const;
 
 /**
  * New priority level.
@@ -489,8 +471,8 @@ export interface TaskUpdate {
   title?: string;
   /** Updated description. */
   description?: string;
-  /** New task status. */
-  status?: TaskUpdateStatus;
+  /** New workflow stage ID (as a string). Must be a valid stage belonging to the caller's org. */
+  status?: string;
   /** New priority level. */
   priority?: TaskUpdatePriority;
   /** New IT operational category. */
@@ -502,16 +484,6 @@ export interface TaskUpdate {
   /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
   customFields?: TaskUpdateCustomFields;
 }
-
-export type BulkTaskPatchInputPatchStatus = typeof BulkTaskPatchInputPatchStatus[keyof typeof BulkTaskPatchInputPatchStatus];
-
-
-export const BulkTaskPatchInputPatchStatus = {
-  todo: 'todo',
-  in_progress: 'in_progress',
-  blocked: 'blocked',
-  done: 'done',
-} as const;
 
 export type BulkTaskPatchInputPatchPriority = typeof BulkTaskPatchInputPatchPriority[keyof typeof BulkTaskPatchInputPatchPriority];
 
@@ -539,7 +511,8 @@ export const BulkTaskPatchInputPatchCategory = {
  * Fields to apply to each task. Identical semantics to TaskUpdate.
  */
 export type BulkTaskPatchInputPatch = {
-  status?: BulkTaskPatchInputPatchStatus;
+  /** Workflow stage ID (as a string). Must be a valid stage belonging to the caller's org. */
+  status?: string;
   priority?: BulkTaskPatchInputPatchPriority;
   category?: BulkTaskPatchInputPatchCategory;
   /** Email of an org member, or null to unassign. */
@@ -850,17 +823,29 @@ export interface NoteUpdate {
 }
 
 /**
- * Task counts grouped by status value.
+ * Task counts grouped by stage type (open vs closed).
  */
-export type DashboardSummaryTasksByStatus = {
-  /** Number of tasks with status `todo`. */
-  todo: number;
-  /** Number of tasks with status `in_progress`. */
-  in_progress: number;
-  /** Number of tasks with status `blocked`. */
-  blocked: number;
-  /** Number of tasks with status `done`. */
-  done: number;
+export type DashboardSummaryTasksByStageType = {
+  /** Number of tasks in an 'open' stage (unresolved). */
+  open: number;
+  /** Number of tasks in a 'closed' stage (resolved). */
+  closed: number;
+};
+
+export type DashboardSummaryStageBreakdownItemStageType = typeof DashboardSummaryStageBreakdownItemStageType[keyof typeof DashboardSummaryStageBreakdownItemStageType];
+
+
+export const DashboardSummaryStageBreakdownItemStageType = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+export type DashboardSummaryStageBreakdownItem = {
+  stageId: number;
+  stageName: string;
+  stageColor: string;
+  stageType: DashboardSummaryStageBreakdownItemStageType;
+  count: number;
 };
 
 /**
@@ -885,11 +870,13 @@ export interface DashboardSummary {
   totalTasks: number;
   /** Total number of projects in the organization regardless of status. */
   totalProjects: number;
-  /** Task counts grouped by status value. */
-  tasksByStatus: DashboardSummaryTasksByStatus;
+  /** Task counts grouped by stage type (open vs closed). */
+  tasksByStageType: DashboardSummaryTasksByStageType;
+  /** Per-stage task counts, ordered by stage position. */
+  stageBreakdown?: DashboardSummaryStageBreakdownItem[];
   /** Task counts grouped by priority level. */
   tasksByPriority: DashboardSummaryTasksByPriority;
-  /** Number of tasks whose `dueDate` is before today and whose status is not `done`. */
+  /** Number of tasks whose `dueDate` is before today and whose stage type is 'open' (not yet resolved). */
   overdueCount: number;
   /** Number of projects with status `active`. */
   activeProjects: number;
@@ -1798,6 +1785,106 @@ export interface SavedViewUpdate {
 }
 
 /**
+ * Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts.
+ */
+export type WorkflowStageType = typeof WorkflowStageType[keyof typeof WorkflowStageType];
+
+
+export const WorkflowStageType = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+/**
+ * An org-defined workflow stage. Replaces the hardcoded task status enum.
+ */
+export interface WorkflowStage {
+  /** Auto-incremented primary key. */
+  id: number;
+  /** ID of the owning organization. */
+  orgId: string;
+  /** Display name of the stage (e.g. "In Review"). */
+  name: string;
+  /** Hex color for display (e.g. "#f59e0b"). */
+  color: string;
+  /** Stage type. `open` — task is unresolved; `closed` — task is resolved. Used for SLA tracking and dashboard counts. */
+  type: WorkflowStageType;
+  /** Sort order within the org (0-based, ascending). */
+  position: number;
+  /**
+     * ISO 8601 timestamp when the stage was archived. Null if active.
+     * @nullable
+     */
+  archivedAt?: string | null;
+  /** ISO 8601 creation timestamp. */
+  createdAt: string;
+  /** ISO 8601 last-updated timestamp. */
+  updatedAt: string;
+}
+
+/**
+ * Stage type. Defaults to `open`.
+ */
+export type WorkflowStageInputType = typeof WorkflowStageInputType[keyof typeof WorkflowStageInputType];
+
+
+export const WorkflowStageInputType = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+/**
+ * Fields for creating a new workflow stage.
+ */
+export interface WorkflowStageInput {
+  /**
+     * Display name for the stage.
+     * @minLength 1
+     */
+  name: string;
+  /** Hex color code (e.g. "#6b7280"). Defaults to gray if omitted. */
+  color?: string;
+  /** Stage type. Defaults to `open`. */
+  type?: WorkflowStageInputType;
+}
+
+/**
+ * Change the stage type. The org must retain at least one active stage of the other type.
+ */
+export type WorkflowStageUpdateType = typeof WorkflowStageUpdateType[keyof typeof WorkflowStageUpdateType];
+
+
+export const WorkflowStageUpdateType = {
+  open: 'open',
+  closed: 'closed',
+} as const;
+
+/**
+ * Partial update for a workflow stage.
+ */
+export interface WorkflowStageUpdate {
+  /**
+     * New display name.
+     * @minLength 1
+     */
+  name?: string;
+  /** New hex color code. */
+  color?: string;
+  /** Change the stage type. The org must retain at least one active stage of the other type. */
+  type?: WorkflowStageUpdateType;
+  /** Pass `true` to archive (hide from new assignments) or `false` to restore. The org must retain at least one active stage of each type. */
+  archived?: boolean;
+}
+
+/**
+ * Ordered list of stage IDs for reordering.
+ */
+export interface WorkflowStageReorderInput {
+  /** Stage IDs in the desired display order. Each ID must belong to the caller's org. */
+  ids: number[];
+}
+
+/**
  * Confirmation returned after a successful ingest.
  */
 export interface WebhookIngestSuccess {
@@ -1896,5 +1983,12 @@ export type ListCustomFieldDefinitionsParams = {
  * When `true`, soft-deleted field definitions are included in the response alongside active ones. Defaults to `false`.
  */
 includeSoftDeleted?: boolean;
+};
+
+export type RemoveWorkflowStageParams = {
+/**
+ * Stage ID to reassign existing tasks to before deleting this stage.
+ */
+reassignTo?: number;
 };
 

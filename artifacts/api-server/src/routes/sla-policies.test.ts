@@ -97,6 +97,7 @@ vi.mock("@workspace/db", () => {
     invitationsTable: {},
     inboundWebhooksTable: {},
     outboundWebhooksTable: {},
+    workflowStagesTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -153,6 +154,28 @@ vi.mock("../lib/webhook-dispatcher", () => ({
 vi.mock("../lib/resolve-custom-fields", () => ({
   resolveCustomFieldNames: async () => ({}),
 }));
+
+// Passthrough @workspace/api-zod — real Zod validation would throw on partial
+// fixtures; the SLA tests care about breach detection logic, not schema shape.
+vi.mock("@workspace/api-zod", () => {
+  const p = { parse: (x: any) => x, safeParse: (x: any) => ({ success: true, data: x }) };
+  return {
+    CreateTaskBody: p, UpdateTaskBody: p,
+    GetTaskParams: p, UpdateTaskParams: p, DeleteTaskParams: p,
+    ListTasksQueryParams: p,
+    ListTasksResponse: p, CreateTaskResponse: p, GetTaskResponse: p,
+    UpdateTaskResponse: p, GetOverdueTasksResponse: p,
+    BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p,
+    BulkDeleteTasksBody: p, BulkDeleteTasksResponse: p,
+    ListTaskEventsParams: p, ListTaskEventsResponse: p,
+    GetSlaStatusParams: p, GetSlaStatusResponse: p,
+    ListSlaPoliciesResponse: p, UpdateSlaPoliciesBody: p,
+    CreateWorkflowStageBody: p, UpdateWorkflowStageBody: p,
+    GetWorkflowStageParams: p, ReorderWorkflowStagesBody: p,
+    ListWorkflowStagesResponse: p, CreateWorkflowStageResponse: p,
+    UpdateWorkflowStageResponse: p, DeleteWorkflowStageParams: p,
+  };
+});
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks so vi.mock hoisting applies)
@@ -435,6 +458,7 @@ describe("PUT /api/org/sla-policies", () => {
 describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
   it("does nothing when there are no SLA policies configured", async () => {
     mockState.selectQueue.push([BREACHED_TASK]); // tasks list
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([]);              // SLA policies → empty
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -448,6 +472,7 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
   it("does not mark a task whose status is 'done' even when past the SLA deadline", async () => {
     const doneTask = { ...BREACHED_TASK, status: "done" };
     mockState.selectQueue.push([doneTask]);       // tasks list
+    mockState.selectQueue.push([]);               // getOrgStages → no custom stages
     mockState.selectQueue.push([BREACH_POLICY]);  // SLA policy present
     mockState.selectQueue.push([{ count: 0 }]);   // comment count
 
@@ -461,6 +486,7 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
   it("does not re-mark a task that already has slaBreachedAt set", async () => {
     const alreadyMarked = { ...BREACHED_TASK, slaBreachedAt: new Date("2025-06-01T11:30:00.000Z") };
     mockState.selectQueue.push([alreadyMarked]); // tasks list
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([BREACH_POLICY]); // SLA policy present
     mockState.selectQueue.push([{ count: 0 }]);  // comment count
 
@@ -473,6 +499,7 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
 
   it("sets slaBreachedAt and dispatches the webhook when an open task breaches its resolution SLA", async () => {
     mockState.selectQueue.push([BREACHED_TASK]);           // tasks list
+    mockState.selectQueue.push([]);                        // getOrgStages → no custom stages
     mockState.selectQueue.push([BREACH_POLICY]);           // SLA policies
     // Atomic update succeeds (simulates winning the IS NULL race)
     mockState.updateQueue.push([{ id: BREACHED_TASK.id }]);
@@ -503,6 +530,7 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
 
   it("does not dispatch the webhook when the DB update returns empty (another process won the race)", async () => {
     mockState.selectQueue.push([BREACHED_TASK]); // tasks list
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([BREACH_POLICY]); // SLA policies
     // update returns [] → another process already stamped slaBreachedAt
     mockState.updateQueue.push([]);
@@ -523,6 +551,7 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
 describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
   it("sets slaWarningSentAt and dispatches task.sla_warning when elapsed% >= threshold", async () => {
     mockState.selectQueue.push([WARNING_TASK]);             // tasks list
+    mockState.selectQueue.push([]);                         // getOrgStages → no custom stages
     mockState.selectQueue.push([WARNING_POLICY]);           // SLA policies
     // Atomic update for slaWarningSentAt succeeds
     mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
@@ -556,6 +585,7 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
       createdAt: new Date("2025-06-01T10:50:00.000Z").toISOString(), // 70 min before FIXED_NOW
     };
     mockState.selectQueue.push([earlyTask]);
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([WARNING_POLICY]);
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -570,6 +600,7 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
     // BREACHED_TASK is 120 min old with a 60-min limit → isResolutionBreached=true
     // breach path fires, warning else-branch is skipped
     mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([BREACH_POLICY]);
     mockState.updateQueue.push([{ id: BREACHED_TASK.id }]); // breach update wins
     mockState.selectQueue.push([{ count: 0 }]);
@@ -588,6 +619,7 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
       slaWarningSentAt: new Date("2025-06-01T11:50:00.000Z"), // already warned
     };
     mockState.selectQueue.push([alreadyWarned]);
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([WARNING_POLICY]);
     mockState.selectQueue.push([{ count: 0 }]);
 
@@ -600,6 +632,7 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
 
   it("does not dispatch task.sla_warning when the DB update returns empty (race condition)", async () => {
     mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([WARNING_POLICY]);
     // update returns [] → another process won the race
     mockState.updateQueue.push([]);
@@ -614,6 +647,7 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
 
   it("fires task.sla_warning but not task.sla_breached for a task approaching but not past its deadline", async () => {
     mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);              // getOrgStages → no custom stages
     mockState.selectQueue.push([WARNING_POLICY]);
     mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
     mockState.selectQueue.push([{ count: 0 }]);
@@ -638,6 +672,7 @@ describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tas
     // BREACHED_TASK is 120 min old; RESPONSE_ONLY_BREACH_POLICY has responseMinutes=60
     // → responseStatus="breached", isResolutionBreached=false → webhook must still fire
     mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([]);                          // getOrgStages
     mockState.selectQueue.push([RESPONSE_ONLY_BREACH_POLICY]);
     mockState.updateQueue.push([{ id: BREACHED_TASK.id }]); // atomic update wins
     mockState.selectQueue.push([{ count: 0 }]);
@@ -664,6 +699,7 @@ describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tas
     // WARNING_TASK is 85 min old; RESPONSE_ONLY_WARNING_POLICY has responseMinutes=100
     // → 85/100 = 85% > 80% threshold → warning fires
     mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([]);                          // getOrgStages
     mockState.selectQueue.push([RESPONSE_ONLY_WARNING_POLICY]);
     mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
     mockState.selectQueue.push([{ count: 0 }]);
@@ -687,6 +723,7 @@ describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tas
   it("does not fire task.sla_breached for a done task even with response-SLA-only policy", async () => {
     const doneTask = { ...BREACHED_TASK, status: "done" };
     mockState.selectQueue.push([doneTask]);
+    mockState.selectQueue.push([]);                          // getOrgStages
     mockState.selectQueue.push([RESPONSE_ONLY_BREACH_POLICY]);
     mockState.selectQueue.push([{ count: 0 }]);
 

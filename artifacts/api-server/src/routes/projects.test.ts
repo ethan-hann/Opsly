@@ -77,6 +77,7 @@ vi.mock("@workspace/db", () => {
     outboundWebhooksTable: {},
     usersTable: {},
     slaPoliciesTable: {},
+    workflowStagesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),

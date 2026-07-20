@@ -30,6 +30,8 @@ tags:
     description: Custom field definition management
   - name: views
     description: Saved filter views
+  - name: workflow-stages
+    description: Org-defined workflow stage management
 
 paths:
   /auth/user:
@@ -1505,6 +1507,141 @@ paths:
         "404":
           description: Target user or role not found in this organization.
 
+  /workflow-stages:
+    get:
+      operationId: listWorkflowStages
+      tags: [workflow-stages]
+      summary: List workflow stages for the current org
+      description: >
+        Returns all workflow stages for the org ordered by position, then ID.
+        Active stages come first; archived stages are included for display purposes.
+        Available to all org members.
+      responses:
+        "200":
+          description: Array of workflow stages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkflowStage"
+    post:
+      operationId: createWorkflowStage
+      tags: [workflow-stages]
+      summary: Create a workflow stage (admin only)
+      description: >
+        Creates a new workflow stage appended at the end of the position list.
+        Requires the `manage_workflow_stages` permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowStageInput"
+      responses:
+        "201":
+          description: Created workflow stage.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStage"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Permission required.
+
+  /workflow-stages/reorder:
+    post:
+      operationId: reorderWorkflowStages
+      tags: [workflow-stages]
+      summary: Reorder workflow stages (admin only)
+      description: >
+        Accepts an ordered array of stage IDs and reassigns `position` values
+        to match. Requires the `manage_workflow_stages` permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowStageReorderInput"
+      responses:
+        "204":
+          description: Reordered.
+        "400":
+          description: Invalid input.
+        "403":
+          description: Permission required.
+
+  /workflow-stages/{id}:
+    patch:
+      operationId: updateWorkflowStage
+      tags: [workflow-stages]
+      summary: Update a workflow stage (admin only)
+      description: >
+        Partially updates a stage: rename, recolor, change type, archive, or
+        restore. Requires the `manage_workflow_stages` permission. The org must
+        always retain at least one active `open` and one active `closed` stage.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowStageUpdate"
+      responses:
+        "200":
+          description: Updated workflow stage.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowStage"
+        "400":
+          description: Invalid input.
+        "403":
+          description: Permission required.
+        "404":
+          description: Stage not found.
+        "409":
+          description: Constraint violation (e.g. would leave org with no open or closed stages).
+    delete:
+      operationId: removeWorkflowStage
+      tags: [workflow-stages]
+      summary: Delete a workflow stage (admin only)
+      description: >
+        Permanently deletes a stage. If tasks currently use this stage, provide
+        the `reassignTo` query parameter with a target stage ID; all affected
+        tasks are reassigned before deletion. Returns 409 if tasks exist and no
+        reassignment target is provided. Requires the `manage_workflow_stages`
+        permission.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: reassignTo
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Stage ID to reassign existing tasks to before deleting this stage.
+      responses:
+        "204":
+          description: Stage deleted.
+        "400":
+          description: Invalid reassignTo stage.
+        "403":
+          description: Permission required.
+        "404":
+          description: Stage not found.
+        "409":
+          description: Tasks exist in this stage and no reassignTo was provided.
+
   /task-templates:
     get:
       operationId: listTaskTemplates
@@ -2311,7 +2448,8 @@ components:
     Task:
       description: >
         An individual work item within an organization, optionally linked to a
-        project. Enriched with the project name and the number of comments.
+        project. Enriched with the project name, number of comments, and the
+        org's active workflow stage details.
       type: object
       required: [id, orgTaskNumber, title, status, priority, category, createdAt, updatedAt]
       properties:
@@ -2341,11 +2479,27 @@ components:
           description: Optional detailed description of the work to be done.
         status:
           type: string
-          enum: [todo, in_progress, blocked, done]
           description: >
-            Current state of the task. `todo` - not yet started; `in_progress`
-            - actively being worked on; `blocked` - waiting on an external
-            dependency; `done` - work is complete.
+            Numeric ID of the task's current workflow stage, stored as a string.
+            Use `stageName` for display and `stageType` for open/closed logic.
+        stageId:
+          type: integer
+          description: Numeric ID of the workflow stage. Matches `status` parsed as integer.
+        stageName:
+          type: string
+          description: Display name of the current workflow stage (e.g. "In Progress").
+        stageColor:
+          type: string
+          description: Hex color of the current workflow stage (e.g. "#f59e0b").
+        stageType:
+          type: string
+          enum: [open, closed]
+          description: >
+            Stage type. `open` — task is unresolved; `closed` — task is resolved.
+            Used for SLA tracking and dashboard counts.
+        stageArchived:
+          type: boolean
+          description: Whether the current stage is archived. Archived tasks should be shown with an indicator.
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -2407,8 +2561,9 @@ components:
           description: Optional detailed description of the work to be done.
         status:
           type: string
-          enum: [todo, in_progress, blocked, done]
-          description: Initial status of the task.
+          description: >
+            Workflow stage ID (as a string) for the initial task status.
+            Must be a valid, non-archived stage belonging to the caller's org.
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -2450,8 +2605,9 @@ components:
           description: Updated description.
         status:
           type: string
-          enum: [todo, in_progress, blocked, done]
-          description: New task status.
+          description: >
+            New workflow stage ID (as a string). Must be a valid stage
+            belonging to the caller's org.
         priority:
           type: string
           enum: [low, medium, high, critical]
@@ -2494,7 +2650,9 @@ components:
           properties:
             status:
               type: string
-              enum: [todo, in_progress, blocked, done]
+              description: >
+                Workflow stage ID (as a string). Must be a valid stage belonging
+                to the caller's org.
             priority:
               type: string
               enum: [low, medium, high, critical]
@@ -2841,7 +2999,7 @@ components:
     DashboardSummary:
       description: Aggregated statistics for the caller's organization, computed in real time.
       type: object
-      required: [totalTasks, totalProjects, tasksByStatus, tasksByPriority, overdueCount, activeProjects]
+      required: [totalTasks, totalProjects, tasksByStageType, tasksByPriority, overdueCount, activeProjects]
       properties:
         totalTasks:
           type: integer
@@ -2849,23 +3007,35 @@ components:
         totalProjects:
           type: integer
           description: Total number of projects in the organization regardless of status.
-        tasksByStatus:
+        tasksByStageType:
           type: object
-          description: Task counts grouped by status value.
+          description: Task counts grouped by stage type (open vs closed).
+          required: [open, closed]
           properties:
-            todo:
+            open:
               type: integer
-              description: Number of tasks with status `todo`.
-            in_progress:
+              description: Number of tasks in an 'open' stage (unresolved).
+            closed:
               type: integer
-              description: Number of tasks with status `in_progress`.
-            blocked:
-              type: integer
-              description: Number of tasks with status `blocked`.
-            done:
-              type: integer
-              description: Number of tasks with status `done`.
-          required: [todo, in_progress, blocked, done]
+              description: Number of tasks in a 'closed' stage (resolved).
+        stageBreakdown:
+          type: array
+          description: Per-stage task counts, ordered by stage position.
+          items:
+            type: object
+            required: [stageId, stageName, stageColor, stageType, count]
+            properties:
+              stageId:
+                type: integer
+              stageName:
+                type: string
+              stageColor:
+                type: string
+              stageType:
+                type: string
+                enum: [open, closed]
+              count:
+                type: integer
         tasksByPriority:
           type: object
           description: Task counts grouped by priority level.
@@ -2886,8 +3056,8 @@ components:
         overdueCount:
           type: integer
           description: >
-            Number of tasks whose `dueDate` is before today and whose status is
-            not `done`.
+            Number of tasks whose `dueDate` is before today and whose stage type
+            is 'open' (not yet resolved).
         activeProjects:
           type: integer
           description: Number of projects with status `active`.
@@ -3756,6 +3926,93 @@ components:
         isDefault:
           type: boolean
           description: Pin or unpin as the user's default view.
+
+    WorkflowStage:
+      description: An org-defined workflow stage. Replaces the hardcoded task status enum.
+      type: object
+      required: [id, orgId, name, color, type, position, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key.
+        orgId:
+          type: string
+          description: ID of the owning organization.
+        name:
+          type: string
+          description: Display name of the stage (e.g. "In Review").
+        color:
+          type: string
+          description: Hex color for display (e.g. "#f59e0b").
+        type:
+          type: string
+          enum: [open, closed]
+          description: >
+            Stage type. `open` — task is unresolved; `closed` — task is resolved.
+            Used for SLA tracking and dashboard counts.
+        position:
+          type: integer
+          description: Sort order within the org (0-based, ascending).
+        archivedAt:
+          type: ["string", "null"]
+          description: ISO 8601 timestamp when the stage was archived. Null if active.
+        createdAt:
+          type: string
+          description: ISO 8601 creation timestamp.
+        updatedAt:
+          type: string
+          description: ISO 8601 last-updated timestamp.
+
+    WorkflowStageInput:
+      description: Fields for creating a new workflow stage.
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Display name for the stage.
+        color:
+          type: string
+          description: Hex color code (e.g. "#6b7280"). Defaults to gray if omitted.
+        type:
+          type: string
+          enum: [open, closed]
+          description: Stage type. Defaults to `open`.
+
+    WorkflowStageUpdate:
+      description: Partial update for a workflow stage.
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: New display name.
+        color:
+          type: string
+          description: New hex color code.
+        type:
+          type: string
+          enum: [open, closed]
+          description: >
+            Change the stage type. The org must retain at least one active stage
+            of the other type.
+        archived:
+          type: boolean
+          description: >
+            Pass `true` to archive (hide from new assignments) or `false` to
+            restore. The org must retain at least one active stage of each type.
+
+    WorkflowStageReorderInput:
+      description: Ordered list of stage IDs for reordering.
+      type: object
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+          description: Stage IDs in the desired display order. Each ID must belong to the caller's org.
 
     WebhookIngestSuccess:
       description: Confirmation returned after a successful ingest.

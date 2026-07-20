@@ -9,6 +9,7 @@ import {
   usersTable,
   rolesTable,
   slaPoliciesTable,
+  workflowStagesTable,
   OWNER_PERMISSIONS,
   ADMIN_PERMISSIONS,
   MEMBER_PERMISSIONS,
@@ -190,6 +191,14 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
 
   // Seed built-in roles and assign creator to Owner
   const { ownerId } = await seedBuiltInRoles(org.id);
+
+  // Seed default workflow stages for this new org
+  await db.insert(workflowStagesTable).values([
+    { orgId: org.id, name: "To Do",       color: "#6b7280", type: "open",   position: 0 },
+    { orgId: org.id, name: "In Progress", color: "#f59e0b", type: "open",   position: 1 },
+    { orgId: org.id, name: "Blocked",     color: "#ef4444", type: "open",   position: 2 },
+    { orgId: org.id, name: "Done",        color: "#10b981", type: "closed", position: 3 },
+  ]);
 
   await db.insert(orgMembersTable).values({
     orgId: org.id,

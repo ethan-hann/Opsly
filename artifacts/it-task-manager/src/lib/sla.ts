@@ -24,6 +24,7 @@ export function getSlaStatus(
   status: string,
   priority: string,
   policy: SlaPolicy | null | undefined,
+  stageType?: "open" | "closed",
   resolvedAt?: Date | string | null,
 ): SlaResult {
   if (!policy || (policy.responseMinutes == null && policy.resolutionMinutes == null)) {
@@ -37,7 +38,8 @@ export function getSlaStatus(
     };
   }
 
-  const isDone = status === "done";
+  // Use stageType when available (custom workflow); fall back to legacy status === "done"
+  const isDone = stageType != null ? stageType === "closed" : status === "done";
   const now = Date.now();
   const created = new Date(createdAt).getTime();
   const elapsedMinutes = (now - created) / 60_000;

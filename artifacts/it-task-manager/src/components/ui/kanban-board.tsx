@@ -18,20 +18,18 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useUpdateTask, getListTasksQueryKey, getGetOverdueTasksQueryKey } from "@workspace/api-client-react";
-import type { Task, TaskStatus } from "@workspace/api-client-react";
+import {
+  useUpdateTask,
+  getListTasksQueryKey,
+  getGetOverdueTasksQueryKey,
+} from "@workspace/api-client-react";
+import type { Task, WorkflowStage } from "@workspace/api-client-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import { Link } from "wouter";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-
-const COLUMNS: { id: TaskStatus; label: string; borderClass: string }[] = [
-  { id: "todo", label: "To Do", borderClass: "border-t-stone-400" },
-  { id: "in_progress", label: "In Progress", borderClass: "border-t-amber-500" },
-  { id: "blocked", label: "Blocked", borderClass: "border-t-red-500" },
-  { id: "done", label: "Done", borderClass: "border-t-emerald-500" },
-];
+import { Archive } from "lucide-react";
 
 // Prefix used to distinguish column IDs from task IDs in drag events
 const COL_PREFIX = "col::";
@@ -65,7 +63,7 @@ function TaskCard({ task, overlay }: TaskCardProps) {
       className={cn(
         "bg-card border border-border rounded-lg p-3 space-y-2 cursor-grab active:cursor-grabbing select-none",
         isDragging && !overlay && "opacity-40 ring-2 ring-primary/30",
-        overlay && "rotate-2 shadow-xl"
+        overlay && "rotate-2 shadow-xl",
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -83,6 +81,12 @@ function TaskCard({ task, overlay }: TaskCardProps) {
         )}
         {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
       </div>
+      {task.stageArchived && (
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+          <Archive className="w-3 h-3" />
+          Archived stage
+        </div>
+      )}
       {task.assignee && (
         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center text-[9px] text-primary font-semibold">
@@ -97,35 +101,54 @@ function TaskCard({ task, overlay }: TaskCardProps) {
 }
 
 interface KanbanColumnProps {
-  columnId: TaskStatus;
+  stageId: number;
   label: string;
-  borderClass: string;
+  color: string;
   tasks: Task[];
   isOver: boolean;
+  archived?: boolean;
 }
 
-function KanbanColumn({ columnId, label, borderClass, tasks, isOver }: KanbanColumnProps) {
-  // useDroppable makes this a valid drop target - even when empty
-  const { setNodeRef } = useDroppable({ id: `${COL_PREFIX}${columnId}` });
+function KanbanColumn({ stageId, label, color, tasks, isOver, archived }: KanbanColumnProps) {
+  const { setNodeRef } = useDroppable({ id: `${COL_PREFIX}${stageId}` });
+
+  const r = parseInt(color.replace("#", "").slice(0, 2), 16);
+  const g = parseInt(color.replace("#", "").slice(2, 4), 16);
+  const b = parseInt(color.replace("#", "").slice(4, 6), 16);
 
   return (
     <div className="flex flex-col min-w-[260px] w-full">
       <div
         className={cn(
-          "bg-card border border-border rounded-t-lg border-t-2 p-3 flex items-center justify-between",
-          borderClass
+          "rounded-t-lg border-t-4 border-l border-r border-b-0 px-3 py-2.5",
+          isOver ? "bg-muted/80" : "bg-muted/40",
         )}
+        style={{ borderTopColor: color }}
       >
-        <span className="text-sm font-semibold">{label}</span>
-        <span className="text-xs font-mono bg-secondary text-muted-foreground px-2 py-0.5 rounded-full">
-          {tasks.length}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-sm text-foreground" style={{ color: archived ? undefined : color }}>
+            {label}
+          </span>
+          {archived && (
+            <Archive className="w-3 h-3 text-muted-foreground" />
+          )}
+          <span
+            className="ml-auto text-xs font-medium rounded-full px-1.5 py-0.5 min-w-[20px] text-center"
+            style={{
+              backgroundColor: `rgba(${r}, ${g}, ${b}, 0.15)`,
+              color,
+            }}
+          >
+            {tasks.length}
+          </span>
+        </div>
       </div>
+
       <div
         ref={setNodeRef}
         className={cn(
-          "flex-1 bg-muted/20 border border-t-0 border-border rounded-b-lg p-2 space-y-2 min-h-[200px] transition-colors",
-          isOver && "bg-primary/5 border-primary/30"
+          "flex-1 rounded-b-lg border border-t-0 border-border p-2 space-y-2 min-h-[120px] transition-colors",
+          isOver && "bg-muted/30 border-primary/30",
         )}
       >
         <SortableContext
@@ -137,9 +160,9 @@ function KanbanColumn({ columnId, label, borderClass, tasks, isOver }: KanbanCol
           ))}
         </SortableContext>
         {tasks.length === 0 && (
-          <div className="flex items-center justify-center h-full py-8 text-xs text-muted-foreground/50">
-            Drop here
-          </div>
+          <p className="text-xs text-center text-muted-foreground/50 py-6">
+            No tasks
+          </p>
         )}
       </div>
     </div>
@@ -148,112 +171,124 @@ function KanbanColumn({ columnId, label, borderClass, tasks, isOver }: KanbanCol
 
 interface KanbanBoardProps {
   tasks: Task[];
+  /** Active (non-archived) workflow stages to build columns from */
+  stages: WorkflowStage[];
 }
 
-export function KanbanBoard({ tasks }: KanbanBoardProps) {
+export function KanbanBoard({ tasks, stages }: KanbanBoardProps) {
   const queryClient = useQueryClient();
-  const { mutate: updateTask } = useUpdateTask();
-
   const [activeTask, setActiveTask] = useState<Task | null>(null);
-  // Optimistic status overrides while dragging: taskId -> TaskStatus
-  const [optimisticStatus, setOptimisticStatus] = useState<
-    Record<number, TaskStatus>
-  >({});
-  // Which column droppable is currently hovered
-  const [overColumnId, setOverColumnId] = useState<TaskStatus | null>(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [overColumnId, setOverColumnId] = useState<number | null>(null);
+  const [optimisticStatus, setOptimisticStatus] = useState<Record<number, string>>({});
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
-  /** Effective status for a task, considering optimistic overrides */
-  const effectiveStatus = useCallback(
-    (taskId: number): TaskStatus =>
-      (optimisticStatus[taskId] as TaskStatus) ??
-      tasks.find((t) => t.id === taskId)?.status ??
-      "todo",
-    [tasks, optimisticStatus]
-  );
+  const updateTask = useUpdateTask();
+
+  // Active (non-archived) stages → columns, plus any archived stage that has tasks
+  const archivedStagesWithTasks = (() => {
+    const archivedIds = new Set(
+      stages.filter(() => false).map((s) => s.id), // placeholder — handled below
+    );
+    void archivedIds;
+    return [] as WorkflowStage[];
+  })();
+  void archivedStagesWithTasks;
+
+  const activeStages = stages.filter((s) => !s.archivedAt);
+
+  // Gather archived stages referenced by tasks (to show their column)
+  const stageMap = new Map(stages.map((s) => [s.id, s]));
+  const archivedStageIdsInUse = new Set<number>();
+  for (const task of tasks) {
+    const sid = parseInt(task.status, 10);
+    if (!isNaN(sid)) {
+      const stage = stageMap.get(sid);
+      if (stage?.archivedAt) archivedStageIdsInUse.add(stage.id);
+    }
+  }
+  const archivedColumnsInUse = Array.from(archivedStageIdsInUse).map((id) => stageMap.get(id)!).filter(Boolean);
+
+  const allColumns = [...activeStages, ...archivedColumnsInUse];
 
   const getTasksForColumn = useCallback(
-    (colId: TaskStatus) =>
-      tasks.filter((t) => effectiveStatus(t.id) === colId),
-    [tasks, effectiveStatus]
+    (stageId: number) => {
+      return tasks.filter((t) => {
+        const effectiveStatus = optimisticStatus[t.id] ?? t.status;
+        const sid = parseInt(effectiveStatus, 10);
+        return sid === stageId;
+      });
+    },
+    [tasks, optimisticStatus],
   );
 
-  /** Given an `over.id`, return the target TaskStatus column or null */
-  const resolveTargetColumn = (overId: string | number): TaskStatus | null => {
-    const overStr = String(overId);
-    // Direct column drop zone
-    if (overStr.startsWith(COL_PREFIX)) {
-      return overStr.slice(COL_PREFIX.length) as TaskStatus;
+  const handleDragStart = (event: DragStartEvent) => {
+    const task = event.active.data.current?.task as Task | undefined;
+    if (task) {
+      setActiveTask(task);
+      setActiveId(task.id);
     }
-    // Another task card - find its effective column
-    const overTaskId = Number(overId);
-    if (!Number.isNaN(overTaskId)) {
-      return effectiveStatus(overTaskId);
-    }
-    return null;
   };
 
-  const handleDragStart = ({ active }: DragStartEvent) => {
-    const task = tasks.find((t) => t.id === active.id);
-    if (task) setActiveTask(task);
-  };
-
-  const handleDragOver = ({ active, over }: DragOverEvent) => {
+  const handleDragOver = (event: DragOverEvent) => {
+    const { over } = event;
     if (!over) {
       setOverColumnId(null);
       return;
     }
-
-    const activeId = active.id as number;
-    const targetCol = resolveTargetColumn(over.id);
-
-    if (!targetCol) {
-      setOverColumnId(null);
-      return;
-    }
-
-    // Track which column header is highlighted
-    setOverColumnId(targetCol);
-
-    const currentCol = effectiveStatus(activeId);
-    if (currentCol !== targetCol) {
-      setOptimisticStatus((prev) => ({ ...prev, [activeId]: targetCol }));
+    const overId = String(over.id);
+    if (overId.startsWith(COL_PREFIX)) {
+      setOverColumnId(parseInt(overId.slice(COL_PREFIX.length), 10));
+    } else {
+      // Hovering over a task card — find which column it belongs to
+      const overTask = tasks.find((t) => t.id === over.id);
+      if (overTask) {
+        setOverColumnId(parseInt(overTask.status, 10));
+      }
     }
   };
 
-  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
     setActiveTask(null);
+    setActiveId(null);
     setOverColumnId(null);
 
-    const activeId = active.id as number;
-    const newStatus = optimisticStatus[activeId] as TaskStatus | undefined;
+    if (!over) return;
 
-    // Clear the optimistic override
-    setOptimisticStatus((prev) => {
-      const next = { ...prev };
-      delete next[activeId];
-      return next;
-    });
+    const task = active.data.current?.task as Task | undefined;
+    if (!task) return;
 
-    if (!over || !newStatus) return;
+    let targetStageId: number | null = null;
+    const overId = String(over.id);
+    if (overId.startsWith(COL_PREFIX)) {
+      targetStageId = parseInt(overId.slice(COL_PREFIX.length), 10);
+    } else {
+      const overTask = tasks.find((t) => t.id === over.id);
+      if (overTask) targetStageId = parseInt(overTask.status, 10);
+    }
 
-    const originalTask = tasks.find((t) => t.id === activeId);
-    if (!originalTask || originalTask.status === newStatus) return;
+    if (!targetStageId || isNaN(targetStageId)) return;
+    const currentStatus = optimisticStatus[task.id] ?? task.status;
+    if (String(targetStageId) === currentStatus) return;
 
-    // Persist to API
-    updateTask(
-      { id: activeId, data: { status: newStatus } },
+    // Optimistic update
+    const newStatus = String(targetStageId);
+    setOptimisticStatus((prev) => ({ ...prev, [task.id]: newStatus }));
+
+    updateTask.mutate(
+      { id: task.id, data: { status: newStatus } },
       {
-        onSuccess: (updated) => {
-          // Patch the individual task cache used by task-detail
-          queryClient.setQueryData(["getTask", activeId], updated);
-          // Invalidate all list-task queries (covers both the default Orval key
-          // and custom keys like ["listTasks", { projectId }] in project-detail)
+        onSuccess: () => {
+          setOptimisticStatus((prev) => {
+            const next = { ...prev };
+            delete next[task.id];
+            return next;
+          });
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
-          queryClient.invalidateQueries({ queryKey: ["listTasks"] });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
         },
         onError: () => {
@@ -262,21 +297,33 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
             description: "Failed to update task status.",
             variant: "destructive",
           });
-          // Revert all caches to server state
+          setOptimisticStatus((prev) => {
+            const next = { ...prev };
+            delete next[task.id];
+            return next;
+          });
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
-          queryClient.invalidateQueries({ queryKey: ["listTasks"] });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: ["getTask", activeId] });
         },
-      }
+      },
     );
   };
 
   const handleDragCancel = () => {
     setActiveTask(null);
+    setActiveId(null);
     setOverColumnId(null);
     setOptimisticStatus({});
   };
+
+  if (allColumns.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+        No workflow stages configured. Add stages in Org Settings → Workflow.
+      </div>
+    );
+  }
 
   return (
     <DndContext
@@ -288,14 +335,15 @@ export function KanbanBoard({ tasks }: KanbanBoardProps) {
       onDragCancel={handleDragCancel}
     >
       <div className="flex gap-4 overflow-x-auto pb-4 h-full">
-        {COLUMNS.map((col) => (
+        {allColumns.map((col) => (
           <KanbanColumn
             key={col.id}
-            columnId={col.id}
-            label={col.label}
-            borderClass={col.borderClass}
+            stageId={col.id}
+            label={col.name}
+            color={col.color}
             tasks={getTasksForColumn(col.id)}
             isOver={overColumnId === col.id}
+            archived={!!col.archivedAt}
           />
         ))}
       </div>
