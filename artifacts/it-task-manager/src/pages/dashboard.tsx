@@ -183,8 +183,8 @@ export default function Dashboard() {
               </div>
               <div className="divide-y divide-stone-100 dark:divide-stone-800">
                 {slaBreachedTasks.slice(0, 5).map(task => (
-                  <div key={task.id} className="p-5 hover:bg-red-50/30 dark:hover:bg-red-950/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
+                  <div key={task.id} className="p-5 hover:bg-red-50/30 dark:hover:bg-red-950/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
                       <div className="mt-0.5 p-2 rounded-lg bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 shrink-0">
                         <ShieldAlert className="w-4 h-4" />
                       </div>
@@ -199,7 +199,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center flex-wrap gap-2 shrink-0">
                       <SlaBadge
                         createdAt={task.createdAt}
                         status={task.status}
@@ -233,8 +233,8 @@ export default function Dashboard() {
             ) : overdueTasks && overdueTasks.length > 0 ? (
               <div className="divide-y divide-stone-100 dark:divide-stone-800">
                 {overdueTasks.slice(0, 5).map(task => (
-                  <div key={task.id} className="p-5 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-4">
+                  <div key={task.id} className="p-5 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-4 min-w-0 flex-1">
                       <div className="mt-0.5 p-2 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 shrink-0">
                         <Clock className="w-4 h-4" />
                       </div>
@@ -260,7 +260,7 @@ export default function Dashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center flex-wrap gap-2 shrink-0">
                       <StatusBadge status={task.status} />
                       <PriorityBadge priority={task.priority} />
                     </div>
