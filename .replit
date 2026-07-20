@@ -28,10 +28,6 @@ args = "typecheck"
 task = "workflow.run"
 args = "orval-sync"
 
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "test"
-
 [[workflows.workflow]]
 name = "api-server-tests"
 author = "agent"
@@ -61,17 +57,6 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "pnpm --filter @workspace/api-spec run codegen && git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated"
-
-[workflows.workflow.metadata]
-isValidation = true
-
-[[workflows.workflow]]
-name = "test"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "pnpm --filter @workspace/api-server test"
 
 [workflows.workflow.metadata]
 isValidation = true
