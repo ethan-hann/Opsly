@@ -348,6 +348,11 @@ router.get("/tasks/overdue", requireOrgOrApiKey, requireScope("tasks:read"), asy
   res.json(GetOverdueTasksResponse.parse(result));
 });
 
+// Performance note: this route relies on B-tree indexes on tasks.org_id,
+// tasks.status, tasks.priority, tasks.category, tasks.assignee,
+// tasks.project_id, tasks.due_date, and the composite (org_id, created_at)
+// index for the default sort. Run migrate:add-task-list-btree-indexes before
+// deploying to production to avoid sequential scans at scale.
 router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const queryParams = ListTasksQueryParams.safeParse(req.query);
   if (!queryParams.success) {
