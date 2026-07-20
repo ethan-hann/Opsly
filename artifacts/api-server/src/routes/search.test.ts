@@ -122,6 +122,12 @@ vi.mock("drizzle-orm", () => ({
 // requireOrg — caller is always org-a
 // ---------------------------------------------------------------------------
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+    req.orgId = "org-a";
+    next();
+  },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "org-a";
     next();

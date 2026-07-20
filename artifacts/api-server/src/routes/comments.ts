@@ -10,14 +10,14 @@ import {
   CreateCommentResponse,
   DeleteCommentResponse,
 } from "@workspace/api-zod";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { notifyCommentAdded } from "../lib/notifications";
 
 const router: IRouter = Router();
 
-router.get("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:read"), async (req, res): Promise<void> => {
   const params = ListCommentsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -51,7 +51,7 @@ router.get("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =>
   }))));
 });
 
-router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> => {
+router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:write"), async (req, res): Promise<void> => {
   const params = CreateCommentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -81,7 +81,7 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
   // All newly created comments always have org_id and user_id set.
   const [comment] = await db
     .insert(commentsTable)
-    .values({ ...parsed.data, taskId: params.data.id, orgId, userId: req.user!.id })
+    .values({ ...parsed.data, taskId: params.data.id, orgId, userId: req.user?.id ?? null })
     .returning();
 
   const serializedComment = {
@@ -145,7 +145,7 @@ router.post("/tasks/:id/comments", requireOrg, async (req, res): Promise<void> =
   res.status(201).json(CreateCommentResponse.parse(serializedComment));
 });
 
-router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"), async (req, res): Promise<void> => {
   const params = DeleteCommentParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -165,8 +165,8 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
     return;
   }
 
-  const currentUserId = req.user!.id;
-  const isAdmin = req.orgPermissions?.manage_projects === true;
+  const currentUserId = req.user?.id ?? null;
+  const isAdmin = hasPermission(req, "manage_projects");
   const isOwner = comment.userId != null && comment.userId === currentUserId;
 
   // Allow deletion if: the requester created the comment, OR they are an org admin.

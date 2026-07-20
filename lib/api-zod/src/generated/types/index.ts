@@ -7,6 +7,11 @@
  */
 
 export * from './activityItem';
+export * from './apiKey';
+export * from './apiKeyCreated';
+export * from './apiKeyCreatedBy';
+export * from './apiKeyInput';
+export * from './apiKeyScope';
 export * from './authorizationSessionHeaderParameter';
 export * from './authUser';
 export * from './authUserEnvelope';

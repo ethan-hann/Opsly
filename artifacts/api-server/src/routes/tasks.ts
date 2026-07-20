@@ -31,7 +31,7 @@ import {
   UnwatchTaskResponse,
   WatchingFilterParam,
 } from "@workspace/api-zod";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated } from "../lib/webhook-dispatcher";
 import { sanitizeRichText } from "../lib/sanitize-rich-text";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
@@ -317,7 +317,7 @@ async function upsertWatcher(taskId: number, userId: string, orgId: string): Pro
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
-router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks/overdue", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const today = new Date().toISOString().split("T")[0];
 
@@ -348,7 +348,7 @@ router.get("/tasks/overdue", requireOrg, async (req, res): Promise<void> => {
   res.json(GetOverdueTasksResponse.parse(result));
 });
 
-router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const queryParams = ListTasksQueryParams.safeParse(req.query);
   if (!queryParams.success) {
     res.status(400).json({ error: queryParams.error.message });
@@ -406,7 +406,7 @@ router.get("/tasks", requireOrg, async (req, res): Promise<void> => {
   res.json(ListTasksResponse.parse(result));
 });
 
-router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
+router.post("/tasks", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const parsed = CreateTaskBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -415,7 +415,7 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  if (!req.orgPermissions?.create_tasks) {
+  if (!hasPermission(req, "create_tasks")) {
     res.status(403).json({ error: "You do not have permission to create tasks" });
     return;
   }
@@ -428,7 +428,7 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
   }
 
   // Closing a task requires the close_tasks permission
-  if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+  if (stageResult.stage.type === "closed" && !hasPermission(req, "close_tasks")) {
     res.status(403).json({ error: "You do not have permission to create tasks in a closed stage" });
     return;
   }
@@ -518,7 +518,7 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
   res.status(201).json(CreateTaskResponse.parse(enriched));
 });
 
-router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const params = GetTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -549,7 +549,7 @@ router.get("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
 // ─── Bulk update ─────────────────────────────────────────────────────────────
 
-router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
+router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const parsed = BulkUpdateTasksBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -558,7 +558,7 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  if (!req.orgPermissions?.edit_tasks) {
+  if (!hasPermission(req, "edit_tasks")) {
     res.status(403).json({ error: "You do not have permission to edit tasks" });
     return;
   }
@@ -576,7 +576,7 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
       res.status(400).json({ error: stageResult.error });
       return;
     }
-    if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+    if (stageResult.stage.type === "closed" && !hasPermission(req, "close_tasks")) {
       res.status(403).json({ error: "You do not have permission to close tasks" });
       return;
     }
@@ -641,7 +641,7 @@ router.patch("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
   res.json(BulkUpdateTasksResponse.parse({ updated: prevRows.length }));
 });
 
-router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
+router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const params = UpdateTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -656,7 +656,7 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  if (!req.orgPermissions?.edit_tasks) {
+  if (!hasPermission(req, "edit_tasks")) {
     res.status(403).json({ error: "You do not have permission to edit tasks" });
     return;
   }
@@ -669,7 +669,7 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       return;
     }
     // Moving to a closed stage requires close_tasks permission
-    if (stageResult.stage.type === "closed" && !req.orgPermissions?.close_tasks) {
+    if (stageResult.stage.type === "closed" && !hasPermission(req, "close_tasks")) {
       res.status(403).json({ error: "You do not have permission to close tasks" });
       return;
     }
@@ -903,7 +903,7 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   res.json(UpdateTaskResponse.parse(enriched));
 });
 
-router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
+router.delete("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const parsed = BulkDeleteTasksBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -912,7 +912,7 @@ router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  if (!req.orgPermissions?.delete_tasks) {
+  if (!hasPermission(req, "delete_tasks")) {
     res.status(403).json({ error: "You do not have permission to delete tasks" });
     return;
   }
@@ -941,7 +941,7 @@ router.delete("/tasks/bulk", requireOrg, async (req, res): Promise<void> => {
   res.json(BulkDeleteTasksResponse.parse({ deleted: ownedIds.length }));
 });
 
-router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const params = DeleteTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -950,7 +950,7 @@ router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
 
-  if (!req.orgPermissions?.delete_tasks) {
+  if (!hasPermission(req, "delete_tasks")) {
     res.status(403).json({ error: "You do not have permission to delete tasks" });
     return;
   }
@@ -973,7 +973,7 @@ router.delete("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   res.sendStatus(204);
 });
 
-router.get("/tasks/:id/events", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks/:id/events", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const params = ListTaskEventsParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1020,7 +1020,7 @@ router.get("/tasks/:id/events", requireOrg, async (req, res): Promise<void> => {
  * Returns watcher count, whether the current user is watching, and up to 10
  * watcher avatars (enough for the task-detail header).
  */
-router.get("/tasks/:id/watchers", requireOrg, async (req, res): Promise<void> => {
+router.get("/tasks/:id/watchers", requireOrgOrApiKey, requireScope("tasks:read"), async (req, res): Promise<void> => {
   const params = GetTaskWatchersParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1070,7 +1070,7 @@ router.get("/tasks/:id/watchers", requireOrg, async (req, res): Promise<void> =>
 /**
  * POST /tasks/:id/watch — idempotent; safe to call even if already watching.
  */
-router.post("/tasks/:id/watch", requireOrg, async (req, res): Promise<void> => {
+router.post("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const params = WatchTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -1104,7 +1104,7 @@ router.post("/tasks/:id/watch", requireOrg, async (req, res): Promise<void> => {
 /**
  * DELETE /tasks/:id/watch — idempotent; safe to call even if not watching.
  */
-router.delete("/tasks/:id/watch", requireOrg, async (req, res): Promise<void> => {
+router.delete("/tasks/:id/watch", requireOrgOrApiKey, requireScope("tasks:write"), async (req, res): Promise<void> => {
   const params = UnwatchTaskParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

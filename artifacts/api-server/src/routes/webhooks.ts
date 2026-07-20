@@ -7,7 +7,7 @@
  *        systems (Datadog, PagerDuty, GitHub Actions, curl, …) POST any JSON
  *        object and we create a task from it.
  *
- * Authenticated routes (requireOrg):
+ * Authenticated routes (requireOrgOrApiKey):
  *   GET|POST        /webhooks/inbound
  *   GET|PATCH|DELETE /webhooks/inbound/:id
  *   POST            /webhooks/inbound/:id/rotate-secret
@@ -31,7 +31,8 @@ import {
   taskTemplatesTable,
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
+import type { SQL } from "drizzle-orm";
 import { dispatchTaskCreated } from "../lib/webhook-dispatcher";
 import { sql } from "drizzle-orm";
 
@@ -54,15 +55,18 @@ function getPath(obj: unknown, path: string): unknown {
   }, obj);
 }
 
-/** Visibility filter: own webhooks + any non-private shared webhook. */
-function inboundVisibilityFilter(userId: string) {
+/** Visibility filter: own webhooks + any non-private shared webhook.
+ * API key requests (userId = null) see all org webhooks — they are org-level principals. */
+function inboundVisibilityFilter(userId: string | null): SQL | undefined {
+  if (!userId) return undefined; // no filter — API key sees all
   return or(
     eq(inboundWebhooksTable.createdBy, userId),
     ne(inboundWebhooksTable.visibility, "private"),
   );
 }
 
-function outboundVisibilityFilter(userId: string) {
+function outboundVisibilityFilter(userId: string | null): SQL | undefined {
+  if (!userId) return undefined; // no filter — API key sees all
   return or(
     eq(outboundWebhooksTable.createdBy, userId),
     ne(outboundWebhooksTable.visibility, "private"),
@@ -71,7 +75,7 @@ function outboundVisibilityFilter(userId: string) {
 
 function serializeInbound(
   w: typeof inboundWebhooksTable.$inferSelect,
-  userId: string,
+  userId: string | null,
   taskTemplateName?: string | null,
 ) {
   return {
@@ -95,7 +99,7 @@ async function resolveTemplateName(taskTemplateId: number | null | undefined): P
   return t?.name ?? null;
 }
 
-function serializeOutbound(w: typeof outboundWebhooksTable.$inferSelect, userId: string) {
+function serializeOutbound(w: typeof outboundWebhooksTable.$inferSelect, userId: string | null) {
   return {
     ...w,
     isOwner: w.createdBy === userId,
@@ -518,22 +522,22 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
 // ---------------------------------------------------------------------------
 
 // GET /webhooks/inbound — list
-router.get("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const rows = await db
     .select({ hook: inboundWebhooksTable, templateName: taskTemplatesTable.name })
     .from(inboundWebhooksTable)
     .leftJoin(taskTemplatesTable, eq(inboundWebhooksTable.taskTemplateId, taskTemplatesTable.id))
-    .where(and(eq(inboundWebhooksTable.orgId, orgId), inboundVisibilityFilter(userId)))
+    .where(and(eq(inboundWebhooksTable.orgId, orgId), ...(inboundVisibilityFilter(userId) ? [inboundVisibilityFilter(userId)!] : [])))
     .orderBy(inboundWebhooksTable.createdAt);
 
   res.json(rows.map(({ hook, templateName }) => serializeInbound(hook, userId, templateName)));
 });
 
 // POST /webhooks/inbound — create
-router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => {
+router.post("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = CreateInboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -541,7 +545,7 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
   }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
   const { name, projectId, visibility, enabled, taskTemplate, taskTemplateId } = parsed.data;
 
   // Validate projectId belongs to org
@@ -574,7 +578,7 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
     .insert(inboundWebhooksTable)
     .values({
       orgId,
-      createdBy: userId,
+      createdBy: userId !== null ? userId : sql`null`,
       name,
       token: generateToken(),
       projectId: projectId ?? null,
@@ -591,14 +595,14 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
 
 // GET /webhooks/inbound/activity — per-hook task creation counts for loop detection
 // Must be registered before /:id so "activity" isn't matched as an id.
-router.get("/webhooks/inbound/activity", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/inbound/activity", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const hooks = await db
     .select({ id: inboundWebhooksTable.id })
     .from(inboundWebhooksTable)
-    .where(and(eq(inboundWebhooksTable.orgId, orgId), inboundVisibilityFilter(userId)));
+    .where(and(eq(inboundWebhooksTable.orgId, orgId), ...(inboundVisibilityFilter(userId) ? [inboundVisibilityFilter(userId)!] : [])));
 
   if (hooks.length === 0) { res.json({}); return; }
 
@@ -636,12 +640,12 @@ router.get("/webhooks/inbound/activity", requireOrg, async (req, res): Promise<v
 });
 
 // GET /webhooks/inbound/:id — get
-router.get("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [row] = await db
     .select({ hook: inboundWebhooksTable, templateName: taskTemplatesTable.name })
@@ -651,7 +655,7 @@ router.get("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> 
       and(
         eq(inboundWebhooksTable.id, id),
         eq(inboundWebhooksTable.orgId, orgId),
-        inboundVisibilityFilter(userId),
+        ...(inboundVisibilityFilter(userId) ? [inboundVisibilityFilter(userId)!] : []),
       ),
     )
     .limit(1);
@@ -661,7 +665,7 @@ router.get("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> 
 });
 
 // PATCH /webhooks/inbound/:id — update (creator only)
-router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -672,7 +676,7 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
   }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [existing] = await db
     .select()
@@ -681,7 +685,7 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
     .limit(1);
 
   if (!existing) { res.status(404).json({ error: "Webhook not found" }); return; }
-  if (existing.createdBy !== userId) {
+  if (!req.apiKeyId && existing.createdBy !== userId) {
     res.status(403).json({ error: "Only the creator can update this webhook" });
     return;
   }
@@ -723,12 +727,12 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
 });
 
 // DELETE /webhooks/inbound/:id — delete (creator only)
-router.delete("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [existing] = await db
     .select()
@@ -737,7 +741,7 @@ router.delete("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<voi
     .limit(1);
 
   if (!existing) { res.status(404).json({ error: "Webhook not found" }); return; }
-  if (existing.createdBy !== userId) {
+  if (!req.apiKeyId && existing.createdBy !== userId) {
     res.status(403).json({ error: "Only the creator can delete this webhook" });
     return;
   }
@@ -750,12 +754,12 @@ router.delete("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<voi
 });
 
 // POST /webhooks/inbound/:id/rotate-secret — rotate token (creator only)
-router.post("/webhooks/inbound/:id/rotate-secret", requireOrg, async (req, res): Promise<void> => {
+router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [existing] = await db
     .select()
@@ -764,7 +768,7 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrg, async (req, res):
     .limit(1);
 
   if (!existing) { res.status(404).json({ error: "Webhook not found" }); return; }
-  if (existing.createdBy !== userId) {
+  if (!req.apiKeyId && existing.createdBy !== userId) {
     res.status(403).json({ error: "Only the creator can rotate this secret" });
     return;
   }
@@ -784,21 +788,21 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrg, async (req, res):
 // ---------------------------------------------------------------------------
 
 // GET /webhooks/outbound — list
-router.get("/webhooks/outbound", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const hooks = await db
     .select()
     .from(outboundWebhooksTable)
-    .where(and(eq(outboundWebhooksTable.orgId, orgId), outboundVisibilityFilter(userId)))
+    .where(and(eq(outboundWebhooksTable.orgId, orgId), ...(outboundVisibilityFilter(userId) ? [outboundVisibilityFilter(userId)!] : [])))
     .orderBy(outboundWebhooksTable.createdAt);
 
   res.json(hooks.map((h) => serializeOutbound(h, userId)));
 });
 
 // POST /webhooks/outbound — create
-router.post("/webhooks/outbound", requireOrg, async (req, res): Promise<void> => {
+router.post("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = CreateOutboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -806,7 +810,7 @@ router.post("/webhooks/outbound", requireOrg, async (req, res): Promise<void> =>
   }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
   const { name, url, projectId, events, visibility, enabled } = parsed.data;
 
   if (projectId != null) {
@@ -822,7 +826,7 @@ router.post("/webhooks/outbound", requireOrg, async (req, res): Promise<void> =>
     .insert(outboundWebhooksTable)
     .values({
       orgId,
-      createdBy: userId,
+      createdBy: userId !== null ? userId : sql`null`,
       name,
       url,
       secret: generateToken(),
@@ -837,12 +841,12 @@ router.post("/webhooks/outbound", requireOrg, async (req, res): Promise<void> =>
 });
 
 // GET /webhooks/outbound/:id/deliveries — list recent deliveries
-router.get("/webhooks/outbound/:id/deliveries", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/outbound/:id/deliveries", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   // Verify the webhook belongs to this org and is visible to the caller
   const [hook] = await db
@@ -852,7 +856,7 @@ router.get("/webhooks/outbound/:id/deliveries", requireOrg, async (req, res): Pr
       and(
         eq(outboundWebhooksTable.id, id),
         eq(outboundWebhooksTable.orgId, orgId),
-        outboundVisibilityFilter(userId),
+        ...(outboundVisibilityFilter(userId) ? [outboundVisibilityFilter(userId)!] : []),
       ),
     )
     .limit(1);
@@ -870,12 +874,12 @@ router.get("/webhooks/outbound/:id/deliveries", requireOrg, async (req, res): Pr
 });
 
 // GET /webhooks/outbound/:id — get
-router.get("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.get("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [hook] = await db
     .select()
@@ -884,7 +888,7 @@ router.get("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<void>
       and(
         eq(outboundWebhooksTable.id, id),
         eq(outboundWebhooksTable.orgId, orgId),
-        outboundVisibilityFilter(userId),
+        ...(outboundVisibilityFilter(userId) ? [outboundVisibilityFilter(userId)!] : []),
       ),
     )
     .limit(1);
@@ -894,7 +898,7 @@ router.get("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<void>
 });
 
 // PATCH /webhooks/outbound/:id — update (creator only)
-router.patch("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -905,7 +909,7 @@ router.patch("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<voi
   }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [existing] = await db
     .select()
@@ -914,7 +918,7 @@ router.patch("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<voi
     .limit(1);
 
   if (!existing) { res.status(404).json({ error: "Webhook not found" }); return; }
-  if (existing.createdBy !== userId) {
+  if (!req.apiKeyId && existing.createdBy !== userId) {
     res.status(403).json({ error: "Only the creator can update this webhook" });
     return;
   }
@@ -943,12 +947,12 @@ router.patch("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<voi
 });
 
 // DELETE /webhooks/outbound/:id — delete (creator only)
-router.delete("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const orgId = req.orgId!;
-  const userId = req.user!.id;
+  const userId = req.user?.id ?? null;
 
   const [existing] = await db
     .select()
@@ -957,7 +961,7 @@ router.delete("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<vo
     .limit(1);
 
   if (!existing) { res.status(404).json({ error: "Webhook not found" }); return; }
-  if (existing.createdBy !== userId) {
+  if (!req.apiKeyId && existing.createdBy !== userId) {
     res.status(403).json({ error: "Only the creator can delete this webhook" });
     return;
   }
@@ -976,7 +980,7 @@ router.delete("/webhooks/outbound/:id", requireOrg, async (req, res): Promise<vo
 const TestOutboundSchema = z.object({ url: z.url() });
 
 // POST /webhooks/outbound/test — fire a signed test event to any URL
-router.post("/webhooks/outbound/test", requireOrg, async (req, res): Promise<void> => {
+router.post("/webhooks/outbound/test", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = TestOutboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -1017,7 +1021,7 @@ const TestInboundSchema = z.object({
 });
 
 // POST /webhooks/inbound/test — dry-run a payload through applyTemplate
-router.post("/webhooks/inbound/test", requireOrg, async (req, res): Promise<void> => {
+router.post("/webhooks/inbound/test", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const parsed = TestInboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 

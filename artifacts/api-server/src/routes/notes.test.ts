@@ -94,6 +94,13 @@ vi.mock("drizzle-orm", () => ({
 
 // The middleware also injects req.user since notes routes use req.user!.id.
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+    req.orgId = "test-org";
+    req.user = { id: "user-owner" };
+    next();
+  },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: "user-owner" };

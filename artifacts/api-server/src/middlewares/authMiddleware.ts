@@ -1,6 +1,10 @@
+import crypto from 'crypto';
 import type { AuthUser } from '@workspace/api-zod';
 import { type NextFunction, type Request, type Response } from 'express';
 import * as oidc from 'openid-client';
+import { and, eq, isNull } from 'drizzle-orm';
+import { db, apiKeysTable } from '@workspace/db';
+import type { ApiKeyScope } from '@workspace/db';
 
 import {
   clearSession,
@@ -19,6 +23,12 @@ declare global {
       isAuthenticated(): this is AuthedRequest;
 
       user?: User | undefined;
+      /** Set when the request is authenticated via an API key. */
+      apiKeyId?: string;
+      /** Scopes granted by the API key. */
+      apiKeyScopes?: ApiKeyScope[];
+      /** The API key's display name (used in audit trail). */
+      apiKeyName?: string;
     }
 
     export interface AuthedRequest {
@@ -51,6 +61,35 @@ async function refreshIfExpired(
   }
 }
 
+/** Attempt to resolve an API key from the Authorization header. */
+async function resolveApiKey(req: Request): Promise<boolean> {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith('Bearer opsly_')) return false;
+
+  const rawKey = authHeader.slice('Bearer '.length);
+  const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+  const now = new Date();
+  const [keyRow] = await db
+    .select()
+    .from(apiKeysTable)
+    .where(and(eq(apiKeysTable.keyHash, keyHash), isNull(apiKeysTable.revokedAt)))
+    .limit(1);
+
+  if (!keyRow) return false;
+
+  // Reject expired keys
+  if (keyRow.expiresAt && keyRow.expiresAt < now) return false;
+
+  req.apiKeyId = keyRow.id;
+  req.apiKeyScopes = keyRow.scopes as ApiKeyScope[];
+  req.apiKeyName = keyRow.name;
+  // Attach orgId directly on the request so requireOrg can pick it up.
+  req.orgId = keyRow.orgId;
+
+  return true;
+}
+
 export async function authMiddleware(
   req: Request,
   res: Response,
@@ -59,6 +98,13 @@ export async function authMiddleware(
   req.isAuthenticated = function (this: Request) {
     return this.user != null;
   } as Request['isAuthenticated'];
+
+  // Try API key auth first (opsly_ Bearer token).
+  const resolvedViaApiKey = await resolveApiKey(req);
+  if (resolvedViaApiKey) {
+    next();
+    return;
+  }
 
   const sid = getSessionId(req);
   if (!sid) {

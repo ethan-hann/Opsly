@@ -109,6 +109,13 @@ vi.mock("drizzle-orm", () => ({
 // requireOrg: default user is the creator ("user-owner")
 let currentUserId = "user-owner";
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+    req.orgId = "test-org";
+    req.user = { id: currentUserId };
+    next();
+  },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: currentUserId };

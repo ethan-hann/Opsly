@@ -142,6 +142,7 @@ vi.mock("drizzle-orm", () => ({
 // Mock requireOrgMiddleware — guards are stubbed; we test business logic only
 // ---------------------------------------------------------------------------
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
   requireOrg: (req: any, _res: any, next: any) => {
     req.user = { id: "user-owner" };
     req.orgId = "test-org";

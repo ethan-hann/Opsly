@@ -112,6 +112,16 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+    req.orgId = mockState.orgId;
+    req.user = { id: "user-1", email: "user@example.com" };
+    req.orgPermissions = {
+      manage_projects: mockState.isAdmin,
+    };
+    next();
+  },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = mockState.orgId;
     req.user = { id: "user-1", email: "user@example.com" };

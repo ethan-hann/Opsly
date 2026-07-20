@@ -134,6 +134,17 @@ const ALL_PERMS = {
   manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
 };
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+    req.user = { id: "user-owner" };
+    req.orgId = "test-org";
+    req.orgRoleId = mockState.isOrgOwner ? "role-owner" : "role-admin";
+    req.orgRoleName = mockState.isOrgOwner ? "Owner" : "Admin";
+    req.isOrgOwner = mockState.isOrgOwner;
+    req.orgPermissions = ALL_PERMS;
+    next();
+  },
   requireAuth: (req: any, _res: any, next: any) => {
     req.user = { id: "user-owner" };
     next();

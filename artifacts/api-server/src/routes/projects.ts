@@ -13,7 +13,7 @@ import {
   GetProjectResponse,
   UpdateProjectResponse,
 } from "@workspace/api-zod";
-import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
+import { requireOrgOrApiKey, requirePermission, requireScope } from "../middlewares/requireOrgMiddleware";
 import { dispatchProjectCreated, dispatchProjectUpdated } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
@@ -30,7 +30,7 @@ function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, c
   };
 }
 
-router.get("/projects", requireOrg, async (req, res): Promise<void> => {
+router.get("/projects", requireOrgOrApiKey, requireScope("projects:read"), async (req, res): Promise<void> => {
   const projects = await db
     .select()
     .from(projectsTable)
@@ -58,7 +58,7 @@ router.get("/projects", requireOrg, async (req, res): Promise<void> => {
   res.json(ListProjectsResponse.parse(result));
 });
 
-router.post("/projects", requireOrg, async (req, res): Promise<void> => {
+router.post("/projects", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -75,7 +75,7 @@ router.post("/projects", requireOrg, async (req, res): Promise<void> => {
   res.status(201).json(CreateProjectResponse.parse(serialized));
 });
 
-router.get("/projects/:id", requireOrg, async (req, res): Promise<void> => {
+router.get("/projects/:id", requireOrgOrApiKey, requireScope("projects:read"), async (req, res): Promise<void> => {
   const params = GetProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -104,7 +104,7 @@ router.get("/projects/:id", requireOrg, async (req, res): Promise<void> => {
   res.json(GetProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
 });
 
-router.patch("/projects/:id", requireOrg, async (req, res): Promise<void> => {
+router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
   const params = UpdateProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -142,7 +142,7 @@ router.patch("/projects/:id", requireOrg, async (req, res): Promise<void> => {
   res.json(UpdateProjectResponse.parse(serializedUpdate));
 });
 
-router.delete("/projects/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
   const params = DeleteProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -173,7 +173,7 @@ const ProjectIdParams = z.object({ id: z.coerce.number().int().positive() });
  * Returns the project-level SLA policy overrides for this project.
  * Omits org-level policies — the caller should merge as needed.
  */
-router.get("/projects/:id/sla-policies", requireOrg, async (req, res): Promise<void> => {
+router.get("/projects/:id/sla-policies", requireOrgOrApiKey, requireScope("projects:read"), async (req, res): Promise<void> => {
   const params = ProjectIdParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: "Invalid project id" });
@@ -213,7 +213,7 @@ router.get("/projects/:id/sla-policies", requireOrg, async (req, res): Promise<v
  */
 router.put(
   "/projects/:id/sla-policies",
-  requireOrg,
+  requireOrgOrApiKey,
   requirePermission("manage_sla_policies"),
   async (req, res): Promise<void> => {
     const projectParams = ProjectIdParams.safeParse(req.params);

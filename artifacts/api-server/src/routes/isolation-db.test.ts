@@ -53,6 +53,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => {
     manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
   };
   return {
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
     requireOrg: (req: any, _res: any, next: any) => {
       req.orgId = orgAState.orgId;
       req.orgRole = "admin";
@@ -70,6 +71,17 @@ vi.mock("../middlewares/requireOrgMiddleware", () => {
     requireAdmin: (_req: any, _res: any, next: any) => next(),
     requireOwner: (_req: any, _res: any, next: any) => next(),
     requirePermission: (_key: string) => (_req: any, _res: any, next: any) => next(),
+    requireScope: () => (_req: any, _res: any, next: any) => next(),
+  requireOrgOrApiKey: (req: any, _res: any, next: any) => {
+      req.orgId = orgAState.orgId;
+      req.orgRole = "admin";
+      req.orgRoleId = "test-owner-role";
+      req.orgRoleName = "Owner";
+      req.isOrgOwner = true;
+      req.orgPermissions = ALL_PERMS;
+      req.user = { id: "test-user-a", email: "test-user-a@integration.local" };
+      next();
+    },
   };
 });
 
@@ -82,6 +94,7 @@ vi.mock("@workspace/api-zod", () => {
     safeParse: (x: any) => ({ success: true, data: x }),
   };
   return {
+  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
     CreateTaskBody: p, UpdateTaskBody: p,
     GetTaskParams: p, UpdateTaskParams: p, DeleteTaskParams: p,
     ListTasksQueryParams: p,

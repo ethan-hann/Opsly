@@ -25,13 +25,17 @@ import {
   useRemoveWorkflowStage,
   useReorderWorkflowStages,
   getListWorkflowStagesQueryKey,
+  useListApiKeys,
+  useCreateApiKey,
+  useRevokeApiKey,
+  getListApiKeysQueryKey,
 } from "@workspace/api-client-react";
-import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage } from "@workspace/api-client-react";
+import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Copy, Crown, FileText, GripVertical, Link2, LogOut,
+  AlertTriangle, Building2, Clock, Copy, Crown, FileText, GripVertical, Key, Link2, LogOut,
   Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
-  Workflow,
+  Workflow, Check, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +55,314 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
+
+// ─── API Keys ─────────────────────────────────────────────────────────────────
+
+const ALL_SCOPES: ApiKeyScope[] = [
+  "tasks:read", "tasks:write",
+  "projects:read", "projects:write",
+  "comments:read", "comments:write",
+  "webhooks:read", "webhooks:write",
+];
+
+const SCOPE_LABELS: Record<ApiKeyScope, string> = {
+  "tasks:read": "Tasks — read",
+  "tasks:write": "Tasks — write",
+  "projects:read": "Projects — read",
+  "projects:write": "Projects — write",
+  "comments:read": "Comments — read",
+  "comments:write": "Comments — write",
+  "webhooks:read": "Webhooks — read",
+  "webhooks:write": "Webhooks — write",
+};
+
+function formatKeyExpiry(key: ApiKey): string {
+  if (key.revokedAt) return "Revoked";
+  if (key.isExpired) return "Expired";
+  if (!key.expiresAt) return "Never expires";
+  return `Expires ${new Date(key.expiresAt).toLocaleDateString()}`;
+}
+
+function ApiKeyRow({ apiKey, onRevoked }: { apiKey: ApiKey; onRevoked: () => void }) {
+  const { toast } = useToast();
+  const { mutate: revoke, isPending: isRevoking } = useRevokeApiKey({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "API key revoked" });
+        onRevoked();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to revoke key", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  const isActive = !apiKey.revokedAt && !apiKey.isExpired;
+  const creatorName = apiKey.createdBy
+    ? [apiKey.createdBy.firstName, apiKey.createdBy.lastName].filter(Boolean).join(" ") || apiKey.createdBy.email || "Unknown"
+    : "Unknown";
+
+  return (
+    <div className={`flex items-start gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-card" : "border-border/50 bg-muted/30"}`}>
+      <div className="flex-1 min-w-0 space-y-1.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`font-medium text-sm ${!isActive ? "text-muted-foreground" : ""}`}>{apiKey.name}</span>
+          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{apiKey.keyPrefix}…</code>
+          {apiKey.revokedAt ? (
+            <Badge variant="destructive" className="text-xs py-0">Revoked</Badge>
+          ) : apiKey.isExpired ? (
+            <Badge variant="outline" className="text-xs py-0 text-muted-foreground">Expired</Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs py-0">Active</Badge>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {apiKey.scopes.map((s) => (
+            <Badge key={s} variant="outline" className="text-xs py-0 font-mono">{s}</Badge>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {formatKeyExpiry(apiKey)} · Created by {creatorName} on {new Date(apiKey.createdAt).toLocaleDateString()}
+        </p>
+      </div>
+      {isActive && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-destructive" disabled={isRevoking}>
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Revoke "{apiKey.name}"?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Any client using this key will immediately lose access. This cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => revoke({ id: apiKey.id })}
+              >
+                Revoke key
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
+    </div>
+  );
+}
+
+interface CreateKeyFormState {
+  name: string;
+  scopes: ApiKeyScope[];
+  expiresAt: string;
+}
+
+function ApiKeysCard() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [isCreating, setIsCreating] = useState(false);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [form, setForm] = useState<CreateKeyFormState>({ name: "", scopes: [], expiresAt: "" });
+
+  const { data: keys = [], refetch: refetchKeys } = useListApiKeys();
+
+  const { mutate: createKey, isPending: isSubmitting } = useCreateApiKey({
+    mutation: {
+      onSuccess: (data) => {
+        setRevealedKey(data.key);
+        setIsCreating(false);
+        setForm({ name: "", scopes: [], expiresAt: "" });
+        queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to create key", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function toggleScope(scope: ApiKeyScope) {
+    setForm((f) => ({
+      ...f,
+      scopes: f.scopes.includes(scope) ? f.scopes.filter((s) => s !== scope) : [...f.scopes, scope],
+    }));
+  }
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name.trim() || form.scopes.length === 0) return;
+    createKey({
+      data: {
+        name: form.name.trim(),
+        scopes: form.scopes,
+        ...(form.expiresAt ? { expiresAt: new Date(form.expiresAt).toISOString() } : {}),
+      },
+    });
+  }
+
+  function handleCopy() {
+    if (!revealedKey) return;
+    navigator.clipboard.writeText(revealedKey).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const activeKeys = keys.filter((k) => !k.revokedAt && !k.isExpired);
+  const inactiveKeys = keys.filter((k) => k.revokedAt || k.isExpired);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Key className="w-4 h-4" />
+              API Keys
+            </CardTitle>
+            <CardDescription className="mt-1">
+              Issue machine credentials for scripts and integrations. Keys are shown once at creation.
+            </CardDescription>
+          </div>
+          {!isCreating && !revealedKey && (
+            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setIsCreating(true)}>
+              <Plus className="w-3.5 h-3.5" />
+              New key
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+
+        {/* One-time reveal modal */}
+        {revealedKey && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <Eye className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Copy your key now</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  This is the only time the full key will be shown. Store it somewhere safe.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-muted px-3 py-2 rounded font-mono break-all select-all">{revealedKey}</code>
+              <Button size="sm" variant="outline" className="h-8 gap-1.5 shrink-0" onClick={handleCopy}>
+                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? "Copied" : "Copy"}
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              variant="default"
+              className="w-full"
+              onClick={() => { setRevealedKey(null); setCopied(false); refetchKeys(); }}
+            >
+              I've saved this key
+            </Button>
+          </div>
+        )}
+
+        {/* Create form */}
+        {isCreating && (
+          <form onSubmit={handleCreate} className="space-y-4 p-4 rounded-lg border border-primary/30 bg-primary/5">
+            <div className="space-y-1">
+              <Label className="text-xs">Key name <span className="text-destructive">*</span></Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Prometheus exporter"
+                maxLength={200}
+                autoFocus
+                className="h-8 text-sm"
+                disabled={isSubmitting}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Scopes <span className="text-destructive">*</span></Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {ALL_SCOPES.map((scope) => (
+                  <div key={scope} className="flex items-center gap-2">
+                    <Switch
+                      id={`scope-${scope}`}
+                      checked={form.scopes.includes(scope)}
+                      onCheckedChange={() => toggleScope(scope)}
+                      disabled={isSubmitting}
+                      className="h-4 w-7 data-[state=checked]:bg-primary"
+                    />
+                    <Label htmlFor={`scope-${scope}`} className="text-xs text-muted-foreground cursor-pointer font-mono">
+                      {scope}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Expiry date (optional)</Label>
+              <Input
+                type="date"
+                value={form.expiresAt}
+                onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                className="h-8 text-sm"
+                disabled={isSubmitting}
+                min={new Date().toISOString().slice(0, 10)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isSubmitting || !form.name.trim() || form.scopes.length === 0}
+              >
+                {isSubmitting ? "Creating…" : "Create key"}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isSubmitting}
+                onClick={() => { setIsCreating(false); setForm({ name: "", scopes: [], expiresAt: "" }); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {/* Active keys */}
+        {activeKeys.length === 0 && !isCreating && !revealedKey && (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            No active API keys. Create one to enable programmatic access.
+          </p>
+        )}
+        {activeKeys.map((k) => (
+          <ApiKeyRow key={k.id} apiKey={k} onRevoked={() => refetchKeys()} />
+        ))}
+
+        {/* Revoked / expired (collapsed) */}
+        {inactiveKeys.length > 0 && (
+          <details className="group">
+            <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground list-none flex items-center gap-1 select-none">
+              <span className="group-open:hidden">▶</span>
+              <span className="hidden group-open:inline">▼</span>
+              Show {inactiveKeys.length} inactive key{inactiveKeys.length !== 1 ? "s" : ""}
+            </summary>
+            <div className="mt-2 space-y-2">
+              {inactiveKeys.map((k) => (
+                <ApiKeyRow key={k.id} apiKey={k} onRevoked={() => refetchKeys()} />
+              ))}
+            </div>
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Permission metadata ──────────────────────────────────────────────────────
 
@@ -1870,6 +2182,9 @@ export default function OrgSettings() {
 
       {/* Task Templates (admin only) */}
       {isAdmin && <TaskTemplatesCard />}
+
+      {/* API Keys (owner only) */}
+      {isOwner && <ApiKeysCard />}
 
       {/* Custom Fields (admin only) */}
       {isAdmin && (

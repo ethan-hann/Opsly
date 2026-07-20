@@ -1487,6 +1487,77 @@ export interface WebhookIngestPayload {
   [key: string]: unknown;
  }
 
+/**
+ * Scope granted to an API key.
+ */
+export type ApiKeyScope = typeof ApiKeyScope[keyof typeof ApiKeyScope];
+
+
+export const ApiKeyScope = {
+  'tasks:read': 'tasks:read',
+  'tasks:write': 'tasks:write',
+  'projects:read': 'projects:read',
+  'projects:write': 'projects:write',
+  'comments:read': 'comments:read',
+  'comments:write': 'comments:write',
+  'webhooks:read': 'webhooks:read',
+  'webhooks:write': 'webhooks:write',
+} as const;
+
+export type ApiKeyCreatedBy = {
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+} | null;
+
+/**
+ * API key metadata (the raw key value is never returned after creation).
+ */
+export interface ApiKey {
+  id: string;
+  /** Human-readable label for this key. */
+  name: string;
+  /** First 8 characters of the key, for identification. */
+  keyPrefix: string;
+  /** Scopes granted to this key. */
+  scopes: ApiKeyScope[];
+  /** True if the key has passed its expiry date. */
+  isExpired: boolean;
+  /** ISO 8601 expiry timestamp, or null if the key never expires. */
+  expiresAt: string | null;
+  createdAt: string;
+  /** ISO 8601 revocation timestamp, or null if the key is still active. */
+  revokedAt: string | null;
+  createdBy: ApiKeyCreatedBy;
+}
+
+/**
+ * Fields for creating a new API key.
+ */
+export interface ApiKeyInput {
+  /**
+     * Human-readable label (e.g. "Prometheus exporter").
+     * @minLength 1
+     * @maxLength 200
+     */
+  name: string;
+  /**
+     * Scopes this key is allowed to use.
+     * @minItems 1
+     */
+  scopes: ApiKeyScope[];
+  /** Optional expiry date-time. Omit for a non-expiring key. */
+  expiresAt?: string;
+}
+
+/**
+ * API key metadata plus the full key value (shown exactly once at creation).
+ */
+export type ApiKeyCreated = ApiKey & {
+  /** The full API key value. Store it securely — it cannot be retrieved again. */
+  key: string;
+};
+
 export type TaskTemplateDefaultPriority = typeof TaskTemplateDefaultPriority[keyof typeof TaskTemplateDefaultPriority];
 
 

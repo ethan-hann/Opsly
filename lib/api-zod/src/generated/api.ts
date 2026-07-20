@@ -1432,6 +1432,87 @@ export const RemoveWorkflowStageResponse = zod.void()
 
 
 /**
+ * Returns metadata for all API keys in the org. The raw key value is never returned after creation.
+ * @summary List API keys for the org (admin only)
+ */
+export const ListApiKeysResponseItem = zod.object({
+  "id": zod.string(),
+  "name": zod.string().describe('Human-readable label for this key.'),
+  "keyPrefix": zod.string().describe('First 8 characters of the key, for identification.'),
+  "scopes": zod.array(zod.enum(['tasks:read', 'tasks:write', 'projects:read', 'projects:write', 'comments:read', 'comments:write', 'webhooks:read', 'webhooks:write']).describe('Scope granted to an API key.')).describe('Scopes granted to this key.'),
+  "isExpired": zod.boolean().describe('True if the key has passed its expiry date.'),
+  "expiresAt": zod.coerce.date().nullable().describe('ISO 8601 expiry timestamp, or null if the key never expires.'),
+  "createdAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable().describe('ISO 8601 revocation timestamp, or null if the key is still active.'),
+  "createdBy": zod.object({
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "email": zod.string().nullish()
+}).nullable()
+}).describe('API key metadata (the raw key value is never returned after creation).')
+export const ListApiKeysResponse = zod.array(ListApiKeysResponseItem)
+
+
+/**
+ * Generates a new API key and returns the full key value exactly once. Store it securely — it cannot be retrieved again.
+ * @summary Create a new API key (admin only)
+ */
+export const createApiKeyBodyNameMax = 200;
+
+
+
+
+export const CreateApiKeyBody = zod.object({
+  "name": zod.string().min(1).max(createApiKeyBodyNameMax).describe('Human-readable label (e.g. \"Prometheus exporter\").'),
+  "scopes": zod.array(zod.enum(['tasks:read', 'tasks:write', 'projects:read', 'projects:write', 'comments:read', 'comments:write', 'webhooks:read', 'webhooks:write']).describe('Scope granted to an API key.')).min(1).describe('Scopes this key is allowed to use.'),
+  "expiresAt": zod.coerce.date().optional().describe('Optional expiry date-time. Omit for a non-expiring key.')
+}).describe('Fields for creating a new API key.')
+
+export const CreateApiKeyResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string().describe('Human-readable label for this key.'),
+  "keyPrefix": zod.string().describe('First 8 characters of the key, for identification.'),
+  "scopes": zod.array(zod.enum(['tasks:read', 'tasks:write', 'projects:read', 'projects:write', 'comments:read', 'comments:write', 'webhooks:read', 'webhooks:write']).describe('Scope granted to an API key.')).describe('Scopes granted to this key.'),
+  "isExpired": zod.boolean().describe('True if the key has passed its expiry date.'),
+  "expiresAt": zod.coerce.date().nullable().describe('ISO 8601 expiry timestamp, or null if the key never expires.'),
+  "createdAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable().describe('ISO 8601 revocation timestamp, or null if the key is still active.'),
+  "createdBy": zod.object({
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "email": zod.string().nullish()
+}).nullable()
+}).describe('API key metadata (the raw key value is never returned after creation).').and(zod.object({
+  "key": zod.string().describe('The full API key value. Store it securely — it cannot be retrieved again.')
+})).describe('API key metadata plus the full key value (shown exactly once at creation).')
+
+
+/**
+ * Immediately revokes the key. All requests using this key will be rejected.
+ * @summary Revoke an API key (admin only)
+ */
+export const RevokeApiKeyParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const RevokeApiKeyResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string().describe('Human-readable label for this key.'),
+  "keyPrefix": zod.string().describe('First 8 characters of the key, for identification.'),
+  "scopes": zod.array(zod.enum(['tasks:read', 'tasks:write', 'projects:read', 'projects:write', 'comments:read', 'comments:write', 'webhooks:read', 'webhooks:write']).describe('Scope granted to an API key.')).describe('Scopes granted to this key.'),
+  "isExpired": zod.boolean().describe('True if the key has passed its expiry date.'),
+  "expiresAt": zod.coerce.date().nullable().describe('ISO 8601 expiry timestamp, or null if the key never expires.'),
+  "createdAt": zod.coerce.date(),
+  "revokedAt": zod.coerce.date().nullable().describe('ISO 8601 revocation timestamp, or null if the key is still active.'),
+  "createdBy": zod.object({
+  "firstName": zod.string().nullish(),
+  "lastName": zod.string().nullish(),
+  "email": zod.string().nullish()
+}).nullable()
+}).describe('API key metadata (the raw key value is never returned after creation).')
+
+
+/**
  * Returns all task templates for the org, ordered by creation date.
  * @summary List task templates for the current org
  */

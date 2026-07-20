@@ -85,7 +85,8 @@ export const inboundWebhooksTable = pgTable("inbound_webhooks", {
   projectId: integer("project_id").references(() => projectsTable.id, {
     onDelete: "set null",
   }),
-  createdBy: varchar("created_by").notNull(),
+  /** Null when created by an API key (no associated user). */
+  createdBy: varchar("created_by"),
   name: text("name").notNull(),
   /** 64-character hex token embedded in the ingest URL. */
   token: varchar("token", { length: 64 }).notNull().unique(),
@@ -143,7 +144,8 @@ export const outboundWebhooksTable = pgTable("outbound_webhooks", {
   projectId: integer("project_id").references(() => projectsTable.id, {
     onDelete: "set null",
   }),
-  createdBy: varchar("created_by").notNull(),
+  /** Null when created by an API key (no associated user). */
+  createdBy: varchar("created_by"),
   name: text("name").notNull(),
   url: text("url").notNull(),
   /** 64-character hex secret used to sign outbound payloads (X-Opsly-Signature). */

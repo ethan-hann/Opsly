@@ -17,6 +17,7 @@ import eventsRouter from "./events";
 import workflowStagesRouter from "./workflow-stages";
 import notificationsRouter from "./notifications";
 import searchRouter from "./search";
+import apiKeysRouter from "./api-keys";
 
 const router: IRouter = Router();
 
@@ -38,5 +39,6 @@ router.use(eventsRouter);
 router.use(workflowStagesRouter);
 router.use(notificationsRouter);
 router.use(searchRouter);
+router.use(apiKeysRouter);
 
 export default router;

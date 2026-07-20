@@ -32,6 +32,8 @@ tags:
     description: Saved filter views
   - name: workflow-stages
     description: Org-defined workflow stage management
+  - name: api-keys
+    description: API key management for programmatic access
 
 paths:
   /auth/user:
@@ -1679,6 +1681,74 @@ paths:
           description: Stage not found.
         "409":
           description: Tasks exist in this stage and no reassignTo was provided.
+
+  /api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [api-keys]
+      summary: List API keys for the org (admin only)
+      description: Returns metadata for all API keys in the org. The raw key value is never returned after creation.
+      responses:
+        "200":
+          description: Array of API key metadata.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          description: Not authenticated.
+        "403":
+          description: manage_api_keys permission required.
+    post:
+      operationId: createApiKey
+      tags: [api-keys]
+      summary: Create a new API key (admin only)
+      description: Generates a new API key and returns the full key value exactly once. Store it securely — it cannot be retrieved again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyInput"
+      responses:
+        "201":
+          description: Created API key with the full key value (shown once).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+        "400":
+          description: Invalid input.
+        "403":
+          description: manage_api_keys permission required.
+
+  /api-keys/{id}:
+    delete:
+      operationId: revokeApiKey
+      tags: [api-keys]
+      summary: Revoke an API key (admin only)
+      description: Immediately revokes the key. All requests using this key will be rejected.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Revoked API key metadata.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+        "403":
+          description: manage_api_keys permission required.
+        "404":
+          description: Key not found.
+        "409":
+          description: Key already revoked.
 
   /task-templates:
     get:
@@ -3726,6 +3796,99 @@ components:
           type: string
           description: Task deadline in YYYY-MM-DD format.
       additionalProperties: true
+
+    ApiKeyScope:
+      type: string
+      enum:
+        - tasks:read
+        - tasks:write
+        - projects:read
+        - projects:write
+        - comments:read
+        - comments:write
+        - webhooks:read
+        - webhooks:write
+      description: Scope granted to an API key.
+
+    ApiKey:
+      description: API key metadata (the raw key value is never returned after creation).
+      type: object
+      required: [id, name, keyPrefix, scopes, isExpired, createdAt, revokedAt, expiresAt, createdBy]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: Human-readable label for this key.
+        keyPrefix:
+          type: string
+          description: First 8 characters of the key, for identification.
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+          description: Scopes granted to this key.
+        isExpired:
+          type: boolean
+          description: True if the key has passed its expiry date.
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 expiry timestamp, or null if the key never expires.
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: ISO 8601 revocation timestamp, or null if the key is still active.
+        createdBy:
+          type: object
+          nullable: true
+          properties:
+            firstName:
+              type: string
+              nullable: true
+            lastName:
+              type: string
+              nullable: true
+            email:
+              type: string
+              nullable: true
+
+    ApiKeyInput:
+      description: Fields for creating a new API key.
+      type: object
+      required: [name, scopes]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Human-readable label (e.g. "Prometheus exporter").
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+          minItems: 1
+          description: Scopes this key is allowed to use.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiry date-time. Omit for a non-expiring key.
+
+    ApiKeyCreated:
+      description: API key metadata plus the full key value (shown exactly once at creation).
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              description: The full API key value. Store it securely — it cannot be retrieved again.
 
     TaskTemplate:
       description: A reusable task template that pre-fills the task creation form.
