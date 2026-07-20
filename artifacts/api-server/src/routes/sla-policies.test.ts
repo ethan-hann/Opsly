@@ -217,6 +217,39 @@ const BREACHED_TASK = {
   updatedAt: new Date("2025-06-01T10:00:00.000Z").toISOString(),
 };
 
+/**
+ * SLA policy with a 60-minute RESPONSE limit only (no resolutionMinutes).
+ * Task is 2 h old → responseStatus = "breached" → webhook must fire even though
+ * isResolutionBreached is false.
+ */
+const RESPONSE_ONLY_BREACH_POLICY = {
+  id: 3,
+  orgId: "test-org",
+  priority: "high",
+  responseMinutes: 60,   // 1-hour response limit — task is 2 hours old → breached
+  resolutionMinutes: null,
+  warningThresholdPercent: 80,
+  projectId: null,
+  createdAt: new Date("2025-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+};
+
+/**
+ * SLA policy with a 100-minute RESPONSE limit only and 80% warning threshold.
+ * Task is 85 minutes old → 85% > 80% → warning fires; not yet breached.
+ */
+const RESPONSE_ONLY_WARNING_POLICY = {
+  id: 4,
+  orgId: "test-org",
+  priority: "high",
+  responseMinutes: 100,
+  resolutionMinutes: null,
+  warningThresholdPercent: 80,
+  projectId: null,
+  createdAt: new Date("2025-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+};
+
 /** SLA policy for "high" with a 60-minute resolution limit. */
 const BREACH_POLICY = {
   id: 1,
@@ -589,6 +622,78 @@ describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
 
     expect(res.status).toBe(200);
     expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledOnce();
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectAndMarkSlaBreaches — response-SLA-only policies
+// ---------------------------------------------------------------------------
+// These tests cover the case where a policy only has responseMinutes configured
+// (resolutionMinutes is null).  The badge still shows a countdown for the
+// response SLA, so webhooks must fire for response-SLA breaches/warnings too.
+
+describe("detectAndMarkSlaBreaches — response-SLA-only policy via GET /api/tasks", () => {
+  it("fires task.sla_breached when an open task breaches its response SLA (no resolutionMinutes)", async () => {
+    // BREACHED_TASK is 120 min old; RESPONSE_ONLY_BREACH_POLICY has responseMinutes=60
+    // → responseStatus="breached", isResolutionBreached=false → webhook must still fire
+    mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([RESPONSE_ONLY_BREACH_POLICY]);
+    mockState.updateQueue.push([{ id: BREACHED_TASK.id }]); // atomic update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(1);
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).toHaveBeenCalledOnce();
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).toHaveBeenCalledWith(
+      "test-org",
+      null,
+      expect.objectContaining({
+        id: BREACHED_TASK.id,
+        priority: BREACHED_TASK.priority,
+        status: BREACHED_TASK.status,
+        slaBreachedAt: expect.any(String),
+      }),
+      60, // Math.abs(-60) response minutes overdue
+    );
+  });
+
+  it("fires task.sla_warning when a task crosses the response-SLA warning threshold", async () => {
+    // WARNING_TASK is 85 min old; RESPONSE_ONLY_WARNING_POLICY has responseMinutes=100
+    // → 85/100 = 85% > 80% threshold → warning fires
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([RESPONSE_ONLY_WARNING_POLICY]);
+    mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(1);
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledOnce();
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledWith(
+      "test-org",
+      null,
+      expect.objectContaining({ id: WARNING_TASK.id }),
+      85, // percentElapsed
+      expect.any(String), // projectedBreachAt
+      15, // minutesUntilBreach: round(100 - 85)
+    );
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
+  });
+
+  it("does not fire task.sla_breached for a done task even with response-SLA-only policy", async () => {
+    const doneTask = { ...BREACHED_TASK, status: "done" };
+    mockState.selectQueue.push([doneTask]);
+    mockState.selectQueue.push([RESPONSE_ONLY_BREACH_POLICY]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(0);
     expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
   });
 });

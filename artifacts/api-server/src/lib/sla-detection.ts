@@ -7,8 +7,14 @@
  *  - Actively:  from the background SLA poller, which scans every open task
  *    across every org every 60 s so webhooks fire even when no one is browsing.
  *
- * The atomic "WHERE sla_breached_at IS NULL" guard in the DB update means both
- * code paths are safe to run concurrently — exactly one caller wins the race.
+ * The atomic "WHERE sla_breached_at IS NULL" / "WHERE sla_warning_sent_at IS NULL"
+ * guards in the DB updates mean both code paths are safe to run concurrently —
+ * exactly one caller wins the race.
+ *
+ * Both resolution SLA (resolutionMinutes) and response SLA (responseMinutes)
+ * are evaluated. Whichever breaches first stamps slaBreachedAt and fires the
+ * task.sla_breached webhook. This ensures the webhook fires even when a policy
+ * only configures one of the two SLA types.
  */
 
 import { and, eq, isNull } from "drizzle-orm";
@@ -19,11 +25,11 @@ import { logger } from "./logger";
 
 /**
  * For a list of tasks (all from the same org), detect any that have breached
- * their resolution SLA or crossed the warning threshold, stamp the relevant
- * timestamp atomically, and fire the outbound webhook.
+ * their resolution or response SLA, stamp the relevant timestamp atomically,
+ * and fire the outbound webhook.
  *
- * Fire-and-forget safe: all errors are logged and swallowed so a breach
- * detection failure never blocks or rejects the calling request.
+ * Fire-and-forget safe: all errors are caught and logged so detection never
+ * blocks or rejects the calling request.
  */
 export async function detectAndMarkSlaBreaches(
   tasks: (typeof tasksTable.$inferSelect)[],
@@ -56,19 +62,41 @@ export async function detectAndMarkSlaBreaches(
         ? projectPolicyMap.get(task.projectId)?.get(task.priority)
         : undefined;
       const policy = projectPolicy ?? orgPolicyMap.get(task.priority) ?? null;
+
+      if (!policy) continue; // no SLA configured for this priority
+
       const slaResult = getSlaStatus(task.createdAt, task.status, task.priority, policy);
 
-      if (slaResult.isResolutionBreached) {
+      // ── Breach detection ────────────────────────────────────────────────────
+      // Fire when EITHER the resolution or response SLA is breached.
+      const isSlaBreached =
+        slaResult.isResolutionBreached || slaResult.responseStatus === "breached";
+
+      if (isSlaBreached) {
         const now = new Date();
         // Atomic: only dispatch if this process is the first to set slaBreachedAt
         const [updated] = await db
           .update(tasksTable)
           .set({ slaBreachedAt: now })
-          .where(and(eq(tasksTable.id, task.id), eq(tasksTable.orgId, orgId), isNull(tasksTable.slaBreachedAt)))
+          .where(
+            and(
+              eq(tasksTable.id, task.id),
+              eq(tasksTable.orgId, orgId),
+              isNull(tasksTable.slaBreachedAt),
+            ),
+          )
           .returning({ id: tasksTable.id });
 
         if (updated) {
-          const minutesOverdue = Math.abs(slaResult.resolutionMinutesRemaining ?? 0);
+          const minutesOverdue = Math.abs(
+            slaResult.isResolutionBreached
+              ? (slaResult.resolutionMinutesRemaining ?? 0)
+              : (slaResult.responseMinutesRemaining ?? 0),
+          );
+          logger.info(
+            { taskId: task.id, orgId, minutesOverdue },
+            "SLA breached — dispatching webhook",
+          );
           dispatchTaskSlaBreached(orgId, task.projectId, {
             id: task.id,
             orgTaskNumber: task.orgTaskNumber,
@@ -78,44 +106,76 @@ export async function detectAndMarkSlaBreaches(
             slaBreachedAt: now.toISOString(),
           }, minutesOverdue);
         }
-      } else if (
-        task.slaWarningSentAt == null &&
-        policy != null &&
-        policy.resolutionMinutes != null
-      ) {
-        // Warning: fire once when elapsed% ≥ warningThresholdPercent (default 80%)
-        const thresholdFraction = (policy.warningThresholdPercent ?? 80) / 100;
-        const elapsedMinutes = (Date.now() - new Date(task.createdAt).getTime()) / 60_000;
-        const elapsedFraction = elapsedMinutes / policy.resolutionMinutes;
 
-        if (elapsedFraction >= thresholdFraction) {
+      // ── Warning detection ───────────────────────────────────────────────────
+      // Fire when EITHER SLA has crossed the warning threshold (default 80 %).
+      } else if (task.slaWarningSentAt == null) {
+        const elapsedMinutes = (Date.now() - new Date(task.createdAt).getTime()) / 60_000;
+        const thresholdFraction = (policy.warningThresholdPercent ?? 80) / 100;
+
+        // Compute the elapsed fraction for each configured SLA type
+        const resolutionFraction =
+          policy.resolutionMinutes != null
+            ? elapsedMinutes / policy.resolutionMinutes
+            : -Infinity;
+        const responseFraction =
+          policy.responseMinutes != null
+            ? elapsedMinutes / policy.responseMinutes
+            : -Infinity;
+        const maxFraction = Math.max(resolutionFraction, responseFraction);
+
+        if (maxFraction >= thresholdFraction) {
+          // Use the SLA type that's closest to breaching for the payload details
+          const useResolution =
+            resolutionFraction >= responseFraction && policy.resolutionMinutes != null;
+          const slaMins = useResolution
+            ? policy.resolutionMinutes!
+            : policy.responseMinutes!;
+
           const now = new Date();
           const projectedBreachAt = new Date(
-            new Date(task.createdAt).getTime() + policy.resolutionMinutes * 60_000,
+            new Date(task.createdAt).getTime() + slaMins * 60_000,
           ).toISOString();
-          const minutesUntilBreach = Math.max(0, Math.round(policy.resolutionMinutes - elapsedMinutes));
+          const minutesUntilBreach = Math.max(0, Math.round(slaMins - elapsedMinutes));
 
           // Atomic: only dispatch if this process is the first to set slaWarningSentAt
           const [updated] = await db
             .update(tasksTable)
             .set({ slaWarningSentAt: now })
-            .where(and(eq(tasksTable.id, task.id), eq(tasksTable.orgId, orgId), isNull(tasksTable.slaWarningSentAt)))
+            .where(
+              and(
+                eq(tasksTable.id, task.id),
+                eq(tasksTable.orgId, orgId),
+                isNull(tasksTable.slaWarningSentAt),
+              ),
+            )
             .returning({ id: tasksTable.id });
 
           if (updated) {
-            dispatchSlaWarning(orgId, task.projectId, {
-              id: task.id,
-              orgTaskNumber: task.orgTaskNumber,
-              title: task.title,
-              priority: task.priority,
-              status: task.status,
-            }, Math.round(elapsedFraction * 100), projectedBreachAt, minutesUntilBreach);
+            logger.info(
+              { taskId: task.id, orgId, percentElapsed: Math.round(maxFraction * 100) },
+              "SLA warning — dispatching webhook",
+            );
+            dispatchSlaWarning(
+              orgId,
+              task.projectId,
+              {
+                id: task.id,
+                orgTaskNumber: task.orgTaskNumber,
+                title: task.title,
+                priority: task.priority,
+                status: task.status,
+              },
+              Math.round(maxFraction * 100),
+              projectedBreachAt,
+              minutesUntilBreach,
+            );
           }
         }
       }
     }
   } catch (err) {
-    // Log the error — never let SLA breach detection fail the calling response
+    // Log and swallow — never let SLA detection fail the calling response
     logger.error({ err, orgId }, "SLA breach detection error");
   }
 }

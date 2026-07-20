@@ -105,7 +105,10 @@ async function dispatch(
       (h) => Array.isArray(h.events) && (h.events as OutboundWebhookEvent[]).includes(event),
     );
 
-    if (matching.length === 0) return;
+    if (matching.length === 0) {
+      logger.debug({ orgId, event }, "Outbound webhook dispatch: no matching webhooks subscribed to event");
+      return;
+    }
 
     const body = JSON.stringify({ event, timestamp: new Date().toISOString(), ...payload });
 
