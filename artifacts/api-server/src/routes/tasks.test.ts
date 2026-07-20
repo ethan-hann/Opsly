@@ -298,7 +298,7 @@ describe("GET /api/tasks", () => {
     expect(res.body).toHaveLength(1);
   });
 
-  it("passes unrecognised status strings through (schema uses coerce.string, not enum)", async () => {
+  it("passes unrecognized status strings through (schema uses coerce.string, not enum)", async () => {
     // ListTasksQueryParams.status is zod.coerce.string(), not an enum - unknown
     // values are forwarded to the DB layer rather than rejected at the route level.
     mockState.selectQueue.push([]); // tasks query returns empty list

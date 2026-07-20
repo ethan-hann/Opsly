@@ -673,7 +673,7 @@ export default function WebhookInboundEditPage({
       <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
         <p className="text-muted-foreground">
           Webhook not found. It may have been deleted or doesn't belong to your
-          organisation.
+          organization.
         </p>
         <Button variant="outline" onClick={() => setLocation("/webhooks")}>
           ← Back to Webhooks

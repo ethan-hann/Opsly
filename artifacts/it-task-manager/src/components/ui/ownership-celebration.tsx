@@ -50,7 +50,7 @@ function fireConfetti() {
     }
   })();
 
-  // Centre burst after a short delay
+  // Center burst after a short delay
   setTimeout(() => {
     confetti({
       particleCount: 120,

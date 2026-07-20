@@ -1,5 +1,5 @@
 /**
- * Default workflow stages seeded for every new organisation, and as a
+ * Default workflow stages seeded for every new organization, and as a
  * fallback for any existing org that has no stages configured yet.
  */
 
@@ -19,7 +19,7 @@ export const DEFAULT_STAGES = [
  *
  * Safe to call speculatively: if stages already exist for the org, the
  * INSERT will simply succeed for the rows that aren't present yet.
- * Callers that want idempotent behaviour should check first (GET /workflow-stages
+ * Callers that want idempotent behavior should check first (GET /workflow-stages
  * does this to avoid redundant writes).
  */
 export async function seedDefaultStages(

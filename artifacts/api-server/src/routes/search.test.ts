@@ -1,5 +1,5 @@
 /**
- * Cross-org isolation and behaviour tests for GET /search.
+ * Cross-org isolation and behavior tests for GET /search.
  *
  * Isolation strategy
  * ------------------

@@ -1109,7 +1109,7 @@ function WorkflowStagesCard() {
           Workflow Stages
         </CardTitle>
         <CardDescription>
-          Define the stages tasks move through in your organisation. Each stage has a name, colour,
+          Define the stages tasks move through in your organization. Each stage has a name, color,
           and type (open or closed). Closed stages count as resolved for SLA and dashboard metrics.
         </CardDescription>
       </CardHeader>
@@ -1701,7 +1701,7 @@ export default function OrgSettings() {
   const { mutate: cancelInvitation } = useCancelOrgInvitation({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Invitation cancelled" });
+        toast({ title: "Invitation canceled" });
         refetchInvitations();
       },
       onError: (err: Error) => {
@@ -2026,7 +2026,7 @@ export default function OrgSettings() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Cancel invitation?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          The invitation to <strong>{recipient}</strong> will be cancelled.
+                          The invitation to <strong>{recipient}</strong> will be canceled.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
