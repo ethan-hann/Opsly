@@ -9,6 +9,7 @@ import {
   useUpdateCustomFieldDefinition,
   useDeleteCustomFieldDefinition,
   usePurgeCustomFieldDefinition,
+  useRestoreCustomFieldDefinition,
   useReorderCustomFieldDefinitions,
   getListCustomFieldDefinitionsQueryKey,
 } from "@workspace/api-client-react";
@@ -36,7 +37,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Check, X, Settings2, Flame } from "lucide-react";
+import { ChevronUp, ChevronDown, GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2 } from "lucide-react";
 
 const FIELD_TYPES = [
   { value: "text", label: "Text" },
@@ -396,10 +397,23 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
 interface DeletedFieldRowProps {
   field: CustomFieldDefinition;
   onPurged: () => void;
+  onRestored: () => void;
 }
 
-function DeletedFieldRow({ field, onPurged }: DeletedFieldRowProps) {
+function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) {
   const { toast } = useToast();
+
+  const { mutate: restoreField, isPending: isRestoring } = useRestoreCustomFieldDefinition({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Field restored", description: `"${field.name}" is active again.` });
+        onRestored();
+      },
+      onError: (err: Error) => {
+        toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+      },
+    },
+  });
 
   const { mutate: purgeField, isPending: isPurging } = usePurgeCustomFieldDefinition({
     mutation: {
@@ -424,13 +438,24 @@ function DeletedFieldRow({ field, onPurged }: DeletedFieldRowProps) {
       <span className="flex-1 text-sm text-muted-foreground line-through truncate">{field.name}</span>
       <Badge variant="secondary" className="text-xs shrink-0 capitalize">{field.type.replace("_", " ")}</Badge>
 
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 gap-1.5 text-xs shrink-0"
+        disabled={isRestoring || isPurging}
+        onClick={() => restoreField({ id: field.id })}
+      >
+        <Undo2 className="w-3.5 h-3.5" />
+        Restore
+      </Button>
+
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button
             variant="ghost"
             size="sm"
             className="h-7 gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
-            disabled={isPurging}
+            disabled={isPurging || isRestoring}
           >
             <Flame className="w-3.5 h-3.5" />
             Purge all data
@@ -548,7 +573,7 @@ export function CustomFieldsManager() {
             Deleted fields — data still on file
           </p>
           {deletedFields.map((field) => (
-            <DeletedFieldRow key={field.id} field={field} onPurged={invalidate} />
+            <DeletedFieldRow key={field.id} field={field} onPurged={invalidate} onRestored={invalidate} />
           ))}
         </div>
       )}

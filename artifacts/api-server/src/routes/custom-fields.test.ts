@@ -94,6 +94,7 @@ vi.mock("drizzle-orm", () => ({
   eq: () => ({}),
   and: () => ({}),
   isNull: () => ({}),
+  isNotNull: () => ({}),
   asc: () => ({}),
   sql: mockSql,
 }));
@@ -472,6 +473,51 @@ describe("DELETE /api/custom-fields/:id", () => {
     const res = await request(buildApp()).delete("/api/custom-fields/1");
 
     expect(res.status).toBe(204);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/custom-fields/:id/restore — un-soft-delete a field (admin only)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/custom-fields/:id/restore", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.isAdmin = true;
+  });
+
+  it("returns 403 when a non-admin member calls the endpoint", async () => {
+    mockState.isAdmin = false;
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/restore");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 for a non-integer id", async () => {
+    const res = await request(buildApp()).post("/api/custom-fields/abc/restore");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the field is already active (not soft-deleted)", async () => {
+    mockState.updateResult = []; // no row returned — field active or missing
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/restore");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 with the restored field definition", async () => {
+    const restored = { ...MOCK_DEF, deletedAt: null };
+    mockState.updateResult = [restored];
+
+    const res = await request(buildApp()).post("/api/custom-fields/1/restore");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 1, name: "Priority Score", deletedAt: null });
   });
 });
 

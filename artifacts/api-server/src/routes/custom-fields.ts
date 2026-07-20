@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, isNull, asc, sql } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, asc, sql } from "drizzle-orm";
 import { db, customFieldDefinitionsTable, tasksTable } from "@workspace/db";
 import {
   ListCustomFieldDefinitionsResponse,
@@ -11,6 +11,8 @@ import {
   DeleteCustomFieldDefinitionParams,
   PurgeCustomFieldDefinitionParams,
   PurgeCustomFieldDefinitionResponse,
+  RestoreCustomFieldDefinitionParams,
+  RestoreCustomFieldDefinitionResponse,
   ReorderCustomFieldDefinitionsBody,
 } from "@workspace/api-zod";
 import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
@@ -260,6 +262,36 @@ router.delete("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): 
   }
 
   res.sendStatus(204);
+});
+
+/** POST /custom-fields/:id/restore — un-soft-delete a field (admin only) */
+router.post("/custom-fields/:id/restore", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+  const params = RestoreCustomFieldDefinitionParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  const [def] = await db
+    .update(customFieldDefinitionsTable)
+    .set({ deletedAt: null })
+    .where(
+      and(
+        eq(customFieldDefinitionsTable.id, params.data.id),
+        eq(customFieldDefinitionsTable.orgId, orgId),
+        isNotNull(customFieldDefinitionsTable.deletedAt),
+      ),
+    )
+    .returning();
+
+  if (!def) {
+    res.status(404).json({ error: "Custom field not found, already active, or belongs to a different org" });
+    return;
+  }
+
+  res.json(RestoreCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
 
 /** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (admin only) */
