@@ -881,3 +881,37 @@ describe("detectAndMarkSlaBreaches — audit events via GET /api/tasks", () => {
     expect(slaWarnInserts).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Body 'role' field injection — role: "admin" in the request body must never
+// elevate privileges.  PUT /api/org/sla-policies is gated by
+// requirePermission('manage_sla_policies'); authorization derives entirely from
+// req.orgPermissions set server-side by requireOrgMiddleware.
+// ---------------------------------------------------------------------------
+
+describe("Body 'role' field injection — role: admin in request body never grants manage_sla_policies", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertQueue.length = 0;
+    mockState.insertPayloads.length = 0;
+    mockState.updateQueue.length = 0;
+    mockState.updateCalls = 0;
+    mockState.deleteCalls = 0;
+    // Caller is a plain member — manage_sla_policies is false.
+    mockState.permissions = { ...mockState.ALL_PERMS, manage_sla_policies: false };
+  });
+
+  it("PUT /org/sla-policies — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send([{ name: "Sneaky Policy", responseMinutes: 60, resolutionMinutes: 240, role: "admin" }]);
+    expect(res.status).toBe(403);
+  });
+
+  it("PUT /org/sla-policies — returns 403 even when body is an empty array with role: 'admin' appended", async () => {
+    const res = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send({ policies: [], role: "admin" });
+    expect(res.status).toBe(403);
+  });
+});

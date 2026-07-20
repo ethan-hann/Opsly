@@ -19,6 +19,8 @@ const mockState = {
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
+  /** Set to false to simulate a plain member without manage_task_templates */
+  canManageTemplates: true,
 };
 
 vi.mock("@workspace/db", () => {
@@ -81,7 +83,8 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
       delete_tasks: true, manage_projects: true, manage_org_settings: true,
       manage_members: true, manage_webhooks: true, manage_api_keys: true,
       manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
-      manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+      manage_task_templates: mockState.canManageTemplates,
+      manage_saved_views: true, view_audit_log: true,
     };
     next();
   },
@@ -93,7 +96,8 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
       delete_tasks: true, manage_projects: true, manage_org_settings: true,
       manage_members: true, manage_webhooks: true, manage_api_keys: true,
       manage_custom_fields: true, manage_workflow_stages: true, manage_sla_policies: true,
-      manage_task_templates: true, manage_saved_views: true, view_audit_log: true,
+      manage_task_templates: mockState.canManageTemplates,
+      manage_saved_views: true, view_audit_log: true,
     };
     next();
   },
@@ -308,5 +312,45 @@ describe("DELETE /api/task-templates/:id", () => {
     mockState.selectQueue.push([]); // not found
     const res = await request(buildApp()).delete("/api/task-templates/999");
     expect(res.status).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Body 'role' field injection — role: "admin" in the request body must never
+// elevate privileges.  task-templates routes check req.orgPermissions
+// (set server-side by requireOrg from the DB membership row) inline;
+// no client-supplied body field can satisfy that check.
+// ---------------------------------------------------------------------------
+
+describe("Body 'role' field injection — role: admin in request body never grants manage_task_templates", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    // Caller is a plain member — manage_task_templates is false.
+    mockState.canManageTemplates = false;
+  });
+
+  it("POST /task-templates — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .post("/api/task-templates")
+      .send({ name: "Sneaky Template", defaultTitle: "T", defaultPriority: "low", defaultCategory: "other", role: "admin" });
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /task-templates/:id — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .patch("/api/task-templates/1")
+      .send({ name: "Sneaky Rename", role: "admin" });
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /task-templates/:id — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .delete("/api/task-templates/1")
+      .send({ role: "admin" });
+    expect(res.status).toBe(403);
   });
 });
