@@ -250,7 +250,11 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOwner: (_req: any, _res: any, next: any) => {
     next();
   },
-  requirePermission: (_key: string) => (_req: any, _res: any, next: any) => {
+  requirePermission: (key: string) => (req: any, res: any, next: any) => {
+    if (!req.orgPermissions?.[key]) {
+      res.status(403).json({ error: `Permission required: ${key}` });
+      return;
+    }
     next();
   },
 }));

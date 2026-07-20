@@ -10,7 +10,7 @@ import {
   UpdateTaskTemplateResponse,
   DeleteTaskTemplateParams,
 } from "@workspace/api-zod";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { sanitizeRichText } from "../lib/sanitize-rich-text";
 
 const router: IRouter = Router();
@@ -38,17 +38,12 @@ router.get("/task-templates", requireOrg, async (req, res): Promise<void> => {
 });
 
 /** POST /task-templates — create a template (admin only) */
-router.post("/task-templates", requireOrg, async (req, res): Promise<void> => {
+router.post("/task-templates", requireOrg, requirePermission("manage_task_templates"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const userId = req.user?.id;
 
   if (!userId) {
     res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
-  if (!req.orgPermissions?.manage_task_templates) {
-    res.status(403).json({ error: "manage_task_templates permission required" });
     return;
   }
 
@@ -75,13 +70,8 @@ router.post("/task-templates", requireOrg, async (req, res): Promise<void> => {
 });
 
 /** PATCH /task-templates/:id — update a template (admin only) */
-router.patch("/task-templates/:id", requireOrg, async (req, res): Promise<void> => {
+router.patch("/task-templates/:id", requireOrg, requirePermission("manage_task_templates"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
-
-  if (!req.orgPermissions?.manage_task_templates) {
-    res.status(403).json({ error: "manage_task_templates permission required" });
-    return;
-  }
 
   const params = UpdateTaskTemplateParams.safeParse(req.params);
   if (!params.success) {
@@ -123,13 +113,8 @@ router.patch("/task-templates/:id", requireOrg, async (req, res): Promise<void> 
 });
 
 /** DELETE /task-templates/:id — delete a template (admin only) */
-router.delete("/task-templates/:id", requireOrg, async (req, res): Promise<void> => {
+router.delete("/task-templates/:id", requireOrg, requirePermission("manage_task_templates"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
-
-  if (!req.orgPermissions?.manage_task_templates) {
-    res.status(403).json({ error: "manage_task_templates permission required" });
-    return;
-  }
 
   const params = DeleteTaskTemplateParams.safeParse(req.params);
   if (!params.success) {
