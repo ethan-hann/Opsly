@@ -141,7 +141,6 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.user = { id: "user-owner" };
     req.orgId = "test-org";
-    req.orgRole = "admin";
     req.orgRoleId = mockState.isOrgOwner ? "role-owner" : "role-admin";
     req.orgRoleName = mockState.isOrgOwner ? "Owner" : "Admin";
     req.isOrgOwner = mockState.isOrgOwner;
@@ -232,7 +231,7 @@ describe("POST /api/orgs", () => {
     expect(res.body).toMatchObject({ error: expect.stringMatching(/already belong/i) });
   });
 
-  it("returns 201 with org and role on success", async () => {
+  it("returns 201 with org and roleId on success", async () => {
     mockState.selectQueue.push([]); // no existing membership
     mockState.insertQueue.push([MOCK_ORG]); // insert org → returning
     mockState.insertQueue.push([{ id: "role-owner" }]); // insert Owner role → returning
@@ -243,7 +242,8 @@ describe("POST /api/orgs", () => {
     const res = await request(buildApp()).post("/api/orgs").send({ name: "Acme Corp" });
 
     expect(res.status).toBe(201);
-    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, role: "admin" });
+    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, roleName: "Owner" });
+    expect(res.body).not.toHaveProperty("role");
   });
 });
 
@@ -258,7 +258,7 @@ describe("GET /api/orgs/me", () => {
     mockState.updateQueue.length = 0;
   });
 
-  it("returns org and role when the user is a member", async () => {
+  it("returns org and permissions when the user is a member", async () => {
     mockState.selectQueue.push([{
       orgId: "test-org",
       roleId: "role-owner",
@@ -272,7 +272,8 @@ describe("GET /api/orgs/me", () => {
     const res = await request(buildApp()).get("/api/orgs/me");
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, role: "admin", pendingInvitation: null });
+    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, roleName: "Owner", pendingInvitation: null });
+    expect(res.body).not.toHaveProperty("role");
   });
 
   it("returns pending invitation when user has no org but has an invite", async () => {
@@ -289,7 +290,8 @@ describe("GET /api/orgs/me", () => {
     const res = await request(buildApp()).get("/api/orgs/me");
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ org: null, role: null, pendingInvitation: { token: "xyz" } });
+    expect(res.body).toMatchObject({ org: null, pendingInvitation: { token: "xyz" } });
+    expect(res.body).not.toHaveProperty("role");
   });
 
   it("returns nulls when user has no org and no invitation", async () => {
@@ -300,7 +302,8 @@ describe("GET /api/orgs/me", () => {
     const res = await request(buildApp()).get("/api/orgs/me");
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ org: null, role: null, pendingInvitation: null });
+    expect(res.body).toMatchObject({ org: null, pendingInvitation: null });
+    expect(res.body).not.toHaveProperty("role");
   });
 });
 
@@ -358,7 +361,8 @@ describe("GET /api/orgs/members", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
-    expect(res.body[0]).toMatchObject({ userId: "user-owner", role: "admin", roleName: "Owner", email: "alice@example.com" });
+    expect(res.body[0]).toMatchObject({ userId: "user-owner", roleName: "Owner", email: "alice@example.com" });
+    expect(res.body[0]).not.toHaveProperty("role");
   });
 
   it("returns 200 with an empty array when there are no members", async () => {
@@ -594,7 +598,8 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
     const res = await request(buildApp()).post("/api/orgs/invitations/abc123/accept");
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, role: "member" });
+    expect(res.body).toMatchObject({ org: { name: "Acme Corp" }, roleName: "Member" });
+    expect(res.body).not.toHaveProperty("role");
   });
 });
 
@@ -729,7 +734,8 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
       .send({ roleId: "role-admin" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ role: "admin", email: "bob@example.com" });
+    expect(res.body).toMatchObject({ roleName: "Admin", email: "bob@example.com" });
+    expect(res.body).not.toHaveProperty("role");
   });
 
   it("returns 200 with updated member when assigning member role", async () => {
@@ -744,7 +750,8 @@ describe("PATCH /api/orgs/members/:userId/role", () => {
       .send({ roleId: "role-member" });
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ role: "member" });
+    expect(res.body).toMatchObject({ roleName: "Member" });
+    expect(res.body).not.toHaveProperty("role");
   });
 
   it("returns 403 when a non-owner admin tries to change the Owner's role", async () => {

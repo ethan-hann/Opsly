@@ -5,11 +5,11 @@ import type { Organization, PendingInvitation, RolePermissions } from "@workspac
 
 export interface OrgContextValue {
   org: Organization | null;
-  role: "admin" | "member" | null;
   roleId: string | null;
   roleName: string | null;
   permissions: RolePermissions | null;
   pendingInvitation: PendingInvitation | null;
+  /** True when the user has the `manage_projects` permission (Admin or Owner). */
   isAdmin: boolean;
   isOwner: boolean;
   hasPermission: (key: keyof RolePermissions) => boolean;

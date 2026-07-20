@@ -128,12 +128,11 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
   // Has org - render main app with context
   const value: OrgContextValue = {
     org: data.org,
-    role: data.role ?? null,
     roleId: data.roleId ?? null,
     roleName: data.roleName ?? null,
     permissions,
     pendingInvitation: null,
-    isAdmin: data.role === "admin",
+    isAdmin: hasPermission("manage_projects"),
     // roleName === "Owner" is the authoritative check; manage_org_settings is
     // Owner-only so it doubles as a safety guard against custom roles named "Owner".
     isOwner,

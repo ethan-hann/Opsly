@@ -7,8 +7,6 @@ declare global {
   namespace Express {
     interface Request {
       orgId?: string;
-      /** @deprecated Computed for backward-compat: 'admin' when manage_org_settings=true. Prefer orgPermissions. */
-      orgRole?: 'admin' | 'member';
       orgRoleId?: string;
       orgRoleName?: string;
       orgPermissions?: RolePermissions;
@@ -59,9 +57,6 @@ export async function requireOrg(
   req.orgRoleName = membership.roleName;
   req.isOrgOwner = membership.isOwner;
   req.orgPermissions = membership.permissions;
-  // Backward-compat: treat as 'admin' when the user has project-management access
-  // (manage_projects is granted to Admin and Owner, not to Member)
-  req.orgRole = membership.permissions?.manage_projects ? 'admin' : 'member';
   next();
 }
 

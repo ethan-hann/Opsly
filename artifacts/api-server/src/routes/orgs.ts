@@ -18,7 +18,6 @@ import type { RolePermissions } from '@workspace/db';
 import {
   requireAuth,
   requireOrg,
-  requireAdmin,
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse';
@@ -75,11 +74,6 @@ async function getMemberRoleId(orgId: string): Promise<string | null> {
   return row?.id ?? null;
 }
 
-/** Derive legacy admin/member label from permissions (backward-compat). */
-function legacyRole(permissions: RolePermissions): 'admin' | 'member' {
-  return permissions.manage_projects ? 'admin' : 'member';
-}
-
 async function getOrgMeData(userId: string) {
   // Check membership — join with roles to get full permission context
   const [membership] = await db
@@ -105,7 +99,6 @@ async function getOrgMeData(userId: string) {
         name: membership.orgName,
         createdAt: membership.orgCreatedAt.toISOString(),
       },
-      role: legacyRole(membership.permissions),
       roleId: membership.roleId,
       roleName: membership.roleName,
       permissions: membership.permissions,
@@ -145,7 +138,6 @@ async function getOrgMeData(userId: string) {
   if (invitation) {
     return {
       org: null,
-      role: null,
       roleId: null,
       roleName: null,
       permissions: null,
@@ -159,7 +151,7 @@ async function getOrgMeData(userId: string) {
     };
   }
 
-  return { org: null, role: null, roleId: null, roleName: null, permissions: null, pendingInvitation: null };
+  return { org: null, roleId: null, roleName: null, permissions: null, pendingInvitation: null };
 }
 
 // ─── Routes ─────────────────────────────────────────────────────────────────
@@ -204,7 +196,6 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
 
   res.status(201).json({
     org: { id: org.id, name: org.name, createdAt: org.createdAt.toISOString() },
-    role: 'admin',
     roleId: ownerId,
     roleName: 'Owner',
     permissions: OWNER_PERMISSIONS,
@@ -264,7 +255,6 @@ router.get('/orgs/members', requireOrg, async (req, res): Promise<void> => {
   res.json(
     members.map((m) => ({
       userId: m.userId,
-      role: legacyRole(m.permissions),
       roleId: m.roleId,
       roleName: m.roleName,
       permissions: m.permissions,
@@ -765,7 +755,6 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
 
   res.json({
     userId: updated.userId,
-    role: legacyRole(targetRole.permissions),
     roleId: updated.roleId,
     roleName: targetRole.name,
     permissions: targetRole.permissions,

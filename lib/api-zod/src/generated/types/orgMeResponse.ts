@@ -6,18 +6,15 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Organization } from './organization';
-import type { OrgMeResponseRole } from './orgMeResponseRole';
 import type { PendingInvitation } from './pendingInvitation';
 import type { RolePermissions } from './rolePermissions';
 
 /**
- * Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.
+ * Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.
  */
 export interface OrgMeResponse {
   /** The organization the user belongs to. Null if they are not a member. */
   org: Organization | null;
-  /** Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks. */
-  role: OrgMeResponseRole;
   /**
      * ID of the caller's current role. Null when `org` is null.
      * @nullable

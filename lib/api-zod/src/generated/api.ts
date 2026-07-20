@@ -1033,7 +1033,6 @@ export const CreateOrgResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
   "permissions": zod.union([zod.object({
@@ -1061,7 +1060,7 @@ export const CreateOrgResponse = zod.object({
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
 }).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
-}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
+}).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
 /**
@@ -1093,7 +1092,6 @@ export const GetMyOrgResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
   "permissions": zod.union([zod.object({
@@ -1121,7 +1119,7 @@ export const GetMyOrgResponse = zod.object({
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
 }).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
-}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
+}).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
 /**
@@ -1130,7 +1128,6 @@ export const GetMyOrgResponse = zod.object({
  */
 export const ListOrgMembersResponseItem = zod.object({
   "userId": zod.string().describe('Unique user ID of the member.'),
-  "role": zod.enum(['admin', 'member']).describe('Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.\n'),
   "roleId": zod.string().describe('ID of the member\'s current role.'),
   "roleName": zod.string().describe('Display name of the member\'s current role.'),
   "permissions": zod.object({
@@ -1237,7 +1234,6 @@ export const AcceptOrgInvitationResponse = zod.object({
   "name": zod.string().describe('Display name of the organization.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
-  "role": zod.union([zod.enum(['admin', 'member']),zod.null()]).describe('Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.\n'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
   "permissions": zod.union([zod.object({
@@ -1265,7 +1261,7 @@ export const AcceptOrgInvitationResponse = zod.object({
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
 }).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
-}).describe('Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.\n')
+}).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
 /**
@@ -1306,7 +1302,6 @@ export const UpdateOrgMemberRoleBody = zod.object({
 
 export const UpdateOrgMemberRoleResponse = zod.object({
   "userId": zod.string().describe('Unique user ID of the member.'),
-  "role": zod.enum(['admin', 'member']).describe('Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.\n'),
   "roleId": zod.string().describe('ID of the member\'s current role.'),
   "roleName": zod.string().describe('Display name of the member\'s current role.'),
   "permissions": zod.object({

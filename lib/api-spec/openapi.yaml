@@ -3196,26 +3196,17 @@ components:
 
     OrgMeResponse:
       description: >
-        Current organization context for the authenticated user. Exactly one of
-        `org` (with a non-null `role`) or `pendingInvitation` will be non-null;
-        all three are null when the user has no org relationship.
+        Current organization context for the authenticated user. Either `org`
+        or `pendingInvitation` will be non-null; both are null when the user
+        has no org relationship.
       type: object
-      required: [org, role, pendingInvitation]
+      required: [org, pendingInvitation]
       properties:
         org:
           oneOf:
             - $ref: '#/components/schemas/Organization'
             - type: 'null'
           description: The organization the user belongs to. Null if they are not a member.
-        role:
-          oneOf:
-            - type: string
-              enum: [admin, member]
-            - type: 'null'
-          description: >
-            Legacy role label for backward-compatibility. `admin` when the caller
-            has the `manage_org_settings` permission; `member` otherwise. Null
-            when `org` is null. Prefer `permissions` for fine-grained checks.
         roleId:
           type: ["string", "null"]
           description: ID of the caller's current role. Null when `org` is null.
@@ -3238,18 +3229,11 @@ components:
     OrgMemberInfo:
       description: Profile and membership information for a single org member.
       type: object
-      required: [userId, role, roleId, roleName, permissions, joinedAt]
+      required: [userId, roleId, roleName, permissions, joinedAt]
       properties:
         userId:
           type: string
           description: Unique user ID of the member.
-        role:
-          type: string
-          enum: [admin, member]
-          description: >
-            Legacy role label for backward-compatibility. `admin` when the member
-            has the `manage_org_settings` permission; `member` otherwise.
-            Prefer `permissions` for fine-grained checks.
         roleId:
           type: string
           description: ID of the member's current role.

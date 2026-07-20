@@ -5,7 +5,6 @@
  * Opsly API
  * OpenAPI spec version: 0.1.0
  */
-import type { OrgMemberInfoRole } from './orgMemberInfoRole';
 import type { RolePermissions } from './rolePermissions';
 
 /**
@@ -14,8 +13,6 @@ import type { RolePermissions } from './rolePermissions';
 export interface OrgMemberInfo {
   /** Unique user ID of the member. */
   userId: string;
-  /** Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks. */
-  role: OrgMemberInfoRole;
   /** ID of the member's current role. */
   roleId: string;
   /** Display name of the member's current role. */

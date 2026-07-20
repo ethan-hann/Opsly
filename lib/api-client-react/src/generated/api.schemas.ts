@@ -951,17 +951,6 @@ export interface PendingInvitation {
 }
 
 /**
- * Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks.
- */
-export type OrgMeResponseRole = typeof OrgMeResponseRole[keyof typeof OrgMeResponseRole] | null;
-
-
-export const OrgMeResponseRole = {
-  admin: 'admin',
-  member: 'member',
-} as const;
-
-/**
  * Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.
  */
 export interface RolePermissions {
@@ -984,13 +973,11 @@ export interface RolePermissions {
 }
 
 /**
- * Current organization context for the authenticated user. Exactly one of `org` (with a non-null `role`) or `pendingInvitation` will be non-null; all three are null when the user has no org relationship.
+ * Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.
  */
 export interface OrgMeResponse {
   /** The organization the user belongs to. Null if they are not a member. */
   org: Organization | null;
-  /** Legacy role label for backward-compatibility. `admin` when the caller has the `manage_org_settings` permission; `member` otherwise. Null when `org` is null. Prefer `permissions` for fine-grained checks. */
-  role: OrgMeResponseRole;
   /**
      * ID of the caller's current role. Null when `org` is null.
      * @nullable
@@ -1008,24 +995,11 @@ export interface OrgMeResponse {
 }
 
 /**
- * Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks.
- */
-export type OrgMemberInfoRole = typeof OrgMemberInfoRole[keyof typeof OrgMemberInfoRole];
-
-
-export const OrgMemberInfoRole = {
-  admin: 'admin',
-  member: 'member',
-} as const;
-
-/**
  * Profile and membership information for a single org member.
  */
 export interface OrgMemberInfo {
   /** Unique user ID of the member. */
   userId: string;
-  /** Legacy role label for backward-compatibility. `admin` when the member has the `manage_org_settings` permission; `member` otherwise. Prefer `permissions` for fine-grained checks. */
-  role: OrgMemberInfoRole;
   /** ID of the member's current role. */
   roleId: string;
   /** Display name of the member's current role. */
