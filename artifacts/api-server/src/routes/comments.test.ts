@@ -82,7 +82,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: mockState.currentUserId };
-    req.orgPermissions = { manage_org_settings: mockState.manageOrgSettings };
+    req.orgPermissions = { manage_projects: mockState.manageOrgSettings };
     next();
   },
 }));

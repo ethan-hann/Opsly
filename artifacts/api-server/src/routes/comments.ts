@@ -130,7 +130,7 @@ router.delete("/comments/:id", requireOrg, async (req, res): Promise<void> => {
   }
 
   const currentUserId = req.user!.id;
-  const isAdmin = req.orgPermissions?.manage_org_settings === true;
+  const isAdmin = req.orgPermissions?.manage_projects === true;
   const isOwner = comment.userId != null && comment.userId === currentUserId;
 
   // Allow deletion if: the requester created the comment, OR they are an org admin.

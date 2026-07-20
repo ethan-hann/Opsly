@@ -202,9 +202,9 @@ const ALL_PERMS = {
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "org-a";
-    req.orgRole = mockState.permissions.manage_org_settings ? "admin" : "member";
+    req.orgRole = mockState.permissions.manage_projects ? "admin" : "member";
     req.orgRoleId = "role-owner";
-    req.orgRoleName = mockState.permissions.manage_org_settings ? "Owner" : "Member";
+    req.orgRoleName = mockState.permissions.manage_projects ? "Owner" : "Member";
     req.isOrgOwner = mockState.userId === "user-a1";
     req.orgPermissions = mockState.permissions;
     req.user = { id: mockState.userId, email: mockState.userEmail };
@@ -977,10 +977,10 @@ describe("Saved view isolation — PATCH /api/views/:id", () => {
   });
 
   it("returns 403 when a non-owner member in the same org tries to edit", async () => {
-    // Caller is user-a2 (member, no manage_org_settings) — view owned by user-a1.
+    // Caller is user-a2 (member, no manage_saved_views) — view owned by user-a1.
     mockState.userId = "user-a2";
     mockState.userEmail = "user-a2@org-a.example";
-    mockState.permissions = { ...mockState.permissions, manage_org_settings: false };
+    mockState.permissions = { ...mockState.permissions, manage_saved_views: false };
 
     const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
     mockState.selectQueue.push([orgAView]);
@@ -1009,10 +1009,10 @@ describe("Saved view isolation — DELETE /api/views/:id", () => {
   });
 
   it("returns 403 when a non-owner member in the same org tries to delete", async () => {
-    // Caller is user-a2 (member, no manage_org_settings) — view owned by user-a1.
+    // Caller is user-a2 (member, no manage_saved_views) — view owned by user-a1.
     mockState.userId = "user-a2";
     mockState.userEmail = "user-a2@org-a.example";
-    mockState.permissions = { ...mockState.permissions, manage_org_settings: false };
+    mockState.permissions = { ...mockState.permissions, manage_saved_views: false };
 
     const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
     mockState.selectQueue.push([orgAView]);

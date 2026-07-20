@@ -90,7 +90,9 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     permissions,
     pendingInvitation: null,
     isAdmin: data.role === "admin",
-    isOwner: permissions?.manage_org_settings === true && data.roleName === "Owner",
+    // roleName === "Owner" is the authoritative check; manage_org_settings is
+    // Owner-only so it doubles as a safety guard against custom roles named "Owner".
+    isOwner: data.roleName === "Owner" && permissions?.manage_org_settings === true,
     hasPermission,
     refetchOrg,
   };

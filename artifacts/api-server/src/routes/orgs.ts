@@ -74,7 +74,7 @@ async function getMemberRoleId(orgId: string): Promise<string | null> {
 
 /** Derive legacy admin/member label from permissions (backward-compat). */
 function legacyRole(permissions: RolePermissions): 'admin' | 'member' {
-  return permissions.manage_org_settings ? 'admin' : 'member';
+  return permissions.manage_projects ? 'admin' : 'member';
 }
 
 async function getOrgMeData(userId: string) {

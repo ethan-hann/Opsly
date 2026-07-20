@@ -59,13 +59,15 @@ export async function requireOrg(
   req.orgRoleName = membership.roleName;
   req.isOrgOwner = membership.isOwner;
   req.orgPermissions = membership.permissions;
-  // Backward-compat: treat as 'admin' when the user can manage org settings
-  req.orgRole = membership.permissions?.manage_org_settings ? 'admin' : 'member';
+  // Backward-compat: treat as 'admin' when the user has project-management access
+  // (manage_projects is granted to Admin and Owner, not to Member)
+  req.orgRole = membership.permissions?.manage_projects ? 'admin' : 'member';
   next();
 }
 
 /**
- * Require the requesting user to have manage_org_settings permission.
+ * Require the requesting user to have admin-level access (manage_projects).
+ * Both the Admin and Owner built-in roles have this permission; Member does not.
  * Must be used after requireOrg.
  */
 export function requireAdmin(
@@ -73,7 +75,7 @@ export function requireAdmin(
   res: Response,
   next: NextFunction,
 ): void {
-  if (!req.orgPermissions?.manage_org_settings) {
+  if (!req.orgPermissions?.manage_projects) {
     res.status(403).json({ error: 'Admin access required' });
     return;
   }

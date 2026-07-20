@@ -674,7 +674,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                           .map((w: string) => w[0].toUpperCase())
                           .slice(0, 2)
                           .join("");
-                        const canDelete = isCurrentUser || hasPermission('manage_org_settings');
+                        const canDelete = isCurrentUser || hasPermission('manage_projects');
                         return (
                           <div key={`comment-${item.id}`} className="flex gap-3 py-3 pl-1">
                             {/* Avatar dot on timeline */}

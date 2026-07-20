@@ -1134,8 +1134,10 @@ export default function OrgSettings() {
           Organization Settings
         </h1>
         <p className="text-muted-foreground mt-1">
-          {isAdmin
+          {isOwner
             ? "Manage your organization, members, and roles."
+            : isAdmin
+            ? "Manage projects, tasks, and team configuration."
             : "View your organization and its members."}
         </p>
       </div>
@@ -1151,7 +1153,7 @@ export default function OrgSettings() {
               <Building2 className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              {isAdmin && isEditingName ? (
+              {isOwner && isEditingName ? (
                 <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
                   <Input
                     value={nameValue}
@@ -1173,7 +1175,7 @@ export default function OrgSettings() {
               ) : (
                 <div className="flex items-center gap-2">
                   <p className="font-semibold truncate">{org?.name}</p>
-                  {isAdmin && (
+                  {isOwner && (
                     <Button variant="ghost" size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
                       onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}

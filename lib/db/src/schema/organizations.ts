@@ -56,7 +56,31 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   view_audit_log: true,
 };
 
-export const ADMIN_PERMISSIONS: RolePermissions = { ...OWNER_PERMISSIONS };
+/**
+ * Admin role permissions — operational management without org-security controls.
+ * Deliberately excluded (Owner-only):
+ *   - manage_org_settings  (rename/delete org — structural, irreversible)
+ *   - manage_members        (invite, remove, role assignments — privilege escalation risk)
+ *   - manage_api_keys       (org-wide credentials — security boundary)
+ */
+export const ADMIN_PERMISSIONS: RolePermissions = {
+  view_tasks: true,
+  create_tasks: true,
+  edit_tasks: true,
+  close_tasks: true,
+  delete_tasks: true,
+  manage_projects: true,
+  manage_org_settings: false,  // Owner-only
+  manage_members: false,        // Owner-only
+  manage_webhooks: true,
+  manage_api_keys: false,       // Owner-only
+  manage_custom_fields: true,
+  manage_workflow_stages: true,
+  manage_sla_policies: true,
+  manage_task_templates: true,
+  manage_saved_views: true,
+  view_audit_log: true,
+};
 
 export const MEMBER_PERMISSIONS: RolePermissions = {
   view_tasks: true,

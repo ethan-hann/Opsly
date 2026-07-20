@@ -23,7 +23,7 @@ const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertResult: [] as any[],
   updateResult: [] as any[],
-  /** When false, the requireOrg mock sets manage_org_settings = false → requireAdmin blocks */
+  /** When false, the requireOrg mock sets manage_projects = false → requireAdmin blocks */
   isAdmin: true,
 }));
 
@@ -97,12 +97,12 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     req.orgId = "test-org";
     req.user = { id: "user-1", email: "user@example.com" };
     req.orgPermissions = {
-      manage_org_settings: mockState.isAdmin,
+      manage_projects: mockState.isAdmin,
     };
     next();
   },
   requireAdmin: (req: any, res: any, next: any) => {
-    if (!req.orgPermissions?.manage_org_settings) {
+    if (!req.orgPermissions?.manage_projects) {
       res.status(403).json({ error: "Admin access required" });
       return;
     }

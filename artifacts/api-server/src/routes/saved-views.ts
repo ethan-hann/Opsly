@@ -113,7 +113,7 @@ router.patch("/views/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
   const userId = req.user?.id;
-  const canAdmin = req.orgPermissions?.manage_org_settings ?? false;
+  const canAdmin = req.orgPermissions?.manage_saved_views ?? false;
 
   if (!userId) {
     res.status(401).json({ error: "Authentication required" });
@@ -182,7 +182,7 @@ router.delete("/views/:id", requireOrg, async (req, res): Promise<void> => {
 
   const orgId = req.orgId!;
   const userId = req.user?.id;
-  const canAdmin = req.orgPermissions?.manage_org_settings ?? false;
+  const canAdmin = req.orgPermissions?.manage_saved_views ?? false;
 
   if (!userId) {
     res.status(401).json({ error: "Authentication required" });
