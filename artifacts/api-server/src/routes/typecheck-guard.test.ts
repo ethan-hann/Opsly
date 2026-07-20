@@ -54,6 +54,33 @@ function writeTsconfig(dir: string): void {
   );
 }
 
+/**
+ * Write a minimal tsconfig that resolves @workspace/api-client-react via the
+ * built dist.  The dist barrel re-exports hooks from the generated output, so
+ * any import of a non-existent hook name will raise TS2305 on the user's file.
+ */
+function writeTsconfigForClientReact(dir: string): void {
+  writeFileSync(
+    join(dir, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        module: "esnext",
+        moduleResolution: "bundler",
+        target: "es2022",
+        noEmit: true,
+        skipLibCheck: true,
+        baseUrl: repoRoot,
+        paths: {
+          "@workspace/api-client-react": [
+            join("lib", "api-client-react", "dist", "index"),
+          ],
+        },
+      },
+      files: ["fixture.ts"],
+    }),
+  );
+}
+
 // tsc can take several seconds even on a small fixture; give it ample headroom.
 const TSC_TIMEOUT_MS = 20_000;
 
@@ -99,6 +126,64 @@ describe("typecheck guard — broken API import is caught by tsc", () => {
         `import * as apiZod from "@workspace/api-zod";\nexport type _check = typeof apiZod;\n`,
       );
       writeTsconfig(dir);
+
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
+        encoding: "utf8",
+      });
+
+      // No false positives: clean code must pass.
+      expect(
+        result.status,
+        `tsc should have passed on the wildcard import but exited ${result.status}.\nstdout: ${result.stdout}`,
+      ).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("typecheck guard — broken React Query hook import is caught by tsc", () => {
+  it("tsc exits non-zero when a file imports a hook that does not exist in @workspace/api-client-react", { timeout: TSC_TIMEOUT_MS }, () => {
+    const dir = join(tmpdir(), `typecheck-guard-react-bad-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+
+    try {
+      writeFileSync(
+        join(dir, "fixture.ts"),
+        // Deliberately mangled hook name — can never accidentally become real.
+        `import { _NonExistentHook_ThatShouldNeverExist } from "@workspace/api-client-react";\n` +
+        `console.log(_NonExistentHook_ThatShouldNeverExist);\n`,
+      );
+      writeTsconfigForClientReact(dir);
+
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
+        encoding: "utf8",
+      });
+
+      // The guard must fire: a missing hook export must cause a non-zero exit.
+      expect(
+        result.status,
+        `tsc should have failed on the bad hook import but exited 0.\nstdout: ${result.stdout}`,
+      ).not.toBe(0);
+
+      // tsc output must name the offending symbol so the developer knows what to fix.
+      expect(result.stdout).toMatch(/_NonExistentHook_ThatShouldNeverExist/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("tsc exits zero when a file imports using a namespace wildcard (no false positives)", { timeout: TSC_TIMEOUT_MS }, () => {
+    const dir = join(tmpdir(), `typecheck-guard-react-good-${process.pid}`);
+    mkdirSync(dir, { recursive: true });
+
+    try {
+      writeFileSync(
+        join(dir, "fixture.ts"),
+        // Wildcard import is always valid as long as the module resolves.
+        `import * as apiClient from "@workspace/api-client-react";\nexport type _check = typeof apiClient;\n`,
+      );
+      writeTsconfigForClientReact(dir);
 
       const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
         encoding: "utf8",
