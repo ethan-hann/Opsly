@@ -636,8 +636,18 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     query: { enabled: !!taskId, queryKey: ["listComments", taskId] }
   });
 
-  const { data: events, isLoading: isLoadingEvents } = useListTaskEvents(taskId, {
-    query: { enabled: !!taskId, queryKey: ["listTaskEvents", taskId] }
+  const {
+    data: events,
+    isLoading: isLoadingEvents,
+    isError: isEventsError,
+  } = useListTaskEvents(taskId, {
+    query: {
+      enabled: !!taskId,
+      queryKey: ["listTaskEvents", taskId],
+      // Don't retry on 403 — users without view_audit_log get an immediate
+      // empty history rather than an endless spinner during the retry backoff.
+      retry: false,
+    },
   });
 
   const deleteMutation = useDeleteTask({
@@ -773,7 +783,9 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  const isActivityLoading = isLoadingComments || isLoadingEvents;
+  // Don't treat a permission error on the events query as "still loading" —
+  // users without view_audit_log will see comments-only history immediately.
+  const isActivityLoading = isLoadingComments || (isLoadingEvents && !isEventsError);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
