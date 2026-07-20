@@ -25,6 +25,7 @@ import {
 } from '@workspace/db';
 import type { RolePermissions } from '@workspace/db';
 import { requireOrg, requireOwner } from '../middlewares/requireOrgMiddleware';
+import { pushEvent } from '../lib/sse.js';
 
 const router: IRouter = Router();
 
@@ -231,6 +232,20 @@ router.delete('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<
     return;
   }
 
+  // Collect the affected member userIds before reassigning so we can push SSE
+  // after the update. Members need to re-fetch their org context so they
+  // immediately see the new permissions rather than discovering the change
+  // when a previously-available action silently disappears.
+  const affectedMembers = await db
+    .select({ userId: orgMembersTable.userId })
+    .from(orgMembersTable)
+    .where(
+      and(
+        eq(orgMembersTable.orgId, req.orgId!),
+        eq(orgMembersTable.roleId, role.id),
+      ),
+    );
+
   // Reassign all members using this role to Member
   await db
     .update(orgMembersTable)
@@ -245,6 +260,12 @@ router.delete('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<
   await db
     .delete(rolesTable)
     .where(and(eq(rolesTable.id, role.id), eq(rolesTable.orgId, req.orgId!)));
+
+  // Notify each affected member instantly so their UI refreshes permissions
+  // without waiting for the next poll cycle.
+  for (const { userId } of affectedMembers) {
+    pushEvent(userId, 'role-changed', {});
+  }
 
   res.status(204).send();
 });

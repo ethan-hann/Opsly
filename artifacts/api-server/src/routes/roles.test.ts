@@ -139,6 +139,14 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock SSE push — capture calls without opening real HTTP connections
+// ---------------------------------------------------------------------------
+const pushEventSpy = vi.fn();
+vi.mock("../lib/sse.js", () => ({
+  pushEvent: (...args: any[]) => pushEventSpy(...args),
+}));
+
+// ---------------------------------------------------------------------------
 // Mock requireOrgMiddleware — guards are stubbed; we test business logic only
 // ---------------------------------------------------------------------------
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -394,6 +402,7 @@ describe("DELETE /api/roles/:id", () => {
     mockState.selectQueue.length = 0;
     mockState.deleteCalls = 0;
     mockState.updateCalls = 0;
+    pushEventSpy.mockReset();
   });
 
   it("returns 404 when role does not exist", async () => {
@@ -417,13 +426,43 @@ describe("DELETE /api/roles/:id", () => {
   });
 
   it("returns 204 when deleting a custom role", async () => {
-    mockState.selectQueue.push([MOCK_CUSTOM_ROLE]); // role found
+    mockState.selectQueue.push([MOCK_CUSTOM_ROLE]);     // role found
     mockState.selectQueue.push([{ id: "role-member" }]); // Member fallback role
+    mockState.selectQueue.push([]);                       // no affected members
 
     const res = await request(buildApp()).delete("/api/roles/role-custom");
 
     expect(res.status).toBe(204);
     expect(mockState.updateCalls).toBe(1); // members were reassigned
     expect(mockState.deleteCalls).toBe(1); // role was deleted
+  });
+
+  it("pushes a role-changed SSE event to every member whose role was deleted", async () => {
+    mockState.selectQueue.push([MOCK_CUSTOM_ROLE]);     // role found
+    mockState.selectQueue.push([{ id: "role-member" }]); // Member fallback role
+    // Two members had the deleted role
+    mockState.selectQueue.push([
+      { userId: "user-alice" },
+      { userId: "user-bob" },
+    ]);
+
+    const res = await request(buildApp()).delete("/api/roles/role-custom");
+
+    expect(res.status).toBe(204);
+    // Each affected member must receive a role-changed push so their UI
+    // immediately re-fetches permissions instead of discovering the change silently.
+    expect(pushEventSpy).toHaveBeenCalledTimes(2);
+    expect(pushEventSpy).toHaveBeenCalledWith("user-alice", "role-changed", {});
+    expect(pushEventSpy).toHaveBeenCalledWith("user-bob", "role-changed", {});
+  });
+
+  it("pushes no SSE events when the deleted role had no members", async () => {
+    mockState.selectQueue.push([MOCK_CUSTOM_ROLE]);     // role found
+    mockState.selectQueue.push([{ id: "role-member" }]); // Member fallback role
+    mockState.selectQueue.push([]);                       // no affected members
+
+    await request(buildApp()).delete("/api/roles/role-custom");
+
+    expect(pushEventSpy).not.toHaveBeenCalled();
   });
 });
