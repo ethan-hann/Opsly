@@ -52,13 +52,16 @@ vi.mock("@workspace/db", () => {
     commentsTable: {},
     workflowStagesTable: {},
     taskEventsTable: {},
+    slaPoliciesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
     lt: () => ({}),
     isNull: () => ({}),
+    isNotNull: () => ({}),
     asc: () => ({}),
     desc: () => ({}),
+    gte: () => ({}),
   };
 });
 
@@ -68,9 +71,11 @@ vi.mock("drizzle-orm", () => ({
   lt: () => ({}),
   sql: () => ({}),
   isNull: () => ({}),
+  isNotNull: () => ({}),
   asc: () => ({}),
   desc: () => ({}),
   like: () => ({}),
+  gte: () => ({}),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -365,5 +370,167 @@ describe("GET /api/dashboard/activity", () => {
 
     expect(res.status).toBe(200);
     expect(res.body[0].title).toContain("cleared (was High)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/dashboard/sla-summary
+// ---------------------------------------------------------------------------
+
+// The SLA summary route makes exactly 2 db.select() calls:
+//   1. breachedRows  — tasks with slaBreachedAt IS NOT NULL, grouped by priority
+//   2. withinSlaRows — tasks in closed stage with no breach and an org policy
+function pushSlaSummarySelects(
+  breachedRows: { priority: string; breachedCount: number; avgBreachMinutes: number | null }[] = [],
+  withinSlaRows: { priority: string; withinSlaCount: number }[] = [],
+) {
+  mockState.selectQueue.push(breachedRows as any[]);
+  mockState.selectQueue.push(withinSlaRows as any[]);
+}
+
+describe("GET /api/dashboard/sla-summary", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+  });
+
+  it("returns 200 with 100% compliance and zero counts when no tasks exist", async () => {
+    pushSlaSummarySelects();
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      complianceRate: 100,
+      totalTracked: 0,
+      withinSlaCount: 0,
+      breachedCount: 0,
+      avgBreachMinutes: null,
+    });
+    expect(Array.isArray(res.body.byPriority)).toBe(true);
+  });
+
+  it("computes 100% compliance when all tracked tasks resolved within target", async () => {
+    pushSlaSummarySelects(
+      // no breaches
+      [],
+      // 3 within-SLA tasks — 2 high, 1 critical
+      [
+        { priority: "high", withinSlaCount: 2 },
+        { priority: "critical", withinSlaCount: 1 },
+      ],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    expect(res.body.complianceRate).toBe(100);
+    expect(res.body.withinSlaCount).toBe(3);
+    expect(res.body.breachedCount).toBe(0);
+    expect(res.body.totalTracked).toBe(3);
+    expect(res.body.avgBreachMinutes).toBeNull();
+  });
+
+  it("computes 0% compliance when all tracked tasks were breached", async () => {
+    pushSlaSummarySelects(
+      [{ priority: "critical", breachedCount: 4, avgBreachMinutes: 30 }],
+      [],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    expect(res.body.complianceRate).toBe(0);
+    expect(res.body.breachedCount).toBe(4);
+    expect(res.body.withinSlaCount).toBe(0);
+    expect(res.body.totalTracked).toBe(4);
+  });
+
+  it("computes partial compliance rate and weighted avg breach minutes correctly", async () => {
+    // 2 breached high tasks (avg 60 min overshoot each) + 1 breached critical (avg 120 min)
+    // 3 within-SLA high tasks
+    pushSlaSummarySelects(
+      [
+        { priority: "high", breachedCount: 2, avgBreachMinutes: 60 },
+        { priority: "critical", breachedCount: 1, avgBreachMinutes: 120 },
+      ],
+      [{ priority: "high", withinSlaCount: 3 }],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    // totalTracked = 2 + 1 + 3 = 6; withinSla = 3; complianceRate = 3/6 * 100 = 50
+    expect(res.body.totalTracked).toBe(6);
+    expect(res.body.complianceRate).toBe(50);
+    // weighted avg: (2*60 + 1*120) / 3 = 240/3 = 80
+    expect(res.body.avgBreachMinutes).toBe(80);
+  });
+
+  it("returns per-priority breakdown with correct compliance rates", async () => {
+    pushSlaSummarySelects(
+      [
+        { priority: "high", breachedCount: 1, avgBreachMinutes: 45 },
+        { priority: "critical", breachedCount: 3, avgBreachMinutes: 90 },
+      ],
+      [
+        { priority: "high", withinSlaCount: 3 },
+      ],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    const byPriority: { priority: string; totalTracked: number; breachedCount: number; complianceRate: number }[] =
+      res.body.byPriority;
+
+    const highEntry = byPriority.find((p) => p.priority === "high");
+    expect(highEntry).toBeDefined();
+    expect(highEntry!.totalTracked).toBe(4);  // 1 breached + 3 within
+    expect(highEntry!.breachedCount).toBe(1);
+    expect(highEntry!.complianceRate).toBe(75); // 3/4 * 100
+
+    const criticalEntry = byPriority.find((p) => p.priority === "critical");
+    expect(criticalEntry).toBeDefined();
+    expect(criticalEntry!.totalTracked).toBe(3);
+    expect(criticalEntry!.breachedCount).toBe(3);
+    expect(criticalEntry!.complianceRate).toBe(0);
+
+    // Priorities with zero tracked tasks should still appear but with 100% compliance
+    const lowEntry = byPriority.find((p) => p.priority === "low");
+    expect(lowEntry).toBeDefined();
+    expect(lowEntry!.totalTracked).toBe(0);
+    expect(lowEntry!.complianceRate).toBe(100);
+  });
+
+  it("returns 400 for an unrecognized period value", async () => {
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary?period=1y");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringContaining("Invalid period") });
+  });
+
+  it("accepts all valid period values without error", async () => {
+    for (const period of ["7d", "30d", "90d", "all"]) {
+      pushSlaSummarySelects();
+      const res = await request(buildApp()).get(`/api/dashboard/sla-summary?period=${period}`);
+      expect(res.status).toBe(200);
+    }
+  });
+
+  it("treats tasks with no avgBreachMinutes (policy deleted) as excluded from avg calculation", async () => {
+    pushSlaSummarySelects(
+      [
+        { priority: "high", breachedCount: 2, avgBreachMinutes: null }, // policy gone
+        { priority: "critical", breachedCount: 1, avgBreachMinutes: 60 },
+      ],
+      [],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    // Only the critical row contributes to the avg (high rows have null avg)
+    expect(res.body.avgBreachMinutes).toBe(60);
+    expect(res.body.breachedCount).toBe(3);
   });
 });

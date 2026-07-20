@@ -1,9 +1,10 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, lt, and, isNull, asc, like } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, workflowStagesTable, taskEventsTable } from "@workspace/db";
+import { eq, sql, lt, and, isNull, isNotNull, asc, like, gte } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable, workflowStagesTable, taskEventsTable, slaPoliciesTable } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
   GetRecentActivityResponse,
+  GetDashboardSlaSummaryResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 
@@ -246,6 +247,157 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
     .slice(0, 10);
 
   res.json(GetRecentActivityResponse.parse(combined));
+});
+
+const VALID_PERIODS = new Set(["7d", "30d", "90d", "all"]);
+
+router.get("/dashboard/sla-summary", requireOrg, async (req, res): Promise<void> => {
+  const orgId = req.orgId!;
+  const rawPeriod = req.query.period as string | undefined;
+  const period = rawPeriod ?? "30d";
+
+  if (rawPeriod !== undefined && !VALID_PERIODS.has(rawPeriod)) {
+    res.status(400).json({ error: "Invalid period. Must be one of: 7d, 30d, 90d, all." });
+    return;
+  }
+
+  // Build the period filter applied to task.createdAt
+  const periodFilter = (() => {
+    const days = period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : null;
+    if (days === null) return null; // "all" — no date restriction
+    return gte(tasksTable.createdAt, sql`NOW() - (${days} * INTERVAL '1 day')`);
+  })();
+
+  // Query 1 — breached tasks grouped by priority, plus avg overshoot in minutes.
+  //
+  // slaBreachedAt is stamped when EITHER the response OR the resolution SLA
+  // deadline is crossed first. To compute the correct overshoot we subtract the
+  // earliest configured threshold — i.e. the one that would fire first.
+  //
+  //   effective_threshold = CASE
+  //     WHEN both are set  → LEAST(responseMinutes, resolutionMinutes)
+  //     WHEN only response → responseMinutes
+  //     WHEN only resolut. → resolutionMinutes
+  //   END
+  //
+  // We then clamp with GREATEST(..., 0) so a breach detected one polling tick
+  // late never shows a negative overshoot.
+  //
+  // LEFT JOIN with org-level policy so tasks whose policy was later deleted
+  // still count as breached (they just contribute NULL to the avg overshoot).
+  const breachedRows = await db
+    .select({
+      priority: tasksTable.priority,
+      breachedCount: sql<number>`count(*)::int`,
+      avgBreachMinutes: sql<number | null>`avg(
+        CASE
+          WHEN ${slaPoliciesTable.responseMinutes} IS NOT NULL
+            OR ${slaPoliciesTable.resolutionMinutes} IS NOT NULL
+          THEN GREATEST(
+            EXTRACT(EPOCH FROM (${tasksTable.slaBreachedAt} - ${tasksTable.createdAt})) / 60.0
+            - (CASE
+                 WHEN ${slaPoliciesTable.responseMinutes} IS NOT NULL
+                   AND ${slaPoliciesTable.resolutionMinutes} IS NOT NULL
+                 THEN LEAST(${slaPoliciesTable.responseMinutes}, ${slaPoliciesTable.resolutionMinutes})
+                 WHEN ${slaPoliciesTable.responseMinutes} IS NOT NULL
+                 THEN ${slaPoliciesTable.responseMinutes}
+                 ELSE ${slaPoliciesTable.resolutionMinutes}
+               END),
+            0.0
+          )
+          ELSE NULL
+        END
+      )`,
+    })
+    .from(tasksTable)
+    .leftJoin(
+      slaPoliciesTable,
+      and(
+        eq(slaPoliciesTable.orgId, orgId),
+        eq(slaPoliciesTable.priority, tasksTable.priority),
+        isNull(slaPoliciesTable.projectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tasksTable.orgId, orgId),
+        isNotNull(tasksTable.slaBreachedAt),
+        ...(periodFilter ? [periodFilter] : []),
+      ),
+    )
+    .groupBy(tasksTable.priority);
+
+  // Query 2 — tasks resolved cleanly (closed stage, no breach, has an org SLA policy).
+  // INNER JOIN on org-level policy ensures we only count tasks that actually had
+  // an SLA target; tasks without a policy are excluded from compliance tracking.
+  const withinSlaRows = await db
+    .select({
+      priority: tasksTable.priority,
+      withinSlaCount: sql<number>`count(*)::int`,
+    })
+    .from(tasksTable)
+    .innerJoin(
+      workflowStagesTable,
+      and(
+        sql`${safeStatusInt()} = ${workflowStagesTable.id}`,
+        eq(workflowStagesTable.orgId, orgId),
+        eq(workflowStagesTable.type, "closed"),
+      ),
+    )
+    .innerJoin(
+      slaPoliciesTable,
+      and(
+        eq(slaPoliciesTable.orgId, orgId),
+        eq(slaPoliciesTable.priority, tasksTable.priority),
+        isNull(slaPoliciesTable.projectId),
+      ),
+    )
+    .where(
+      and(
+        eq(tasksTable.orgId, orgId),
+        isNull(tasksTable.slaBreachedAt),
+        ...(periodFilter ? [periodFilter] : []),
+      ),
+    )
+    .groupBy(tasksTable.priority);
+
+  // Merge per-priority results
+  const priorities = ["low", "medium", "high", "critical"] as const;
+  const byPriority = priorities.map((priority) => {
+    const breached = breachedRows.find((r) => r.priority === priority);
+    const withinSla = withinSlaRows.find((r) => r.priority === priority);
+    const breachedCount = breached?.breachedCount ?? 0;
+    const withinSlaCount = withinSla?.withinSlaCount ?? 0;
+    const totalTracked = breachedCount + withinSlaCount;
+    const complianceRate = totalTracked === 0 ? 100 : Math.round((withinSlaCount / totalTracked) * 1000) / 10;
+    return { priority, totalTracked, breachedCount, complianceRate };
+  });
+
+  const totalBreached = breachedRows.reduce((sum, r) => sum + r.breachedCount, 0);
+  const totalWithinSla = withinSlaRows.reduce((sum, r) => sum + r.withinSlaCount, 0);
+  const totalTracked = totalBreached + totalWithinSla;
+  const complianceRate = totalTracked === 0 ? 100 : Math.round((totalWithinSla / totalTracked) * 1000) / 10;
+
+  // Weighted average of per-priority avg breach minutes (only for priorities that had breaches)
+  const breachedWithAvg = breachedRows.filter(
+    (r) => r.breachedCount > 0 && r.avgBreachMinutes != null,
+  );
+  const avgBreachMinutes =
+    breachedWithAvg.length === 0
+      ? null
+      : breachedWithAvg.reduce((sum, r) => sum + Number(r.avgBreachMinutes) * r.breachedCount, 0) /
+        breachedWithAvg.reduce((sum, r) => sum + r.breachedCount, 0);
+
+  const payload = {
+    complianceRate,
+    totalTracked,
+    withinSlaCount: totalWithinSla,
+    breachedCount: totalBreached,
+    avgBreachMinutes: avgBreachMinutes != null ? Math.round(avgBreachMinutes * 10) / 10 : null,
+    byPriority,
+  };
+
+  res.json(GetDashboardSlaSummaryResponse.parse(payload));
 });
 
 export default router;

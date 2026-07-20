@@ -882,6 +882,41 @@ export interface DashboardSummary {
   activeProjects: number;
 }
 
+export type SlaSummaryByPriorityItemPriority = typeof SlaSummaryByPriorityItemPriority[keyof typeof SlaSummaryByPriorityItemPriority];
+
+
+export const SlaSummaryByPriorityItemPriority = {
+  low: 'low',
+  medium: 'medium',
+  high: 'high',
+  critical: 'critical',
+} as const;
+
+export type SlaSummaryByPriorityItem = {
+  priority: SlaSummaryByPriorityItemPriority;
+  totalTracked: number;
+  breachedCount: number;
+  complianceRate: number;
+};
+
+/**
+ * SLA compliance metrics for the caller's organization over the requested period. Counts tasks with an SLA policy applied that either resolved cleanly (no breach) or exceeded their deadline.
+ */
+export interface SlaSummary {
+  /** Percentage of tracked tasks resolved within their SLA target (0–100). Returns 100 when no tasks were tracked. */
+  complianceRate: number;
+  /** Total tasks with an SLA policy that were either resolved cleanly or breached within the requested period. */
+  totalTracked: number;
+  /** Tasks closed without breaching their SLA deadline. */
+  withinSlaCount: number;
+  /** Tasks that exceeded their SLA deadline (`slaBreachedAt` is set). */
+  breachedCount: number;
+  /** Average number of minutes past the SLA deadline across all breached tasks. Null when there are no breaches. */
+  avgBreachMinutes?: number | null;
+  /** Per-priority breakdown of compliance metrics. */
+  byPriority: SlaSummaryByPriorityItem[];
+}
+
 /**
  * A single event in the organization's recent activity feed. Events are sourced from recently created tasks, comments, and projects.
  */
@@ -2081,6 +2116,23 @@ projectId?: number;
  */
 taskId?: number;
 };
+
+export type GetDashboardSlaSummaryParams = {
+/**
+ * Time window to compute stats over, relative to today. One of `7d`, `30d`, `90d`, or `all`. Defaults to `30d`.
+ */
+period?: GetDashboardSlaSummaryPeriod;
+};
+
+export type GetDashboardSlaSummaryPeriod = typeof GetDashboardSlaSummaryPeriod[keyof typeof GetDashboardSlaSummaryPeriod];
+
+
+export const GetDashboardSlaSummaryPeriod = {
+  '7d': '7d',
+  '30d': '30d',
+  '90d': '90d',
+  all: 'all',
+} as const;
 
 export type GlobalSearchParams = {
 /**

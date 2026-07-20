@@ -776,6 +776,31 @@ export const GetRecentActivityResponse = zod.array(GetRecentActivityResponseItem
 
 
 /**
+ * Returns SLA compliance metrics for the caller's organization. Tracks tasks that had an SLA policy applied: those resolved without breaching (`slaBreachedAt` is null, in a closed stage) and those that did breach (`slaBreachedAt` is not null). Also returns average breach overshoot in minutes and a per-priority breakdown. Scoped strictly to the caller's org.
+ * @summary Get SLA compliance summary for the dashboard
+ */
+export const getDashboardSlaSummaryQueryPeriodDefault = `30d`;
+
+export const GetDashboardSlaSummaryQueryParams = zod.object({
+  "period": zod.enum(['7d', '30d', '90d', 'all']).default(getDashboardSlaSummaryQueryPeriodDefault).describe('Time window to compute stats over, relative to today. One of `7d`, `30d`, `90d`, or `all`. Defaults to `30d`.\n')
+})
+
+export const GetDashboardSlaSummaryResponse = zod.object({
+  "complianceRate": zod.number().describe('Percentage of tracked tasks resolved within their SLA target (0–100). Returns 100 when no tasks were tracked.\n'),
+  "totalTracked": zod.number().describe('Total tasks with an SLA policy that were either resolved cleanly or breached within the requested period.\n'),
+  "withinSlaCount": zod.number().describe('Tasks closed without breaching their SLA deadline.'),
+  "breachedCount": zod.number().describe('Tasks that exceeded their SLA deadline (`slaBreachedAt` is set).'),
+  "avgBreachMinutes": zod.number().nullish().describe('Average number of minutes past the SLA deadline across all breached tasks. Null when there are no breaches.\n'),
+  "byPriority": zod.array(zod.object({
+  "priority": zod.enum(['low', 'medium', 'high', 'critical']),
+  "totalTracked": zod.number(),
+  "breachedCount": zod.number(),
+  "complianceRate": zod.number()
+})).describe('Per-priority breakdown of compliance metrics.')
+}).describe('SLA compliance metrics for the caller\'s organization over the requested period. Counts tasks with an SLA policy applied that either resolved cleanly (no breach) or exceeded their deadline.\n')
+
+
+/**
  * Runs parallel ILIKE prefix queries on task titles, project names, and note titles/content. All results are scoped to the caller's organization. Returns up to `limit` results per entity type (default 5, max 20). Returns 400 if `q` is missing or blank.
  * @summary Global search across tasks, projects, and notes
  */

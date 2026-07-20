@@ -925,6 +925,36 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityItem"
 
+  /dashboard/sla-summary:
+    get:
+      operationId: getDashboardSlaSummary
+      tags: [dashboard]
+      summary: Get SLA compliance summary for the dashboard
+      description: >
+        Returns SLA compliance metrics for the caller's organization. Tracks
+        tasks that had an SLA policy applied: those resolved without breaching
+        (`slaBreachedAt` is null, in a closed stage) and those that did breach
+        (`slaBreachedAt` is not null). Also returns average breach overshoot in
+        minutes and a per-priority breakdown. Scoped strictly to the caller's org.
+      parameters:
+        - name: period
+          in: query
+          required: false
+          description: >
+            Time window to compute stats over, relative to today. One of `7d`,
+            `30d`, `90d`, or `all`. Defaults to `30d`.
+          schema:
+            type: string
+            enum: [7d, 30d, 90d, all]
+            default: 30d
+      responses:
+        "200":
+          description: SLA compliance summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlaSummary"
+
   /search:
     get:
       operationId: globalSearch
@@ -3169,6 +3199,53 @@ components:
         activeProjects:
           type: integer
           description: Number of projects with status `active`.
+
+    SlaSummary:
+      description: >
+        SLA compliance metrics for the caller's organization over the requested
+        period. Counts tasks with an SLA policy applied that either resolved
+        cleanly (no breach) or exceeded their deadline.
+      type: object
+      required: [complianceRate, totalTracked, withinSlaCount, breachedCount, byPriority]
+      properties:
+        complianceRate:
+          type: number
+          description: >
+            Percentage of tracked tasks resolved within their SLA target
+            (0–100). Returns 100 when no tasks were tracked.
+        totalTracked:
+          type: integer
+          description: >
+            Total tasks with an SLA policy that were either resolved cleanly or
+            breached within the requested period.
+        withinSlaCount:
+          type: integer
+          description: Tasks closed without breaching their SLA deadline.
+        breachedCount:
+          type: integer
+          description: Tasks that exceeded their SLA deadline (`slaBreachedAt` is set).
+        avgBreachMinutes:
+          type: number
+          nullable: true
+          description: >
+            Average number of minutes past the SLA deadline across all
+            breached tasks. Null when there are no breaches.
+        byPriority:
+          type: array
+          description: Per-priority breakdown of compliance metrics.
+          items:
+            type: object
+            required: [priority, totalTracked, breachedCount, complianceRate]
+            properties:
+              priority:
+                type: string
+                enum: [low, medium, high, critical]
+              totalTracked:
+                type: integer
+              breachedCount:
+                type: integer
+              complianceRate:
+                type: number
 
     ActivityItem:
       description: >

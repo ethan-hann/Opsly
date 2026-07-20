@@ -42,6 +42,7 @@ import type {
   DashboardSummary,
   DeleteComment403,
   ErrorEnvelope,
+  GetDashboardSlaSummaryParams,
   GlobalSearchParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
@@ -83,6 +84,7 @@ import type {
   SearchResults,
   SimpleSuccess,
   SlaPolicy,
+  SlaSummary,
   Task,
   TaskEvent,
   TaskInput,
@@ -2555,6 +2557,91 @@ export function useGetRecentActivity<TData = Awaited<ReturnType<typeof getRecent
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetRecentActivityQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDashboardSlaSummaryUrl = (params?: GetDashboardSlaSummaryParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/dashboard/sla-summary?${stringifiedParams}` : `/api/dashboard/sla-summary`
+}
+
+/**
+ * Returns SLA compliance metrics for the caller's organization. Tracks tasks that had an SLA policy applied: those resolved without breaching (`slaBreachedAt` is null, in a closed stage) and those that did breach (`slaBreachedAt` is not null). Also returns average breach overshoot in minutes and a per-priority breakdown. Scoped strictly to the caller's org.
+ * @summary Get SLA compliance summary for the dashboard
+ */
+export const getDashboardSlaSummary = async (params?: GetDashboardSlaSummaryParams, options?: RequestInit): Promise<SlaSummary> => {
+
+  return customFetch<SlaSummary>(getGetDashboardSlaSummaryUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDashboardSlaSummaryQueryKey = (params?: GetDashboardSlaSummaryParams,) => {
+    return [
+    `/api/dashboard/sla-summary`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetDashboardSlaSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getDashboardSlaSummary>>, TError = ErrorType<unknown>>(params?: GetDashboardSlaSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSlaSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDashboardSlaSummaryQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDashboardSlaSummary>>> = ({ signal }) => getDashboardSlaSummary(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDashboardSlaSummary>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDashboardSlaSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getDashboardSlaSummary>>>
+export type GetDashboardSlaSummaryQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get SLA compliance summary for the dashboard
+ */
+
+export function useGetDashboardSlaSummary<TData = Awaited<ReturnType<typeof getDashboardSlaSummary>>, TError = ErrorType<unknown>>(
+ params?: GetDashboardSlaSummaryParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDashboardSlaSummary>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDashboardSlaSummaryQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

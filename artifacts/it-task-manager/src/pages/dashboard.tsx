@@ -9,10 +9,12 @@ import {
   useListProjects,
   getListProjectsQueryKey,
   useGetSLAPolicies,
+  useGetDashboardSlaSummary,
+  getGetDashboardSlaSummaryQueryKey,
 } from "@workspace/api-client-react";
 import {
-  Briefcase, CheckCircle2, AlertCircle, Clock, ShieldAlert,
-  Activity, LayoutGrid, ArrowRight,
+  Briefcase, CheckCircle2, Clock, ShieldAlert,
+  Activity, LayoutGrid, ArrowRight, ShieldCheck,
 } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
@@ -35,6 +37,10 @@ export default function Dashboard() {
     query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
   const { data: slaPolicies } = useGetSLAPolicies();
+  const { data: slaSummary, isLoading: isLoadingSlaSummary } = useGetDashboardSlaSummary(
+    { period: "30d" },
+    { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: "30d" }), refetchInterval: 30_000, refetchOnWindowFocus: true } },
+  );
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
@@ -74,7 +80,7 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {isLoadingSummary ? (
           Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
         ) : summary ? (
@@ -153,7 +159,111 @@ export default function Dashboard() {
             </Link>
           </>
         ) : null}
+
+        {/* SLA Compliance KPI card — loads independently */}
+        {isLoadingSlaSummary ? (
+          <Skeleton className="h-28 rounded-2xl" />
+        ) : slaSummary ? (
+          <Link href="/tasks">
+            <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
+              slaSummary.complianceRate >= 90
+                ? "border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700"
+                : slaSummary.complianceRate >= 70
+                  ? "border-amber-200 dark:border-amber-800 hover:border-amber-300 dark:hover:border-amber-700"
+                  : "border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
+            }`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-stone-500 dark:text-stone-400">SLA Compliance</p>
+                  <p className={`text-3xl font-bold mt-2 ${
+                    slaSummary.complianceRate >= 90
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : slaSummary.complianceRate >= 70
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-red-600 dark:text-red-400"
+                  }`}>
+                    {slaSummary.complianceRate}%
+                  </p>
+                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+                    {slaSummary.totalTracked === 0
+                      ? "No tracked tasks"
+                      : `${slaSummary.breachedCount} breached · 30d`}
+                  </p>
+                </div>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                  slaSummary.complianceRate >= 90
+                    ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                    : slaSummary.complianceRate >= 70
+                      ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                      : "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400"
+                }`}>
+                  <ShieldCheck className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+          </Link>
+        ) : null}
       </div>
+
+      {/* SLA Compliance Detail Panel */}
+      {slaSummary && slaSummary.totalTracked > 0 && (
+        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500" />
+              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">SLA Compliance — Last 30 Days</h2>
+            </div>
+            <div className="flex items-center gap-4 text-sm text-stone-500 dark:text-stone-400">
+              {slaSummary.avgBreachMinutes != null && (
+                <span className="text-red-600 dark:text-red-400 font-medium">
+                  Avg overshoot: {slaSummary.avgBreachMinutes >= 60
+                    ? `${Math.round(slaSummary.avgBreachMinutes / 60 * 10) / 10}h`
+                    : `${Math.round(slaSummary.avgBreachMinutes)}m`}
+                </span>
+              )}
+              <span>{slaSummary.withinSlaCount} within target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
+            </div>
+          </div>
+
+          {/* Per-priority breakdown */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {slaSummary.byPriority.filter(p => p.totalTracked > 0).map((p) => {
+              const isGood = p.complianceRate >= 90;
+              const isMid = p.complianceRate >= 70;
+              return (
+                <div key={p.priority} className={`rounded-xl p-4 border ${
+                  isGood
+                    ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
+                    : isMid
+                      ? "bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
+                      : "bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
+                }`}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400 mb-2 capitalize">{p.priority}</p>
+                  <p className={`text-2xl font-bold ${
+                    isGood ? "text-emerald-600 dark:text-emerald-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
+                  }`}>{p.complianceRate}%</p>
+                  <div className="mt-2 w-full h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isGood ? "bg-emerald-500" : isMid ? "bg-amber-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${p.complianceRate}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
+                    {p.breachedCount > 0 ? `${p.breachedCount} breached` : "No breaches"} · {p.totalTracked} total
+                  </p>
+                </div>
+              );
+            })}
+            {slaSummary.byPriority.every(p => p.totalTracked === 0) && (
+              <div className="col-span-4 text-center py-4 text-stone-400 dark:text-stone-500 text-sm">
+                No SLA data for this period.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
