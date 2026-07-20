@@ -3525,6 +3525,12 @@ components:
           description: 64-character hex token embedded in the ingest URL.
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
+        taskTemplateId:
+          type: ["integer", "null"]
+          description: ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.
+        taskTemplateName:
+          type: ["string", "null"]
+          description: Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3563,6 +3569,9 @@ components:
           default: true
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
+        taskTemplateId:
+          type: ["integer", "null"]
+          description: ID of the task template used to seed the TemplateBuilder defaults.
         rateLimitPerMinute:
           type: integer
           minimum: 1
@@ -3586,6 +3595,9 @@ components:
           type: boolean
         taskTemplate:
           $ref: '#/components/schemas/WebhookTaskTemplate'
+        taskTemplateId:
+          type: ["integer", "null"]
+          description: ID of the task template used to seed the TemplateBuilder defaults.
         rateLimitPerMinute:
           type: integer
           minimum: 1

@@ -12,6 +12,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
 import { organizationsTable } from "./organizations";
+import { taskTemplatesTable } from "./task-templates";
 
 export type WebhookVisibility = "private" | "public_read" | "public_write";
 
@@ -104,6 +105,15 @@ export const inboundWebhooksTable = pgTable("inbound_webhooks", {
    * high-volume senders, or lower it to protect against misbehaving sources.
    */
   rateLimitPerMinute: integer("rate_limit_per_minute").notNull().default(60),
+  /**
+   * Optional reference to the task template used to seed the TemplateBuilder
+   * defaults at edit time. SET NULL on template deletion so the baked-in
+   * taskTemplate values survive even when the source template is removed.
+   */
+  taskTemplateId: integer("task_template_id").references(
+    () => taskTemplatesTable.id,
+    { onDelete: "set null" },
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

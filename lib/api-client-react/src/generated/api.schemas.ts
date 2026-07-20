@@ -1257,6 +1257,16 @@ export interface InboundWebhook {
   /** 64-character hex token embedded in the ingest URL. */
   token: string;
   taskTemplate: WebhookTaskTemplate;
+  /**
+     * ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.
+     * @nullable
+     */
+  taskTemplateId?: number | null;
+  /**
+     * Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.
+     * @nullable
+     */
+  taskTemplateName?: string | null;
   visibility: WebhookVisibility;
   enabled: boolean;
   /**
@@ -1287,6 +1297,11 @@ export interface InboundWebhookInput {
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
   /**
+     * ID of the task template used to seed the TemplateBuilder defaults.
+     * @nullable
+     */
+  taskTemplateId?: number | null;
+  /**
      * Maximum tasks per 60-second rolling window. Default is 60.
      * @minimum 1
      * @maximum 10000
@@ -1308,6 +1323,11 @@ export interface InboundWebhookUpdate {
   visibility?: WebhookVisibility;
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
+  /**
+     * ID of the task template used to seed the TemplateBuilder defaults.
+     * @nullable
+     */
+  taskTemplateId?: number | null;
   /**
      * @minimum 1
      * @maximum 10000

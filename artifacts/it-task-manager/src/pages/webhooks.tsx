@@ -276,7 +276,13 @@ function InboundHookCard({
               </Button>
             </div>
 
-            {(h.taskTemplate?.defaultPriority ||
+            {h.taskTemplateName && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Seeded from:{" "}
+                <span className="font-medium text-foreground">{h.taskTemplateName}</span>
+              </p>
+            )}
+            {!h.taskTemplateName && (h.taskTemplate?.defaultPriority ||
               h.taskTemplate?.defaultCategory ||
               h.taskTemplate?.titleField) && (
               <p className="text-xs text-muted-foreground mt-1">

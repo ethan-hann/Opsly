@@ -79,6 +79,7 @@ vi.mock("@workspace/db", () => {
     tasksTable: {},
     projectsTable: {},
     customFieldDefinitionsTable: {},
+    taskTemplatesTable: {},
     usersTable: {},
     orgMembersTable: {},
     orgsTable: {},
@@ -450,8 +451,9 @@ describe("POST /webhooks/inbound/:token/ingest", () => {
 
 describe("GET /webhooks/inbound", () => {
   it("returns visible hooks for the caller", async () => {
-    const hooks = [makeHook({ name: "My Hook" })];
-    mockState.selectQueue.push(hooks);
+    // GET /webhooks/inbound now LEFT JOINs taskTemplatesTable, so the mock
+    // must return { hook, templateName } shaped rows.
+    mockState.selectQueue.push([{ hook: makeHook({ name: "My Hook" }), templateName: null }]);
 
     const res = await request(buildApp()).get("/api/webhooks/inbound");
 
@@ -523,7 +525,8 @@ describe("POST /webhooks/inbound", () => {
 
 describe("GET /webhooks/inbound/:id", () => {
   it("returns 200 with the hook when found", async () => {
-    mockState.selectQueue.push([makeHook()]);
+    // GET /webhooks/inbound/:id now LEFT JOINs taskTemplatesTable.
+    mockState.selectQueue.push([{ hook: makeHook(), templateName: null }]);
 
     const res = await request(buildApp()).get("/api/webhooks/inbound/1");
 
@@ -532,7 +535,7 @@ describe("GET /webhooks/inbound/:id", () => {
   });
 
   it("returns 404 when not found", async () => {
-    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([]); // empty — no row matched the WHERE clause
 
     const res = await request(buildApp()).get("/api/webhooks/inbound/999");
 

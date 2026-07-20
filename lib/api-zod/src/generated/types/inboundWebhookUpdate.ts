@@ -23,6 +23,11 @@ export interface InboundWebhookUpdate {
   enabled?: boolean;
   taskTemplate?: WebhookTaskTemplate;
   /**
+     * ID of the task template used to seed the TemplateBuilder defaults.
+     * @nullable
+     */
+  taskTemplateId?: number | null;
+  /**
      * @minimum 1
      * @maximum 10000
      */

@@ -1861,6 +1861,8 @@ export const ListInboundWebhooksResponseItem = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.'),
+  "taskTemplateName": zod.string().nullish().describe('Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
@@ -1896,6 +1898,7 @@ export const CreateInboundWebhookBody = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults.'),
   "rateLimitPerMinute": zod.number().min(1).max(createInboundWebhookBodyRateLimitPerMinuteMax).default(createInboundWebhookBodyRateLimitPerMinuteDefault).describe('Maximum tasks per 60-second rolling window. Default is 60.')
 }).describe('Fields for creating an inbound webhook.')
 
@@ -1917,6 +1920,8 @@ export const CreateInboundWebhookResponse = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.'),
+  "taskTemplateName": zod.string().nullish().describe('Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
@@ -1952,6 +1957,8 @@ export const GetInboundWebhookResponse = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.'),
+  "taskTemplateName": zod.string().nullish().describe('Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
@@ -1988,6 +1995,7 @@ export const UpdateInboundWebhookBody = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).optional().describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults.'),
   "rateLimitPerMinute": zod.number().min(1).max(updateInboundWebhookBodyRateLimitPerMinuteMax).optional()
 }).describe('Partial update for an inbound webhook.')
 
@@ -2009,6 +2017,8 @@ export const UpdateInboundWebhookResponse = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.'),
+  "taskTemplateName": zod.string().nullish().describe('Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),
@@ -2055,6 +2065,8 @@ export const RotateInboundWebhookSecretResponse = zod.object({
   "defaultCategory": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('Category applied when the payload doesn\'t specify one.'),
   "fieldMapping": zod.record(zod.string(), zod.string()).optional().describe('Free-form mapping of dot-notation payload paths to task field names. Example - { \"labels.severity\": \"priority\" }.\n')
 }).describe('Controls how an inbound payload is mapped to task fields. All fields are optional; absent fields fall back to sensible defaults.\n'),
+  "taskTemplateId": zod.number().nullish().describe('ID of the task template used to seed the TemplateBuilder defaults. Null when no template was selected.'),
+  "taskTemplateName": zod.string().nullish().describe('Display name of the linked task template, for reference in the webhook list. Null when no template is linked or the template was deleted.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "rateLimitPerMinute": zod.number().min(1).describe('Maximum tasks this webhook may create in any rolling 60-second window. Exceeding this returns 429.'),

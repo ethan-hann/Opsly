@@ -28,6 +28,7 @@ import {
   projectsTable,
   customFieldDefinitionsTable,
   workflowStagesTable,
+  taskTemplatesTable,
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
@@ -68,14 +69,30 @@ function outboundVisibilityFilter(userId: string) {
   );
 }
 
-function serializeInbound(w: typeof inboundWebhooksTable.$inferSelect, userId: string) {
+function serializeInbound(
+  w: typeof inboundWebhooksTable.$inferSelect,
+  userId: string,
+  taskTemplateName?: string | null,
+) {
   return {
     ...w,
+    taskTemplateName: taskTemplateName ?? null,
     isOwner: w.createdBy === userId,
     ingestUrl: buildIngestUrl(w.token),
     createdAt: w.createdAt.toISOString(),
     updatedAt: w.updatedAt.toISOString(),
   };
+}
+
+/** One-shot lookup of a template name by id. Returns null when id is absent or not found. */
+async function resolveTemplateName(taskTemplateId: number | null | undefined): Promise<string | null> {
+  if (!taskTemplateId) return null;
+  const [t] = await db
+    .select({ name: taskTemplatesTable.name })
+    .from(taskTemplatesTable)
+    .where(eq(taskTemplatesTable.id, taskTemplateId))
+    .limit(1);
+  return t?.name ?? null;
 }
 
 function serializeOutbound(w: typeof outboundWebhooksTable.$inferSelect, userId: string) {
@@ -301,6 +318,8 @@ const CreateInboundSchema = z.object({
   visibility: WebhookVisibilityEnum.optional().default("private"),
   enabled: z.boolean().optional().default(true),
   taskTemplate: WebhookTaskTemplateSchema,
+  /** ID of the task template used to seed the TemplateBuilder defaults (reference only). */
+  taskTemplateId: z.number().int().positive().optional().nullable(),
   /** Max tasks per 60-second rolling window. Default 60. */
   rateLimitPerMinute: z.number().int().min(1).max(10_000).optional().default(60),
 });
@@ -311,6 +330,8 @@ const UpdateInboundSchema = z.object({
   visibility: WebhookVisibilityEnum.optional(),
   enabled: z.boolean().optional(),
   taskTemplate: WebhookTaskTemplateSchema,
+  /** ID of the task template used to seed the TemplateBuilder defaults (reference only). */
+  taskTemplateId: z.number().int().positive().optional().nullable(),
   rateLimitPerMinute: z.number().int().min(1).max(10_000).optional(),
 });
 
@@ -501,13 +522,14 @@ router.get("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const userId = req.user!.id;
 
-  const hooks = await db
-    .select()
+  const rows = await db
+    .select({ hook: inboundWebhooksTable, templateName: taskTemplatesTable.name })
     .from(inboundWebhooksTable)
+    .leftJoin(taskTemplatesTable, eq(inboundWebhooksTable.taskTemplateId, taskTemplatesTable.id))
     .where(and(eq(inboundWebhooksTable.orgId, orgId), inboundVisibilityFilter(userId)))
     .orderBy(inboundWebhooksTable.createdAt);
 
-  res.json(hooks.map((h) => serializeInbound(h, userId)));
+  res.json(rows.map(({ hook, templateName }) => serializeInbound(hook, userId, templateName)));
 });
 
 // POST /webhooks/inbound — create
@@ -520,7 +542,7 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
 
   const orgId = req.orgId!;
   const userId = req.user!.id;
-  const { name, projectId, visibility, enabled, taskTemplate } = parsed.data;
+  const { name, projectId, visibility, enabled, taskTemplate, taskTemplateId } = parsed.data;
 
   // Validate projectId belongs to org
   if (projectId != null) {
@@ -531,6 +553,19 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
       .limit(1);
     if (!proj) {
       res.status(400).json({ error: "Invalid projectId" });
+      return;
+    }
+  }
+
+  // Validate taskTemplateId belongs to org (prevent cross-org references)
+  if (taskTemplateId != null) {
+    const [tmpl] = await db
+      .select({ id: taskTemplatesTable.id })
+      .from(taskTemplatesTable)
+      .where(and(eq(taskTemplatesTable.id, taskTemplateId), eq(taskTemplatesTable.orgId, orgId)))
+      .limit(1);
+    if (!tmpl) {
+      res.status(400).json({ error: "Invalid taskTemplateId" });
       return;
     }
   }
@@ -546,10 +581,12 @@ router.post("/webhooks/inbound", requireOrg, async (req, res): Promise<void> => 
       visibility,
       enabled,
       taskTemplate: taskTemplate ?? {},
+      taskTemplateId: taskTemplateId ?? null,
     })
     .returning();
 
-  res.status(201).json(serializeInbound(hook, userId));
+  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  res.status(201).json(serializeInbound(hook, userId, templateName));
 });
 
 // GET /webhooks/inbound/activity — per-hook task creation counts for loop detection
@@ -606,9 +643,10 @@ router.get("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> 
   const orgId = req.orgId!;
   const userId = req.user!.id;
 
-  const [hook] = await db
-    .select()
+  const [row] = await db
+    .select({ hook: inboundWebhooksTable, templateName: taskTemplatesTable.name })
     .from(inboundWebhooksTable)
+    .leftJoin(taskTemplatesTable, eq(inboundWebhooksTable.taskTemplateId, taskTemplatesTable.id))
     .where(
       and(
         eq(inboundWebhooksTable.id, id),
@@ -618,8 +656,8 @@ router.get("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void> 
     )
     .limit(1);
 
-  if (!hook) { res.status(404).json({ error: "Webhook not found" }); return; }
-  res.json(serializeInbound(hook, userId));
+  if (!row) { res.status(404).json({ error: "Webhook not found" }); return; }
+  res.json(serializeInbound(row.hook, userId, row.templateName));
 });
 
 // PATCH /webhooks/inbound/:id — update (creator only)
@@ -648,7 +686,7 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
     return;
   }
 
-  const { projectId, ...rest } = parsed.data;
+  const { projectId, taskTemplateId, ...rest } = parsed.data;
 
   // Validate projectId if changing
   if (projectId != null) {
@@ -660,8 +698,19 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
     if (!proj) { res.status(400).json({ error: "Invalid projectId" }); return; }
   }
 
+  // Validate taskTemplateId belongs to org (prevent cross-org references)
+  if (taskTemplateId != null) {
+    const [tmpl] = await db
+      .select({ id: taskTemplatesTable.id })
+      .from(taskTemplatesTable)
+      .where(and(eq(taskTemplatesTable.id, taskTemplateId), eq(taskTemplatesTable.orgId, orgId)))
+      .limit(1);
+    if (!tmpl) { res.status(400).json({ error: "Invalid taskTemplateId" }); return; }
+  }
+
   const updateData: Partial<typeof inboundWebhooksTable.$inferInsert> = { ...rest };
   if (projectId !== undefined) updateData.projectId = projectId;
+  if (taskTemplateId !== undefined) updateData.taskTemplateId = taskTemplateId;
 
   const [hook] = await db
     .update(inboundWebhooksTable)
@@ -669,7 +718,8 @@ router.patch("/webhooks/inbound/:id", requireOrg, async (req, res): Promise<void
     .where(and(eq(inboundWebhooksTable.id, id), eq(inboundWebhooksTable.orgId, orgId)))
     .returning();
 
-  res.json(serializeInbound(hook, userId));
+  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  res.json(serializeInbound(hook, userId, templateName));
 });
 
 // DELETE /webhooks/inbound/:id — delete (creator only)
@@ -725,7 +775,8 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrg, async (req, res):
     .where(and(eq(inboundWebhooksTable.id, id), eq(inboundWebhooksTable.orgId, orgId)))
     .returning();
 
-  res.json(serializeInbound(hook, userId));
+  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  res.json(serializeInbound(hook, userId, templateName));
 });
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import {
   useRotateInboundWebhookSecret,
   useListProjects,
   useListCustomFieldDefinitions,
+  useListTaskTemplates,
   getListInboundWebhooksQueryKey,
 } from "@workspace/api-client-react";
 import type {
@@ -458,6 +459,8 @@ export default function WebhookInboundEditPage({
   const { data: allCustomFieldDefs = [] } = useListCustomFieldDefinitions();
   const activeCustomFieldDefs = allCustomFieldDefs.filter((f) => !f.deletedAt);
 
+  const { data: taskTemplates = [] } = useListTaskTemplates();
+
   // Form state — initialised from existing or empty.
   const [name, setName] = useState(existing?.name ?? "");
   const [projectId, setProjectId] = useState<number | null>(existing?.projectId ?? null);
@@ -471,6 +474,9 @@ export default function WebhookInboundEditPage({
   const [template, setTemplate] = useState<WebhookTaskTemplate>(
     existing?.taskTemplate ?? {}
   );
+  const [taskTemplateId, setTaskTemplateId] = useState<number | null>(
+    existing?.taskTemplateId ?? null
+  );
 
   // Re-initialise if the existing webhook loads after mount (e.g. navigating
   // directly to the URL without the list being cached yet).
@@ -483,10 +489,29 @@ export default function WebhookInboundEditPage({
       setEnabled(existing.enabled);
       setRateLimitPerMinute(existing.rateLimitPerMinute ?? 60);
       setTemplate(existing.taskTemplate ?? {});
+      setTaskTemplateId(existing.taskTemplateId ?? null);
       setInitialised(true);
     }
     if (isNew && !initialised) setInitialised(true);
   }, [existing, isNew, initialised]);
+
+  /** When a template is chosen, merge its defaults into the TemplateBuilder state. */
+  function applyTaskTemplate(id: number | null) {
+    setTaskTemplateId(id);
+    if (id === null) return;
+    const tmpl = taskTemplates.find((t) => t.id === id);
+    if (!tmpl) return;
+    setTemplate((prev) => ({
+      ...prev,
+      ...(tmpl.defaultTitle ? { defaultTitle: tmpl.defaultTitle } : {}),
+      ...(tmpl.defaultPriority
+        ? { defaultPriority: tmpl.defaultPriority as WebhookTaskTemplate["defaultPriority"] }
+        : {}),
+      ...(tmpl.defaultCategory
+        ? { defaultCategory: tmpl.defaultCategory as WebhookTaskTemplate["defaultCategory"] }
+        : {}),
+    }));
+  }
 
   // Test payload state.
   const DEFAULT_TEST_PAYLOAD =
@@ -620,10 +645,11 @@ export default function WebhookInboundEditPage({
       visibility,
       enabled,
       taskTemplate: template,
+      taskTemplateId: taskTemplateId ?? undefined,
       rateLimitPerMinute,
     };
     if (existing) {
-      update({ id: existing.id, data: { ...data, projectId: projectId } });
+      update({ id: existing.id, data: { ...data, projectId: projectId, taskTemplateId: taskTemplateId } });
     } else {
       create({ data });
     }
@@ -925,6 +951,34 @@ export default function WebhookInboundEditPage({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Task template picker */}
+            <div className="space-y-1.5">
+              <Label>Task template <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <Select
+                value={taskTemplateId?.toString() ?? "__none__"}
+                onValueChange={(v) => applyTaskTemplate(v === "__none__" ? null : Number(v))}
+                disabled={readOnly || isPending}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="None — fill defaults manually below" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None — fill defaults manually below</SelectItem>
+                  {taskTemplates.map((t) => (
+                    <SelectItem key={t.id} value={t.id.toString()}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {taskTemplateId !== null && (
+                <p className="text-xs text-muted-foreground">
+                  Choosing a template fills in the defaults below — you can override any field before saving.
+                  The template is used as a starting point only; changes to the template later won't affect this webhook.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 items-start">
