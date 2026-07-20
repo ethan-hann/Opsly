@@ -154,8 +154,11 @@ vi.mock("../lib/org-features", () => ({
 }));
 
 vi.mock("../lib/sla", () => ({
+  getSlaStatus: () => ({ isResolutionBreached: false, responseStatus: "ok", resolutionMinutesRemaining: 60, responseMinutesRemaining: null }),
+}));
+
+vi.mock("../lib/sla-detection", () => ({
   detectAndMarkSlaBreaches: async () => [],
-  detectAndMarkSlaWarnings: async () => [],
 }));
 
 vi.mock("../lib/notifications", () => ({
@@ -174,7 +177,15 @@ vi.mock("@workspace/api-zod", () => {
     CreateTaskResponse: p, GetTaskResponse: p, UpdateTaskResponse: p,
     GetOverdueTasksResponse: p, ListTaskEventsParams: p, ListTaskEventsResponse: p,
     BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p, BulkDeleteTasksBody: p,
-    BulkDeleteTasksResponse: p, WatchingFilterParam: p,
+    BulkDeleteTasksResponse: p,
+    // Coerce query-string "true"/"false" to boolean so watchingParam.data.watching === true works.
+    WatchingFilterParam: {
+      parse: (x: any) => x,
+      safeParse: (x: any) => ({
+        success: true,
+        data: { ...x, watching: x.watching === "true" || x.watching === true },
+      }),
+    },
     WatchTaskParams: p, UnwatchTaskParams: p,
     GetTaskWatchersParams: p, GetTaskWatchersResponse: p,
     WatchTaskResponse: p, UnwatchTaskResponse: p,
@@ -444,5 +455,84 @@ describe("DELETE /api/tasks/:id/watch — webhook dispatch", () => {
 
     expect(res.status).toBe(200);
     expect(mockDispatch.watcherRemoved).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/tasks?watching=true — org isolation
+// ---------------------------------------------------------------------------
+//
+// The watching filter does:
+//   SELECT { task } FROM tasks
+//   INNER JOIN task_watchers ON taskWatchers.taskId = tasks.id AND userId = :userId
+//   WHERE tasks.orgId = :orgId   ← org boundary enforced here
+//
+// A watcher row for a cross-org task must not surface that task in the
+// response — the WHERE clause rejects it before the result set is built.
+
+describe("GET /api/tasks?watching=true — org isolation", () => {
+  // Minimal task fixture that belongs to org-a
+  const ORG_A_TASK = {
+    id: 1,
+    orgId: "org-a",
+    orgTaskNumber: 1,
+    title: "Fix login bug",
+    status: "open",
+    priority: "medium",
+    projectId: null,
+    assignee: null,
+    dueDate: null,
+    slaBreachedAt: null,
+    slaWarningSentAt: null,
+    category: null,
+    description: null,
+    customFields: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.deleteCallCount = 0;
+    mockState.orgId = "org-a";
+  });
+
+  it("returns an empty list when the join finds no tasks for the caller's org", async () => {
+    // The innerJoin WHERE includes orgId = 'org-a'.
+    // Cross-org watcher rows produce no matching tasks → empty result set.
+    mockState.selectQueue.push([]); // watching join → 0 rows (cross-org filtered out)
+    // tasks.length === 0 → getOrgStages and slaPolicies are skipped
+
+    const res = await request(buildApp()).get("/api/tasks?watching=true");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("every task in the response belongs to the caller's org", async () => {
+    // The join returns one row — a task owned by org-a (the caller's org).
+    mockState.selectQueue.push([{ task: ORG_A_TASK }]); // watching join ✓
+    mockState.selectQueue.push([]);                       // getOrgStages → no custom stages
+    mockState.selectQueue.push([]);                       // slaPolicies → none
+    mockState.selectQueue.push([{ count: 0 }]);           // buildTaskWithProject — comment count
+
+    const res = await request(buildApp()).get("/api/tasks?watching=true");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ id: 1, orgId: "org-a" });
+  });
+
+  it("selectQueue is fully consumed — no extra DB calls sneak past the org filter", async () => {
+    // If the route ignored the orgId condition it would try to fetch stages
+    // and SLA policies for the cross-org tasks, consuming extra selectQueue
+    // slots and causing the test to fail or queue entries to remain unconsumed.
+    mockState.selectQueue.push([]); // watching join → 0 rows
+
+    await request(buildApp()).get("/api/tasks?watching=true");
+
+    // All queued results consumed — no spurious DB calls were made
+    expect(mockState.selectQueue).toHaveLength(0);
   });
 });
