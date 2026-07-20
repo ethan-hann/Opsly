@@ -37,6 +37,15 @@ const mockState = vi.hoisted(() => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Email mock state (hoisted so vi.mock factory can reference it)
+// ---------------------------------------------------------------------------
+const sendMailSpy = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
+const isEmailConfiguredMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
+const buildInviteEmailSpy = vi.hoisted(() =>
+  vi.fn().mockImplementation(({ inviteLink }: { inviteLink: string }) => `<a href="${inviteLink}">Accept</a>`),
+);
+
+// ---------------------------------------------------------------------------
 // Mock @workspace/db
 // ---------------------------------------------------------------------------
 vi.mock("@workspace/db", () => {
@@ -128,6 +137,14 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("../lib/webhook-dispatcher", () => ({
   dispatchMemberJoined: vi.fn(),
   dispatchMemberRemoved: vi.fn(),
+}));
+
+// Mock the email module so no real SMTP connection is attempted.
+// isEmailConfiguredMock defaults to false; individual tests flip it to true.
+vi.mock("../lib/email", () => ({
+  isEmailConfigured: isEmailConfiguredMock,
+  sendMail: sendMailSpy,
+  buildInviteEmail: buildInviteEmailSpy,
 }));
 
 // requireAuth injects req.user; requireOrg also injects orgId + role.
@@ -556,6 +573,83 @@ describe("POST /api/orgs/invite", () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ invitedUserId: "user-2", status: "pending" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/orgs/invite — email delivery
+// ---------------------------------------------------------------------------
+
+describe("POST /api/orgs/invite — email delivery", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertQueue.length = 0;
+    sendMailSpy.mockClear();
+    buildInviteEmailSpy.mockClear();
+    isEmailConfiguredMock.mockReturnValue(false); // default: no SMTP
+  });
+
+  it("calls sendMail with the recipient's address when SMTP is configured", async () => {
+    isEmailConfiguredMock.mockReturnValue(true);
+
+    mockState.insertQueue.push([MOCK_INVITATION]);                              // invitation insert
+    mockState.selectQueue.push([{ name: "Acme Corp" }]);                        // org name lookup
+    mockState.selectQueue.push([{ firstName: "Alice", lastName: null, email: "alice@example.com" }]); // inviter
+
+    const res = await request(buildApp())
+      .post("/api/orgs/invite")
+      .send({ email: "bob@example.com" });
+
+    expect(res.status).toBe(201);
+    expect(sendMailSpy).toHaveBeenCalledOnce();
+    expect(sendMailSpy.mock.calls[0][0].to).toBe("bob@example.com");
+  });
+
+  it("includes the invite token in the email body", async () => {
+    isEmailConfiguredMock.mockReturnValue(true);
+
+    mockState.insertQueue.push([MOCK_INVITATION]);
+    mockState.selectQueue.push([{ name: "Acme Corp" }]);
+    mockState.selectQueue.push([{ firstName: "Alice", lastName: null, email: "alice@example.com" }]);
+
+    await request(buildApp())
+      .post("/api/orgs/invite")
+      .send({ email: "bob@example.com" });
+
+    expect(buildInviteEmailSpy).toHaveBeenCalledOnce();
+    // The inviteLink passed to buildInviteEmail must contain a token path segment
+    const { inviteLink } = buildInviteEmailSpy.mock.calls[0][0] as { inviteLink: string };
+    expect(inviteLink).toMatch(/\/invite\/[A-Za-z0-9]+/);
+    // The rendered HTML (what sendMail receives) embeds the link
+    const html: string = sendMailSpy.mock.calls[0][0].html;
+    expect(html).toContain(inviteLink);
+  });
+
+  it("does NOT call sendMail when SMTP is not configured — silent no-op", async () => {
+    // isEmailConfiguredMock defaults to false — no selects for org/inviter happen
+    mockState.insertQueue.push([MOCK_INVITATION]);
+
+    const res = await request(buildApp())
+      .post("/api/orgs/invite")
+      .send({ email: "bob@example.com" });
+
+    expect(res.status).toBe(201);
+    expect(sendMailSpy).not.toHaveBeenCalled();
+  });
+
+  it("does NOT call sendMail when inviting by userId (no email address)", async () => {
+    isEmailConfiguredMock.mockReturnValue(true);
+
+    mockState.selectQueue.push([]); // membership check
+    const inv = { ...MOCK_INVITATION, invitedEmail: null, invitedUserId: "user-2" };
+    mockState.insertQueue.push([inv]);
+
+    const res = await request(buildApp())
+      .post("/api/orgs/invite")
+      .send({ userId: "user-2" });
+
+    expect(res.status).toBe(201);
+    expect(sendMailSpy).not.toHaveBeenCalled();
   });
 });
 
