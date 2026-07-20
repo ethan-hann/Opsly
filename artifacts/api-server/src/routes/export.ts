@@ -19,7 +19,7 @@ import {
 } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { z } from "zod";
-import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
 
 const requireDataExportFeature = requireOrgFeature('data_export');
@@ -267,13 +267,8 @@ async function countTotalRows(orgId: string, scope: ExportScope): Promise<number
 
 // ── POST /export ──────────────────────────────────────────────────────────────
 
-router.post("/export", requireOrg, requireDataExportFeature, async (req, res) => {
+router.post("/export", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
   const orgId = req.orgId!;
-
-  if (!req.orgPermissions?.manage_org_settings) {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
 
   const parsed = ExportBodySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -380,12 +375,7 @@ router.get("/export/pending", requireOrg, requireDataExportFeature, (req, res) =
 
 // ── GET /export/download/:token ───────────────────────────────────────────────
 
-router.get("/export/download/:token", requireOrg, requireDataExportFeature, (req, res) => {
-  if (!req.orgPermissions?.manage_org_settings) {
-    res.status(403).json({ error: "Admin access required" });
-    return;
-  }
-
+router.get("/export/download/:token", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), (req, res) => {
   const token = String(req.params["token"] ?? "");
   const dl = pendingDownloads.get(token);
 

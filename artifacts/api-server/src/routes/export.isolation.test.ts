@@ -105,6 +105,13 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     req.orgPermissions = { manage_org_settings: mockState.adminAccess } as never;
     next();
   },
+  requirePermission: (key: string) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (!req.orgPermissions?.[key as keyof typeof req.orgPermissions]) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+    next();
+  },
 }));
 
 vi.mock("../lib/notifications", () => ({
