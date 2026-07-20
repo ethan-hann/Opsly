@@ -24,6 +24,8 @@ const mockState = vi.hoisted(() => ({
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
+  deleteCalls: 0,
+  permissions: { manage_sla_policies: true } as Record<string, boolean>,
 }));
 
 // ---------------------------------------------------------------------------
@@ -64,11 +66,14 @@ vi.mock("@workspace/db", () => {
           }),
         }),
       }),
-      delete: () => ({
-        where: () => ({
-          returning: () => Promise.resolve(mockState.deleteResult),
-        }),
-      }),
+      delete: () => {
+        mockState.deleteCalls++;
+        return {
+          where: () => ({
+            returning: () => Promise.resolve(mockState.deleteResult),
+          }),
+        };
+      },
     },
     projectsTable: {},
     tasksTable: {},
@@ -96,12 +101,12 @@ vi.mock("drizzle-orm", () => ({
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
-    req.orgPermissions = { manage_sla_policies: true };
+    req.orgPermissions = mockState.permissions;
     next();
   },
-  requirePermission: (_key: string) => (req: any, _res: any, next: any) => {
-    if (req.orgPermissions?.[_key] === false) {
-      _res.status(403).json({ error: "Forbidden" });
+  requirePermission: (_key: string) => (req: any, res: any, next: any) => {
+    if (!req.orgPermissions?.[_key]) {
+      res.status(403).json({ error: "Forbidden" });
       return;
     }
     next();
@@ -345,5 +350,168 @@ describe("DELETE /api/projects/:id", () => {
   it("returns 400 for a non-integer id", async () => {
     const res = await request(buildApp()).delete("/api/projects/bad-id");
     expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/projects/:id/sla-policies — cross-org isolation
+// ---------------------------------------------------------------------------
+
+describe("GET /api/projects/:id/sla-policies", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.deleteCalls = 0;
+    mockState.permissions = { manage_sla_policies: true };
+  });
+
+  it("returns 200 with the project's SLA policy overrides", async () => {
+    const policy = {
+      id: 10,
+      orgId: "test-org",
+      projectId: 1,
+      priority: "high",
+      responseMinutes: null,
+      resolutionMinutes: 60,
+      warningThresholdPercent: 80,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+    };
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.selectQueue.push([policy]);    // sla_policies for this project
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policies");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ priority: "high", resolutionMinutes: 60, projectId: 1 });
+  });
+
+  it("returns 200 with an empty array when the project has no overrides", async () => {
+    mockState.selectQueue.push([{ id: 1 }]); // project found
+    mockState.selectQueue.push([]);          // no project-level policies
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policies");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns 404 when the project belongs to a different org", async () => {
+    // The route checks projectsTable WHERE id=? AND orgId=? — an empty result
+    // means the project either doesn't exist or belongs to another org.
+    mockState.selectQueue.push([]); // project not visible to this org
+
+    const res = await request(buildApp()).get("/api/projects/999/sla-policies");
+
+    expect(res.status).toBe(404);
+    // The caller learns nothing: 404 is identical whether the project doesn't
+    // exist or belongs to a different org.
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 400 for a non-integer project id", async () => {
+    const res = await request(buildApp()).get("/api/projects/bad-id/sla-policies");
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PUT /api/projects/:id/sla-policies — cross-org isolation + permission gate
+// ---------------------------------------------------------------------------
+
+describe("PUT /api/projects/:id/sla-policies", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.deleteCalls = 0;
+    mockState.permissions = { manage_sla_policies: true };
+  });
+
+  it("returns 403 when the caller lacks manage_sla_policies permission", async () => {
+    mockState.permissions = { manage_sla_policies: false };
+
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 60 }] });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 404 when the project belongs to a different org", async () => {
+    // The route selects the project with orgId guard after parsing the body.
+    mockState.selectQueue.push([]); // project not visible to this org
+
+    const res = await request(buildApp())
+      .put("/api/projects/999/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 60 }] });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+    // Confirm no delete or insert happened against the foreign project's data
+    expect(mockState.deleteCalls).toBe(0);
+  });
+
+  it("returns 400 for a non-integer project id", async () => {
+    const res = await request(buildApp())
+      .put("/api/projects/bad-id/sla-policies")
+      .send({ policies: [] });
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when the body contains duplicate priorities", async () => {
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({
+        policies: [
+          { priority: "high", resolutionMinutes: 60 },
+          { priority: "high", resolutionMinutes: 120 },
+        ],
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/duplicate/i);
+  });
+
+  it("returns 200 with the saved overrides on a valid upsert", async () => {
+    const saved = {
+      id: 20,
+      orgId: "test-org",
+      projectId: 1,
+      priority: "high",
+      responseMinutes: null,
+      resolutionMinutes: 60,
+      warningThresholdPercent: 80,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+    };
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.insertResult = [saved];
+
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 60 }] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ priority: "high", resolutionMinutes: 60, projectId: 1 });
+    // Existing project-level policies must have been deleted first
+    expect(mockState.deleteCalls).toBe(1);
+  });
+
+  it("returns 200 with an empty array when policies is [] (clears all overrides)", async () => {
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({ policies: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    expect(mockState.deleteCalls).toBe(1);
   });
 });
