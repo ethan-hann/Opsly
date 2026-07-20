@@ -184,6 +184,7 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
             res.status(409).json({
               error: "One or more removed options are still in use by existing tasks",
               affectedTaskCount: affectedCount,
+              affectedTaskIds: affectedTasks.map((t) => t.id),
             });
             return;
           }

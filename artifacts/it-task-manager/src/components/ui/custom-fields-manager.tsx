@@ -37,7 +37,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2 } from "lucide-react";
+import { GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2, ExternalLink } from "lucide-react";
+import { Link } from "wouter";
 import {
   DndContext,
   PointerSensor,
@@ -101,8 +102,12 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
   const [nameVal, setNameVal] = useState(field.name);
   const [editingOptions, setEditingOptions] = useState(false);
   const [optionsText, setOptionsText] = useState((field.options ?? []).join("\n"));
-  /** Set when the API returns 409 — holds pending opts + count of affected tasks. */
-  const [optionConflict, setOptionConflict] = useState<{ opts: string[]; affectedCount: number } | null>(null);
+  /** Set when the API returns 409 — holds pending opts, count, and IDs of affected tasks. */
+  const [optionConflict, setOptionConflict] = useState<{
+    opts: string[];
+    affectedCount: number;
+    affectedTaskIds: number[];
+  } | null>(null);
 
   const isSelect = field.type === "single_select" || field.type === "multi_select";
 
@@ -119,7 +124,10 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
         const apiErr = err as any;
         if (apiErr?.status === 409 && typeof apiErr?.data?.affectedTaskCount === "number") {
           const opts = optionsText.split("\n").map((s: string) => s.trim()).filter(Boolean);
-          setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount });
+          const affectedTaskIds: number[] = Array.isArray(apiErr?.data?.affectedTaskIds)
+            ? apiErr.data.affectedTaskIds
+            : [];
+          setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount, affectedTaskIds });
           return;
         }
         toast({ title: "Update failed", description: err.message, variant: "destructive" });
@@ -270,6 +278,15 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
                 {optionConflict.affectedCount === 1 ? "that task" : "those tasks"} automatically.
                 This cannot be undone.
               </p>
+              {optionConflict.affectedTaskIds.length > 0 && (
+                <Link
+                  href={`/tasks?ids=${optionConflict.affectedTaskIds.join(",")}`}
+                  className="inline-flex items-center gap-1 text-xs text-amber-800 dark:text-amber-300 underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-200"
+                >
+                  View affected tasks
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              )}
               <div className="flex gap-2 justify-end">
                 <Button
                   size="sm" variant="ghost"

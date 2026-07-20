@@ -623,7 +623,23 @@ export default function TasksList() {
 
   const { filters, setFilter, setSearch, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
+  const [, setLocation] = useLocation();
   const { user } = useAuth();
+
+  // Parse the ?ids= param set by the custom-field conflict warning's "View affected tasks" link.
+  // When present, the task list is narrowed to only the listed task IDs.
+  const preFilterIds = (() => {
+    const raw = new URLSearchParams(urlSearch).get("ids");
+    if (!raw) return null;
+    const ids = raw.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+    return ids.length > 0 ? new Set(ids) : null;
+  })();
+
+  const clearIdsFilter = useCallback(() => {
+    const next = new URLSearchParams(urlSearch);
+    next.delete("ids");
+    setLocation("?" + next.toString(), { replace: true });
+  }, [urlSearch, setLocation]);
   const queryClient = useQueryClient();
 
   // Build API query params from active filters (server-side filtering)
@@ -665,8 +681,11 @@ export default function TasksList() {
     }
   }, [views, urlSearch, applyView, user?.id]);
 
-  // Client-side: text search + project filter (not API-level)
+  // Client-side: text search + project filter + optional pre-filter by specific task IDs
   const filteredTasks = tasks?.filter((t) => {
+    // When ?ids= is present (e.g. from the custom-field conflict warning), narrow to those tasks
+    if (preFilterIds && !preFilterIds.has(t.id)) return false;
+
     const searchTerm = filters.search.toLowerCase();
     const matchesSearch =
       !searchTerm ||
@@ -970,6 +989,22 @@ export default function TasksList() {
           )}
         </div>
       </div>
+
+      {/* Pre-filter banner — shown when the task list is scoped to specific IDs (e.g. from the custom-field conflict warning) */}
+      {preFilterIds && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-2 text-sm">
+          <span className="text-amber-800 dark:text-amber-300 font-medium">
+            Showing {preFilterIds.size} task{preFilterIds.size === 1 ? "" : "s"} that use a removed custom-field option
+          </span>
+          <button
+            onClick={clearIdsFilter}
+            className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Clear filter
+          </button>
+        </div>
+      )}
 
       {/* Content Area */}
       <div className="flex-1 min-h-0">
