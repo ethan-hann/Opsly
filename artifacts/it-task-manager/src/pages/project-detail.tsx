@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,6 +65,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
 
   const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(null);
   const [editing, setEditing] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
 
   const isLoading = isLoadingProject || isLoadingOrg;
 
@@ -84,13 +85,15 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { mutate: upsertPolicies, isPending: isSaving } = useUpsertProjectSLAPolicies({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Project SLA overrides saved" });
+        toast({ title: isReverting ? "Reverted to org defaults" : "Project SLA overrides saved" });
         refetchProject();
         setEditing(false);
         setDraft(null);
+        setIsReverting(false);
       },
       onError: (err: Error) => {
         toast({ title: "Failed to save overrides", description: err.message, variant: "destructive" });
+        setIsReverting(false);
       },
     },
   });
@@ -116,6 +119,15 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
     setDraft((prev) => prev ? { ...prev, [priority]: { ...prev[priority], [field]: value } } : prev);
   }
 
+  const hasAnyOverride = (projectPolicies ?? []).some(
+    (p) => p.responseMinutes != null || p.resolutionMinutes != null,
+  );
+
+  function handleRevertToDefaults() {
+    setIsReverting(true);
+    upsertPolicies({ projectId, data: { policies: [] } });
+  }
+
   return (
     <Card className="border-border/60 shadow-sm">
       <CardHeader>
@@ -131,10 +143,37 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
             </CardDescription>
           </div>
           {!editing && (
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={startEditing}>
-              <Pencil className="w-3.5 h-3.5" />
-              Edit
-            </Button>
+            <div className="flex items-center gap-2 shrink-0">
+              {hasAnyOverride && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/50" disabled={isSaving}>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Revert to org defaults
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Revert to org defaults?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will clear all project-level SLA overrides. Tasks in this project
+                        will fall back to the org-wide SLA targets. This cannot be undone automatically.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleRevertToDefaults}>
+                        Revert to org defaults
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={startEditing}>
+                <Pencil className="w-3.5 h-3.5" />
+                Edit
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
