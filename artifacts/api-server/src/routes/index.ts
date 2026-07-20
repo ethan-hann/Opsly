@@ -19,6 +19,7 @@ import notificationsRouter from "./notifications";
 import searchRouter from "./search";
 import apiKeysRouter from "./api-keys";
 import exportRouter from "./export";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(notificationsRouter);
 router.use(searchRouter);
 router.use(apiKeysRouter);
 router.use(exportRouter);
+router.use(adminRouter);
 
 export default router;

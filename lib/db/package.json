@@ -26,7 +26,10 @@
     "migrate:add-inbound-webhook-task-template-id": "pnpm dlx tsx src/migrations/add-inbound-webhook-task-template-id.ts",
     "migrate:add-task-watchers": "pnpm dlx tsx src/migrations/add-task-watchers.ts",
     "migrate:create-api-keys": "pnpm dlx tsx src/migrations/create-api-keys.ts",
-    "migrate:add-task-list-btree-indexes": "pnpm dlx tsx src/migrations/add-task-list-btree-indexes.ts"
+    "migrate:add-task-list-btree-indexes": "pnpm dlx tsx src/migrations/add-task-list-btree-indexes.ts",
+    "migrate:create-instance-admin": "pnpm dlx tsx src/migrations/create-instance-admin.ts",
+    "make-admin": "pnpm dlx tsx src/make-admin.ts",
+    "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

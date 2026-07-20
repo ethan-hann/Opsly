@@ -19,8 +19,12 @@ import {
   requireOrg,
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
+import { requireOrgFeature } from '../lib/org-features';
 
 const router: IRouter = Router();
+
+// All API key management routes require the api_keys feature to be enabled.
+const requireApiKeysFeature = requireOrgFeature('api_keys');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -59,6 +63,7 @@ function formatKey(row: typeof apiKeysTable.$inferSelect, creator?: { firstName:
 router.get(
   '/api-keys',
   requireOrg,
+  requireApiKeysFeature,
   requirePermission('manage_api_keys'),
   async (req, res): Promise<void> => {
     // Reject API key auth on management routes
@@ -102,6 +107,7 @@ const CreateApiKeySchema = z.object({
 router.post(
   '/api-keys',
   requireOrg,
+  requireApiKeysFeature,
   requirePermission('manage_api_keys'),
   async (req, res): Promise<void> => {
     if (req.apiKeyId) {
@@ -149,6 +155,7 @@ router.post(
 router.delete(
   '/api-keys/:id',
   requireOrg,
+  requireApiKeysFeature,
   requirePermission('manage_api_keys'),
   async (req, res): Promise<void> => {
     if (req.apiKeyId) {

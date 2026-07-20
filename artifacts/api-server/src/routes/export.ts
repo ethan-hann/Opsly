@@ -20,6 +20,9 @@ import {
 import { eq, count } from "drizzle-orm";
 import { z } from "zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrgFeature } from "../lib/org-features";
+
+const requireDataExportFeature = requireOrgFeature('data_export');
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
@@ -264,7 +267,7 @@ async function countTotalRows(orgId: string, scope: ExportScope): Promise<number
 
 // ── POST /export ──────────────────────────────────────────────────────────────
 
-router.post("/export", requireOrg, async (req, res) => {
+router.post("/export", requireOrg, requireDataExportFeature, async (req, res) => {
   const orgId = req.orgId!;
 
   if (!req.orgPermissions?.manage_org_settings) {
@@ -345,7 +348,7 @@ router.post("/export", requireOrg, async (req, res) => {
 
 // ── GET /export/pending ───────────────────────────────────────────────────────
 
-router.get("/export/pending", requireOrg, (req, res) => {
+router.get("/export/pending", requireOrg, requireDataExportFeature, (req, res) => {
   const userId = req.user?.id;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -377,7 +380,7 @@ router.get("/export/pending", requireOrg, (req, res) => {
 
 // ── GET /export/download/:token ───────────────────────────────────────────────
 
-router.get("/export/download/:token", requireOrg, (req, res) => {
+router.get("/export/download/:token", requireOrg, requireDataExportFeature, (req, res) => {
   if (!req.orgPermissions?.manage_org_settings) {
     res.status(403).json({ error: "Admin access required" });
     return;

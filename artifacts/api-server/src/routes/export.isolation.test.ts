@@ -38,6 +38,14 @@ const mockState = vi.hoisted(() => ({
 }));
 
 // ---------------------------------------------------------------------------
+// Mock org-features — always enabled so feature flags don't interfere
+// ---------------------------------------------------------------------------
+vi.mock("../lib/org-features", () => ({
+  requireOrgFeature: () => (_req: unknown, _res: unknown, next: () => void) => next(),
+  isOrgFeatureEnabled: async () => true,
+}));
+
+// ---------------------------------------------------------------------------
 // @workspace/db — fully mocked, no real database connection
 // ---------------------------------------------------------------------------
 vi.mock("@workspace/db", () => {

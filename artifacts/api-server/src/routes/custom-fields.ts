@@ -16,8 +16,11 @@ import {
   ReorderCustomFieldDefinitionsBody,
 } from "@workspace/api-zod";
 import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
+import { requireOrgFeature } from "../lib/org-features";
 
 const router: IRouter = Router();
+
+const requireCustomFieldsFeature = requireOrgFeature('custom_fields');
 
 /** Derive a human-readable display name from a user object. */
 function actorDisplayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null } | undefined): string | null {
@@ -38,7 +41,7 @@ function serializeDef(def: typeof customFieldDefinitionsTable.$inferSelect) {
 
 /** GET /custom-fields — list definitions for the org, ordered by position.
  *  Pass ?includeSoftDeleted=true to also receive soft-deleted definitions. */
-router.get("/custom-fields", requireOrg, async (req, res): Promise<void> => {
+router.get("/custom-fields", requireOrg, requireCustomFieldsFeature, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const includeSoftDeleted = req.query.includeSoftDeleted === "true";
 
@@ -56,7 +59,7 @@ router.get("/custom-fields", requireOrg, async (req, res): Promise<void> => {
 });
 
 /** POST /custom-fields — create a new field definition (admin only) */
-router.post("/custom-fields", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const parsed = CreateCustomFieldDefinitionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -87,7 +90,7 @@ router.post("/custom-fields", requireOrg, requireAdmin, async (req, res): Promis
 });
 
 /** PATCH /custom-fields/:id — update a field definition (admin only) */
-router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const params = UpdateCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -287,7 +290,7 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
 });
 
 /** DELETE /custom-fields/:id — soft-delete a field definition (admin only) */
-router.delete("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const params = DeleteCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -317,7 +320,7 @@ router.delete("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): 
 });
 
 /** POST /custom-fields/:id/restore — un-soft-delete a field (admin only) */
-router.post("/custom-fields/:id/restore", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const params = RestoreCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -347,7 +350,7 @@ router.post("/custom-fields/:id/restore", requireOrg, requireAdmin, async (req, 
 });
 
 /** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (admin only) */
-router.post("/custom-fields/:id/purge", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const params = PurgeCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -417,7 +420,7 @@ router.post("/custom-fields/:id/purge", requireOrg, requireAdmin, async (req, re
 });
 
 /** POST /custom-fields/reorder — reorder field definitions (admin only) */
-router.post("/custom-fields/reorder", requireOrg, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/reorder", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
   const parsed = ReorderCustomFieldDefinitionsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

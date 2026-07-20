@@ -13,8 +13,11 @@ import {
   ReorderWorkflowStagesBody,
 } from "@workspace/api-zod";
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
+import { requireOrgFeature } from "../lib/org-features";
 
 const router: IRouter = Router();
+
+const requireCustomStatusesFeature = requireOrgFeature('custom_statuses');
 
 function serializeStage(stage: typeof workflowStagesTable.$inferSelect) {
   return {
@@ -29,7 +32,7 @@ function serializeStage(stage: typeof workflowStagesTable.$inferSelect) {
  * GET /workflow-stages — list all stages for the org (active first, then archived).
  * Available to all org members.
  */
-router.get("/workflow-stages", requireOrg, async (req, res): Promise<void> => {
+router.get("/workflow-stages", requireOrg, requireCustomStatusesFeature, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
   // getOrSeedStages returns existing stages, or seeds the four defaults if
@@ -52,6 +55,7 @@ router.get("/workflow-stages", requireOrg, async (req, res): Promise<void> => {
 router.post(
   "/workflow-stages",
   requireOrg,
+  requireCustomStatusesFeature,
   requirePermission("manage_workflow_stages"),
   async (req, res): Promise<void> => {
     const parsed = CreateWorkflowStageBody.safeParse(req.body);
@@ -90,6 +94,7 @@ router.post(
 router.post(
   "/workflow-stages/reorder",
   requireOrg,
+  requireCustomStatusesFeature,
   requirePermission("manage_workflow_stages"),
   async (req, res): Promise<void> => {
     const parsed = ReorderWorkflowStagesBody.safeParse(req.body);
@@ -120,6 +125,7 @@ router.post(
 router.patch(
   "/workflow-stages/:id",
   requireOrg,
+  requireCustomStatusesFeature,
   requirePermission("manage_workflow_stages"),
   async (req, res): Promise<void> => {
     const params = UpdateWorkflowStageParams.safeParse(req.params);
@@ -222,6 +228,7 @@ router.patch(
 router.delete(
   "/workflow-stages/:id",
   requireOrg,
+  requireCustomStatusesFeature,
   requirePermission("manage_workflow_stages"),
   async (req, res): Promise<void> => {
     const params = RemoveWorkflowStageParams.safeParse(req.params);

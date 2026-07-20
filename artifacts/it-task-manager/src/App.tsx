@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
+import AdminConsolePage from '@/pages/admin/index';
 import { Route, Switch, Router as WouterRouter } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 
@@ -111,6 +112,9 @@ function App() {
                 {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
                     users can see the invite details before being asked to log in */}
                 <Route path="/invite/:token" component={InvitePage} />
+                {/* Instance admin console - has its own auth check via /api/admin/me */}
+                <Route path="/admin" component={AdminConsolePage} />
+                <Route path="/admin/:rest*" component={AdminConsolePage} />
                 <Route>
                   <AuthGuard>
                     <OrgAwareApp />

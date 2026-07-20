@@ -32,8 +32,18 @@ export async function requireOrgOrApiKey(
   res: Response,
   next: NextFunction,
 ): Promise<void> {
-  // API key path — orgId was set by authMiddleware; skip membership lookup.
+  // API key path — orgId was set by authMiddleware; check suspension then pass through.
   if (req.apiKeyId) {
+    const [org] = await db
+      .select({ isDisabled: organizationsTable.isDisabled })
+      .from(organizationsTable)
+      .where(eq(organizationsTable.id, req.orgId!))
+      .limit(1);
+
+    if (org?.isDisabled) {
+      res.status(403).json({ error: 'org_suspended', message: 'Your organization has been suspended. Please contact your instance administrator.' });
+      return;
+    }
     next();
     return;
   }
@@ -50,6 +60,7 @@ export async function requireOrgOrApiKey(
       roleName: rolesTable.name,
       isOwner: rolesTable.isOwner,
       permissions: rolesTable.permissions,
+      isDisabled: organizationsTable.isDisabled,
     })
     .from(orgMembersTable)
     .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
@@ -62,6 +73,11 @@ export async function requireOrgOrApiKey(
 
   if (!membership) {
     res.status(403).json({ error: 'No organization membership' });
+    return;
+  }
+
+  if (membership.isDisabled) {
+    res.status(403).json({ error: 'org_suspended', message: 'Your organization has been suspended. Please contact your instance administrator.' });
     return;
   }
 

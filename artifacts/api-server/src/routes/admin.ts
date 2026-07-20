@@ -1,0 +1,363 @@
+/**
+ * Instance Admin API routes — /api/admin/*
+ *
+ * All routes are protected by requireInstanceAdmin. They operate across all
+ * orgs and are not subject to the normal per-org auth guards.
+ */
+
+import { Router, type IRouter } from 'express';
+import { eq, sql, and, count, desc } from 'drizzle-orm';
+import {
+  db,
+  organizationsTable,
+  orgMembersTable,
+  tasksTable,
+  usersTable,
+  orgFeaturesTable,
+  instanceAuditLogTable,
+  ORG_FEATURES,
+  rolesTable,
+} from '@workspace/db';
+import type { OrgFeature } from '@workspace/db';
+import { requireInstanceAdmin } from '../middlewares/requireInstanceAdmin';
+
+const router: IRouter = Router();
+
+// Apply instance admin guard to every route in this file.
+router.use(requireInstanceAdmin);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function logAdminAction(
+  actor: string,
+  action: string,
+  targetType: string,
+  targetId: string,
+  metadata?: Record<string, unknown>,
+) {
+  await db.insert(instanceAuditLogTable).values({
+    actor,
+    action,
+    targetType,
+    targetId,
+    metadata: metadata ?? null,
+  });
+}
+
+// ─── Admin: "me" ─────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/me
+ * Returns whether the current session user is an instance admin.
+ * Used by the frontend to gate access to the admin console.
+ */
+router.get('/admin/me', async (req, res) => {
+  // If we reach here, requireInstanceAdmin already passed.
+  res.json({ isInstanceAdmin: true, actor: req.instanceAdminActor });
+});
+
+// ─── Orgs ─────────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/orgs
+ * List all orgs with member count, task count, and created date.
+ */
+router.get('/admin/orgs', async (_req, res) => {
+  const orgs = await db
+    .select({
+      id: organizationsTable.id,
+      name: organizationsTable.name,
+      isDisabled: organizationsTable.isDisabled,
+      createdAt: organizationsTable.createdAt,
+      memberCount: count(orgMembersTable.userId).as('member_count'),
+    })
+    .from(organizationsTable)
+    .leftJoin(orgMembersTable, eq(orgMembersTable.orgId, organizationsTable.id))
+    .groupBy(organizationsTable.id)
+    .orderBy(desc(organizationsTable.createdAt));
+
+  // Fetch task counts separately (avoids a double-group-by)
+  const taskCounts = await db
+    .select({
+      orgId: tasksTable.orgId,
+      taskCount: count(tasksTable.id).as('task_count'),
+    })
+    .from(tasksTable)
+    .groupBy(tasksTable.orgId);
+
+  const taskCountMap = new Map(taskCounts.map((r) => [r.orgId, Number(r.taskCount)]));
+
+  const result = orgs.map((org) => ({
+    ...org,
+    memberCount: Number(org.memberCount),
+    taskCount: taskCountMap.get(org.id) ?? 0,
+  }));
+
+  res.json(result);
+});
+
+/**
+ * PATCH /api/admin/orgs/:id
+ * Enable or disable an org.
+ */
+router.patch('/admin/orgs/:id', async (req, res) => {
+  const { id } = req.params;
+  const { isDisabled } = req.body as { isDisabled?: boolean };
+
+  if (typeof isDisabled !== 'boolean') {
+    res.status(400).json({ error: 'isDisabled (boolean) is required' });
+    return;
+  }
+
+  const [updated] = await db
+    .update(organizationsTable)
+    .set({ isDisabled })
+    .where(eq(organizationsTable.id, id))
+    .returning({ id: organizationsTable.id, name: organizationsTable.name, isDisabled: organizationsTable.isDisabled });
+
+  if (!updated) {
+    res.status(404).json({ error: 'Organization not found' });
+    return;
+  }
+
+  await logAdminAction(
+    req.instanceAdminActor!,
+    isDisabled ? 'disable_org' : 'enable_org',
+    'org',
+    id,
+    { name: updated.name },
+  );
+
+  res.json(updated);
+});
+
+/**
+ * DELETE /api/admin/orgs/:id
+ * Permanently delete an org and all its data (cascade).
+ */
+router.delete('/admin/orgs/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const [org] = await db
+    .select({ id: organizationsTable.id, name: organizationsTable.name })
+    .from(organizationsTable)
+    .where(eq(organizationsTable.id, id))
+    .limit(1);
+
+  if (!org) {
+    res.status(404).json({ error: 'Organization not found' });
+    return;
+  }
+
+  await db.delete(organizationsTable).where(eq(organizationsTable.id, id));
+
+  await logAdminAction(req.instanceAdminActor!, 'delete_org', 'org', id, { name: org.name });
+
+  res.status(204).send();
+});
+
+// ─── Feature Flags ───────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/orgs/:id/features
+ * Return all feature flags for an org (missing = enabled by default).
+ */
+router.get('/admin/orgs/:id/features', async (req, res) => {
+  const { id } = req.params;
+
+  const rows = await db
+    .select({ feature: orgFeaturesTable.feature, enabled: orgFeaturesTable.enabled })
+    .from(orgFeaturesTable)
+    .where(eq(orgFeaturesTable.orgId, id));
+
+  const featureMap: Record<string, boolean> = {};
+  for (const feat of ORG_FEATURES) {
+    featureMap[feat] = true; // default enabled
+  }
+  for (const row of rows) {
+    featureMap[row.feature] = row.enabled;
+  }
+
+  res.json(featureMap);
+});
+
+/**
+ * PATCH /api/admin/orgs/:id/features
+ * Toggle one or more feature flags for an org.
+ * Body: { feature: OrgFeature, enabled: boolean }
+ */
+router.patch('/admin/orgs/:id/features', async (req, res) => {
+  const { id } = req.params;
+  const { feature, enabled } = req.body as { feature?: string; enabled?: boolean };
+
+  if (!feature || !ORG_FEATURES.includes(feature as OrgFeature)) {
+    res.status(400).json({ error: `feature must be one of: ${ORG_FEATURES.join(', ')}` });
+    return;
+  }
+  if (typeof enabled !== 'boolean') {
+    res.status(400).json({ error: 'enabled (boolean) is required' });
+    return;
+  }
+
+  // Check org exists
+  const [org] = await db
+    .select({ id: organizationsTable.id })
+    .from(organizationsTable)
+    .where(eq(organizationsTable.id, id))
+    .limit(1);
+  if (!org) {
+    res.status(404).json({ error: 'Organization not found' });
+    return;
+  }
+
+  await db
+    .insert(orgFeaturesTable)
+    .values({ orgId: id, feature: feature as OrgFeature, enabled })
+    .onConflictDoUpdate({
+      target: [orgFeaturesTable.orgId, orgFeaturesTable.feature],
+      set: { enabled, updatedAt: new Date() },
+    });
+
+  await logAdminAction(req.instanceAdminActor!, 'toggle_feature', 'feature', id, {
+    feature,
+    enabled,
+  });
+
+  res.json({ orgId: id, feature, enabled });
+});
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/users?search=<email>
+ * Global user search. Returns user + their org memberships.
+ */
+router.get('/admin/users', async (req, res) => {
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  const limitNum = Math.min(Number(req.query.limit) || 50, 200);
+
+  const users = await db
+    .select({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      isInstanceAdmin: usersTable.isInstanceAdmin,
+      createdAt: usersTable.createdAt,
+    })
+    .from(usersTable)
+    .where(
+      search
+        ? sql`${usersTable.email} ILIKE ${'%' + search + '%'}`
+        : undefined,
+    )
+    .orderBy(desc(usersTable.createdAt))
+    .limit(limitNum);
+
+  // Fetch org memberships for all returned users in one query
+  const userIds = users.map((u) => u.id);
+  let memberships: Array<{ userId: string; orgId: string; orgName: string; roleName: string }> = [];
+
+  if (userIds.length > 0) {
+    memberships = await db
+      .select({
+        userId: orgMembersTable.userId,
+        orgId: orgMembersTable.orgId,
+        orgName: organizationsTable.name,
+        roleName: rolesTable.name,
+      })
+      .from(orgMembersTable)
+      .innerJoin(organizationsTable, eq(orgMembersTable.orgId, organizationsTable.id))
+      .innerJoin(rolesTable, eq(orgMembersTable.roleId, rolesTable.id))
+      .where(sql`${orgMembersTable.userId} = ANY(${sql.raw(`ARRAY[${userIds.map((id) => `'${id.replace(/'/g, "''")}'`).join(',')}]`)})`)
+  }
+
+  const membershipsByUser = new Map<string, typeof memberships>();
+  for (const m of memberships) {
+    if (!membershipsByUser.has(m.userId)) membershipsByUser.set(m.userId, []);
+    membershipsByUser.get(m.userId)!.push(m);
+  }
+
+  const result = users.map((u) => ({
+    ...u,
+    orgs: (membershipsByUser.get(u.id) ?? []).map((m) => ({
+      orgId: m.orgId,
+      orgName: m.orgName,
+      roleName: m.roleName,
+    })),
+  }));
+
+  res.json(result);
+});
+
+/**
+ * DELETE /api/admin/orgs/:orgId/members/:userId
+ * Remove a user from an org.
+ */
+router.delete('/admin/orgs/:orgId/members/:userId', async (req, res) => {
+  const { orgId, userId } = req.params;
+
+  const [existing] = await db
+    .select({ userId: orgMembersTable.userId })
+    .from(orgMembersTable)
+    .where(and(eq(orgMembersTable.orgId, orgId), eq(orgMembersTable.userId, userId)))
+    .limit(1);
+
+  if (!existing) {
+    res.status(404).json({ error: 'Membership not found' });
+    return;
+  }
+
+  await db
+    .delete(orgMembersTable)
+    .where(and(eq(orgMembersTable.orgId, orgId), eq(orgMembersTable.userId, userId)));
+
+  await logAdminAction(req.instanceAdminActor!, 'remove_member', 'member', userId, { orgId });
+
+  res.status(204).send();
+});
+
+// ─── Usage ───────────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/usage
+ * High-level instance metrics.
+ */
+router.get('/admin/usage', async (_req, res) => {
+  const [[orgsRow], [usersRow], [tasksRow], [recentTasksRow]] = await Promise.all([
+    db.select({ total: count() }).from(organizationsTable),
+    db.select({ total: count() }).from(usersTable),
+    db.select({ total: count() }).from(tasksTable),
+    db
+      .select({ total: count() })
+      .from(tasksTable)
+      .where(sql`${tasksTable.createdAt} >= NOW() - INTERVAL '30 days'`),
+  ]);
+
+  res.json({
+    totalOrgs: Number(orgsRow?.total ?? 0),
+    totalUsers: Number(usersRow?.total ?? 0),
+    totalTasks: Number(tasksRow?.total ?? 0),
+    tasksLast30Days: Number(recentTasksRow?.total ?? 0),
+  });
+});
+
+// ─── Audit Log ───────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/admin/audit-log?limit=50
+ * Recent instance admin audit log entries.
+ */
+router.get('/admin/audit-log', async (req, res) => {
+  const limitNum = Math.min(Number(req.query.limit) || 50, 500);
+
+  const rows = await db
+    .select()
+    .from(instanceAuditLogTable)
+    .orderBy(desc(instanceAuditLogTable.createdAt))
+    .limit(limitNum);
+
+  res.json(rows);
+});
+
+export default router;

@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, jsonb, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import { boolean, index, jsonb, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
 
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
@@ -21,6 +21,8 @@ export const usersTable = pgTable('users', {
   firstName: varchar('first_name'),
   lastName: varchar('last_name'),
   profileImageUrl: varchar('profile_image_url'),
+  /** When true, this user has instance-admin privileges across all orgs. */
+  isInstanceAdmin: boolean('is_instance_admin').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

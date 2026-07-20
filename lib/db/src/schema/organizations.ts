@@ -114,6 +114,8 @@ export const invitationStatusEnum = pgEnum('invitation_status', [
 export const organizationsTable = pgTable('organizations', {
   id: varchar('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
+  /** When true, all members of this org will see a "suspended" screen. */
+  isDisabled: boolean('is_disabled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

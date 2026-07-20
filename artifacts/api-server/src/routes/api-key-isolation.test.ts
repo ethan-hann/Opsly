@@ -399,6 +399,9 @@ describe("API key org isolation — tasks", () => {
   });
 
   it("GET /api/tasks returns only org-a tasks — org-b task ID is never present", async () => {
+    // requireOrgOrApiKey now checks org suspension even for API-key requests,
+    // so the first db.select() call is the org lookup.
+    mockState.selectQueue.push([{ isDisabled: false }]); // org suspension check
     // Seed org-a task (the DB returns only this because of WHERE orgId='org-a').
     mockState.selectQueue.push([ORG_A_TASK]);   // tasks list
     mockState.selectQueue.push([]);              // workflow stages
@@ -433,6 +436,8 @@ describe("API key org isolation — projects", () => {
   });
 
   it("GET /api/projects returns only org-a projects — org-b project ID is never present", async () => {
+    // requireOrgOrApiKey checks org suspension for API-key requests first.
+    mockState.selectQueue.push([{ isDisabled: false }]); // org suspension check
     mockState.selectQueue.push([ORG_A_PROJECT]);
 
     const res = await request(buildApp()).get("/api/projects");

@@ -32,6 +32,9 @@ import {
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
 import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
+import { requireOrgFeature } from "../lib/org-features";
+
+const requireWebhooksFeature = requireOrgFeature('webhooks');
 import type { SQL } from "drizzle-orm";
 import { dispatchTaskCreated } from "../lib/webhook-dispatcher";
 import { sql } from "drizzle-orm";
@@ -522,7 +525,7 @@ router.post("/webhooks/inbound/:token/ingest", async (req, res): Promise<void> =
 // ---------------------------------------------------------------------------
 
 // GET /webhooks/inbound — list
-router.get("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const userId = req.user?.id ?? null;
 
@@ -537,7 +540,7 @@ router.get("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:read"
 });
 
 // POST /webhooks/inbound — create
-router.post("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.post("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = CreateInboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -595,7 +598,7 @@ router.post("/webhooks/inbound", requireOrgOrApiKey, requireScope("webhooks:writ
 
 // GET /webhooks/inbound/activity — per-hook task creation counts for loop detection
 // Must be registered before /:id so "activity" isn't matched as an id.
-router.get("/webhooks/inbound/activity", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/inbound/activity", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const userId = req.user?.id ?? null;
 
@@ -640,7 +643,7 @@ router.get("/webhooks/inbound/activity", requireOrgOrApiKey, requireScope("webho
 });
 
 // GET /webhooks/inbound/:id — get
-router.get("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -665,7 +668,7 @@ router.get("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:r
 });
 
 // PATCH /webhooks/inbound/:id — update (creator only)
-router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -727,7 +730,7 @@ router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks
 });
 
 // DELETE /webhooks/inbound/:id — delete (creator only)
-router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -754,7 +757,7 @@ router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireScope("webhook
 });
 
 // POST /webhooks/inbound/:id/rotate-secret — rotate token (creator only)
-router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -788,7 +791,7 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireSc
 // ---------------------------------------------------------------------------
 
 // GET /webhooks/outbound — list
-router.get("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/outbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const userId = req.user?.id ?? null;
 
@@ -802,7 +805,7 @@ router.get("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:read
 });
 
 // POST /webhooks/outbound — create
-router.post("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.post("/webhooks/outbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = CreateOutboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -841,7 +844,7 @@ router.post("/webhooks/outbound", requireOrgOrApiKey, requireScope("webhooks:wri
 });
 
 // GET /webhooks/outbound/:id/deliveries — list recent deliveries
-router.get("/webhooks/outbound/:id/deliveries", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/outbound/:id/deliveries", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -874,7 +877,7 @@ router.get("/webhooks/outbound/:id/deliveries", requireOrgOrApiKey, requireScope
 });
 
 // GET /webhooks/outbound/:id — get
-router.get("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.get("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -898,7 +901,7 @@ router.get("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:
 });
 
 // PATCH /webhooks/outbound/:id — update (creator only)
-router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -947,7 +950,7 @@ router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhook
 });
 
 // DELETE /webhooks/outbound/:id — delete (creator only)
-router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -980,7 +983,7 @@ router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireScope("webhoo
 const TestOutboundSchema = z.object({ url: z.url() });
 
 // POST /webhooks/outbound/test — fire a signed test event to any URL
-router.post("/webhooks/outbound/test", requireOrgOrApiKey, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+router.post("/webhooks/outbound/test", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
   const parsed = TestOutboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -1021,7 +1024,7 @@ const TestInboundSchema = z.object({
 });
 
 // POST /webhooks/inbound/test — dry-run a payload through applyTemplate
-router.post("/webhooks/inbound/test", requireOrgOrApiKey, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+router.post("/webhooks/inbound/test", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
   const parsed = TestInboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 

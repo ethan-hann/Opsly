@@ -9,6 +9,7 @@ import { useGetMyOrg } from "@workspace/api-client-react";
 import type { PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 import { OrgContext, type OrgContextValue } from "@/hooks/use-org-context";
 import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
+import { OrgSuspendedPage } from "@/pages/org-suspended";
 
 // ─── Guard ────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,11 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
   // guard transitions immediately without relying on query-key matching.
   if (!data?.org) {
     return <>{onboarding(refetch)}</>;
+  }
+
+  // Org is suspended by instance admin
+  if ((data.org as { isDisabled?: boolean }).isDisabled) {
+    return <OrgSuspendedPage />;
   }
 
   function hasPermission(key: keyof RolePermissions): boolean {
