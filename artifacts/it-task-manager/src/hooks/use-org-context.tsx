@@ -2,11 +2,14 @@ import {
   createContext,
   useContext,
   useState,
+  useRef,
+  useEffect,
   useCallback,
   type ReactNode,
 } from "react";
 import { useGetMyOrg } from "@workspace/api-client-react";
 import type { OrgMeResponse, Organization, PendingInvitation, RolePermissions } from "@workspace/api-client-react";
+import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -47,11 +50,37 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     data,
     isLoading,
     refetch,
-  } = useGetMyOrg();
+  } = useGetMyOrg({
+    query: {
+      // Poll every 15 s so a newly promoted owner sees the celebration
+      // without needing a manual page refresh.
+      refetchInterval: 15_000,
+    },
+  });
 
   const refetchOrg = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // Track whether the current user was already an owner on the *previous*
+  // render so we can detect the false→true transition during a live session.
+  // null = not yet observed (initial mount), so we don't fire on page load.
+  const prevIsOwner = useRef<boolean | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  const permissions = data?.org ? (data.permissions ?? null) : null;
+  const isOwner = data?.roleName === "Owner" && permissions?.manage_org_settings === true;
+
+  useEffect(() => {
+    if (prevIsOwner.current === false && isOwner) {
+      // Transitioned from non-owner to owner in this session — celebrate!
+      setShowCelebration(true);
+    }
+    if (data?.org) {
+      // Only record a known value once we have real org data.
+      prevIsOwner.current = isOwner;
+    }
+  }, [isOwner, data?.org]);
 
   if (isLoading) {
     return (
@@ -75,8 +104,6 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return <>{onboarding(refetch)}</>;
   }
 
-  const permissions = data.permissions ?? null;
-
   function hasPermission(key: keyof RolePermissions): boolean {
     return permissions?.[key] === true;
   }
@@ -92,10 +119,19 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     isAdmin: data.role === "admin",
     // roleName === "Owner" is the authoritative check; manage_org_settings is
     // Owner-only so it doubles as a safety guard against custom roles named "Owner".
-    isOwner: data.roleName === "Owner" && permissions?.manage_org_settings === true,
+    isOwner,
     hasPermission,
     refetchOrg,
   };
 
-  return <OrgContext.Provider value={value}>{children}</OrgContext.Provider>;
+  return (
+    <OrgContext.Provider value={value}>
+      {children}
+      <OwnershipCelebration
+        open={showCelebration}
+        onClose={() => setShowCelebration(false)}
+        orgName={data.org.name}
+      />
+    </OrgContext.Provider>
+  );
 }
