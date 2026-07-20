@@ -178,7 +178,7 @@ export default function Dashboard() {
         {isLoadingSlaSummary ? (
           <Skeleton className="h-28 rounded-2xl" />
         ) : slaSummary ? (
-          <Link href="/tasks">
+          <Link href="/tasks?slaBreached=true">
             <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
               slaSummary.complianceRate >= 90
                 ? "border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700"
@@ -277,7 +277,8 @@ export default function Dashboard() {
                 const isGood = p.complianceRate >= 90;
                 const isMid = p.complianceRate >= 70;
                 return (
-                  <div key={p.priority} className={`rounded-xl p-4 border ${
+                  <Link key={p.priority} href={p.breachedCount > 0 ? `/tasks?slaBreached=true&priority=${p.priority}` : "#"}>
+                  <div className={`rounded-xl p-4 border cursor-pointer ${p.breachedCount > 0 ? "hover:opacity-80 transition-opacity" : ""} ${
                     isGood
                       ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
                       : isMid
@@ -300,6 +301,7 @@ export default function Dashboard() {
                       {p.breachedCount > 0 ? `${p.breachedCount} breached` : "No breaches"} · {p.totalTracked} total
                     </p>
                   </div>
+                  </Link>
                 );
               })}
             </div>

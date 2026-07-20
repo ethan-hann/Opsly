@@ -239,7 +239,8 @@ export const ListTasksQueryParams = zod.object({
   "category": zod.coerce.string().optional().describe('Filter by task category. One of `incident`, `change`, `maintenance`, `deployment`, `support`, or `other`.\n'),
   "assignee": zod.coerce.string().optional().describe('Filter by assignee email address. Returns only tasks assigned to this org member.\n'),
   "dateFrom": zod.coerce.string().optional().describe('Filter tasks with a due date on or after this date (ISO 8601, YYYY-MM-DD). Use together with `dateTo` for a date range.\n'),
-  "dateTo": zod.coerce.string().optional().describe('Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.\n')
+  "dateTo": zod.coerce.string().optional().describe('Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.\n'),
+  "slaBreached": zod.enum(['true', 'false']).optional().describe('When `\"true\"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `\"false\"` to return all tasks regardless of SLA breach status.\n')
 })
 
 export const ListTasksResponseItem = zod.object({

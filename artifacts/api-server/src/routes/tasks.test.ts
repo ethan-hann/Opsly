@@ -107,6 +107,7 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   ne: () => ({}),
   isNull: () => ({}),
+  isNotNull: () => ({}),
   asc: () => ({}),
   desc: () => ({}),
   inArray: () => ({}),
@@ -382,6 +383,77 @@ describe("GET /api/tasks", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
+  });
+
+  it("filters to breached tasks only when slaBreached=true", async () => {
+    const breachedTask = {
+      ...MOCK_TASK,
+      slaBreachedAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    mockState.selectQueue.push([breachedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?slaBreached=true");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].slaBreachedAt).toBeDefined();
+  });
+
+  it("returns 200 with all tasks when slaBreached is omitted", async () => {
+    // Both breached and non-breached tasks returned (no filter applied)
+    mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("does not apply breached-only filter when slaBreached=false", async () => {
+    // slaBreached=false must behave identically to omitting the param —
+    // the isNotNull condition must NOT be added to the query.
+    mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?slaBreached=false");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("returns 400 when slaBreached has an unrecognized value", async () => {
+    // The schema is zod.enum(['true', 'false']) — any other string is rejected at the
+    // route layer before touching the database.
+    const res = await request(buildApp()).get("/api/tasks?slaBreached=foo");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("combines slaBreached=true with priority filter", async () => {
+    const breachedCritical = {
+      ...MOCK_TASK,
+      priority: "critical" as const,
+      slaBreachedAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    mockState.selectQueue.push([breachedCritical]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?slaBreached=true&priority=critical");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].priority).toBe("critical");
+    expect(res.body[0].slaBreachedAt).toBeDefined();
   });
 });
 

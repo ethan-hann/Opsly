@@ -2108,7 +2108,19 @@ dateFrom?: string;
  * Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.
  */
 dateTo?: string;
+/**
+ * When `"true"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `"false"` to return all tasks regardless of SLA breach status.
+ */
+slaBreached?: ListTasksSlaBreached;
 };
+
+export type ListTasksSlaBreached = typeof ListTasksSlaBreached[keyof typeof ListTasksSlaBreached];
+
+
+export const ListTasksSlaBreached = {
+  true: 'true',
+  false: 'false',
+} as const;
 
 export type ListTaskEvents404 = {
   error: string;

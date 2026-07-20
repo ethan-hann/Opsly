@@ -398,6 +398,15 @@ paths:
             YYYY-MM-DD). Use together with `dateFrom` for a date range.
           schema:
             type: string
+        - name: slaBreached
+          in: query
+          description: >
+            When `"true"`, returns only tasks where `slaBreachedAt` is set
+            (i.e. tasks that have crossed their SLA deadline). Omit or pass
+            `"false"` to return all tasks regardless of SLA breach status.
+          schema:
+            type: string
+            enum: ["true", "false"]
       responses:
         "200":
           description: List of tasks

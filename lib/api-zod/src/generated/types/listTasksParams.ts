@@ -5,6 +5,7 @@
  * Opsly API
  * OpenAPI spec version: 0.1.0
  */
+import type { ListTasksSlaBreached } from './listTasksSlaBreached';
 
 export type ListTasksParams = {
 /**
@@ -35,4 +36,8 @@ dateFrom?: string;
  * Filter tasks with a due date on or before this date (ISO 8601, YYYY-MM-DD). Use together with `dateFrom` for a date range.
  */
 dateTo?: string;
+/**
+ * When `"true"`, returns only tasks where `slaBreachedAt` is set (i.e. tasks that have crossed their SLA deadline). Omit or pass `"false"` to return all tasks regardless of SLA breach status.
+ */
+slaBreached?: ListTasksSlaBreached;
 };

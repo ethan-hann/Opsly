@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, lt, lte, gte, or, isNull, asc, desc, inArray } from "drizzle-orm";
+import { eq, sql, and, lt, lte, gte, or, isNull, isNotNull, asc, desc, inArray } from "drizzle-orm";
 import {
   db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable,
   customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable, workflowStagesTable,
@@ -386,7 +386,7 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   const watchingParam = WatchingFilterParam.safeParse(req.query);
 
   const orgId = req.orgId!;
-  const { projectId, status, priority, category, assignee, dateFrom, dateTo } = queryParams.data;
+  const { projectId, status, priority, category, assignee, dateFrom, dateTo, slaBreached } = queryParams.data;
   const watchingOnly = watchingParam.success && watchingParam.data.watching === true;
 
   const conditions = [eq(tasksTable.orgId, orgId)];
@@ -397,6 +397,7 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   if (assignee) conditions.push(eq(tasksTable.assignee, assignee));
   if (dateFrom) conditions.push(gte(tasksTable.dueDate, dateFrom));
   if (dateTo) conditions.push(lte(tasksTable.dueDate, dateTo));
+  if (slaBreached === "true") conditions.push(isNotNull(tasksTable.slaBreachedAt));
 
   let tasks: (typeof tasksTable.$inferSelect)[];
 

@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -33,6 +33,7 @@ interface ActiveFilters {
   projectFilter: ProjectFilter;
   search: string;
   watching: boolean;
+  slaBreached: boolean;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -80,6 +81,7 @@ function useTaskFilters() {
     projectFilter: (params.get("project") as ProjectFilter) ?? "all",
     search: params.get("search") ?? "",
     watching: params.get("watching") === "true",
+    slaBreached: params.get("slaBreached") === "true",
   };
 
   const activeViewId = params.get("viewId") ? Number(params.get("viewId")) : null;
@@ -149,6 +151,20 @@ function useTaskFilters() {
     [urlSearch, setLocation],
   );
 
+  const setSlaBreached = useCallback(
+    (value: boolean) => {
+      const next = new URLSearchParams(urlSearch);
+      if (value) {
+        next.set("slaBreached", "true");
+      } else {
+        next.delete("slaBreached");
+      }
+      next.delete("viewId");
+      setLocation("?" + next.toString(), { replace: true });
+    },
+    [urlSearch, setLocation],
+  );
+
   const hasActiveFilters =
     !!filters.status ||
     !!filters.priority ||
@@ -157,9 +173,10 @@ function useTaskFilters() {
     !!filters.dateFrom ||
     !!filters.dateTo ||
     !!filters.search ||
-    filters.watching;
+    filters.watching ||
+    filters.slaBreached;
 
-  return { filters, setFilter, setSearch, setWatching, clearAll, applyView, hasActiveFilters, activeViewId };
+  return { filters, setFilter, setSearch, setWatching, setSlaBreached, clearAll, applyView, hasActiveFilters, activeViewId };
 }
 
 // ─── Filter chip component ────────────────────────────────────────────────────
@@ -635,7 +652,7 @@ export default function TasksList() {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { filters, setFilter, setSearch, setWatching, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
+  const { filters, setFilter, setSearch, setWatching, setSlaBreached, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -666,6 +683,7 @@ export default function TasksList() {
     ...(filters.dateFrom ? { dateFrom: filters.dateFrom } : {}),
     ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
     ...(filters.watching ? { watching: "true" } : {}),
+    ...(filters.slaBreached ? { slaBreached: "true" } : {}),
   } as Parameters<typeof useListTasks>[0];
 
   const { data: tasks, isLoading } = useListTasks(
@@ -999,6 +1017,20 @@ export default function TasksList() {
               </div>
             </div>
           </FilterChip>
+
+          {/* SLA Breached toggle */}
+          <button
+            onClick={() => setSlaBreached(!filters.slaBreached)}
+            className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-md font-medium border transition-colors ${
+              filters.slaBreached
+                ? "bg-red-600 text-white border-red-600"
+                : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
+            }`}
+            title={filters.slaBreached ? "Showing SLA-breached tasks only — click to clear" : "Show only tasks that have breached their SLA"}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            SLA Breached
+          </button>
 
           {/* Watching toggle */}
           <button
