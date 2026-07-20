@@ -1090,6 +1090,7 @@ export default function TasksList() {
                       <div className="flex items-center gap-2 pl-7 md:pl-0 flex-wrap justify-end">
                         <SlaBadge
                           createdAt={task.createdAt}
+                          updatedAt={task.updatedAt}
                           status={task.status}
                           priority={task.priority}
                           policies={slaPolicies}

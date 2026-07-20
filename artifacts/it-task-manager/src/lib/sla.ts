@@ -8,17 +8,23 @@ export interface SlaResult {
   resolutionMinutesRemaining: number | null;
   responseMinutesRemaining: number | null;
   isResolutionBreached: boolean;
+  /** Set only when the task is done: minutes elapsed from creation to resolution. */
+  resolutionMinutesTaken: number | null;
 }
 
 /**
  * Pure SLA calculation — mirrors the server-side helper.
  * No network calls; safe to run on every render.
+ *
+ * @param resolvedAt  When the task was resolved (i.e. updatedAt for done tasks).
+ *                    Used to compute "resolved in X" instead of "X left".
  */
 export function getSlaStatus(
   createdAt: Date | string,
   status: string,
   priority: string,
   policy: SlaPolicy | null | undefined,
+  resolvedAt?: Date | string | null,
 ): SlaResult {
   if (!policy || (policy.responseMinutes == null && policy.resolutionMinutes == null)) {
     return {
@@ -27,6 +33,7 @@ export function getSlaStatus(
       resolutionMinutesRemaining: null,
       responseMinutesRemaining: null,
       isResolutionBreached: false,
+      resolutionMinutesTaken: null,
     };
   }
 
@@ -56,18 +63,29 @@ export function getSlaStatus(
   let resolutionStatus: SlaStatus = "none";
   let resolutionMinutesRemaining: number | null = null;
   let isResolutionBreached = false;
+  let resolutionMinutesTaken: number | null = null;
+
   if (policy.resolutionMinutes != null) {
-    const remaining = policy.resolutionMinutes - elapsedMinutes;
-    resolutionMinutesRemaining = Math.round(remaining);
     if (isDone) {
-      resolutionStatus = "on_track";
-    } else if (remaining < 0) {
-      resolutionStatus = "breached";
-      isResolutionBreached = true;
-    } else if (remaining / policy.resolutionMinutes <= 0.25) {
-      resolutionStatus = "warning";
+      // Compute how long it actually took — use resolvedAt (updatedAt) if provided,
+      // otherwise fall back to now (conservative approximation).
+      const resolvedMs = resolvedAt ? new Date(resolvedAt).getTime() : now;
+      const minutesTaken = (resolvedMs - created) / 60_000;
+      resolutionMinutesTaken = Math.round(minutesTaken);
+      isResolutionBreached = minutesTaken > policy.resolutionMinutes;
+      resolutionStatus = isResolutionBreached ? "breached" : "on_track";
+      resolutionMinutesRemaining = null; // not meaningful for resolved tasks
     } else {
-      resolutionStatus = "on_track";
+      const remaining = policy.resolutionMinutes - elapsedMinutes;
+      resolutionMinutesRemaining = Math.round(remaining);
+      if (remaining < 0) {
+        resolutionStatus = "breached";
+        isResolutionBreached = true;
+      } else if (remaining / policy.resolutionMinutes <= 0.25) {
+        resolutionStatus = "warning";
+      } else {
+        resolutionStatus = "on_track";
+      }
     }
   }
 
@@ -77,10 +95,11 @@ export function getSlaStatus(
     resolutionMinutesRemaining,
     responseMinutesRemaining,
     isResolutionBreached,
+    resolutionMinutesTaken,
   };
 }
 
-/** Format a minute count (possibly negative) into "Xh Ym" or "Ym". */
+/** Format a minute count into "Xh Ym" or "Ym". */
 export function formatSlaMinutes(minutes: number): string {
   const abs = Math.abs(Math.round(minutes));
   if (abs < 60) return `${abs}m`;

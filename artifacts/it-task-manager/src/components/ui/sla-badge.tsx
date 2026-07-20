@@ -5,6 +5,8 @@ import type { SlaPolicy } from "@workspace/api-client-react";
 
 interface SlaBadgeProps {
   createdAt: string;
+  /** updatedAt is used as the resolution timestamp for done tasks. */
+  updatedAt?: string | null;
   status: string;
   priority: string;
   policies?: SlaPolicy[];
@@ -14,32 +16,31 @@ interface SlaBadgeProps {
 /** Re-compute SLA status on a 30-second heartbeat so the countdown is live. */
 function useSlaResult(
   createdAt: string,
+  updatedAt: string | null | undefined,
   status: string,
   priority: string,
   policy: SlaPolicy | null | undefined,
 ): SlaResult {
   const [result, setResult] = useState<SlaResult>(() =>
-    getSlaStatus(createdAt, status, priority, policy ?? null),
+    getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt),
   );
 
   useEffect(() => {
-    // Recompute immediately when props change
-    setResult(getSlaStatus(createdAt, status, priority, policy ?? null));
+    setResult(getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt));
 
-    // Then tick every 30 s so the countdown stays fresh
     const id = setInterval(() => {
-      setResult(getSlaStatus(createdAt, status, priority, policy ?? null));
+      setResult(getSlaStatus(createdAt, status, priority, policy ?? null, updatedAt));
     }, 30_000);
 
     return () => clearInterval(id);
-  }, [createdAt, status, priority, policy]);
+  }, [createdAt, updatedAt, status, priority, policy]);
 
   return result;
 }
 
-export function SlaBadge({ createdAt, status, priority, policies, className }: SlaBadgeProps) {
+export function SlaBadge({ createdAt, updatedAt, status, priority, policies, className }: SlaBadgeProps) {
   const policy = policies?.find((p) => p.priority === priority) ?? null;
-  const result = useSlaResult(createdAt, status, priority, policy);
+  const result = useSlaResult(createdAt, updatedAt, status, priority, policy);
 
   if (result.resolutionStatus === "none" && result.responseStatus === "none") {
     return null;
@@ -56,12 +57,20 @@ export function SlaBadge({ createdAt, status, priority, policies, className }: S
     none:     "bg-muted text-muted-foreground border-border",
   };
 
-  const labels: Record<string, string> = {
-    on_track: minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: on track",
-    warning:  minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: warning",
-    breached: minutes != null ? `SLA: breached ${formatSlaMinutes(Math.abs(minutes))} ago` : "SLA: breached",
-    none:     "No SLA",
-  };
+  // For resolved tasks, show how long it took instead of how much time is left.
+  let label: string;
+  if (result.resolutionMinutesTaken != null) {
+    // Task is done — show resolution time
+    label = `Resolved in ${formatSlaMinutes(result.resolutionMinutesTaken)}`;
+  } else {
+    const labelMap: Record<string, string> = {
+      on_track: minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: on track",
+      warning:  minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: warning",
+      breached: minutes != null ? `SLA: breached ${formatSlaMinutes(Math.abs(minutes))} ago` : "SLA: breached",
+      none:     "No SLA",
+    };
+    label = labelMap[dominant];
+  }
 
   return (
     <span
@@ -74,7 +83,7 @@ export function SlaBadge({ createdAt, status, priority, policies, className }: S
         : dominant === "breached" ? "bg-red-500 animate-pulse"
         : "bg-muted-foreground"
       }`} />
-      {labels[dominant]}
+      {label}
     </span>
   );
 }

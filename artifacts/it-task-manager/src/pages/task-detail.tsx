@@ -642,6 +642,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </span>
                 <SlaBadge
                   createdAt={task.createdAt}
+                  updatedAt={task.updatedAt}
                   status={task.status}
                   priority={task.priority}
                   policies={slaPolicies}
