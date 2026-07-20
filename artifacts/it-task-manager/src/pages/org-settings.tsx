@@ -268,10 +268,21 @@ function RoleCard({ role, canEdit, onUpdated, onDeleted }: RoleCardProps) {
     updateRole({ id: role.id, data: { name: trimmed } });
   }
 
-  const isImmutable = role.isOwner;
+  // All built-in roles (Owner, Admin, Member) are read-only at both the API
+  // and UI layers. Only custom roles may have their permissions edited.
+  const isImmutable = role.isBuiltIn;
 
   return (
     <div className="rounded-lg border border-border bg-card p-4 space-y-3">
+      {/* Built-in role notice */}
+      {role.isBuiltIn && (
+        <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
+          <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Built-in roles cannot be edited. To customize permissions, create a new custom role for your organization.
+          </span>
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">

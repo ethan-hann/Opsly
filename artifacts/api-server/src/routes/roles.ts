@@ -3,8 +3,14 @@
  *
  *   GET    /roles               – list all roles for the current org
  *   POST   /roles               – create a custom role (owner only)
- *   PATCH  /roles/:id           – update a role's name/permissions (owner only; Owner built-in is immutable)
+ *   PATCH  /roles/:id           – update a role's name/permissions (owner only; all built-in roles are read-only)
  *   DELETE /roles/:id           – delete a custom role (owner only; built-in cannot be deleted)
+ *
+ * Built-in role policy
+ * --------------------
+ * Owner, Admin, and Member are seeded for every org and are read-only at
+ * both the API and UI layers. Neither their names nor their permissions may
+ * be changed. To apply different permissions, create a custom role instead.
  */
 
 import { Router, type IRouter } from 'express';
@@ -138,9 +144,13 @@ router.patch('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<v
     return;
   }
 
-  // The Owner built-in role is immutable
-  if (role.isOwner) {
-    res.status(403).json({ error: 'The Owner role cannot be modified' });
+  // All built-in roles (Owner, Admin, Member) are read-only.
+  // Guide the caller toward creating a custom role instead.
+  if (role.isBuiltIn) {
+    res.status(403).json({
+      error: `The ${role.name} role is a built-in role and cannot be modified.`,
+      hint: 'Create a custom role to define a different permission set for your organization.',
+    });
     return;
   }
 
@@ -194,8 +204,12 @@ router.delete('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<
     return;
   }
 
+  // Built-in roles (Owner, Admin, Member) are read-only and cannot be deleted.
   if (role.isBuiltIn) {
-    res.status(403).json({ error: 'Built-in roles cannot be deleted' });
+    res.status(403).json({
+      error: `The ${role.name} role is a built-in role and cannot be deleted.`,
+      hint: 'Create a custom role to define a different permission set for your organization.',
+    });
     return;
   }
 
