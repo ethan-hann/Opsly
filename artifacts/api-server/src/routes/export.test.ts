@@ -411,3 +411,99 @@ describe("GET /export/download/:token", () => {
     expect(res.status).toBe(403);
   });
 });
+
+// ---------------------------------------------------------------------------
+// ── Token TTL expiry ──────────────────────────────────────────────────────
+//
+// Background export tokens expire after 1 hour. These tests advance fake
+// timers past the TTL and verify that both the download and the pending
+// endpoints reflect the expiry correctly.
+// ---------------------------------------------------------------------------
+describe("GET /export/download/:token — TTL expiry", () => {
+  let app: express.Express;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockState.selectQueue = [];
+    mockState.adminAccess = true;
+    app = await buildApp();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns 404 after the 1-hour TTL has elapsed — expired tokens cannot be redeemed", async () => {
+    // Large-org path (≥ 10 000 rows) → 202 + background job via setTimeout.
+    queueCount(15_000);
+    queueRows([]);  // custom field defs (none)
+    queueRows([{
+      id: 1, orgId: "org-1", orgTaskNumber: 1, title: "Task A",
+      description: null, status: "todo", priority: "medium", category: "other",
+      assignee: null, dueDate: null, projectId: null, slaBreachedAt: null,
+      sourceWebhookId: null, slaWarningSentAt: null, customFields: {},
+      createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"),
+    }]);
+
+    // Step 1: POST → 202 (job scheduled but not yet run).
+    const postRes = await request(app)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json" });
+    expect(postRes.status).toBe(202);
+
+    // Step 2: fire the background job — populates pendingDownloads and userLatestExport.
+    await vi.runAllTimersAsync();
+
+    // Step 3: confirm the token is available before expiry.
+    const pendingBefore = await request(app).get("/export/pending");
+    expect(pendingBefore.body.pending).toBe(true);
+    const token = pendingBefore.body.token as string;
+    expect(typeof token).toBe("string");
+
+    // Step 4: advance fake clock past the 1-hour TTL (3 600 000 ms).
+    // The cleanup setInterval fires at 3 600 000 ms exactly but uses strict
+    // less-than, so the entry survives until 3 600 001 ms when the route
+    // handler evaluates expiresAt < new Date().
+    await vi.advanceTimersByTimeAsync(3_600_001);
+
+    // Step 5: download must now return 404 — token is expired.
+    const dlRes = await request(app).get(`/export/download/${token}`);
+    expect(dlRes.status).toBe(404);
+    expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired|not found/i) });
+
+    // Step 6: pending must report false — the entry is past its TTL.
+    const pendingAfter = await request(app).get("/export/pending");
+    expect(pendingAfter.body.pending).toBe(false);
+  });
+
+  it("returns 200 when the token is accessed before the TTL elapses (pre-expiry positive control)", async () => {
+    queueCount(15_000);
+    queueRows([]);
+    queueRows([{
+      id: 2, orgId: "org-1", orgTaskNumber: 2, title: "Task B",
+      description: null, status: "todo", priority: "low", category: "other",
+      assignee: null, dueDate: null, projectId: null, slaBreachedAt: null,
+      sourceWebhookId: null, slaWarningSentAt: null, customFields: {},
+      createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"),
+    }]);
+
+    const postRes = await request(app)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json" });
+    expect(postRes.status).toBe(202);
+
+    await vi.runAllTimersAsync();
+
+    const pendingRes = await request(app).get("/export/pending");
+    expect(pendingRes.body.pending).toBe(true);
+    const token = pendingRes.body.token as string;
+
+    // Advance only 30 minutes — well within the 1-hour TTL.
+    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
+
+    // Token must still be valid.
+    const dlRes = await request(app).get(`/export/download/${token}`);
+    expect(dlRes.status).toBe(200);
+  });
+});
