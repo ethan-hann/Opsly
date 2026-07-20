@@ -176,6 +176,7 @@ import {
   workflowStagesTable,
   savedViewsTable,
   slaPoliciesTable,
+  taskWatchersTable,
   OWNER_PERMISSIONS,
   MEMBER_PERMISSIONS,
 } from "@workspace/db";
@@ -971,5 +972,70 @@ describeIf("DB isolation — PUT /api/projects/:id/sla-policies (cross-org write
     await db
       .delete(slaPoliciesTable)
       .where(eq(slaPoliciesTable.projectId, orgAProjectId));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task-watcher and task-events isolation
+// ---------------------------------------------------------------------------
+
+describeIf("DB isolation — POST /api/tasks/:id/watch (cross-org watcher guard)", () => {
+  it("returns 404 for an Org B task id and inserts no watcher row", async () => {
+    const before = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(taskWatchersTable)
+      .where(eq(taskWatchersTable.taskId, orgBTaskId));
+    const countBefore = before[0].count;
+
+    const res = await request(buildApp()).post(`/api/tasks/${orgBTaskId}/watch`);
+
+    expect(res.status).toBe(404);
+
+    const after = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(taskWatchersTable)
+      .where(eq(taskWatchersTable.taskId, orgBTaskId));
+    expect(after[0].count).toBe(countBefore);
+  });
+
+  // Positive-control skipped: POST watch requires a real user in the DB but the
+  // middleware mock injects a synthetic "test-user-a" id that has no users row,
+  // causing a FK violation on taskWatchersTable.userId. The isolation guard
+  // (the 404 test above) is the security-relevant assertion; the happy path is
+  // covered by the dedicated mock-based task-watchers test suite.
+});
+
+describeIf("DB isolation — DELETE /api/tasks/:id/watch (cross-org unwatch guard)", () => {
+  it("returns 404 for an Org B task id", async () => {
+    const res = await request(buildApp()).delete(`/api/tasks/${orgBTaskId}/watch`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describeIf("DB isolation — GET /api/tasks/:id/watchers (cross-org watchers list guard)", () => {
+  it("returns 404 for an Org B task id", async () => {
+    const res = await request(buildApp()).get(`/api/tasks/${orgBTaskId}/watchers`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 for an Org A task id (positive control)", async () => {
+    const res = await request(buildApp()).get(`/api/tasks/${orgATaskId}/watchers`);
+    expect(res.status).toBe(200);
+    // Response shape is { count, isWatching, watchers } — not a plain array
+    expect(typeof res.body.count).toBe("number");
+    expect(Array.isArray(res.body.watchers)).toBe(true);
+  });
+});
+
+describeIf("DB isolation — GET /api/tasks/:id/events (cross-org audit-log guard)", () => {
+  it("returns 404 for an Org B task id", async () => {
+    const res = await request(buildApp()).get(`/api/tasks/${orgBTaskId}/events`);
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 200 for an Org A task id (positive control)", async () => {
+    const res = await request(buildApp()).get(`/api/tasks/${orgATaskId}/events`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
   });
 });
