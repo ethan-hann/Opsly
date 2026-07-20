@@ -19,27 +19,29 @@ import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 
 const mockTasks: any[] = [];
 const mockPolicies: any[] = [];
+const mockStages: any[] = [];
+
+// Track call order: 0 → tasks, 1 → policies (Promise.all[0]), 2 → stages (Promise.all[1])
+let selectCallCount = 0;
 
 vi.mock("@workspace/db", () => ({
   db: {
     select: () => ({
       from: () => ({
         where: () => Promise.resolve(
-          // Return tasks on first call, policies on second — mimics the two
-          // sequential selects in scanSlaBreaches.
-          mockTasks.length > 0 && !selectCallCount
+          selectCallCount === 0
             ? (selectCallCount++, mockTasks)
-            : (selectCallCount++, mockPolicies),
+            : selectCallCount === 1
+              ? (selectCallCount++, mockPolicies)
+              : (selectCallCount++, mockStages),
         ),
       }),
     }),
   },
   tasksTable: {},
   slaPoliciesTable: {},
+  workflowStagesTable: {},
 }));
-
-// Track how many times db.select().from().where() has been awaited
-let selectCallCount = 0;
 
 vi.mock("drizzle-orm", () => ({
   ne: () => ({}),
@@ -110,6 +112,7 @@ function makePolicy(orgId: string) {
 beforeEach(() => {
   mockTasks.length = 0;
   mockPolicies.length = 0;
+  mockStages.length = 0;
   selectCallCount = 0;
   detectMock.mockClear();
   vi.useFakeTimers();
@@ -168,6 +171,7 @@ describe("scanSlaBreaches", () => {
       expect.any(Array),
       "org-no-policy",
       [], // empty policies — detectAndMarkSlaBreaches handles this gracefully
+      undefined, // no stages for this org → stagesByOrg.get() returns undefined
     );
   });
 });

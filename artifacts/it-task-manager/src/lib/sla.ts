@@ -49,7 +49,7 @@ export function getSlaStatus(
   let responseMinutesRemaining: number | null = null;
   if (policy.responseMinutes != null) {
     const remaining = policy.responseMinutes - elapsedMinutes;
-    responseMinutesRemaining = Math.round(remaining);
+    responseMinutesRemaining = remaining; // keep fractional for mm:ss display
     if (isDone) {
       responseStatus = "on_track";
     } else if (remaining < 0) {
@@ -73,13 +73,13 @@ export function getSlaStatus(
       // otherwise fall back to now (conservative approximation).
       const resolvedMs = resolvedAt ? new Date(resolvedAt).getTime() : now;
       const minutesTaken = (resolvedMs - created) / 60_000;
-      resolutionMinutesTaken = Math.round(minutesTaken);
+      resolutionMinutesTaken = minutesTaken; // keep fractional for mm:ss display
       isResolutionBreached = minutesTaken > policy.resolutionMinutes;
       resolutionStatus = isResolutionBreached ? "breached" : "on_track";
       resolutionMinutesRemaining = null; // not meaningful for resolved tasks
     } else {
       const remaining = policy.resolutionMinutes - elapsedMinutes;
-      resolutionMinutesRemaining = Math.round(remaining);
+      resolutionMinutesRemaining = remaining; // keep fractional for mm:ss display
       if (remaining < 0) {
         resolutionStatus = "breached";
         isResolutionBreached = true;
@@ -101,11 +101,19 @@ export function getSlaStatus(
   };
 }
 
-/** Format a minute count into "Xh Ym" or "Ym". */
+/**
+ * Format a fractional-minute duration into a human-readable string.
+ * Shows mm:ss precision for durations under 1 hour, Xh Ym otherwise.
+ */
 export function formatSlaMinutes(minutes: number): string {
-  const abs = Math.abs(Math.round(minutes));
-  if (abs < 60) return `${abs}m`;
-  const h = Math.floor(abs / 60);
-  const m = abs % 60;
+  const totalSeconds = Math.round(Math.abs(minutes) * 60);
+  if (totalSeconds < 3600) {
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    if (m === 0) return `${s}s`;
+    return s === 0 ? `${m}m` : `${m}m ${s}s`;
+  }
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }

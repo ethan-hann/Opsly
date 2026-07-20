@@ -101,11 +101,14 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
 
         const projected = new Date(isoStr);
         const now = new Date();
-        const diffMin = Math.round((projected.getTime() - now.getTime()) / 60_000);
-        if (diffMin > 0) {
+        const diffSec = Math.round((projected.getTime() - now.getTime()) / 1000);
+        if (diffSec > 0) {
+          const m = Math.floor(diffSec / 60);
+          const s = diffSec % 60;
+          const timeStr = m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`;
           return typeLabel
-            ? `SLA warning — ${typeLabel} breach in ${diffMin}m`
-            : `SLA warning — breach projected in ${diffMin}m`;
+            ? `SLA warning — ${typeLabel} breach in ${timeStr}`
+            : `SLA warning — breach projected in ${timeStr}`;
         }
       } catch {
         // fall through to generic label

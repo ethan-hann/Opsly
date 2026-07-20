@@ -33,7 +33,7 @@ function useSlaResult(
 
     const id = setInterval(() => {
       setResult(getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt));
-    }, 30_000);
+    }, 5_000);
 
     return () => clearInterval(id);
   }, [createdAt, updatedAt, status, priority, policy, stageType]);

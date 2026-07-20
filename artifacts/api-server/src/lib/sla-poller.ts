@@ -16,8 +16,8 @@
  * passive read cannot double-fire the same webhook.
  */
 
-import { eq, inArray, ne, or, isNull } from "drizzle-orm";
-import { db, tasksTable, slaPoliciesTable } from "@workspace/db";
+import { eq, inArray, ne } from "drizzle-orm";
+import { db, tasksTable, slaPoliciesTable, workflowStagesTable } from "@workspace/db";
 import { detectAndMarkSlaBreaches } from "./sla-detection";
 import { logger } from "./logger";
 
@@ -55,11 +55,14 @@ export async function scanSlaBreaches(): Promise<void> {
   const orgIds = [...byOrg.keys()];
   if (orgIds.length === 0) return;
 
-  // Fetch all SLA policies for all affected orgs in one query
-  const allPolicies = await db
-    .select()
-    .from(slaPoliciesTable)
-    .where(inArray(slaPoliciesTable.orgId, orgIds));
+  // Fetch all SLA policies AND workflow stages for all affected orgs in parallel.
+  // Stages are needed so that tasks resolved via a "closed"-type custom stage are
+  // correctly excluded from SLA breach detection (ne(status,"done") only catches
+  // the legacy string status; numeric stage IDs need the stages map).
+  const [allPolicies, allStages] = await Promise.all([
+    db.select().from(slaPoliciesTable).where(inArray(slaPoliciesTable.orgId, orgIds)),
+    db.select().from(workflowStagesTable).where(inArray(workflowStagesTable.orgId, orgIds)),
+  ]);
 
   // Group policies by orgId
   const policiesByOrg = new Map<string, (typeof slaPoliciesTable.$inferSelect)[]>();
@@ -72,6 +75,14 @@ export async function scanSlaBreaches(): Promise<void> {
     }
   }
 
+  // Build per-org stages maps (keyed by stage ID) so detection can determine
+  // whether a task's numeric status represents an open or closed stage.
+  const stagesByOrg = new Map<string, Map<number, typeof workflowStagesTable.$inferSelect>>();
+  for (const stage of allStages) {
+    if (!stagesByOrg.has(stage.orgId)) stagesByOrg.set(stage.orgId, new Map());
+    stagesByOrg.get(stage.orgId)!.set(stage.id, stage);
+  }
+
   // Run detection per org (detectAndMarkSlaBreaches already handles its own errors)
   await Promise.all(
     orgIds.map((orgId) =>
@@ -79,6 +90,7 @@ export async function scanSlaBreaches(): Promise<void> {
         byOrg.get(orgId)!,
         orgId,
         policiesByOrg.get(orgId) ?? [],
+        stagesByOrg.get(orgId),
       ),
     ),
   );

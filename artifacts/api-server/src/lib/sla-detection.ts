@@ -49,11 +49,16 @@ export async function detectAndMarkSlaBreaches(
     const candidates = tasks.filter((t) => {
       if (t.slaBreachedAt != null) return false;
       const stageId = parseInt(t.status, 10);
-      if (!isNaN(stageId) && stages) {
+      if (!isNaN(stageId)) {
+        // Task uses a custom workflow stage (numeric ID).
+        // stages map must be provided and must contain this ID, otherwise we
+        // cannot determine open/closed — skip rather than risk a false breach.
+        if (!stages) return false;
         const stage = stages.get(stageId);
-        return stage?.type === "open";
+        if (!stage) return false;
+        return stage.type === "open";
       }
-      // Fallback for unmigrated rows: use legacy "done" check
+      // Legacy string status — "done" means closed; anything else is open.
       return t.status !== "done";
     });
     if (candidates.length === 0) return;
