@@ -776,9 +776,13 @@ export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
 
 /**
- * Returns all non-deleted custom field definitions for the caller's organization, ordered by `position` then `id`. Available to all org members.
+ * Returns custom field definitions for the caller's organization, ordered by `position` then `id`. By default only active (non-deleted) definitions are returned. Pass `includeSoftDeleted=true` to also receive soft-deleted definitions (identified by a non-null `deletedAt`). Available to all org members.
  * @summary List custom field definitions for the org
  */
+export const ListCustomFieldDefinitionsQueryParams = zod.object({
+  "includeSoftDeleted": zod.coerce.boolean().optional().describe('When `true`, soft-deleted field definitions are included in the response alongside active ones. Defaults to `false`.\n')
+})
+
 export const ListCustomFieldDefinitionsResponseItem = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
   "orgId": zod.string().describe('ID of the org this field belongs to.'),
@@ -828,6 +832,20 @@ export const ReorderCustomFieldDefinitionsBody = zod.object({
 }).describe('Ordered list of field definition IDs for reordering.')
 
 export const ReorderCustomFieldDefinitionsResponse = zod.void()
+
+
+/**
+ * Permanently deletes the field definition row and removes its key from every task's `customFields` JSONB column in a single transaction. Works on both active and soft-deleted field definitions. Returns the number of tasks whose data was erased. This action is irreversible. Requires `admin` role.
+ * @summary Hard-delete a custom field and erase all stored values (admin only)
+ */
+export const PurgeCustomFieldDefinitionParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const PurgeCustomFieldDefinitionResponse = zod.object({
+  "deletedFieldId": zod.number().describe('ID of the field definition that was permanently deleted.'),
+  "affectedTaskCount": zod.number().describe('Number of tasks from which the field\'s stored value was erased.')
+}).describe('Returned after a successful purge of a custom field definition and all its stored data.\n')
 
 
 /**

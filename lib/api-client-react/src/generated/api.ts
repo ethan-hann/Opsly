@@ -30,6 +30,7 @@ import type {
   CustomFieldDefinitionInput,
   CustomFieldDefinitionUpdate,
   CustomFieldOptionConflict,
+  CustomFieldPurgeResult,
   CustomFieldReorderInput,
   DashboardSummary,
   DeleteComment403,
@@ -42,6 +43,7 @@ import type {
   InvitationInfo,
   InvitationPreview,
   InviteMemberInput,
+  ListCustomFieldDefinitionsParams,
   ListNotesParams,
   ListTaskEvents404,
   ListTasksParams,
@@ -2629,21 +2631,28 @@ export function useGetOverdueTasks<TData = Awaited<ReturnType<typeof getOverdueT
 
 
 
-export const getListCustomFieldDefinitionsUrl = () => {
+export const getListCustomFieldDefinitionsUrl = (params?: ListCustomFieldDefinitionsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/custom-fields`
+  return stringifiedParams.length > 0 ? `/api/custom-fields?${stringifiedParams}` : `/api/custom-fields`
 }
 
 /**
- * Returns all non-deleted custom field definitions for the caller's organization, ordered by `position` then `id`. Available to all org members.
+ * Returns custom field definitions for the caller's organization, ordered by `position` then `id`. By default only active (non-deleted) definitions are returned. Pass `includeSoftDeleted=true` to also receive soft-deleted definitions (identified by a non-null `deletedAt`). Available to all org members.
  * @summary List custom field definitions for the org
  */
-export const listCustomFieldDefinitions = async ( options?: RequestInit): Promise<CustomFieldDefinition[]> => {
+export const listCustomFieldDefinitions = async (params?: ListCustomFieldDefinitionsParams, options?: RequestInit): Promise<CustomFieldDefinition[]> => {
 
-  return customFetch<CustomFieldDefinition[]>(getListCustomFieldDefinitionsUrl(),
+  return customFetch<CustomFieldDefinition[]>(getListCustomFieldDefinitionsUrl(params),
   {
     ...options,
     method: 'GET'
@@ -2656,23 +2665,23 @@ export const listCustomFieldDefinitions = async ( options?: RequestInit): Promis
 
 
 
-export const getListCustomFieldDefinitionsQueryKey = () => {
+export const getListCustomFieldDefinitionsQueryKey = (params?: ListCustomFieldDefinitionsParams,) => {
     return [
-    `/api/custom-fields`
+    `/api/custom-fields`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListCustomFieldDefinitionsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getListCustomFieldDefinitionsQueryOptions = <TData = Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError = ErrorType<unknown>>(params?: ListCustomFieldDefinitionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListCustomFieldDefinitionsQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListCustomFieldDefinitionsQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomFieldDefinitions>>> = ({ signal }) => listCustomFieldDefinitions({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCustomFieldDefinitions>>> = ({ signal }) => listCustomFieldDefinitions(params, { signal, ...requestOptions });
 
 
 
@@ -2690,11 +2699,11 @@ export type ListCustomFieldDefinitionsQueryError = ErrorType<unknown>
  */
 
 export function useListCustomFieldDefinitions<TData = Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError = ErrorType<unknown>>(
-  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+ params?: ListCustomFieldDefinitionsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listCustomFieldDefinitions>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getListCustomFieldDefinitionsQueryOptions(options)
+  const queryOptions = getListCustomFieldDefinitionsQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -2849,6 +2858,78 @@ export const useReorderCustomFieldDefinitions = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getReorderCustomFieldDefinitionsMutationOptions(options));
+    }
+
+export const getPurgeCustomFieldDefinitionUrl = (id: number,) => {
+
+
+
+
+  return `/api/custom-fields/${id}/purge`
+}
+
+/**
+ * Permanently deletes the field definition row and removes its key from every task's `customFields` JSONB column in a single transaction. Works on both active and soft-deleted field definitions. Returns the number of tasks whose data was erased. This action is irreversible. Requires `admin` role.
+ * @summary Hard-delete a custom field and erase all stored values (admin only)
+ */
+export const purgeCustomFieldDefinition = async (id: number, options?: RequestInit): Promise<CustomFieldPurgeResult> => {
+
+  return customFetch<CustomFieldPurgeResult>(getPurgeCustomFieldDefinitionUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPurgeCustomFieldDefinitionMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purgeCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof purgeCustomFieldDefinition>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['purgeCustomFieldDefinition'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof purgeCustomFieldDefinition>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  purgeCustomFieldDefinition(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PurgeCustomFieldDefinitionMutationResult = NonNullable<Awaited<ReturnType<typeof purgeCustomFieldDefinition>>>
+
+    export type PurgeCustomFieldDefinitionMutationError = ErrorType<void>
+
+    /**
+ * @summary Hard-delete a custom field and erase all stored values (admin only)
+ */
+export const usePurgeCustomFieldDefinition = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof purgeCustomFieldDefinition>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof purgeCustomFieldDefinition>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getPurgeCustomFieldDefinitionMutationOptions(options));
     }
 
 export const getUpdateCustomFieldDefinitionUrl = (id: number,) => {

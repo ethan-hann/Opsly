@@ -947,9 +947,20 @@ paths:
       tags: [custom-fields]
       summary: List custom field definitions for the org
       description: >
-        Returns all non-deleted custom field definitions for the caller's
-        organization, ordered by `position` then `id`. Available to all org
+        Returns custom field definitions for the caller's organization, ordered
+        by `position` then `id`. By default only active (non-deleted) definitions
+        are returned. Pass `includeSoftDeleted=true` to also receive soft-deleted
+        definitions (identified by a non-null `deletedAt`). Available to all org
         members.
+      parameters:
+        - name: includeSoftDeleted
+          in: query
+          required: false
+          description: >
+            When `true`, soft-deleted field definitions are included in the
+            response alongside active ones. Defaults to `false`.
+          schema:
+            type: boolean
       responses:
         "200":
           description: List of custom field definitions
@@ -1005,6 +1016,35 @@ paths:
           description: Invalid request body.
         "403":
           description: Admin access required.
+
+  /custom-fields/{id}/purge:
+    post:
+      operationId: purgeCustomFieldDefinition
+      tags: [custom-fields]
+      summary: Hard-delete a custom field and erase all stored values (admin only)
+      description: >
+        Permanently deletes the field definition row and removes its key from
+        every task's `customFields` JSONB column in a single transaction.
+        Works on both active and soft-deleted field definitions. Returns the
+        number of tasks whose data was erased. This action is irreversible.
+        Requires `admin` role.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Field and all its data permanently erased.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomFieldPurgeResult"
+        "403":
+          description: Admin access required.
+        "404":
+          description: Custom field not found or belongs to a different org.
 
   /custom-fields/{id}:
     patch:
@@ -2379,6 +2419,20 @@ components:
             are still stored in existing task records. Stale values are cleared
             from those tasks automatically. Omit or pass false to receive a 409
             conflict response instead.
+
+    CustomFieldPurgeResult:
+      description: >
+        Returned after a successful purge of a custom field definition and all
+        its stored data.
+      type: object
+      required: [deletedFieldId, affectedTaskCount]
+      properties:
+        deletedFieldId:
+          type: integer
+          description: ID of the field definition that was permanently deleted.
+        affectedTaskCount:
+          type: integer
+          description: Number of tasks from which the field's stored value was erased.
 
     CustomFieldOptionConflict:
       description: >

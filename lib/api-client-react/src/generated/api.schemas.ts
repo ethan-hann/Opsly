@@ -589,6 +589,16 @@ export interface CustomFieldDefinitionUpdate {
 }
 
 /**
+ * Returned after a successful purge of a custom field definition and all its stored data.
+ */
+export interface CustomFieldPurgeResult {
+  /** ID of the field definition that was permanently deleted. */
+  deletedFieldId: number;
+  /** Number of tasks from which the field's stored value was erased. */
+  affectedTaskCount: number;
+}
+
+/**
  * Returned when a PATCH to a select field's options would orphan values already stored in task records.
  */
 export interface CustomFieldOptionConflict {
@@ -1791,5 +1801,12 @@ projectId?: number;
  * Return only notes linked to this task ID.
  */
 taskId?: number;
+};
+
+export type ListCustomFieldDefinitionsParams = {
+/**
+ * When `true`, soft-deleted field definitions are included in the response alongside active ones. Defaults to `false`.
+ */
+includeSoftDeleted?: boolean;
 };
 
