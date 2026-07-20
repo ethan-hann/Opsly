@@ -236,6 +236,30 @@ function displayName(user: { firstName?: string | null; lastName?: string | null
   return full || user.email || "Unknown";
 }
 
+/**
+ * Derive the actor identity for audit events from the current request.
+ *
+ *  Session auth  → actorId = user.id, actorName = display name
+ *  API key auth  → actorId = key ID,  actorName = "API key: <key name>"
+ *  Neither       → both null (system-generated events such as SLA breaches)
+ */
+function resolveActor(req: {
+  user?: { id?: string; firstName?: string | null; lastName?: string | null; email?: string | null } | null;
+  apiKeyId?: string;
+  apiKeyName?: string;
+}): { actorId: string | null; actorName: string | null } {
+  if (req.user) {
+    return { actorId: req.user.id ?? null, actorName: displayName(req.user) };
+  }
+  if (req.apiKeyId) {
+    return {
+      actorId: req.apiKeyId,
+      actorName: `API key: ${req.apiKeyName ?? req.apiKeyId}`,
+    };
+  }
+  return { actorId: null, actorName: null };
+}
+
 const TRACKED_FIELDS = ["status", "priority", "assignee", "category", "title", "dueDate", "projectId"] as const;
 type TrackedField = typeof TRACKED_FIELDS[number];
 type TaskSnapshot = Pick<typeof tasksTable.$inferSelect, TrackedField>;
@@ -486,8 +510,7 @@ router.post("/tasks", requireOrgOrApiKey, requireScope("tasks:write"), async (re
     })
     .returning();
 
-  const actorId = req.user?.id ?? null;
-  const actorNameStr = req.user ? displayName(req.user) : null;
+  const { actorId, actorName: actorNameStr } = resolveActor(req);
   await db.insert(taskEventsTable).values({
     taskId: task.id,
     orgId,
@@ -626,8 +649,7 @@ router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), asy
     .set(setData)
     .where(and(inArray(tasksTable.id, orgIds), eq(tasksTable.orgId, orgId)));
 
-  const actorId = req.user?.id ?? null;
-  const actorNameStr = req.user ? displayName(req.user) : null;
+  const { actorId, actorName: actorNameStr } = resolveActor(req);
   const stagesMap = await getOrgStages(orgId);
 
   for (const prev of prevRows) {
@@ -775,8 +797,7 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
     projectId: task.projectId,
   };
 
-  const actorId = req.user?.id ?? null;
-  const actorNameStr = req.user ? displayName(req.user) : null;
+  const { actorId, actorName: actorNameStr } = resolveActor(req);
   const stagesMap = await getOrgStages(orgId);
 
   // Emit standard field change events (status, priority, assignee, etc.)
