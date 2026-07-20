@@ -105,6 +105,7 @@ vi.mock("drizzle-orm", () => ({
   ne: () => ({}),
   isNull: () => ({}),
   asc: () => ({}),
+  inArray: () => ({}),
   sql: () => ({}),
 }));
 
@@ -788,6 +789,7 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // definitions
     mockState.selectQueue.push([{ customFields: { "10": "existing note", "12": "prod" } }]); // existing for merge
     // update returning already set in updateResult
+    mockState.selectQueue.push([SELECT_FIELD_DEF]);                    // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                        // comment count
 
     const res = await request(buildApp())
@@ -801,6 +803,8 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
     mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // definitions — field "99" not in list
     mockState.selectQueue.push([{ customFields: { "10": "existing note" } }]); // existing for merge
+    // update returning already set in updateResult
+    mockState.selectQueue.push([TEXT_FIELD_DEF]);                      // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                        // comment count
 
     const res = await request(buildApp())
@@ -827,6 +831,8 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([{ status: "todo", assignee: null }]);          // prev state
     mockState.selectQueue.push([DATE_FIELD_DEF]);                               // definitions
     mockState.selectQueue.push([{ customFields: {} }]);                         // existing for merge
+    // update returning already set in updateResult
+    mockState.selectQueue.push([DATE_FIELD_DEF]);                               // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                                 // comment count
 
     const res = await request(buildApp())
@@ -865,6 +871,8 @@ describe("PATCH /api/tasks/:id - custom field validation and merge", () => {
     mockState.selectQueue.push([{ status: "todo", assignee: null }]);   // prev state
     mockState.selectQueue.push([MULTI_SELECT_DEF]);                      // definitions
     mockState.selectQueue.push([{ customFields: {} }]);                  // existing for merge
+    // update returning already set in updateResult
+    mockState.selectQueue.push([MULTI_SELECT_DEF]);                      // name lookup for cf event
     mockState.selectQueue.push([{ count: 0 }]);                          // comment count
 
     const res = await request(buildApp())

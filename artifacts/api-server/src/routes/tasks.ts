@@ -613,6 +613,10 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
   // Validate, sanitize, and merge custom field values
   const { customFields: incomingCustomFields, ...restUpdateData } = parsed.data;
   let mergedCustomFields: Record<string, unknown> | undefined;
+  // Hoisted so custom-field change events can be emitted after the update
+  let prevCustomFields: Record<string, unknown> = {};
+  let sanitizedIncomingCf: Record<string, unknown> = {};
+
   if (incomingCustomFields !== undefined) {
     const cfResult = await validateAndSanitizeCustomFields(
       incomingCustomFields as Record<string, unknown>,
@@ -622,16 +626,15 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       res.status(400).json({ error: cfResult.error });
       return;
     }
+    sanitizedIncomingCf = cfResult.sanitized;
     // Merge sanitized values with existing custom fields (partial update semantics)
     const [existing] = await db
       .select({ customFields: tasksTable.customFields })
       .from(tasksTable)
       .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
       .limit(1);
-    mergedCustomFields = {
-      ...(existing?.customFields as Record<string, unknown> ?? {}),
-      ...cfResult.sanitized,
-    };
+    prevCustomFields = (existing?.customFields as Record<string, unknown>) ?? {};
+    mergedCustomFields = { ...prevCustomFields, ...sanitizedIncomingCf };
   }
 
   const setData = mergedCustomFields !== undefined
@@ -668,6 +671,45 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       projectId: task.projectId,
     },
   );
+
+  // Emit one event per custom field that changed in this update.
+  // Uses "cf:<fieldName>" to match the convention set in the force-cleanup path.
+  if (Object.keys(sanitizedIncomingCf).length > 0) {
+    // Determine which fields actually changed (serialize for stable comparison)
+    const cfChanges: Array<{ fieldId: number; oldValue: string | null; newValue: string | null }> = [];
+    for (const [rawId, newVal] of Object.entries(sanitizedIncomingCf)) {
+      const oldVal = prevCustomFields[rawId] ?? null;
+      const serialize = (v: unknown) =>
+        v === null || v === undefined ? null : Array.isArray(v) ? JSON.stringify(v) : String(v);
+      const oldStr = serialize(oldVal);
+      const newStr = serialize(newVal);
+      if (oldStr !== newStr) {
+        cfChanges.push({ fieldId: Number(rawId), oldValue: oldStr, newValue: newStr });
+      }
+    }
+
+    if (cfChanges.length > 0) {
+      // Resolve field names for the "cf:<fieldName>" label
+      const fieldIds = cfChanges.map((c) => c.fieldId);
+      const defs = await db
+        .select({ id: customFieldDefinitionsTable.id, name: customFieldDefinitionsTable.name })
+        .from(customFieldDefinitionsTable)
+        .where(and(eq(customFieldDefinitionsTable.orgId, orgId), inArray(customFieldDefinitionsTable.id, fieldIds)));
+      const nameMap = new Map(defs.map((d) => [d.id, d.name]));
+
+      await db.insert(taskEventsTable).values(
+        cfChanges.map((c) => ({
+          taskId: task.id,
+          orgId,
+          actorId,
+          actorName: actorNameStr,
+          field: `cf:${nameMap.get(c.fieldId) ?? c.fieldId}`,
+          oldValue: c.oldValue,
+          newValue: c.newValue,
+        })),
+      );
+    }
+  }
 
   const enriched = await buildTaskWithProject(task, orgId);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
