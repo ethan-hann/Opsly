@@ -1973,10 +1973,13 @@ export default function OrgSettings() {
     mutation: {
       onSuccess: (data) => {
         const link = buildInviteLink(data.token);
+        const isEmail = inviteValue.trim().includes("@");
         navigator.clipboard.writeText(link).catch(() => {});
         toast({
-          title: "Invite link copied!",
-          description: "Send this link to the invitee. They can also log in directly to accept if their email or user ID matches.",
+          title: isEmail ? "Invitation sent" : "Invite link copied!",
+          description: isEmail
+            ? "An invite email has been sent (if SMTP is configured). The link is also copied to your clipboard."
+            : "Send this link to the invitee. They can also log in directly to accept if their email or user ID matches.",
         });
         setInviteValue("");
         refetchInvitations();

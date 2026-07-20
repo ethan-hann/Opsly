@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Shield, Building2, SlidersHorizontal, Users, BarChart3, ScrollText } from "lucide-react";
+import { Shield, Building2, SlidersHorizontal, Users, BarChart3, ScrollText, Mail } from "lucide-react";
 import { AdminOrgsTab } from "./orgs-tab";
 import { AdminFeaturesTab } from "./features-tab";
 import { AdminUsersTab } from "./users-tab";
 import { AdminUsageTab } from "./usage-tab";
 import { AdminAuditTab } from "./audit-tab";
+import { AdminSmtpTab } from "./smtp-tab";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -100,6 +101,10 @@ export default function AdminConsolePage() {
               <ScrollText className="w-4 h-4" />
               Audit Log
             </TabsTrigger>
+            <TabsTrigger value="smtp" className="gap-2">
+              <Mail className="w-4 h-4" />
+              Email / SMTP
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="orgs">
@@ -116,6 +121,9 @@ export default function AdminConsolePage() {
           </TabsContent>
           <TabsContent value="audit">
             <AdminAuditTab />
+          </TabsContent>
+          <TabsContent value="smtp">
+            <AdminSmtpTab />
           </TabsContent>
         </Tabs>
       </main>

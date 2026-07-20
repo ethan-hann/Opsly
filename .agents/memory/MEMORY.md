@@ -7,3 +7,4 @@
 - [orval-sync HMR transience](orval-sync-hmr-transience.md) — pre-codegen.mjs resets generated index files; any frontend import of a generated export causes a transient HMR error; avoid importing generated symbols in app hooks.
 - [api-zod stale tsbuildinfo](api-zod-tsbuildinfo-stale.md) — broken codegen run caches empty dist/index.d.ts; fix: delete dist/ + tsbuildinfo, rebuild. Also: schema naming rule to avoid orval conflicts.
 - [American spellings](american-spellings.md) — always use American English in UI strings, comments, names, and tests; key pairs: organisation→organization, colour→color, behaviour→behavior, cancelled→canceled, centre→center.
+- [SMTP / email patterns](email-smtp-patterns.md) — nodemailer singleton; digest mailer multi-org aggregation rule; migration pattern; TS null-literal narrowing trap in tests.

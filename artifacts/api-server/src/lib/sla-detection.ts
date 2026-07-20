@@ -18,10 +18,11 @@
  */
 
 import { and, eq, isNull } from "drizzle-orm";
-import { db, tasksTable, slaPoliciesTable, workflowStagesTable, taskEventsTable, orgMembersTable, usersTable } from "@workspace/db";
+import { db, tasksTable, slaPoliciesTable, workflowStagesTable, taskEventsTable, orgMembersTable, usersTable, organizationsTable } from "@workspace/db";
 import { getSlaStatus } from "./sla";
 import { dispatchTaskSlaBreached, dispatchSlaWarning } from "./webhook-dispatcher";
 import { notifySlaBreached } from "./notifications";
+import { sendMail, buildSlaBreachEmail, isEmailConfigured } from "./email";
 import { logger } from "./logger";
 
 type StagesMap = Map<number, typeof workflowStagesTable.$inferSelect>;
@@ -144,7 +145,7 @@ export async function detectAndMarkSlaBreaches(
           if (task.assignee) {
             void (async () => {
               const [row] = await db
-                .select({ userId: orgMembersTable.userId })
+                .select({ userId: orgMembersTable.userId, email: usersTable.email })
                 .from(orgMembersTable)
                 .innerJoin(usersTable, eq(orgMembersTable.userId, usersTable.id))
                 .where(and(eq(orgMembersTable.orgId, orgId), eq(usersTable.email, task.assignee!)))
@@ -156,6 +157,30 @@ export async function detectAndMarkSlaBreaches(
                   orgId,
                   recipientUserIds: [row.userId],
                 });
+
+                // Also send a breach alert email when SMTP is configured.
+                if (isEmailConfigured() && row.email) {
+                  const [orgRow] = await db
+                    .select({ name: organizationsTable.name })
+                    .from(organizationsTable)
+                    .where(eq(organizationsTable.id, orgId))
+                    .limit(1);
+
+                  const appUrl = (process.env["APP_URL"] ?? "").replace(/\/$/, "");
+                  const taskUrl = appUrl ? `${appUrl}/tasks/${task.id}` : "";
+
+                  void sendMail({
+                    to: row.email,
+                    subject: `SLA breach: ${task.title}`,
+                    html: buildSlaBreachEmail({
+                      orgName: orgRow?.name ?? orgId,
+                      taskTitle: task.title,
+                      taskUrl,
+                      priority: task.priority,
+                      breachedAt: now,
+                    }),
+                  });
+                }
               }
             })();
           }

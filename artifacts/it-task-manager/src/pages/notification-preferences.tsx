@@ -1,15 +1,23 @@
 /**
  * Notification Preferences page — /settings/notifications
  *
- * Lets each user toggle which event types generate in-app notifications.
+ * Lets each user toggle which event types generate in-app notifications
+ * and configure the email digest frequency.
  */
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, Bell } from "lucide-react";
+import { ArrowLeft, Bell, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Card,
   CardContent,
@@ -91,15 +99,43 @@ async function savePreferences(
   return res.json() as Promise<NotificationPreference[]>;
 }
 
+type DigestFrequency = "none" | "daily" | "weekly";
+
+async function fetchDigestPreference(): Promise<DigestFrequency> {
+  const res = await fetch(`${BASE}/api/email-digest-preference`, {
+    credentials: "include",
+  });
+  if (!res.ok) return "none";
+  const data = await res.json() as { frequency: DigestFrequency };
+  return data.frequency;
+}
+
+async function saveDigestPreference(frequency: DigestFrequency): Promise<void> {
+  await fetch(`${BASE}/api/email-digest-preference`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ frequency }),
+  });
+}
+
 export function NotificationPreferencesPage() {
   const { toast } = useToast();
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [digestFrequency, setDigestFrequency] = useState<DigestFrequency>("none");
+  const [savingDigest, setSavingDigest] = useState(false);
 
   useEffect(() => {
-    fetchPreferences()
-      .then(setPrefs)
+    Promise.all([
+      fetchPreferences(),
+      fetchDigestPreference(),
+    ])
+      .then(([loadedPrefs, freq]) => {
+        setPrefs(loadedPrefs);
+        setDigestFrequency(freq);
+      })
       .catch(() =>
         toast({
           title: "Error",
@@ -109,6 +145,19 @@ export function NotificationPreferencesPage() {
       )
       .finally(() => setLoading(false));
   }, [toast]);
+
+  const handleDigestChange = async (freq: DigestFrequency) => {
+    setSavingDigest(true);
+    try {
+      await saveDigestPreference(freq);
+      setDigestFrequency(freq);
+      toast({ title: "Email digest preference saved" });
+    } catch {
+      toast({ title: "Error", description: "Could not save digest preference.", variant: "destructive" });
+    } finally {
+      setSavingDigest(false);
+    }
+  };
 
   const toggle = async (type: NotificationType) => {
     const updated = prefs.map((p) =>
@@ -153,11 +202,48 @@ export function NotificationPreferencesPage() {
         </Link>
       </div>
 
+      {/* Email digest card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <Mail className="w-5 h-5 text-muted-foreground" />
+            <CardTitle>Email Digest</CardTitle>
+          </div>
+          <CardDescription>
+            Receive a summary of your unread notifications by email. Requires the server to have SMTP configured.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="h-9 w-40 bg-muted animate-pulse rounded" />
+          ) : (
+            <div className="flex items-center gap-3">
+              <Label className="text-sm shrink-0">Send me a digest</Label>
+              <Select
+                value={digestFrequency}
+                onValueChange={(v) => void handleDigestChange(v as DigestFrequency)}
+                disabled={savingDigest}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Never</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+              {savingDigest && <span className="text-xs text-muted-foreground">Saving…</span>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
-            <CardTitle>Notification Preferences</CardTitle>
+            <CardTitle>In-App Notification Preferences</CardTitle>
           </div>
           <CardDescription>
             Choose which events generate in-app notifications for you.

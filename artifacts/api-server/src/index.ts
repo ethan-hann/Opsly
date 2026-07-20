@@ -2,6 +2,7 @@ import app from "./app";
 import { logger } from "./lib/logger";
 import { startSlaPoller } from "./lib/sla-poller";
 import { startNotificationPruner } from "./lib/notification-pruner";
+import { startDigestMailer } from "./lib/digest-mailer";
 
 const rawPort = process.env["PORT"];
 
@@ -26,6 +27,7 @@ const server = app.listen(port, (err) => {
   logger.info({ port }, "Server listening");
   const slaPoller = startSlaPoller();
   const notificationPruner = startNotificationPruner();
+  const digestMailer = startDigestMailer();
 
   // Graceful shutdown: clear background intervals before the process exits so
   // in-flight scans are not cut off mid-write and the event loop drains cleanly.
@@ -33,6 +35,7 @@ const server = app.listen(port, (err) => {
     logger.info({ signal }, "Graceful shutdown initiated");
     if (slaPoller) clearInterval(slaPoller);
     if (notificationPruner) clearInterval(notificationPruner);
+    if (digestMailer) clearInterval(digestMailer);
     server.close(() => {
       logger.info("HTTP server closed — exiting");
       process.exit(0);

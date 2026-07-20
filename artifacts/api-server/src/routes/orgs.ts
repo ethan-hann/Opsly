@@ -22,6 +22,8 @@ import {
 } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse';
 import { seedDefaultStages } from '../lib/workflow-stages';
+import { sendMail, buildInviteEmail, isEmailConfigured } from '../lib/email';
+import { logger } from '../lib/logger';
 
 const router: IRouter = Router();
 
@@ -402,6 +404,46 @@ router.post('/orgs/invite', requireOrg, requirePermission('manage_members'), asy
       expiresAt,
     })
     .returning();
+
+  // Send invite email if an email address was provided and SMTP is configured.
+  if (parsed.data.email && isEmailConfigured()) {
+    // Resolve org name and inviter name for the email body.
+    const [orgRow] = await db
+      .select({ name: organizationsTable.name })
+      .from(organizationsTable)
+      .where(eq(organizationsTable.id, req.orgId!))
+      .limit(1);
+
+    const [inviterRow] = await db
+      .select({ firstName: usersTable.firstName, lastName: usersTable.lastName, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.user!.id))
+      .limit(1);
+
+    const orgName = orgRow?.name ?? 'your organization';
+    const inviterName =
+      [inviterRow?.firstName, inviterRow?.lastName].filter(Boolean).join(' ') ||
+      inviterRow?.email ||
+      'A team member';
+
+    // Derive the app URL: prefer APP_URL env var, fall back to request origin.
+    const appUrl =
+      (process.env['APP_URL'] ?? '').replace(/\/$/, '') ||
+      `${req.protocol}://${req.get('host')}`;
+
+    const inviteLink = `${appUrl}/invite/${token}`;
+
+    // Fire-and-forget — don't block the response on email delivery.
+    void sendMail({
+      to: parsed.data.email,
+      subject: `You've been invited to join ${orgName} on IT Task Manager`,
+      html: buildInviteEmail({ orgName, inviterName, inviteLink, expiresAt }),
+    }).then((result) => {
+      if (!result.ok) {
+        logger.warn({ email: parsed.data.email, error: result.error }, 'Invite email delivery failed');
+      }
+    });
+  }
 
   res.status(201).json({
     id: invitation.id,

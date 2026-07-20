@@ -28,6 +28,7 @@
     "migrate:create-api-keys": "pnpm dlx tsx src/migrations/create-api-keys.ts",
     "migrate:add-task-list-btree-indexes": "pnpm dlx tsx src/migrations/add-task-list-btree-indexes.ts",
     "migrate:create-instance-admin": "pnpm dlx tsx src/migrations/create-instance-admin.ts",
+    "migrate:create-email-digest-preferences": "pnpm dlx tsx src/migrations/create-email-digest-preferences.ts",
     "make-admin": "pnpm dlx tsx src/make-admin.ts",
     "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke"
   },

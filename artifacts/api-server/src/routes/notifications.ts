@@ -16,6 +16,7 @@ import {
   db,
   notificationsTable,
   notificationPreferencesTable,
+  emailDigestPreferencesTable,
 } from "@workspace/db";
 import {
   ListNotificationsQueryParams,
@@ -288,5 +289,50 @@ router.patch(
     res.json(UpdateNotificationPreferencesResponse.parse(prefs));
   },
 );
+
+// ─── GET /email-digest-preference ────────────────────────────────────────────
+
+/**
+ * GET /api/email-digest-preference
+ * Return the current user's email digest frequency (none | daily | weekly).
+ */
+router.get("/email-digest-preference", requireOrg, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+
+  const [pref] = await db
+    .select({ frequency: emailDigestPreferencesTable.frequency })
+    .from(emailDigestPreferencesTable)
+    .where(eq(emailDigestPreferencesTable.userId, userId))
+    .limit(1);
+
+  res.json({ frequency: pref?.frequency ?? "none" });
+});
+
+// ─── PATCH /email-digest-preference ──────────────────────────────────────────
+
+/**
+ * PATCH /api/email-digest-preference
+ * Update the current user's email digest frequency.
+ * Body: { frequency: "none" | "daily" | "weekly" }
+ */
+router.patch("/email-digest-preference", requireOrg, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const { frequency } = req.body as { frequency?: string };
+
+  if (!["none", "daily", "weekly"].includes(frequency ?? "")) {
+    res.status(400).json({ error: 'frequency must be "none", "daily", or "weekly"' });
+    return;
+  }
+
+  await db
+    .insert(emailDigestPreferencesTable)
+    .values({ userId, frequency: frequency as "none" | "daily" | "weekly" })
+    .onConflictDoUpdate({
+      target: [emailDigestPreferencesTable.userId],
+      set: { frequency: frequency as "none" | "daily" | "weekly", updatedAt: new Date() },
+    });
+
+  res.json({ frequency });
+});
 
 export default router;
