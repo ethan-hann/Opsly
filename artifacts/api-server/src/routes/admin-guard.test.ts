@@ -316,6 +316,124 @@ describe("Admin-guard rejection: Member caller receives 403", () => {
 });
 
 // ---------------------------------------------------------------------------
+// API-key rejection: admin guards must return 403 for API-key-authenticated
+// requests even when the caller is also a valid org member.
+//
+// requirePermission() and requireOwner() call rejectApiKey() before any
+// permission check when req.apiKeyId is set.  These tests verify that a
+// future refactor cannot accidentally remove that check and silently allow
+// API keys to reach session-only endpoints.
+//
+// The app factory sets BOTH req.user (so requireOrg can populate the request
+// context from the DB) and req.apiKeyId (the key identity that triggers the
+// rejection inside requirePermission / requireOwner).  A Member-level
+// membership row is queued so requireOrg succeeds; the 403 is then produced
+// by the rejectApiKey() early-return that runs before any permission check.
+// ---------------------------------------------------------------------------
+
+function buildApiKeyApp() {
+  const app = express();
+  app.use(express.json());
+
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    // Provide a session user so requireOrg can resolve org membership from DB.
+    (req as any).user = { id: "user-member" };
+    // Set the API-key identity — this is what requirePermission / requireOwner
+    // use to detect an API-key caller and invoke rejectApiKey().
+    (req as any).apiKeyId = "key-abc-123";
+    next();
+  });
+
+  app.use("/api", orgsRouter);
+  app.use("/api", rolesRouter);
+  return app;
+}
+
+describe("Admin-guard rejection: API-key caller receives 403 on session-only routes", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+  });
+
+  // ─── requirePermission routes ─────────────────────────────────────────────
+
+  it("PATCH /api/orgs/me — requirePermission('manage_org_settings') rejects API key", async () => {
+    // requireOrg reads membership; queue a row so it succeeds before the guard runs.
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp())
+      .patch("/api/orgs/me")
+      .send({ name: "Attempted Rename" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toHaveProperty("error");
+    // Must be the rejectApiKey message, not a generic permission error.
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  it("GET /api/orgs/invitations — requirePermission('manage_members') rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp()).get("/api/orgs/invitations");
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  it("DELETE /api/orgs/invitations/:id — requirePermission('manage_members') rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp()).delete("/api/orgs/invitations/inv-1");
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  it("POST /api/orgs/invite — requirePermission('manage_members') rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp())
+      .post("/api/orgs/invite")
+      .send({ email: "attacker@evil.example" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  // ─── requireOwner routes ──────────────────────────────────────────────────
+
+  it("POST /api/roles — requireOwner rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp())
+      .post("/api/roles")
+      .send({ name: "Injected Role" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  it("PATCH /api/roles/:id — requireOwner rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp())
+      .patch("/api/roles/role-custom")
+      .send({ name: "Hijacked" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+
+  it("DELETE /api/roles/:id — requireOwner rejects API key", async () => {
+    queueMemberMembership();
+
+    const res = await request(buildApiKeyApp()).delete("/api/roles/role-custom");
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/session/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Sanity check: an Owner-level caller is NOT blocked by the same guards
 // ---------------------------------------------------------------------------
 
