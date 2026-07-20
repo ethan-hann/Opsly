@@ -574,6 +574,57 @@ describe("Task filter isolation — combined assignee + dateFrom + dateTo", () =
   });
 });
 
+// ---------------------------------------------------------------------------
+// Custom-field filter isolation — a JSONB custom-field filter must not surface
+// tasks from another org even when the field value is identical across orgs.
+//
+// The filter parameter follows the future API shape: ?customField[<fieldId>]=<value>
+// e.g. ?customField[10]=prod
+//
+// Because the list route always adds `eq(tasksTable.orgId, orgId)` to the WHERE
+// clause before any filter, the DB mock returning [] here documents that a
+// correctly-scoped query returns nothing for org-a even though org-b has a
+// matching task.
+// ---------------------------------------------------------------------------
+
+const SHARED_CUSTOM_FIELD_ID = "10";
+const SHARED_CUSTOM_FIELD_VALUE = "prod";
+
+describe("Task filter isolation — custom field filter", () => {
+  beforeEach(reset);
+
+  it("returns empty when org-b has a task with the matching custom field value but org-a has none", async () => {
+    // selectQueue is empty → DB returned [] for orgId='org-a' AND custom field filter
+    // (org-b has a task with customFields[10]='prod' but the orgId scope excludes it)
+    const res = await request(buildApp()).get(
+      `/api/tasks?customField[${SHARED_CUSTOM_FIELD_ID}]=${SHARED_CUSTOM_FIELD_VALUE}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a's task when both orgs have tasks with the same custom field value", async () => {
+    const orgATask = {
+      ...ORG_B_TASK,
+      id: 1,
+      orgId: "org-a",
+      customFields: { [SHARED_CUSTOM_FIELD_ID]: SHARED_CUSTOM_FIELD_VALUE },
+    };
+    mockState.selectQueue.push([orgATask]); // DB returns only the org-a task (orgId scoped)
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp()).get(
+      `/api/tasks?customField[${SHARED_CUSTOM_FIELD_ID}]=${SHARED_CUSTOM_FIELD_VALUE}`,
+    );
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+    expect(res.body[0].customFields?.[SHARED_CUSTOM_FIELD_ID]).toBe(SHARED_CUSTOM_FIELD_VALUE);
+  });
+});
+
 describe("Task isolation — GET /api/tasks/overdue", () => {
   beforeEach(reset);
 
