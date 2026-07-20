@@ -76,6 +76,16 @@ router.patch("/custom-fields/:id", requireOrg, requireAdmin, async (req, res): P
     return;
   }
 
+  // A field's type is immutable after creation: changing it (e.g. number →
+  // text) would silently invalidate every stored value on the next write.
+  // Reject explicitly rather than silently stripping the property.
+  if (req.body && typeof req.body === "object" && "type" in req.body) {
+    res.status(409).json({
+      error: "A custom field's type cannot be changed after creation. Delete the field and create a new one instead.",
+    });
+    return;
+  }
+
   const parsed = UpdateCustomFieldDefinitionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

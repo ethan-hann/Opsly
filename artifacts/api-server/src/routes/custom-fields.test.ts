@@ -320,6 +320,24 @@ describe("PATCH /api/custom-fields/:id", () => {
     expect(res.body).toMatchObject({ id: 1, name: "Updated Name" });
   });
 
+  it("returns 409 when attempting to change the field's type", async () => {
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/1")
+      .send({ type: "text" }); // MOCK_DEF is a "number" field
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/type cannot be changed/i);
+  });
+
+  it("returns 409 even when a type change is bundled with an otherwise-valid update", async () => {
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/1")
+      .send({ name: "Renamed", type: "number" }); // same type value still rejected — type is immutable
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/type cannot be changed/i);
+  });
+
   it("returns 200 when updating options on a select field (no removals)", async () => {
     // currentDef is not found → conflict check skipped; test just verifies main update path
     mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging", "qa"] }];
