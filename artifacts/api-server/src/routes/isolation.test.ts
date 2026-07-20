@@ -104,6 +104,10 @@ vi.mock("@workspace/api-zod", () => {
     ListViewsResponse: p, CreateViewBody: p, CreateViewResponse: p,
     UpdateViewParams: p, UpdateViewBody: p, UpdateViewResponse: p,
     DeleteViewParams: p,
+    // task templates
+    ListTaskTemplatesResponse: p, CreateTaskTemplateBody: p, CreateTaskTemplateResponse: p,
+    UpdateTaskTemplateParams: p, UpdateTaskTemplateBody: p, UpdateTaskTemplateResponse: p,
+    DeleteTaskTemplateParams: p,
   };
 });
 
@@ -168,6 +172,7 @@ vi.mock("@workspace/db", () => {
     usersTable: {},
     invitationsTable: {},
     savedViewsTable: {},
+    taskTemplatesTable: {},
     slaPoliciesTable: {},
     taskEventsTable: {},
     customFieldDefinitionsTable: {},
@@ -259,6 +264,7 @@ import notesRouter from "./notes.js";
 import dashboardRouter from "./dashboard.js";
 import orgsRouter from "./orgs.js";
 import savedViewsRouter from "./saved-views.js";
+import taskTemplatesRouter from "./task-templates.js";
 
 // ---------------------------------------------------------------------------
 // App factory
@@ -273,6 +279,7 @@ function buildApp(): Express {
   app.use("/api", dashboardRouter);
   app.use("/api", orgsRouter);
   app.use("/api", savedViewsRouter);
+  app.use("/api", taskTemplatesRouter);
   // Log unhandled errors so test failures give actionable output
   app.use((err: any, _req: any, res: any, _next: any) => {
     console.error("[test app error]", err?.message ?? err);
@@ -1110,5 +1117,128 @@ describe("Saved view isolation — DELETE /api/views/:id", () => {
 
     const res = await request(buildApp()).delete("/api/views/1");
     expect(res.status).toBe(403);
+  });
+});
+
+// ===========================================================================
+// TASK TEMPLATES — permission guard tests
+// ===========================================================================
+
+const ORG_A_TEMPLATE = {
+  id: 1,
+  orgId: "org-a",
+  createdBy: "user-a1",
+  name: "Bug report template",
+  defaultTitle: "Bug: ",
+  defaultPriority: "high",
+  defaultCategory: "incident",
+  defaultDescription: null,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+describe("Task template permissions — GET /api/task-templates", () => {
+  beforeEach(reset);
+
+  it("returns 200 for a member without manage_task_templates", async () => {
+    // GET is open to all org members — no permission guard in the route.
+    mockState.permissions = { ...mockState.permissions, manage_task_templates: false };
+    mockState.selectQueue.push([ORG_A_TEMPLATE]);
+
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
+
+  it("returns 200 for an admin with manage_task_templates", async () => {
+    mockState.selectQueue.push([ORG_A_TEMPLATE]);
+
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("Task template permissions — POST /api/task-templates", () => {
+  beforeEach(reset);
+
+  it("returns 403 when caller lacks manage_task_templates", async () => {
+    mockState.permissions = { ...mockState.permissions, manage_task_templates: false };
+
+    const res = await request(buildApp())
+      .post("/api/task-templates")
+      .send({ name: "Incident template", defaultTitle: "Incident: " });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manage_task_templates/);
+  });
+
+  it("returns 201 when caller has manage_task_templates", async () => {
+    // manage_task_templates: true is the default in reset()
+    mockState.insertResult = [ORG_A_TEMPLATE];
+
+    const res = await request(buildApp())
+      .post("/api/task-templates")
+      .send({ name: "Bug report template" });
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe(1);
+  });
+});
+
+describe("Task template permissions — PATCH /api/task-templates/:id", () => {
+  beforeEach(reset);
+
+  it("returns 403 when caller lacks manage_task_templates", async () => {
+    mockState.permissions = { ...mockState.permissions, manage_task_templates: false };
+
+    const res = await request(buildApp())
+      .patch("/api/task-templates/1")
+      .send({ name: "Renamed" });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manage_task_templates/);
+  });
+
+  it("returns 200 when caller has manage_task_templates and template exists", async () => {
+    mockState.selectQueue.push([ORG_A_TEMPLATE]); // existing template lookup
+    mockState.updateResult = [{ ...ORG_A_TEMPLATE, name: "Renamed" }];
+
+    const res = await request(buildApp())
+      .patch("/api/task-templates/1")
+      .send({ name: "Renamed" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Renamed");
+  });
+
+  it("returns 404 when caller has permission but template does not exist", async () => {
+    mockState.selectQueue.push([]); // template not found
+
+    const res = await request(buildApp())
+      .patch("/api/task-templates/999")
+      .send({ name: "Renamed" });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("Task template permissions — DELETE /api/task-templates/:id", () => {
+  beforeEach(reset);
+
+  it("returns 403 when caller lacks manage_task_templates", async () => {
+    mockState.permissions = { ...mockState.permissions, manage_task_templates: false };
+
+    const res = await request(buildApp()).delete("/api/task-templates/1");
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/manage_task_templates/);
+  });
+
+  it("returns 204 when caller has manage_task_templates and template exists", async () => {
+    mockState.selectQueue.push([ORG_A_TEMPLATE]); // existing template lookup
+
+    const res = await request(buildApp()).delete("/api/task-templates/1");
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 404 when caller has permission but template does not exist", async () => {
+    mockState.selectQueue.push([]); // template not found
+
+    const res = await request(buildApp()).delete("/api/task-templates/999");
+    expect(res.status).toBe(404);
   });
 });
