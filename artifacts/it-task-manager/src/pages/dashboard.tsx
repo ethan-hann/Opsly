@@ -99,7 +99,7 @@ export default function Dashboard() {
           Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
         ) : summary ? (
           <>
-            <Link href="/projects">
+            <Link href="/projects?status=active">
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
@@ -114,7 +114,7 @@ export default function Dashboard() {
               </div>
             </Link>
 
-            <Link href="/tasks">
+            <Link href="/tasks?stageType=open">
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
@@ -131,7 +131,7 @@ export default function Dashboard() {
               </div>
             </Link>
 
-            <Link href="/tasks">
+            <Link href="/tasks?stageType=closed">
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer">
                 <div className="flex items-center justify-between">
                   <div>
@@ -148,7 +148,7 @@ export default function Dashboard() {
               </div>
             </Link>
 
-            <Link href="/tasks">
+            <Link href="/tasks?overdue=true">
               <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
                 summary.overdueCount > 0
                   ? "border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700"

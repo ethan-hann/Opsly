@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert } from "lucide-react";
+import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
@@ -34,6 +34,8 @@ interface ActiveFilters {
   search: string;
   watching: boolean;
   slaBreached: boolean;
+  stageType: string;   // "open" | "closed" | ""
+  overdue: boolean;
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -82,6 +84,8 @@ function useTaskFilters() {
     search: params.get("search") ?? "",
     watching: params.get("watching") === "true",
     slaBreached: params.get("slaBreached") === "true",
+    stageType: params.get("stageType") ?? "",
+    overdue: params.get("overdue") === "true",
   };
 
   const activeViewId = params.get("viewId") ? Number(params.get("viewId")) : null;
@@ -165,6 +169,34 @@ function useTaskFilters() {
     [urlSearch, setLocation],
   );
 
+  const setStageType = useCallback(
+    (value: string) => {
+      const next = new URLSearchParams(urlSearch);
+      if (value) {
+        next.set("stageType", value);
+      } else {
+        next.delete("stageType");
+      }
+      next.delete("viewId");
+      setLocation("?" + next.toString(), { replace: true });
+    },
+    [urlSearch, setLocation],
+  );
+
+  const setOverdue = useCallback(
+    (value: boolean) => {
+      const next = new URLSearchParams(urlSearch);
+      if (value) {
+        next.set("overdue", "true");
+      } else {
+        next.delete("overdue");
+      }
+      next.delete("viewId");
+      setLocation("?" + next.toString(), { replace: true });
+    },
+    [urlSearch, setLocation],
+  );
+
   const hasActiveFilters =
     !!filters.status ||
     !!filters.priority ||
@@ -174,9 +206,11 @@ function useTaskFilters() {
     !!filters.dateTo ||
     !!filters.search ||
     filters.watching ||
-    filters.slaBreached;
+    filters.slaBreached ||
+    !!filters.stageType ||
+    filters.overdue;
 
-  return { filters, setFilter, setSearch, setWatching, setSlaBreached, clearAll, applyView, hasActiveFilters, activeViewId };
+  return { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, clearAll, applyView, hasActiveFilters, activeViewId };
 }
 
 // ─── Filter chip component ────────────────────────────────────────────────────
@@ -652,7 +686,7 @@ export default function TasksList() {
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { filters, setFilter, setSearch, setWatching, setSlaBreached, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
+  const { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -721,10 +755,25 @@ export default function TasksList() {
     }
   }, [views, urlSearch, applyView, user?.id]);
 
-  // Client-side: text search + project filter + optional pre-filter by specific task IDs
+  // Today's date string for overdue comparison (YYYY-MM-DD)
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  // Client-side: text search + project filter + stageType + overdue + optional pre-filter by specific task IDs
   const filteredTasks = tasks?.filter((t) => {
     // When ?ids= is present (e.g. from the custom-field conflict warning), narrow to those tasks
     if (preFilterIds && !preFilterIds.has(t.id)) return false;
+
+    // Stage-type filter (open / closed)
+    if (filters.stageType) {
+      if (t.stageType !== filters.stageType) return false;
+    }
+
+    // Overdue: open stage AND (past due date OR critical priority)
+    if (filters.overdue) {
+      const isPastDue = !!t.dueDate && t.dueDate < todayStr;
+      const isCritical = t.priority === "critical";
+      if (t.stageType !== "open" || (!isPastDue && !isCritical)) return false;
+    }
 
     const searchTerm = filters.search.toLowerCase();
     const matchesSearch =
@@ -1017,6 +1066,40 @@ export default function TasksList() {
               </div>
             </div>
           </FilterChip>
+
+          {/* Stage-type filter */}
+          <div className="flex items-center rounded-md border border-border overflow-hidden text-xs font-medium">
+            {(["open", "closed"] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setStageType(filters.stageType === type ? "" : type)}
+                className={`px-3 h-8 capitalize transition-colors ${
+                  filters.stageType === type
+                    ? type === "open"
+                      ? "bg-amber-600 text-white"
+                      : "bg-emerald-600 text-white"
+                    : "bg-background/50 text-muted-foreground hover:text-foreground hover:bg-background"
+                }`}
+                title={filters.stageType === type ? `Showing ${type} tasks — click to clear` : `Show only ${type} tasks`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+
+          {/* Overdue toggle */}
+          <button
+            onClick={() => setOverdue(!filters.overdue)}
+            className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-md font-medium border transition-colors ${
+              filters.overdue
+                ? "bg-orange-500 text-white border-orange-500"
+                : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
+            }`}
+            title={filters.overdue ? "Showing overdue / critical tasks — click to clear" : "Show overdue or critical priority tasks"}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            Overdue
+          </button>
 
           {/* SLA Breached toggle */}
           <button

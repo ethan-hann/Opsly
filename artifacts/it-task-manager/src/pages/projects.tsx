@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { Link } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { useListProjects } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, FolderGit2, Calendar } from "lucide-react";
+import { Plus, FolderGit2, Calendar, X } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import { NewProjectModal } from "@/components/ui/new-project-modal";
@@ -15,6 +15,22 @@ export default function ProjectsList() {
   const [showNewProject, setShowNewProject] = useState(false);
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
+
+  // URL-driven status filter (e.g. ?status=active from the dashboard KPI card)
+  const urlSearch = useSearch();
+  const [, setLocation] = useLocation();
+  const params = new URLSearchParams(urlSearch);
+  const statusFilter = params.get("status") ?? "";
+
+  const clearStatusFilter = () => {
+    const next = new URLSearchParams(urlSearch);
+    next.delete("status");
+    setLocation("?" + next.toString(), { replace: true });
+  };
+
+  const filteredProjects = statusFilter
+    ? (projects ?? []).filter((p) => p.status === statusFilter)
+    : (projects ?? []);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -31,11 +47,27 @@ export default function ProjectsList() {
         )}
       </div>
 
+      {/* Active filter banner */}
+      {statusFilter && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-2 text-sm">
+          <span className="text-amber-800 dark:text-amber-300 font-medium capitalize">
+            Showing {statusFilter} projects only
+          </span>
+          <button
+            onClick={clearStatusFilter}
+            className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Clear filter
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (
           Array(6).fill(0).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)
-        ) : projects && projects.length > 0 ? (
-          projects.map(project => {
+        ) : filteredProjects.length > 0 ? (
+          filteredProjects.map(project => {
             const progress = project.taskCount ? Math.round(((project.completedTaskCount || 0) / project.taskCount) * 100) : 0;
             return (
               <Link key={project.id} href={`/projects/${project.id}`}>
@@ -81,19 +113,30 @@ export default function ProjectsList() {
                   </CardContent>
                 </Card>
               </Link>
-            )
+            );
           })
         ) : (
           <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-card/50">
             <FolderGit2 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium">No projects found</h3>
-            <p className="text-muted-foreground mb-4">Get started by creating a new project initiative.</p>
-            {canManageProjects && (
+            <h3 className="text-lg font-medium">
+              {statusFilter ? `No ${statusFilter} projects` : "No projects found"}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {statusFilter
+                ? "Try clearing the filter to see all projects."
+                : "Get started by creating a new project initiative."}
+            </p>
+            {statusFilter ? (
+              <Button variant="outline" className="gap-2" onClick={clearStatusFilter}>
+                <X className="w-4 h-4" />
+                Clear filter
+              </Button>
+            ) : canManageProjects ? (
               <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
                 <Plus className="w-4 h-4" />
                 Create Project
               </Button>
-            )}
+            ) : null}
           </div>
         )}
       </div>
