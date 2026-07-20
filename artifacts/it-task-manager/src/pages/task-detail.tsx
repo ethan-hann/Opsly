@@ -8,7 +8,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
 import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff } from "lucide-react";
-import { useGetTaskWatchers, useWatchTask, useUnwatchTask } from "@/hooks/use-task-watchers";
+import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -472,6 +472,123 @@ function CustomFieldReadOnly({ value }: { value: unknown }) {
   );
 }
 
+// ─── Watcher Avatar Stack ─────────────────────────────────────────────────────
+
+const AVATAR_PALETTE = [
+  "bg-blue-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+  "bg-amber-500",
+  "bg-rose-500",
+];
+
+function watcherInitials(w: WatcherInfo): string {
+  const first = w.firstName?.[0] ?? "";
+  const last = w.lastName?.[0] ?? "";
+  if (first || last) return (first + last).toUpperCase();
+  return (w.email?.[0] ?? "?").toUpperCase();
+}
+
+function watcherDisplayName(w: WatcherInfo): string {
+  const name = [w.firstName, w.lastName].filter(Boolean).join(" ");
+  return name || w.email || "Unknown";
+}
+
+/**
+ * Overlapping circular avatars for up to 5 watchers, with a "+N" overflow
+ * badge and a popover listing all watchers by name.
+ */
+function WatcherAvatarStack({
+  watchers,
+  totalCount,
+}: {
+  watchers: WatcherInfo[];
+  totalCount: number;
+}) {
+  if (totalCount === 0 || watchers.length === 0) return null;
+
+  const displayed = watchers.slice(0, 5);
+  const overflow = totalCount - displayed.length;
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+          title="See watchers"
+          aria-label={`${totalCount} ${totalCount === 1 ? "watcher" : "watchers"} — click to see list`}
+        >
+          <div className="flex -space-x-2">
+            {displayed.map((w, i) => {
+              const initials = watcherInitials(w);
+              const colorClass = AVATAR_PALETTE[i % AVATAR_PALETTE.length];
+              return (
+                <div
+                  key={w.userId}
+                  className={cn(
+                    "w-7 h-7 rounded-full border-2 border-background flex items-center justify-center text-[10px] font-bold text-white shrink-0 overflow-hidden",
+                    colorClass,
+                  )}
+                  style={{ zIndex: displayed.length - i }}
+                  title={watcherDisplayName(w)}
+                >
+                  {w.profileImageUrl ? (
+                    <img
+                      src={w.profileImageUrl}
+                      alt={initials}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    initials
+                  )}
+                </div>
+              );
+            })}
+            {overflow > 0 && (
+              <div
+                className="w-7 h-7 rounded-full border-2 border-background bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold shrink-0"
+                style={{ zIndex: 0 }}
+              >
+                +{overflow}
+              </div>
+            )}
+          </div>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-52 p-2" align="end">
+        <p className="text-xs font-semibold text-muted-foreground px-1 mb-2">
+          {totalCount} {totalCount === 1 ? "watcher" : "watchers"}
+        </p>
+        <ul className="space-y-0.5">
+          {watchers.map((w, i) => (
+            <li key={w.userId} className="flex items-center gap-2 px-1 py-1 rounded hover:bg-muted/50">
+              <div
+                className={cn(
+                  "w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0 overflow-hidden",
+                  AVATAR_PALETTE[i % AVATAR_PALETTE.length],
+                )}
+              >
+                {w.profileImageUrl ? (
+                  <img src={w.profileImageUrl} alt={watcherInitials(w)} className="w-full h-full object-cover" />
+                ) : (
+                  watcherInitials(w)
+                )}
+              </div>
+              <span className="text-sm truncate">{watcherDisplayName(w)}</span>
+            </li>
+          ))}
+          {overflow > 0 && (
+            <li className="px-1 py-1 text-xs text-muted-foreground italic">
+              +{overflow} more…
+            </li>
+          )}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function TaskDetail({ params }: { params: { id: string } }) {
@@ -691,7 +808,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
             <CardHeader className="space-y-4 pb-4 border-b border-border/50">
               <div className="flex justify-between items-start gap-4">
                 <h1 className="text-2xl font-bold tracking-tight">{task.title}</h1>
-                <div className="flex gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Watcher avatar stack — shown when at least one person is watching */}
+                  <WatcherAvatarStack
+                    watchers={watchersData?.watchers ?? []}
+                    totalCount={watcherCount}
+                  />
                   {/* Watch / Unwatch button */}
                   <Button
                     variant={isWatching ? "secondary" : "outline"}
@@ -705,9 +827,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       <><EyeOff className="w-3.5 h-3.5" /> Unwatch</>
                     ) : (
                       <><Eye className="w-3.5 h-3.5" /> Watch</>
-                    )}
-                    {watcherCount > 0 && (
-                      <span className="ml-0.5 text-muted-foreground">· {watcherCount}</span>
                     )}
                   </Button>
                   {canEdit && (
