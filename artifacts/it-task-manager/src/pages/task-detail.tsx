@@ -665,7 +665,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
           <>
             <button
               type="button"
-              onClick={() => window.history.back()}
+              onClick={() => window.history.length > 1 ? window.history.back() : setLocation("/tasks")}
               className="hover:text-foreground flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
