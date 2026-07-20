@@ -5,6 +5,7 @@ import {
   Plus, StickyNote, Search, Link2Off,
   PanelBottom, PanelRight, ExternalLink, EyeOff, Eye,
   CheckCheck, Lock, Users, ArrowLeft, Edit2, X,
+  ChevronsUpDown, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,8 +19,10 @@ import {
 } from "@workspace/api-client-react";
 import { useListProjects, useListTasks } from "@workspace/api-client-react";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel,
   AlertDialogContent, AlertDialogDescription,
@@ -277,23 +280,31 @@ export default function NotesPage() {
             <div className="flex flex-wrap items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground">Project:</span>
-                <Select value={selectedNote.projectId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("projectId", v)}>
-                  <SelectTrigger className="h-6 text-xs w-36"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
-                    {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={selectedNote.projectId?.toString() ?? "none"}
+                  onValueChange={(v) => handleLinkChange("projectId", v)}
+                  placeholder="None"
+                  noneLabel="None"
+                  noneIcon={<Link2Off className="w-3 h-3" />}
+                  options={projects.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                  searchPlaceholder="Search projects…"
+                  triggerClassName="h-6 text-xs w-36"
+                  contentWidth="w-48"
+                />
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-xs text-muted-foreground">Task:</span>
-                <Select value={selectedNote.taskId?.toString() ?? "none"} onValueChange={(v) => handleLinkChange("taskId", v)}>
-                  <SelectTrigger className="h-6 text-xs w-44"><SelectValue placeholder="None" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none"><span className="flex items-center gap-1.5 text-muted-foreground"><Link2Off className="w-3 h-3" /> None</span></SelectItem>
-                    {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <SearchableSelect
+                  value={selectedNote.taskId?.toString() ?? "none"}
+                  onValueChange={(v) => handleLinkChange("taskId", v)}
+                  placeholder="None"
+                  noneLabel="None"
+                  noneIcon={<Link2Off className="w-3 h-3" />}
+                  options={tasks.map((t) => ({ value: t.id.toString(), label: t.title }))}
+                  searchPlaceholder="Search tasks…"
+                  triggerClassName="h-6 text-xs w-44"
+                  contentWidth="w-64"
+                />
               </div>
             </div>
           ) : (
@@ -385,25 +396,29 @@ export default function NotesPage() {
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
             <Input placeholder="Search notes…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-7 text-xs bg-background" />
           </div>
-          <Select value={filterProjectId === "all" ? "all" : filterProjectId.toString()} onValueChange={(v) => setFilterProjectId(v === "all" ? "all" : Number(v))}>
-            <SelectTrigger className="h-7 text-xs bg-background w-full">
-              <SelectValue placeholder="All projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all"><span className="text-muted-foreground">All projects</span></SelectItem>
-              {projects.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <SearchableSelect
+            value={filterProjectId === "all" ? "all" : filterProjectId.toString()}
+            onValueChange={(v) => setFilterProjectId(v === "all" ? "all" : Number(v))}
+            placeholder="All projects"
+            noneLabel="All projects"
+            noneValue="all"
+            options={projects.map((p) => ({ value: p.id.toString(), label: p.name }))}
+            searchPlaceholder="Search projects…"
+            triggerClassName="h-7 text-xs bg-background w-full"
+            contentWidth="w-full"
+          />
           <div className="flex items-center gap-1">
-            <Select value={filterTaskId === "all" ? "all" : filterTaskId.toString()} onValueChange={(v) => setFilterTaskId(v === "all" ? "all" : Number(v))}>
-              <SelectTrigger className="h-7 text-xs bg-background flex-1">
-                <SelectValue placeholder="All tasks" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all"><span className="text-muted-foreground">All tasks</span></SelectItem>
-                {tasks.map((t) => <SelectItem key={t.id} value={t.id.toString()}><span className="truncate max-w-[160px] block">{t.title}</span></SelectItem>)}
-              </SelectContent>
-            </Select>
+            <SearchableSelect
+              value={filterTaskId === "all" ? "all" : filterTaskId.toString()}
+              onValueChange={(v) => setFilterTaskId(v === "all" ? "all" : Number(v))}
+              placeholder="All tasks"
+              noneLabel="All tasks"
+              noneValue="all"
+              options={tasks.map((t) => ({ value: t.id.toString(), label: t.title }))}
+              searchPlaceholder="Search tasks…"
+              triggerClassName="h-7 text-xs bg-background flex-1"
+              contentWidth="w-[220px]"
+            />
             {filtersActive && (
               <button
                 onClick={() => { setFilterProjectId("all"); setFilterTaskId("all"); }}
@@ -472,5 +487,103 @@ function DockBtn({ onClick, active, title, children }: { onClick: () => void; ac
     >
       {children}
     </button>
+  );
+}
+
+// ─── Searchable select combobox ───────────────────────────────────────────────
+// Replaces <Select> wherever a filterable list is needed (projects, tasks).
+
+interface SearchableSelectProps {
+  value: string;
+  onValueChange: (val: string) => void;
+  placeholder: string;
+  /** Label shown for the "none / all" option */
+  noneLabel: string;
+  /** Value emitted when the none option is chosen (default: "none") */
+  noneValue?: string;
+  /** Optional icon rendered next to the none label */
+  noneIcon?: React.ReactNode;
+  options: { value: string; label: string }[];
+  searchPlaceholder?: string;
+  triggerClassName?: string;
+  /** Tailwind width class applied to the popover content (default: "w-56") */
+  contentWidth?: string;
+}
+
+function SearchableSelect({
+  value,
+  onValueChange,
+  placeholder,
+  noneLabel,
+  noneValue = "none",
+  noneIcon,
+  options,
+  searchPlaceholder = "Search…",
+  triggerClassName,
+  contentWidth = "w-56",
+}: SearchableSelectProps) {
+  const [open, setOpen] = useState(false);
+
+  const selected = value === noneValue ? null : options.find((o) => o.value === value) ?? null;
+  const displayLabel = selected ? selected.label : placeholder;
+  const isNone = !selected;
+
+  function handleSelect(val: string) {
+    onValueChange(val);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className={cn(
+            "inline-flex items-center justify-between gap-1 rounded-md border border-input bg-background px-2 text-left ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 hover:bg-accent hover:text-accent-foreground transition-colors",
+            triggerClassName,
+          )}
+        >
+          <span className={cn("truncate flex-1", isNone && "text-muted-foreground")}>
+            {displayLabel}
+          </span>
+          <ChevronsUpDown className="w-3 h-3 shrink-0 opacity-50" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className={cn("p-0", contentWidth)} align="start" sideOffset={4}>
+        <Command>
+          <CommandInput placeholder={searchPlaceholder} className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty className="py-2 px-3 text-xs text-muted-foreground">No results found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value={`__none__ ${noneLabel}`}
+                onSelect={() => handleSelect(noneValue)}
+                className="text-xs"
+              >
+                <Check className={cn("mr-1.5 h-3 w-3 shrink-0", isNone ? "opacity-100" : "opacity-0")} />
+                {noneIcon && <span className="mr-1.5 text-muted-foreground">{noneIcon}</span>}
+                <span className="text-muted-foreground">{noneLabel}</span>
+              </CommandItem>
+              {options.map((opt) => {
+                const isSelected = value === opt.value;
+                return (
+                  <CommandItem
+                    key={opt.value}
+                    value={`${opt.value} ${opt.label}`}
+                    onSelect={() => handleSelect(opt.value)}
+                    className="text-xs"
+                  >
+                    <Check className={cn("mr-1.5 h-3 w-3 shrink-0", isSelected ? "opacity-100" : "opacity-0")} />
+                    <span className="truncate">{opt.label}</span>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
