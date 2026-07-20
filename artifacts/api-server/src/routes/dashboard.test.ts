@@ -51,6 +51,7 @@ vi.mock("@workspace/db", () => {
     projectsTable: {},
     commentsTable: {},
     workflowStagesTable: {},
+    taskEventsTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -69,6 +70,7 @@ vi.mock("drizzle-orm", () => ({
   isNull: () => ({}),
   asc: () => ({}),
   desc: () => ({}),
+  like: () => ({}),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -205,12 +207,23 @@ describe("GET /api/dashboard/activity", () => {
     createdAt: new Date("2024-06-01T09:00:00.000Z"),
   };
 
-  // activity makes 3 selects: recentTasks, recentComments, recentProjects
-  function pushActivitySelects(tasks: any[] = [], comments: any[] = [], projects: any[] = []) {
+  // activity makes 4 selects: recentTasks, recentComments, recentProjects, recentCfEvents
+  function pushActivitySelects(tasks: any[] = [], comments: any[] = [], projects: any[] = [], cfEvents: any[] = []) {
     mockState.selectQueue.push(tasks);
     mockState.selectQueue.push(comments);
     mockState.selectQueue.push(projects);
+    mockState.selectQueue.push(cfEvents);
   }
+
+  const RECENT_CF_EVENT = {
+    id: 20,
+    field: "cf:Severity",
+    oldValue: "High",
+    newValue: "Critical",
+    taskId: 1,
+    taskTitle: "Deploy v2",
+    createdAt: new Date("2024-06-01T12:00:00.000Z"), // newest
+  };
 
   it("returns 200 with an empty array when there is no data", async () => {
     pushActivitySelects();
@@ -299,5 +312,58 @@ describe("GET /api/dashboard/activity", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeLessThanOrEqual(10);
+  });
+
+  it("includes field_updated items for cf: events with correct shape and description", async () => {
+    pushActivitySelects([], [], [], [RECENT_CF_EVENT]);
+
+    const res = await request(buildApp()).get("/api/dashboard/activity");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({
+      type: "field_updated",
+      title: 'Severity changed from High → Critical on "Deploy v2"',
+      entityId: 1,
+      entityType: "task",
+    });
+  });
+
+  it("sorts field_updated items by createdAt alongside other activity types", async () => {
+    // cf event is newest (12:00), comment is middle (11:00), task is oldest (10:00)
+    pushActivitySelects([RECENT_TASK], [RECENT_COMMENT], [], [RECENT_CF_EVENT]);
+
+    const res = await request(buildApp()).get("/api/dashboard/activity");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0]).toMatchObject({ type: "field_updated" });
+    expect(res.body[1]).toMatchObject({ type: "comment_added" });
+    expect(res.body[2]).toMatchObject({ type: "task_created" });
+  });
+
+  it("formats cf: set description correctly (no prior value)", async () => {
+    pushActivitySelects([], [], [], [{
+      ...RECENT_CF_EVENT,
+      oldValue: null,
+      newValue: "Critical",
+    }]);
+
+    const res = await request(buildApp()).get("/api/dashboard/activity");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].title).toContain("set to Critical");
+  });
+
+  it("formats cf: cleared description correctly (value removed)", async () => {
+    pushActivitySelects([], [], [], [{
+      ...RECENT_CF_EVENT,
+      oldValue: "High",
+      newValue: null,
+    }]);
+
+    const res = await request(buildApp()).get("/api/dashboard/activity");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].title).toContain("cleared (was High)");
   });
 });

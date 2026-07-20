@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, lt, and, isNull, asc } from "drizzle-orm";
-import { db, tasksTable, projectsTable, commentsTable, workflowStagesTable } from "@workspace/db";
+import { eq, sql, lt, and, isNull, asc, like } from "drizzle-orm";
+import { db, tasksTable, projectsTable, commentsTable, workflowStagesTable, taskEventsTable } from "@workspace/db";
 import {
   GetDashboardSummaryResponse,
   GetRecentActivityResponse,
@@ -138,6 +138,17 @@ router.get("/dashboard/summary", requireOrg, async (req, res): Promise<void> => 
   res.json(GetDashboardSummaryResponse.parse(summary));
 });
 
+/**
+ * Format a custom-field audit event (field prefixed with "cf:") into a
+ * human-readable description — mirrors the cf: branch in task-detail.tsx.
+ */
+function cfEventDescription(field: string, oldValue: string | null, newValue: string | null): string {
+  const cfName = field.slice(3); // strip "cf:" prefix
+  if (!oldValue && newValue) return `${cfName} set to ${newValue}`;
+  if (oldValue && !newValue) return `${cfName} cleared (was ${oldValue})`;
+  return `${cfName} changed from ${oldValue ?? "—"} → ${newValue ?? "—"}`;
+}
+
 router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
@@ -177,6 +188,23 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
     .orderBy(sql`${projectsTable.createdAt} desc`)
     .limit(5);
 
+  // Custom-field changes stored in task_events with "cf:<fieldName>" field prefix.
+  const recentCfEvents = await db
+    .select({
+      id: taskEventsTable.id,
+      field: taskEventsTable.field,
+      oldValue: taskEventsTable.oldValue,
+      newValue: taskEventsTable.newValue,
+      taskId: taskEventsTable.taskId,
+      taskTitle: tasksTable.title,
+      createdAt: taskEventsTable.createdAt,
+    })
+    .from(taskEventsTable)
+    .innerJoin(tasksTable, eq(taskEventsTable.taskId, tasksTable.id))
+    .where(and(eq(taskEventsTable.orgId, orgId), like(taskEventsTable.field, "cf:%")))
+    .orderBy(sql`${taskEventsTable.createdAt} desc`)
+    .limit(5);
+
   const taskItems = recentTasks.map((t) => ({
     id: t.id,
     type: "task_created",
@@ -204,7 +232,16 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
     createdAt: p.createdAt.toISOString(),
   }));
 
-  const combined = [...taskItems, ...commentItems, ...projectItems]
+  const cfEventItems = recentCfEvents.map((e) => ({
+    id: e.id + 300000,
+    type: "field_updated",
+    title: `${cfEventDescription(e.field, e.oldValue, e.newValue)} on "${e.taskTitle}"`,
+    entityId: e.taskId,
+    entityType: "task",
+    createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : String(e.createdAt),
+  }));
+
+  const combined = [...taskItems, ...commentItems, ...projectItems, ...cfEventItems]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 10);
 

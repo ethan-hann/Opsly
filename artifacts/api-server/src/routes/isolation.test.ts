@@ -203,6 +203,7 @@ vi.mock("drizzle-orm", () => ({
   asc: () => ({}),
   desc: () => ({}),
   sql: () => ({}),
+  like: () => ({}),
 }));
 
 // ---------------------------------------------------------------------------
@@ -1004,6 +1005,7 @@ describe("Dashboard isolation — GET /api/dashboard/activity", () => {
     mockState.selectQueue.push([]); // recent tasks
     mockState.selectQueue.push([]); // recent comments
     mockState.selectQueue.push([]); // recent projects
+    mockState.selectQueue.push([]); // recent cf events
 
     const res = await request(buildApp()).get("/api/dashboard/activity");
     expect(res.status).toBe(200);
