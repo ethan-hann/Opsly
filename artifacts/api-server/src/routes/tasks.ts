@@ -408,6 +408,35 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   if (dateTo) conditions.push(lte(tasksTable.dueDate, dateTo));
   if (slaBreached === "true") conditions.push(isNotNull(tasksTable.slaBreachedAt));
 
+  // Custom field filter — validate the field belongs to this org before using
+  // its ID in a query.  An org-b field ID must not reveal any metadata: if the
+  // lookup returns no row (field absent from this org, deleted, or from another
+  // org) the request is rejected with a generic 400 so callers cannot probe
+  // field names, types, or options across org boundaries.
+  const rawCfId = req.query.customFieldId;
+  if (rawCfId !== undefined) {
+    const cfId = Number(rawCfId);
+    if (!Number.isInteger(cfId) || cfId <= 0) {
+      res.status(400).json({ error: "customFieldId must be a positive integer" });
+      return;
+    }
+    const [cfDef] = await db
+      .select({ id: customFieldDefinitionsTable.id })
+      .from(customFieldDefinitionsTable)
+      .where(and(
+        eq(customFieldDefinitionsTable.id, cfId),
+        eq(customFieldDefinitionsTable.orgId, orgId),
+        isNull(customFieldDefinitionsTable.deletedAt),
+      ))
+      .limit(1);
+    if (!cfDef) {
+      res.status(400).json({ error: "Custom field not found" });
+      return;
+    }
+    // Filter to tasks that have a non-null value for this custom field.
+    conditions.push(sql`(${tasksTable.customFields}->>${String(cfId)}) IS NOT NULL`);
+  }
+
   let tasks: (typeof tasksTable.$inferSelect)[];
 
   if (watchingOnly && req.user?.id) {
