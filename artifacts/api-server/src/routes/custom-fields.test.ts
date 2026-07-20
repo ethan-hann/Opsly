@@ -864,3 +864,70 @@ describe("POST /api/custom-fields/reorder", () => {
     expect(mockState.deleteCallCount).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Role-field body injection — sending `role: "admin"` in the body must have
+// no effect on authorization.  The authorization decision is made entirely
+// from req.orgPermissions (set server-side by requireOrgMiddleware from the
+// DB membership row), never from any client-supplied field.
+// ---------------------------------------------------------------------------
+
+describe("Body 'role' field injection — role: admin in request body never elevates privileges", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.insertCalls.length = 0;
+    mockState.deleteCallCount = 0;
+    // Caller is a plain member for every test in this block.
+    mockState.isAdmin = false;
+  });
+
+  it("POST /custom-fields — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .post("/api/custom-fields")
+      .send({ name: "Sneaky Field", type: "number", role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("PATCH /custom-fields/:id — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/1")
+      .send({ name: "Sneaky Rename", role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /custom-fields/:id — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .delete("/api/custom-fields/1")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /custom-fields/reorder — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .post("/api/custom-fields/reorder")
+      .send({ ids: [1, 2], role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /custom-fields/:id/purge — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .post("/api/custom-fields/1/purge")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /custom-fields/:id/restore — returns 403 even when body includes role: 'admin'", async () => {
+    const res = await request(buildApp())
+      .post("/api/custom-fields/1/restore")
+      .send({ role: "admin" });
+
+    expect(res.status).toBe(403);
+  });
+});
