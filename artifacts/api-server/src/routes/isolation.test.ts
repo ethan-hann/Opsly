@@ -1195,6 +1195,24 @@ describe("Saved view isolation — PATCH /api/views/:id", () => {
     const res = await request(buildApp()).patch("/api/views/1").send({ name: "Hacked" });
     expect(res.status).toBe(403);
   });
+
+  it("returns 200 when an admin (manage_saved_views) edits another member's view", async () => {
+    // Caller is user-a2 with manage_saved_views: true — view was created by user-a1.
+    // The admin override (canAdmin) in the route should allow the edit even though
+    // user-a2 is not the owner.
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+    // manage_saved_views stays true (default) — explicitly confirm it here.
+    mockState.permissions = { ...mockState.permissions, manage_saved_views: true };
+
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]); // existing view lookup
+    mockState.updateResult = [{ ...orgAView, name: "Admin Renamed" }];
+
+    const res = await request(buildApp()).patch("/api/views/1").send({ name: "Admin Renamed" });
+    expect(res.status).toBe(200);
+    expect(res.body.name).toBe("Admin Renamed");
+  });
 });
 
 describe("Saved view isolation — DELETE /api/views/:id", () => {
@@ -1226,6 +1244,20 @@ describe("Saved view isolation — DELETE /api/views/:id", () => {
 
     const res = await request(buildApp()).delete("/api/views/1");
     expect(res.status).toBe(403);
+  });
+
+  it("returns 204 when an admin (manage_saved_views) deletes another member's view", async () => {
+    // Caller is user-a2 with manage_saved_views: true — view was created by user-a1.
+    // The canAdmin path in the route must allow the delete without 403.
+    mockState.userId = "user-a2";
+    mockState.userEmail = "user-a2@org-a.example";
+    mockState.permissions = { ...mockState.permissions, manage_saved_views: true };
+
+    const orgAView = { ...ORG_B_VIEW, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgAView]); // existing view lookup
+
+    const res = await request(buildApp()).delete("/api/views/1");
+    expect(res.status).toBe(204);
   });
 });
 
