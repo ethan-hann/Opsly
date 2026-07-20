@@ -533,6 +533,36 @@ describe("POST /webhooks/inbound", () => {
 
     expect(res.status).toBe(201);
   });
+
+  // ── Cross-org taskTemplateId isolation ────────────────────────────────────
+
+  it("returns 400 when taskTemplateId belongs to a different org", async () => {
+    // No projectId in this request so the first DB call is the template lookup.
+    // The WHERE clause includes AND orgId = 'test-org', so a template owned by
+    // a different org returns no rows.
+    mockState.selectQueue.push([]); // template lookup → not found for this org
+
+    const res = await request(buildApp())
+      .post("/api/webhooks/inbound")
+      .send({ name: "Hook", taskTemplateId: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/taskTemplateId/i);
+  });
+
+  it("creates a webhook when taskTemplateId belongs to the same org", async () => {
+    mockState.selectQueue.push([{ id: 7 }]); // template found in org ✓
+    const hook = makeHook({ name: "Template Hook" });
+    mockState.insertResult = [hook];
+    // resolveTemplateName runs after insert; taskTemplateId is null on makeHook
+    // default so it returns null without a DB call.
+
+    const res = await request(buildApp())
+      .post("/api/webhooks/inbound")
+      .send({ name: "Template Hook", taskTemplateId: 7 });
+
+    expect(res.status).toBe(201);
+  });
 });
 
 // ============================================================
@@ -612,6 +642,38 @@ describe("PATCH /webhooks/inbound/:id", () => {
       .send({ projectId: 999 });
 
     expect(res.status).toBe(400);
+  });
+
+  // ── Cross-org taskTemplateId isolation ────────────────────────────────────
+
+  it("returns 400 when taskTemplateId belongs to a different org", async () => {
+    // Hook exists and is owned by the caller; no projectId change so the next
+    // DB call is the template lookup. The WHERE clause includes
+    // AND orgId = 'test-org', so a template from another org returns nothing.
+    mockState.selectQueue.push([makeHook()]); // exists check → hook found ✓
+    mockState.selectQueue.push([]);           // template lookup → not found for this org
+
+    const res = await request(buildApp())
+      .patch("/api/webhooks/inbound/1")
+      .send({ taskTemplateId: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/taskTemplateId/i);
+  });
+
+  it("updates a webhook when taskTemplateId belongs to the same org", async () => {
+    const updated = makeHook({ name: "Template Hook" });
+    mockState.selectQueue.push([makeHook()]);  // exists check → hook found ✓
+    mockState.selectQueue.push([{ id: 7 }]);   // template found in org ✓
+    mockState.updateResult = [updated];
+    // resolveTemplateName runs after update; updated.taskTemplateId is null
+    // on makeHook default so it returns null without an extra DB call.
+
+    const res = await request(buildApp())
+      .patch("/api/webhooks/inbound/1")
+      .send({ taskTemplateId: 7 });
+
+    expect(res.status).toBe(200);
   });
 });
 
