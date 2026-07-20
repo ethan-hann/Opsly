@@ -854,6 +854,7 @@ router.put('/org/sla-policies', requireOrg, requirePermission('manage_sla_polici
           priority: z.enum(['low', 'medium', 'high', 'critical']),
           responseMinutes: z.number().int().min(1).nullable().optional(),
           resolutionMinutes: z.number().int().min(1).nullable().optional(),
+          warningThresholdPercent: z.number().int().min(1).max(99).optional(),
         }),
       )
       .max(4),
@@ -891,6 +892,7 @@ router.put('/org/sla-policies', requireOrg, requirePermission('manage_sla_polici
           priority: p.priority,
           responseMinutes: p.responseMinutes ?? null,
           resolutionMinutes: p.resolutionMinutes ?? null,
+          warningThresholdPercent: p.warningThresholdPercent ?? 80,
         })),
       )
       .returning();

@@ -227,6 +227,7 @@ router.put(
             priority: z.enum(VALID_PRIORITIES),
             responseMinutes: z.number().int().min(1).nullable().optional(),
             resolutionMinutes: z.number().int().min(1).nullable().optional(),
+            warningThresholdPercent: z.number().int().min(1).max(99).optional(),
           }),
         )
         .max(4),
@@ -277,6 +278,7 @@ router.put(
             priority: p.priority,
             responseMinutes: p.responseMinutes ?? null,
             resolutionMinutes: p.resolutionMinutes ?? null,
+            warningThresholdPercent: p.warningThresholdPercent ?? 80,
           })),
         )
         .returning();

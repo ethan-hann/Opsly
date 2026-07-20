@@ -3409,7 +3409,7 @@ components:
           type: array
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
           description: Event types this webhook subscribes to.
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
@@ -3470,7 +3470,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3494,7 +3494,7 @@ components:
           minItems: 1
           items:
             type: string
-            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, project.created, project.updated, note.created, note.updated, note.deleted]
+            enum: [task.created, task.updated, task.status_changed, task.assigned, task.commented, task.sla_breached, task.sla_warning, project.created, project.updated, note.created, note.updated, note.deleted]
         visibility:
           $ref: '#/components/schemas/WebhookVisibility'
         enabled:
@@ -3621,6 +3621,9 @@ components:
         resolutionMinutes:
           type: ["integer", "null"]
           description: Maximum minutes before the task must be resolved. Null means no target.
+        warningThresholdPercent:
+          type: integer
+          description: Percentage of the resolution window elapsed before a warning webhook fires. Default 80.
         createdAt:
           type: string
         updatedAt:
@@ -3640,6 +3643,11 @@ components:
         resolutionMinutes:
           type: ["integer", "null"]
           minimum: 1
+        warningThresholdPercent:
+          type: integer
+          minimum: 1
+          maximum: 99
+          description: Percentage of resolution window at which the warning webhook fires (default 80).
 
     SLAPoliciesInput:
       description: Full set of SLA policies for the org (up to four entries, one per priority).

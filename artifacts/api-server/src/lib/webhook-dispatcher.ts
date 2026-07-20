@@ -193,6 +193,17 @@ export function dispatchTaskSlaBreached(
   void dispatch(orgId, "task.sla_breached", projectId, { task, minutesOverdue });
 }
 
+export function dispatchSlaWarning(
+  orgId: string,
+  projectId: number | null | undefined,
+  task: Record<string, unknown>,
+  percentElapsed: number,
+  projectedBreachAt: string,
+  minutesUntilBreach: number,
+): void {
+  void dispatch(orgId, "task.sla_warning", projectId, { task, percentElapsed, projectedBreachAt, minutesUntilBreach });
+}
+
 export function dispatchProjectCreated(
   orgId: string,
   project: Record<string, unknown>,

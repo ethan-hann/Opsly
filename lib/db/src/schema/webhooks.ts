@@ -50,6 +50,7 @@ export type OutboundWebhookEvent =
   | "task.assigned"
   | "task.commented"
   | "task.sla_breached"
+  | "task.sla_warning"
   | "project.created"
   | "project.updated"
   | "note.created"
@@ -63,6 +64,7 @@ export const ALL_OUTBOUND_EVENTS: OutboundWebhookEvent[] = [
   "task.assigned",
   "task.commented",
   "task.sla_breached",
+  "task.sla_warning",
   "project.created",
   "project.updated",
   "note.created",

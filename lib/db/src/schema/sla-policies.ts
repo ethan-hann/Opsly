@@ -25,6 +25,11 @@ export const slaPoliciesTable = pgTable("sla_policies", {
   responseMinutes: integer("response_minutes"),
   /** Maximum minutes before the task must be resolved. Null = no target. */
   resolutionMinutes: integer("resolution_minutes"),
+  /**
+   * Percentage of the resolution window elapsed before a warning webhook fires.
+   * Default 80 → warning fires when 80% of resolutionMinutes has elapsed.
+   */
+  warningThresholdPercent: integer("warning_threshold_percent").default(80),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()

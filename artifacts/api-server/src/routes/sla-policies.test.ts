@@ -140,12 +140,13 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock webhook-dispatcher — spy so we can assert breach dispatch
+// Mock webhook-dispatcher — spy so we can assert breach and warning dispatch
 // ---------------------------------------------------------------------------
 vi.mock("../lib/webhook-dispatcher", () => ({
   dispatchTaskCreated: vi.fn(),
   dispatchTaskUpdated: vi.fn(),
   dispatchTaskSlaBreached: vi.fn(),
+  dispatchSlaWarning: vi.fn(),
 }));
 
 // Mock resolve-custom-fields (only used by POST/PATCH /tasks, not GET, but imported)
@@ -227,6 +228,42 @@ const BREACH_POLICY = {
   updatedAt: new Date("2025-01-01T00:00:00.000Z"),
 };
 
+/**
+ * A task created 85 minutes before FIXED_NOW with a 100-minute resolution SLA
+ * and 80% warning threshold → 85% elapsed → warning fires (not yet breached).
+ */
+const WARNING_TASK = {
+  id: 2,
+  orgTaskNumber: 43,
+  orgId: "test-org",
+  title: "Server is slow",
+  status: "in_progress",
+  priority: "high",
+  category: "incident",
+  projectId: null,
+  description: null,
+  assignee: null,
+  dueDate: null,
+  slaBreachedAt: null,
+  slaWarningSentAt: null,
+  customFields: {},
+  createdAt: new Date("2025-06-01T10:35:00.000Z").toISOString(), // 85 min before FIXED_NOW
+  updatedAt: new Date("2025-06-01T10:35:00.000Z").toISOString(),
+};
+
+/** SLA policy with a 100-minute resolution limit and 80% warning threshold. */
+const WARNING_POLICY = {
+  id: 2,
+  orgId: "test-org",
+  priority: "high",
+  responseMinutes: null,
+  resolutionMinutes: 100, // 85 min elapsed → 85% > 80% threshold → warn; < 100 → not breached
+  warningThresholdPercent: 80,
+  projectId: null,
+  createdAt: new Date("2025-01-01T00:00:00.000Z"),
+  updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+};
+
 // ---------------------------------------------------------------------------
 // Shared beforeEach / afterEach
 // ---------------------------------------------------------------------------
@@ -242,6 +279,7 @@ beforeEach(() => {
   mockState.permissions = { ...mockState.ALL_PERMS };
 
   vi.mocked(webhookDispatcher.dispatchTaskSlaBreached).mockClear();
+  vi.mocked(webhookDispatcher.dispatchSlaWarning).mockClear();
 });
 
 afterEach(() => {
@@ -441,6 +479,116 @@ describe("detectAndMarkSlaBreaches — via GET /api/tasks", () => {
 
     expect(res.status).toBe(200);
     expect(mockState.updateCalls).toBe(1); // update was attempted
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// detectAndMarkSlaBreaches — SLA warning (via GET /api/tasks)
+// ---------------------------------------------------------------------------
+
+describe("detectAndMarkSlaBreaches — SLA warning via GET /api/tasks", () => {
+  it("sets slaWarningSentAt and dispatches task.sla_warning when elapsed% >= threshold", async () => {
+    mockState.selectQueue.push([WARNING_TASK]);             // tasks list
+    mockState.selectQueue.push([WARNING_POLICY]);           // SLA policies
+    // Atomic update for slaWarningSentAt succeeds
+    mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
+    mockState.selectQueue.push([{ count: 0 }]);             // comment count
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(1);
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledOnce();
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledWith(
+      "test-org",
+      null,
+      expect.objectContaining({
+        id: WARNING_TASK.id,
+        title: WARNING_TASK.title,
+        priority: WARNING_TASK.priority,
+        status: WARNING_TASK.status,
+      }),
+      85,           // percentElapsed: Math.round(85/100 * 100) = 85
+      expect.any(String), // projectedBreachAt ISO string
+      15,           // minutesUntilBreach: Math.max(0, round(100 - 85)) = 15
+    );
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
+  });
+
+  it("does not fire task.sla_warning when elapsed% is below the threshold", async () => {
+    // Task created 70 minutes ago → 70% elapsed < 80% threshold → no warning
+    const earlyTask = {
+      ...WARNING_TASK,
+      createdAt: new Date("2025-06-01T10:50:00.000Z").toISOString(), // 70 min before FIXED_NOW
+    };
+    mockState.selectQueue.push([earlyTask]);
+    mockState.selectQueue.push([WARNING_POLICY]);
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(0);
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).not.toHaveBeenCalled();
+  });
+
+  it("does not fire task.sla_warning when the task is already breached", async () => {
+    // BREACHED_TASK is 120 min old with a 60-min limit → isResolutionBreached=true
+    // breach path fires, warning else-branch is skipped
+    mockState.selectQueue.push([BREACHED_TASK]);
+    mockState.selectQueue.push([BREACH_POLICY]);
+    mockState.updateQueue.push([{ id: BREACHED_TASK.id }]); // breach update wins
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(1); // only the breach update
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).not.toHaveBeenCalled();
+    expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).toHaveBeenCalledOnce();
+  });
+
+  it("does not re-send task.sla_warning when slaWarningSentAt is already set", async () => {
+    const alreadyWarned = {
+      ...WARNING_TASK,
+      slaWarningSentAt: new Date("2025-06-01T11:50:00.000Z"), // already warned
+    };
+    mockState.selectQueue.push([alreadyWarned]);
+    mockState.selectQueue.push([WARNING_POLICY]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(0);
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch task.sla_warning when the DB update returns empty (race condition)", async () => {
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([WARNING_POLICY]);
+    // update returns [] → another process won the race
+    mockState.updateQueue.push([]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(mockState.updateCalls).toBe(1); // update was attempted
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).not.toHaveBeenCalled();
+  });
+
+  it("fires task.sla_warning but not task.sla_breached for a task approaching but not past its deadline", async () => {
+    mockState.selectQueue.push([WARNING_TASK]);
+    mockState.selectQueue.push([WARNING_POLICY]);
+    mockState.updateQueue.push([{ id: WARNING_TASK.id }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildTasksApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(webhookDispatcher.dispatchSlaWarning)).toHaveBeenCalledOnce();
     expect(vi.mocked(webhookDispatcher.dispatchTaskSlaBreached)).not.toHaveBeenCalled();
   });
 });

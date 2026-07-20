@@ -22,6 +22,8 @@ export const tasksTable = pgTable("tasks", {
   customFields: jsonb("custom_fields").$type<Record<string, unknown>>().notNull().default({}),
   /** Set once when a resolution SLA breach is first detected; null until then. */
   slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
+  /** Set once when the SLA warning webhook is first dispatched; null until then. */
+  slaWarningSentAt: timestamp("sla_warning_sent_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

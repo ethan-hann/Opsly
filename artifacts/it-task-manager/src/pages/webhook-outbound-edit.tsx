@@ -67,6 +67,7 @@ const ALL_EVENTS = [
   { value: "task.assigned", label: "Task assigned" },
   { value: "task.commented", label: "Task commented" },
   { value: "task.sla_breached", label: "Task SLA breached" },
+  { value: "task.sla_warning", label: "Task SLA warning (approaching deadline)" },
   { value: "project.created", label: "Project created" },
   { value: "project.updated", label: "Project updated" },
   { value: "note.created", label: "Note created" },

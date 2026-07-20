@@ -21,7 +21,7 @@ import {
   BulkDeleteTasksResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
-import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskSlaBreached } from "../lib/webhook-dispatcher";
+import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskSlaBreached, dispatchSlaWarning } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { getSlaStatus } from "../lib/sla";
 
@@ -43,7 +43,7 @@ async function detectAndMarkSlaBreaches(
   policies: (typeof slaPoliciesTable.$inferSelect)[],
 ): Promise<void> {
   try {
-    // Only evaluate open tasks that haven't been flagged yet
+    // Only evaluate open tasks that haven't been fully flagged yet
     const candidates = tasks.filter(
       (t) => t.status !== "done" && t.slaBreachedAt == null,
     );
@@ -89,6 +89,40 @@ async function detectAndMarkSlaBreaches(
             status: task.status,
             slaBreachedAt: now.toISOString(),
           }, minutesOverdue);
+        }
+      } else if (
+        task.slaWarningSentAt == null &&
+        policy != null &&
+        policy.resolutionMinutes != null
+      ) {
+        // Warning: fire once when elapsed% ≥ warningThresholdPercent (default 80%)
+        const thresholdFraction = (policy.warningThresholdPercent ?? 80) / 100;
+        const elapsedMinutes = (Date.now() - new Date(task.createdAt).getTime()) / 60_000;
+        const elapsedFraction = elapsedMinutes / policy.resolutionMinutes;
+
+        if (elapsedFraction >= thresholdFraction) {
+          const now = new Date();
+          const projectedBreachAt = new Date(
+            new Date(task.createdAt).getTime() + policy.resolutionMinutes * 60_000,
+          ).toISOString();
+          const minutesUntilBreach = Math.max(0, Math.round(policy.resolutionMinutes - elapsedMinutes));
+
+          // Atomic: only dispatch if this process is the first to set slaWarningSentAt
+          const [updated] = await db
+            .update(tasksTable)
+            .set({ slaWarningSentAt: now })
+            .where(and(eq(tasksTable.id, task.id), eq(tasksTable.orgId, orgId), isNull(tasksTable.slaWarningSentAt)))
+            .returning({ id: tasksTable.id });
+
+          if (updated) {
+            dispatchSlaWarning(orgId, task.projectId, {
+              id: task.id,
+              orgTaskNumber: task.orgTaskNumber,
+              title: task.title,
+              priority: task.priority,
+              status: task.status,
+            }, Math.round(elapsedFraction * 100), projectedBreachAt, minutesUntilBreach);
+          }
         }
       }
     }
