@@ -1338,6 +1338,7 @@ export const OutboundWebhookEventsItem = {
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
   tasksla_breached: 'task.sla_breached',
+  tasksla_warning: 'task.sla_warning',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1406,6 +1407,7 @@ export const OutboundWebhookInputEventsItem = {
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
   tasksla_breached: 'task.sla_breached',
+  tasksla_warning: 'task.sla_warning',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1442,6 +1444,7 @@ export const OutboundWebhookUpdateEventsItem = {
   taskassigned: 'task.assigned',
   taskcommented: 'task.commented',
   tasksla_breached: 'task.sla_breached',
+  tasksla_warning: 'task.sla_warning',
   projectcreated: 'project.created',
   projectupdated: 'project.updated',
   notecreated: 'note.created',
@@ -1658,6 +1661,8 @@ export interface SlaPolicy {
      * @nullable
      */
   resolutionMinutes?: number | null;
+  /** Percentage of the resolution window elapsed before a warning webhook fires. Default 80. */
+  warningThresholdPercent?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1687,6 +1692,12 @@ export interface SLAPolicyEntry {
      * @nullable
      */
   resolutionMinutes?: number | null;
+  /**
+     * Percentage of resolution window at which the warning webhook fires (default 80).
+     * @minimum 1
+     * @maximum 99
+     */
+  warningThresholdPercent?: number;
 }
 
 /**

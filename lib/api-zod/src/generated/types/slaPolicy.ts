@@ -24,6 +24,8 @@ export interface SlaPolicy {
      * @nullable
      */
   resolutionMinutes?: number | null;
+  /** Percentage of the resolution window elapsed before a warning webhook fires. Default 80. */
+  warningThresholdPercent?: number;
   createdAt?: string;
   updatedAt?: string;
 }

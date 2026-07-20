@@ -1380,6 +1380,7 @@ export const GetProjectSLAPoliciesResponseItem = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
   "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "warningThresholdPercent": zod.number().optional().describe('Percentage of the resolution window elapsed before a warning webhook fires. Default 80.'),
   "createdAt": zod.string().optional(),
   "updatedAt": zod.string().optional()
 }).describe('SLA response and resolution targets for a single priority level.')
@@ -1396,6 +1397,8 @@ export const UpsertProjectSLAPoliciesParams = zod.object({
 
 
 
+export const upsertProjectSLAPoliciesBodyPoliciesItemWarningThresholdPercentMax = 99;
+
 export const upsertProjectSLAPoliciesBodyPoliciesMax = 4;
 
 
@@ -1404,7 +1407,8 @@ export const UpsertProjectSLAPoliciesBody = zod.object({
   "policies": zod.array(zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().min(1).nullish(),
-  "resolutionMinutes": zod.number().min(1).nullish()
+  "resolutionMinutes": zod.number().min(1).nullish(),
+  "warningThresholdPercent": zod.number().min(1).max(upsertProjectSLAPoliciesBodyPoliciesItemWarningThresholdPercentMax).optional().describe('Percentage of resolution window at which the warning webhook fires (default 80).')
 }).describe('One priority\'s SLA targets in the PUT request body.')).max(upsertProjectSLAPoliciesBodyPoliciesMax)
 }).describe('Full set of SLA policies for the org (up to four entries, one per priority).')
 
@@ -1414,6 +1418,7 @@ export const UpsertProjectSLAPoliciesResponseItem = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
   "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "warningThresholdPercent": zod.number().optional().describe('Percentage of the resolution window elapsed before a warning webhook fires. Default 80.'),
   "createdAt": zod.string().optional(),
   "updatedAt": zod.string().optional()
 }).describe('SLA response and resolution targets for a single priority level.')
@@ -1430,6 +1435,7 @@ export const GetSLAPoliciesResponseItem = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
   "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "warningThresholdPercent": zod.number().optional().describe('Percentage of the resolution window elapsed before a warning webhook fires. Default 80.'),
   "createdAt": zod.string().optional(),
   "updatedAt": zod.string().optional()
 }).describe('SLA response and resolution targets for a single priority level.')
@@ -1442,6 +1448,8 @@ export const GetSLAPoliciesResponse = zod.array(GetSLAPoliciesResponseItem)
  */
 
 
+export const upsertSLAPoliciesBodyPoliciesItemWarningThresholdPercentMax = 99;
+
 export const upsertSLAPoliciesBodyPoliciesMax = 4;
 
 
@@ -1450,7 +1458,8 @@ export const UpsertSLAPoliciesBody = zod.object({
   "policies": zod.array(zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().min(1).nullish(),
-  "resolutionMinutes": zod.number().min(1).nullish()
+  "resolutionMinutes": zod.number().min(1).nullish(),
+  "warningThresholdPercent": zod.number().min(1).max(upsertSLAPoliciesBodyPoliciesItemWarningThresholdPercentMax).optional().describe('Percentage of resolution window at which the warning webhook fires (default 80).')
 }).describe('One priority\'s SLA targets in the PUT request body.')).max(upsertSLAPoliciesBodyPoliciesMax)
 }).describe('Full set of SLA policies for the org (up to four entries, one per priority).')
 
@@ -1460,6 +1469,7 @@ export const UpsertSLAPoliciesResponseItem = zod.object({
   "priority": zod.enum(['low', 'medium', 'high', 'critical']),
   "responseMinutes": zod.number().nullish().describe('Maximum minutes before a first response is required. Null means no target.'),
   "resolutionMinutes": zod.number().nullish().describe('Maximum minutes before the task must be resolved. Null means no target.'),
+  "warningThresholdPercent": zod.number().optional().describe('Percentage of the resolution window elapsed before a warning webhook fires. Default 80.'),
   "createdAt": zod.string().optional(),
   "updatedAt": zod.string().optional()
 }).describe('SLA response and resolution targets for a single priority level.')
@@ -1898,7 +1908,7 @@ export const ListOutboundWebhooksResponseItem = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1920,7 +1930,7 @@ export const CreateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(createOutboundWebhookBodyNameMax),
   "url": zod.string().describe('Target URL for event delivery.'),
   "projectId": zod.number().optional().describe('Optional project filter.'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().default(createOutboundWebhookBodyEnabledDefault)
 }).describe('Fields for creating an outbound webhook.')
@@ -1933,7 +1943,7 @@ export const CreateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -1978,7 +1988,7 @@ export const GetOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),
@@ -2003,7 +2013,7 @@ export const UpdateOutboundWebhookBody = zod.object({
   "name": zod.string().min(1).max(updateOutboundWebhookBodyNameMax).optional(),
   "url": zod.string().optional(),
   "projectId": zod.number().nullish(),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1).optional(),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).min(1).optional(),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).optional().describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean().optional()
 }).describe('Partial update for an outbound webhook.')
@@ -2016,7 +2026,7 @@ export const UpdateOutboundWebhookResponse = zod.object({
   "name": zod.string(),
   "url": zod.string().describe('Target URL Opsly will POST event payloads to.'),
   "secret": zod.string().describe('64-character hex secret used to sign outbound payloads (X-Opsly-Signature).'),
-  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
+  "events": zod.array(zod.enum(['task.created', 'task.updated', 'task.status_changed', 'task.assigned', 'task.commented', 'task.sla_breached', 'task.sla_warning', 'project.created', 'project.updated', 'note.created', 'note.updated', 'note.deleted'])).describe('Event types this webhook subscribes to.'),
   "visibility": zod.enum(['private', 'public_read', 'public_write']).describe('`private` - only the creator can read or write; `public_read` - all org members can read but only the creator can edit; `public_write` - all org members can read and use the webhook.\n'),
   "enabled": zod.boolean(),
   "isOwner": zod.boolean(),

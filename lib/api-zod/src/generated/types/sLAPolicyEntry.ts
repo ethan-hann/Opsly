@@ -22,4 +22,10 @@ export interface SLAPolicyEntry {
      * @nullable
      */
   resolutionMinutes?: number | null;
+  /**
+     * Percentage of resolution window at which the warning webhook fires (default 80).
+     * @minimum 1
+     * @maximum 99
+     */
+  warningThresholdPercent?: number;
 }
