@@ -40,6 +40,12 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
+import DOMPurify from "dompurify";
+
+/** Client-side defense-in-depth: strip any tags/attributes not in DOMPurify's default safe list. */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+}
 
 // ─── Field change label helpers ───────────────────────────────────────────────
 
@@ -648,8 +654,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               </div>
             </CardHeader>
             <CardContent className="pt-6">
-              <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 whitespace-pre-wrap">
-                {task.description || <span className="italic text-muted-foreground">No description provided.</span>}
+              <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90">
+                {task.description ? (
+                  <div dangerouslySetInnerHTML={{ __html: sanitizeHtml(task.description) }} />
+                ) : (
+                  <span className="italic text-muted-foreground">No description provided.</span>
+                )}
               </div>
             </CardContent>
           </Card>

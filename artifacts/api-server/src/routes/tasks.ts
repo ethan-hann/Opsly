@@ -22,6 +22,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCreated, dispatchTaskUpdated, dispatchTaskSlaBreached, dispatchSlaWarning } from "../lib/webhook-dispatcher";
+import { sanitizeRichText } from "../lib/sanitize-rich-text";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { getSlaStatus } from "../lib/sla";
 
@@ -446,12 +447,15 @@ router.post("/tasks", requireOrg, async (req, res): Promise<void> => {
     .where(eq(tasksTable.orgId, orgId));
 
   const { customFields: _rawCf, ...restCreateData } = parsed.data;
+  // Sanitize rich-text HTML before persistence (blocks stored XSS)
+  const sanitizedDescription = sanitizeRichText(restCreateData.description ?? null);
   const [task] = await db
     .insert(tasksTable)
     .values({
       ...restCreateData,
       orgId,
       orgTaskNumber: nextNum,
+      description: sanitizedDescription,
       ...(sanitizedCustomFields !== undefined ? { customFields: sanitizedCustomFields } : {}),
     })
     .returning();
@@ -684,6 +688,13 @@ router.patch("/tasks/:id", requireOrg, async (req, res): Promise<void> => {
       .limit(1);
     prevCustomFields = (existing?.customFields as Record<string, unknown>) ?? {};
     mergedCustomFields = { ...prevCustomFields, ...sanitizedIncomingCf };
+  }
+
+  // Sanitize rich-text HTML before persistence (blocks stored XSS)
+  if ("description" in restUpdateData) {
+    (restUpdateData as Record<string, unknown>).description = sanitizeRichText(
+      (restUpdateData as { description?: string | null }).description ?? null,
+    );
   }
 
   const setData = mergedCustomFields !== undefined

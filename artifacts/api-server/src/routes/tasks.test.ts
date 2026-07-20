@@ -1139,6 +1139,81 @@ describe("PATCH /api/tasks/:id - event emission", () => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/tasks - rich-text description sanitization (XSS prevention)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks - description sanitization", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [MOCK_TASK];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  it("strips <script> tags from description before storing", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]); // MAX(orgTaskNumber)
+    mockState.selectQueue.push([{ count: 0 }]);   // comment count
+
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: '<p>Steps</p><script>alert("xss")</script>' });
+
+    expect(mockState.insertCalls[0].description).not.toContain("<script>");
+    expect(mockState.insertCalls[0].description).not.toContain("alert(");
+    expect(mockState.insertCalls[0].description).toContain("Steps");
+  });
+
+  it("strips event-handler attributes from description before storing", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: '<p onclick="alert(1)">Runbook</p>' });
+
+    expect(mockState.insertCalls[0].description).not.toContain("onclick");
+    expect(mockState.insertCalls[0].description).toContain("Runbook");
+  });
+
+  it("strips <iframe> from description before storing", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: '<iframe src="https://evil.com"></iframe><p>safe</p>' });
+
+    expect(mockState.insertCalls[0].description).not.toContain("<iframe");
+    expect(mockState.insertCalls[0].description).toContain("safe");
+  });
+
+  it("stores null when description is an empty TipTap paragraph", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: "<p></p>" });
+
+    expect(mockState.insertCalls[0].description).toBeNull();
+  });
+
+  it("preserves valid TipTap HTML (bold, lists, headings)", async () => {
+    mockState.selectQueue.push([{ nextNum: 1 }]);
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const safeHtml = "<h2>Steps</h2><ul><li><strong>Check logs</strong></li></ul>";
+    await request(buildApp())
+      .post("/api/tasks")
+      .send({ ...VALID_TASK_BODY, description: safeHtml });
+
+    expect(mockState.insertCalls[0].description).toContain("<h2>Steps</h2>");
+    expect(mockState.insertCalls[0].description).toContain("<strong>Check logs</strong>");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/tasks/:id
 // ---------------------------------------------------------------------------
 

@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/notes/rich-text-editor";
 import {
   Select,
   SelectContent,
@@ -133,7 +133,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
         id: task.id,
         data: {
           title: title.trim(),
-          description: description.trim() || undefined,
+          description: (description && description !== "<p></p>") ? description : undefined,
           projectId: projectId !== "none" ? Number(projectId) : null,
           customFields: Object.keys(customFieldValues).length > 0 ? customFieldValues : undefined,
           status,
@@ -177,13 +177,14 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="edit-task-desc">Description</Label>
-            <Textarea
-              id="edit-task-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-            />
+            <Label>Description</Label>
+            <div className="rounded-md border border-input bg-background px-3 py-2">
+              <RichTextEditor
+                content={description}
+                onChange={setDescription}
+                placeholder="Optional details, runbook steps..."
+              />
+            </div>
           </div>
 
           <div className="space-y-1">

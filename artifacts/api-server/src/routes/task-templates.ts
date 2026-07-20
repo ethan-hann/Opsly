@@ -11,6 +11,7 @@ import {
   DeleteTaskTemplateParams,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { sanitizeRichText } from "../lib/sanitize-rich-text";
 
 const router: IRouter = Router();
 
@@ -66,7 +67,7 @@ router.post("/task-templates", requireOrg, async (req, res): Promise<void> => {
       defaultTitle: parsed.data.defaultTitle ?? "",
       defaultPriority: parsed.data.defaultPriority ?? "medium",
       defaultCategory: parsed.data.defaultCategory ?? "other",
-      defaultDescription: parsed.data.defaultDescription ?? null,
+      defaultDescription: sanitizeRichText(parsed.data.defaultDescription ?? null),
     })
     .returning();
 
@@ -110,7 +111,7 @@ router.patch("/task-templates/:id", requireOrg, async (req, res): Promise<void> 
   if (parsed.data.defaultTitle !== undefined) updateData.defaultTitle = parsed.data.defaultTitle;
   if (parsed.data.defaultPriority !== undefined) updateData.defaultPriority = parsed.data.defaultPriority;
   if (parsed.data.defaultCategory !== undefined) updateData.defaultCategory = parsed.data.defaultCategory;
-  if ("defaultDescription" in parsed.data) updateData.defaultDescription = parsed.data.defaultDescription ?? null;
+  if ("defaultDescription" in parsed.data) updateData.defaultDescription = sanitizeRichText(parsed.data.defaultDescription ?? null);
 
   const [updated] = await db
     .update(taskTemplatesTable)

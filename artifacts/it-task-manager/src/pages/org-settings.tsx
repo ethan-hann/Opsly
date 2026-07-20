@@ -42,6 +42,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
+import { RichTextEditor } from "@/components/notes/rich-text-editor";
 
 // ─── Permission metadata ──────────────────────────────────────────────────────
 
@@ -469,7 +470,7 @@ function TemplateRow({
         defaultTitle: form.defaultTitle.trim(),
         defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
         defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
-        defaultDescription: form.defaultDescription.trim() || null,
+        defaultDescription: (form.defaultDescription && form.defaultDescription !== "<p></p>") ? form.defaultDescription : null,
       },
     });
   }
@@ -538,14 +539,14 @@ function TemplateRow({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Default description / runbook steps</Label>
-          <textarea
-            value={form.defaultDescription}
-            onChange={(e) => setForm((f) => ({ ...f, defaultDescription: e.target.value }))}
-            placeholder="Checklist or steps to follow when this template is used..."
-            rows={3}
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            disabled={isUpdating}
-          />
+          <div className="rounded-md border border-input bg-background px-3 py-2">
+            <RichTextEditor
+              content={form.defaultDescription}
+              onChange={(html) => setForm((f) => ({ ...f, defaultDescription: html }))}
+              placeholder="Checklist or steps to follow when this template is used..."
+              editable={!isUpdating}
+            />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button type="submit" size="sm" disabled={isUpdating || !form.name.trim()}>
@@ -646,7 +647,7 @@ function TaskTemplatesCard() {
         defaultTitle: form.defaultTitle.trim() || undefined,
         defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
         defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
-        defaultDescription: form.defaultDescription.trim() || undefined,
+        defaultDescription: (form.defaultDescription && form.defaultDescription !== "<p></p>") ? form.defaultDescription : undefined,
       },
     });
   }
@@ -738,14 +739,14 @@ function TaskTemplatesCard() {
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Default description / runbook steps</Label>
-              <textarea
-                value={form.defaultDescription}
-                onChange={(e) => setForm((f) => ({ ...f, defaultDescription: e.target.value }))}
-                placeholder="Checklist or steps to follow when this template is used..."
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                disabled={isCreatingReq}
-              />
+              <div className="rounded-md border border-input bg-background px-3 py-2">
+                <RichTextEditor
+                  content={form.defaultDescription}
+                  onChange={(html) => setForm((f) => ({ ...f, defaultDescription: html }))}
+                  placeholder="Checklist or steps to follow when this template is used..."
+                  editable={!isCreatingReq}
+                />
+              </div>
             </div>
             <div className="flex gap-2">
               <Button type="submit" size="sm" disabled={isCreatingReq || !form.name.trim()}>
