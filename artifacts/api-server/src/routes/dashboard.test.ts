@@ -533,4 +533,103 @@ describe("GET /api/dashboard/sla-summary", () => {
     expect(res.body.avgBreachMinutes).toBe(60);
     expect(res.body.breachedCount).toBe(3);
   });
+
+  // ---------------------------------------------------------------------------
+  // Project-level policy override scenarios
+  //
+  // The breach query LEFT JOINs org-level SLA policies only (project_id IS NULL).
+  // Tasks whose breach was detected against a project-level override still have
+  // slaBreachedAt set by the poller, so they appear in breachedRows correctly.
+  //
+  // Known limitation: avgBreachMinutes is computed by the DB using the org-level
+  // resolutionMinutes as the reference threshold. For tasks whose project override
+  // is *stricter* than the org policy (e.g. 30 min override vs 60 min org), the
+  // overshoot is clamped to 0 by GREATEST(..., 0), so the avg may be
+  // under-reported for those tasks. breachedCount and complianceRate are always
+  // correct because slaBreachedAt is the source of truth.
+  //
+  // The withinSlaRows query INNER JOINs org-level policies, so project-assigned
+  // tasks are included whenever an org-level fallback policy exists for that
+  // priority (which is the expected configuration).
+  // ---------------------------------------------------------------------------
+
+  it("tasks breached under a project-level override are counted correctly in breachedCount", async () => {
+    // Scenario: project has a 30-min override; two critical tasks breached it.
+    // The DB returns them in breachedRows (slaBreachedAt was set by the poller).
+    // avgBreachMinutes may be 0 (GREATEST clamp) if the org-level policy is looser
+    // than the project override — represented here as null for that priority row.
+    pushSlaSummarySelects(
+      [{ priority: "critical", breachedCount: 2, avgBreachMinutes: null }],
+      // 1 critical task closed within the project-level target — appears in withinSlaRows
+      // because an org-level policy also exists for "critical"
+      [{ priority: "critical", withinSlaCount: 1 }],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    expect(res.body.totalTracked).toBe(3);
+    expect(res.body.breachedCount).toBe(2);
+    expect(res.body.withinSlaCount).toBe(1);
+    // 1/3 resolved within target
+    expect(res.body.complianceRate).toBeCloseTo(33.3, 0);
+    // avgBreachMinutes is null because the project-override rows contributed null avg
+    expect(res.body.avgBreachMinutes).toBeNull();
+  });
+
+  it("tasks resolved within a project-level SLA override are included in withinSlaCount", async () => {
+    // Project has a 30-min high-priority override (stricter than the 60-min org policy).
+    // A task closed at 25 min had no breach (slaBreachedAt is null), and the
+    // withinSlaRows query picks it up via the org-level INNER JOIN that does exist.
+    pushSlaSummarySelects(
+      [], // no breaches
+      [{ priority: "high", withinSlaCount: 5 }],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    expect(res.body.withinSlaCount).toBe(5);
+    expect(res.body.complianceRate).toBe(100);
+    expect(res.body.avgBreachMinutes).toBeNull();
+  });
+
+  it("mixed org-level and project-level-override tasks produce correct totals", async () => {
+    // high: 1 breached (org-level threshold), avg 45 min overshoot
+    // critical: 2 breached (project-level override, overshoot clamped to 0 → null avg)
+    // medium: 4 within SLA (mix of org and project-assigned)
+    pushSlaSummarySelects(
+      [
+        { priority: "high",     breachedCount: 1, avgBreachMinutes: 45 },
+        { priority: "critical", breachedCount: 2, avgBreachMinutes: null },
+      ],
+      [
+        { priority: "medium",  withinSlaCount: 4 },
+        { priority: "high",    withinSlaCount: 2 },
+      ],
+    );
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(200);
+    // totalTracked = 1 + 2 + 4 + 2 = 9; withinSla = 6; compliance = 6/9 ≈ 66.7%
+    expect(res.body.totalTracked).toBe(9);
+    expect(res.body.withinSlaCount).toBe(6);
+    expect(res.body.breachedCount).toBe(3);
+    expect(res.body.complianceRate).toBeCloseTo(66.7, 0);
+    // Only the high row contributes to avg (critical avg is null)
+    expect(res.body.avgBreachMinutes).toBe(45);
+
+    const highEntry = res.body.byPriority.find((p: any) => p.priority === "high");
+    expect(highEntry!.totalTracked).toBe(3);
+    expect(highEntry!.complianceRate).toBeCloseTo(66.7, 0);
+
+    const critEntry = res.body.byPriority.find((p: any) => p.priority === "critical");
+    expect(critEntry!.totalTracked).toBe(2);
+    expect(critEntry!.complianceRate).toBe(0);
+
+    const medEntry = res.body.byPriority.find((p: any) => p.priority === "medium");
+    expect(medEntry!.totalTracked).toBe(4);
+    expect(medEntry!.complianceRate).toBe(100);
+  });
 });

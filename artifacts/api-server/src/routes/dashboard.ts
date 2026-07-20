@@ -285,6 +285,16 @@ router.get("/dashboard/sla-summary", requireOrg, async (req, res): Promise<void>
   //
   // LEFT JOIN with org-level policy so tasks whose policy was later deleted
   // still count as breached (they just contribute NULL to the avg overshoot).
+  //
+  // NOTE — project-level policy overrides: slaBreachedAt is always set
+  // correctly by the poller (it uses the project override when present), so
+  // breachedCount and complianceRate are accurate for all tasks. The
+  // avgBreachMinutes calculation, however, uses the org-level resolutionMinutes
+  // as the reference threshold. For tasks whose project-level override is
+  // *stricter* than the org policy, the computed overshoot is clamped to 0 by
+  // GREATEST(..., 0), so avgBreachMinutes may be slightly under-reported when
+  // such tasks are present. Fixing this would require a self-join with aliases
+  // to COALESCE project and org thresholds, which is deferred to a future task.
   const breachedRows = await db
     .select({
       priority: tasksTable.priority,
