@@ -324,7 +324,7 @@ export function GlobalSearchPalette() {
                     primary={n.title}
                     secondary={n.excerpt ?? undefined}
                     isActive={activeIndex === idx}
-                    onSelect={() => goTo(`/notes`)}
+                    onSelect={() => goTo(`/notes?note=${n.id}`)}
                     onMouseEnter={() => setActiveIndex(idx)}
                   />
                 );
