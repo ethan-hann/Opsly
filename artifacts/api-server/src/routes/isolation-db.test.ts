@@ -87,6 +87,9 @@ vi.mock("@workspace/api-zod", () => {
     ListTasksQueryParams: p,
     ListTasksResponse: p, CreateTaskResponse: p, GetTaskResponse: p,
     UpdateTaskResponse: p, GetOverdueTasksResponse: p,
+    BulkUpdateTasksBody: p, BulkUpdateTasksResponse: p,
+    BulkDeleteTasksBody: p, BulkDeleteTasksResponse: p,
+    ListTaskEventsParams: p, ListTaskEventsResponse: p,
     CreateProjectBody: p, UpdateProjectBody: p,
     GetProjectParams: p, UpdateProjectParams: p, DeleteProjectParams: p,
     ListProjectsResponse: p, CreateProjectResponse: p,
@@ -561,5 +564,48 @@ describeIf("DB isolation — GET /api/orgs/invitations", () => {
     } finally {
       await db.delete(invitationsTable).where(eq(invitationsTable.id, invA.id));
     }
+  });
+});
+
+describeIf("DB isolation — PATCH /api/tasks/bulk (cross-org mutation guard)", () => {
+  it("returns updated: 0 and leaves Org B task untouched when IDs belong to Org B", async () => {
+    // Org A caller submits Org B's task ID. The handler scopes the prevRows
+    // fetch to orgId=OrgA, finds nothing, and returns updated:0 without touching
+    // any row.
+    const res = await request(buildApp())
+      .patch("/api/tasks/bulk")
+      .send({ ids: [orgBTaskId], patch: { priority: "low" } });
+
+    expect(res.status).toBe(200);
+    expect(res.body.updated).toBe(0);
+
+    // Verify Org B task still exists with its original priority
+    const [still] = await db
+      .select({ id: tasksTable.id, priority: tasksTable.priority })
+      .from(tasksTable)
+      .where(eq(tasksTable.id, orgBTaskId));
+    expect(still).toBeDefined();
+    expect(still.priority).toBe("medium"); // unchanged from seed
+  });
+});
+
+describeIf("DB isolation — DELETE /api/tasks/bulk (cross-org deletion guard)", () => {
+  it("returns deleted: 0 and leaves Org B task untouched when IDs belong to Org B", async () => {
+    // Org A caller submits Org B's task ID. The handler scopes the candidate
+    // fetch to orgId=OrgA, finds nothing, and returns deleted:0 without removing
+    // any row.
+    const res = await request(buildApp())
+      .delete("/api/tasks/bulk")
+      .send({ ids: [orgBTaskId] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.deleted).toBe(0);
+
+    // Verify Org B task was not deleted
+    const [still] = await db
+      .select({ id: tasksTable.id })
+      .from(tasksTable)
+      .where(eq(tasksTable.id, orgBTaskId));
+    expect(still).toBeDefined();
   });
 });
