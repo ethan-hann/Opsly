@@ -353,6 +353,19 @@ const ORG_B_VIEW = {
   updatedAt: new Date().toISOString(),
 };
 
+const ORG_B_TEMPLATE = {
+  id: 300,
+  orgId: "org-b",
+  createdBy: "user-b1",
+  name: "Org B secret template",
+  defaultTitle: "Runbook: ",
+  defaultPriority: "high",
+  defaultCategory: "incident",
+  defaultDescription: null,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
 // ---------------------------------------------------------------------------
 // Reset helpers
 // ---------------------------------------------------------------------------
@@ -1117,6 +1130,59 @@ describe("Saved view isolation — DELETE /api/views/:id", () => {
 
     const res = await request(buildApp()).delete("/api/views/1");
     expect(res.status).toBe(403);
+  });
+});
+
+// ===========================================================================
+// TASK TEMPLATES — cross-org isolation tests
+// ===========================================================================
+
+describe("Task template isolation — GET /api/task-templates", () => {
+  beforeEach(reset);
+
+  it("returns empty list when org-a has no templates (org-b templates not leaked)", async () => {
+    // selectQueue is empty → the WHERE orgId='org-a' clause returns nothing;
+    // org-b's templates are never visible to the org-a caller.
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+
+  it("returns only org-a templates when org-a has data", async () => {
+    const orgATemplate = { ...ORG_B_TEMPLATE, id: 1, orgId: "org-a", createdBy: "user-a1" };
+    mockState.selectQueue.push([orgATemplate]);
+
+    const res = await request(buildApp()).get("/api/task-templates");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].orgId).toBe("org-a");
+    // org-b's template (id: 300) is absent
+    expect(res.body.some((t: any) => t.orgId === "org-b")).toBe(false);
+  });
+});
+
+describe("Task template isolation — PATCH /api/task-templates/:id", () => {
+  beforeEach(reset);
+
+  it("returns 404 (not 403) when patching an org-b template ID — prevents ID enumeration", async () => {
+    // Caller has manage_task_templates (default). The route looks up
+    // AND(id=300, orgId='org-a'), which finds nothing because template 300
+    // belongs to org-b.  The empty result produces a 404, not a 403,
+    // so attackers cannot enumerate which IDs exist in other orgs.
+    const res = await request(buildApp())
+      .patch("/api/task-templates/300")
+      .send({ name: "Hacked" });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("Task template isolation — DELETE /api/task-templates/:id", () => {
+  beforeEach(reset);
+
+  it("returns 404 (not 403) when deleting an org-b template ID — prevents ID enumeration", async () => {
+    // Same logic as PATCH: AND(id=300, orgId='org-a') finds nothing.
+    const res = await request(buildApp()).delete("/api/task-templates/300");
+    expect(res.status).toBe(404);
   });
 });
 
