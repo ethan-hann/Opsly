@@ -266,6 +266,36 @@ describe("POST /api/tasks/:id/comments", () => {
     expect(res.body).toMatchObject({ error: expect.any(String) });
   });
 
+  it("returns 404 when the parentId belongs to a comment on a different task (same org)", async () => {
+    // The route validates parentId with AND(commentId, taskId, orgId).
+    // A comment that exists on task 2 will not match task 1's query, so the
+    // DB returns no rows and the handler must respond with 404.
+    mockState.selectQueue.push([MOCK_TASK]); // task 1 found
+    mockState.selectQueue.push([]);          // parent lookup: comment belongs to task 2, not task 1
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "Cross-task reply attempt", parentId: 42 });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 404 when the parentId belongs to a comment on a different org", async () => {
+    // The route validates parentId with AND(commentId, taskId, orgId).
+    // A comment from a different org will not match the caller's orgId,
+    // so the DB returns no rows and the handler must respond with 404.
+    mockState.selectQueue.push([MOCK_TASK]); // task found in caller's org
+    mockState.selectQueue.push([]);          // parent lookup: comment belongs to a different org
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "Cross-org reply attempt", parentId: 99 });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
   it("returns 201 with parentId set when replying to an existing comment", async () => {
     const MOCK_REPLY = { ...MOCK_COMMENT, id: 2, parentId: 1, content: "This is a reply" };
     mockState.selectQueue.push([MOCK_TASK]);    // task found
