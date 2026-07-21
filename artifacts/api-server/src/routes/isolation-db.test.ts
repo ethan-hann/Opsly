@@ -123,6 +123,9 @@ vi.mock("@workspace/api-zod", () => {
     CreateCommentBody: p, CreateCommentParams: p,
     ListCommentsParams: p, DeleteCommentParams: p,
     ListCommentsResponse: p, CreateCommentResponse: p, DeleteCommentResponse: p,
+    UpdateCommentBody: p, UpdateCommentParams: p, UpdateCommentResponse: p,
+    AddReactionParams: p, AddReactionBody: p, DeleteReactionParams: p,
+    DEFAULT_REACTION_PALETTE: [],
     ListNotesQueryParams: p, ListNotesResponse: p,
     CreateNoteBody: p, CreateNoteResponse: p,
     GetNoteParams: p, GetNoteResponse: p,
@@ -193,6 +196,7 @@ import {
   savedViewsTable,
   slaPoliciesTable,
   taskWatchersTable,
+  notificationsTable,
   customFieldDefinitionsTable,
   taskTemplatesTable,
   OWNER_PERMISSIONS,
@@ -225,6 +229,14 @@ function buildApp(): Express {
 // ---------------------------------------------------------------------------
 // Seed state — IDs recorded so tests and cleanup can reference them
 // ---------------------------------------------------------------------------
+
+/**
+ * The middleware mock hardcodes req.user.id = "test-user-a".
+ * notificationsTable.actorId has a FK to usersTable.id, so we must seed a
+ * real user row with this exact ID before any notification can be inserted.
+ */
+const MOCK_ACTOR_ID = "test-user-a";
+
 let orgAId: string;
 let orgBId: string;
 let orgATaskId: number;
@@ -292,6 +304,15 @@ async function seedStages(orgId: string): Promise<string> {
 // Seed two orgs before any test runs
 // ---------------------------------------------------------------------------
 beforeAll(async () => {
+  // Seed the hardcoded mock actor user (id = "test-user-a") so that the FK on
+  // notificationsTable.actorId is satisfied when notifications are inserted.
+  // ON CONFLICT DO NOTHING handles re-runs where the row already exists.
+  await db.execute(
+    sql`INSERT INTO users (id, email, first_name, last_name)
+        VALUES (${MOCK_ACTOR_ID}, 'test-actor@integration.local', 'Test', 'Actor')
+        ON CONFLICT (id) DO NOTHING`,
+  );
+
   // Create users
   orgAUserId = await createTestUser("user-a");
   orgBUserId = await createTestUser("user-b");
@@ -503,7 +524,7 @@ afterAll(async () => {
     await db.delete(organizationsTable).where(eq(organizationsTable.id, orgBId));
   }
   // Clean up users (no cascade from org deletion back to users)
-  const userIds = [orgAUserId, orgBUserId].filter(Boolean);
+  const userIds = [orgAUserId, orgBUserId, MOCK_ACTOR_ID].filter(Boolean);
   if (userIds.length > 0) {
     await db.delete(usersTable).where(inArray(usersTable.id, userIds));
   }
@@ -1188,6 +1209,118 @@ describeIf("DB isolation — GET /api/task-templates", () => {
     expect(res.status).toBe(200);
     for (const tmpl of res.body) {
       expect(tmpl.orgId).toBe(orgAId);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mention de-duplication — a watcher who is @mentioned receives only one
+// notification (type: mention), not both mention + comment_added
+// ---------------------------------------------------------------------------
+
+describeIf("Mention de-duplication — @mentioned watcher gets only one notification", () => {
+  /**
+   * Wait up to `maxMs` for `predicate` to return true, polling every `intervalMs`.
+   * Used to synchronise against the fire-and-forget notification block in the
+   * POST /tasks/:id/comments handler.
+   */
+  async function waitFor(predicate: () => Promise<boolean>, maxMs = 3000, intervalMs = 100): Promise<void> {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      if (await predicate()) return;
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error(`waitFor timed out after ${maxMs}ms`);
+  }
+
+  it("mentioned watcher gets exactly one mention notification and no comment_added", async () => {
+    // ── Seed extra users and make them Org A members ─────────────────────
+    const mentionedUserId = await createTestUser(`mention-dedup-mentioned-${Date.now()}`);
+    const nonMentionedUserId = await createTestUser(`mention-dedup-other-${Date.now()}`);
+
+    // Find Org A's owner role so we can insert members
+    const [ownerRole] = await db
+      .select({ id: rolesTable.id })
+      .from(rolesTable)
+      .where(eq(rolesTable.orgId, orgAId))
+      .limit(1);
+
+    await db.insert(orgMembersTable).values([
+      { orgId: orgAId, userId: mentionedUserId, roleId: ownerRole.id },
+      { orgId: orgAId, userId: nonMentionedUserId, roleId: ownerRole.id },
+    ]);
+
+    // ── Seed a fresh task for this test ───────────────────────────────────
+    const [orgAStage] = await db
+      .select({ id: workflowStagesTable.id })
+      .from(workflowStagesTable)
+      .where(eq(workflowStagesTable.orgId, orgAId))
+      .limit(1);
+
+    const [dedupTask] = await db
+      .insert(tasksTable)
+      .values({
+        orgId: orgAId,
+        orgTaskNumber: 9001,
+        title: "Mention dedup test task",
+        status: String(orgAStage.id),
+        priority: "medium",
+        category: "other",
+      })
+      .returning({ id: tasksTable.id });
+
+    // ── Add both users as watchers ────────────────────────────────────────
+    await db.insert(taskWatchersTable).values([
+      { taskId: dedupTask.id, userId: mentionedUserId, orgId: orgAId },
+      { taskId: dedupTask.id, userId: nonMentionedUserId, orgId: orgAId },
+    ]);
+
+    try {
+      // ── POST a comment that @mentions only the first watcher ──────────
+      const commentContent = `@[${mentionedUserId}:Mentioned User] please look at this`;
+      const res = await request(buildApp())
+        .post(`/api/tasks/${dedupTask.id}/comments`)
+        .send({ content: commentContent });
+      expect(res.status).toBe(201);
+
+      // ── Poll until both users have at least one notification ──────────
+      // The notification block is fire-and-forget; we wait for it to commit.
+      await waitFor(async () => {
+        const rows = await db
+          .select({ userId: notificationsTable.userId })
+          .from(notificationsTable)
+          .where(eq(notificationsTable.entityId, dedupTask.id));
+        const userIds = rows.map((r) => r.userId);
+        return userIds.includes(mentionedUserId) && userIds.includes(nonMentionedUserId);
+      });
+
+      // ── Fetch all notifications for this task ─────────────────────────
+      const allRows = await db
+        .select({ userId: notificationsTable.userId, type: notificationsTable.type })
+        .from(notificationsTable)
+        .where(eq(notificationsTable.entityId, dedupTask.id));
+
+      const forMentioned = allRows.filter((r) => r.userId === mentionedUserId);
+      const forNonMentioned = allRows.filter((r) => r.userId === nonMentionedUserId);
+
+      // Mentioned watcher: exactly one notification, and it must be type `mention`
+      expect(forMentioned).toHaveLength(1);
+      expect(forMentioned[0].type).toBe("mention");
+
+      // Non-mentioned watcher: exactly one notification, and it must be type `comment_added`
+      expect(forNonMentioned).toHaveLength(1);
+      expect(forNonMentioned[0].type).toBe("comment_added");
+    } finally {
+      // Clean up notifications, watchers, task, and extra members/users
+      await db.delete(notificationsTable).where(eq(notificationsTable.entityId, dedupTask.id));
+      await db.delete(taskWatchersTable).where(eq(taskWatchersTable.taskId, dedupTask.id));
+      await db.delete(tasksTable).where(eq(tasksTable.id, dedupTask.id));
+      await db.delete(orgMembersTable).where(
+        inArray(orgMembersTable.userId, [mentionedUserId, nonMentionedUserId]),
+      );
+      await db.delete(usersTable).where(
+        inArray(usersTable.id, [mentionedUserId, nonMentionedUserId]),
+      );
     }
   });
 });
