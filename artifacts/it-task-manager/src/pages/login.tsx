@@ -22,7 +22,7 @@ export default function LoginPage() {
               IT Operations, under control.
             </h1>
             <p className="mt-4 text-muted-foreground text-lg leading-relaxed">
-              Track incidents, manage deployments, and coordinate projects - all in one place built for engineering teams.
+              Track incidents, manage deployments, and coordinate projects - all in one place built for hobbyists, powerful enough for engineering teams.
             </p>
           </div>
 
