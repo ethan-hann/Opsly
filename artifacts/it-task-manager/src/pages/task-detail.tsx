@@ -44,6 +44,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { useReactionPalette, useAddReaction, useRemoveReaction } from "@/hooks/use-reactions";
 import type { ReactionSummaryType } from "@/hooks/use-reactions";
@@ -300,6 +301,7 @@ function CommentNodeRenderer({
   members: import("@workspace/api-client-react").OrgMemberInfo[];
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [rootCollapsed, setRootCollapsed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const queryClient = useQueryClient();
@@ -499,8 +501,8 @@ function CommentNodeRenderer({
             commentsQueryKey={commentsQueryKey}
           />
 
-          {/* Inline reply composer */}
-          {isReplying && (
+          {/* Inline reply composer — hidden when the root thread is collapsed */}
+          {isReplying && !(node.depth === 0 && rootCollapsed) && (
             <div className="mt-3 flex flex-col gap-2">
               <MentionTextarea
                 placeholder={`Reply to ${node.author || "this comment"}…`}
@@ -533,8 +535,36 @@ function CommentNodeRenderer({
         </div>
       </div>
 
-      {/* Children */}
-      {hasChildren && (
+      {/* Root-level collapse toggle — only for depth-0 comments with replies */}
+      {node.depth === 0 && hasChildren && !rootCollapsed && (
+        <div className="pl-11 pb-1 pt-0.5">
+          <button
+            type="button"
+            onClick={() => setRootCollapsed(true)}
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+            {node.children.length} {node.children.length === 1 ? "reply" : "replies"}
+          </button>
+        </div>
+      )}
+
+      {/* Collapsed placeholder — click to expand */}
+      {node.depth === 0 && hasChildren && rootCollapsed && (
+        <div className="pl-11 pb-2 pt-0.5">
+          <button
+            type="button"
+            onClick={() => setRootCollapsed(false)}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors italic"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+            — {node.children.length} {node.children.length === 1 ? "reply" : "replies"} hidden —
+          </button>
+        </div>
+      )}
+
+      {/* Children — hidden when root thread is collapsed */}
+      {hasChildren && !rootCollapsed && (
         isDeep && !expanded ? (
           <div style={{ marginLeft: INDENT_PX }} className="pl-1 pb-2">
             <button
@@ -1339,21 +1369,22 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   const commentTree = buildCommentTree(allFeedComments);
 
-  // Build unified chronological feed: root comments + events, newest first.
-  // Replies are rendered recursively under their parent — not at the feed level.
-  const feedItems: FeedItem[] = [
-    ...commentTree.map((root): FeedComment => root),
-    ...(events ?? []).map((e): FeedEvent => ({
-      kind: "event",
-      id: e.id,
-      actorId: e.actorId ?? null,
-      actorName: e.actorName ?? null,
-      field: e.field,
-      oldValue: e.oldValue ?? null,
-      newValue: e.newValue ?? null,
-      createdAt: e.createdAt,
-    })),
-  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Discussion: root comments sorted newest-first
+  const discussionItems = [...commentTree].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+
+  // History: change events sorted newest-first
+  const historyItems: FeedEvent[] = (events ?? []).map((e): FeedEvent => ({
+    kind: "event",
+    id: e.id,
+    actorId: e.actorId ?? null,
+    actorName: e.actorName ?? null,
+    field: e.field,
+    oldValue: e.oldValue ?? null,
+    newValue: e.newValue ?? null,
+    createdAt: e.createdAt,
+  })).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const canDeleteComment = (comment: { userId: string | null }) => {
     const currentUserId = user?.id ?? null;
@@ -1366,8 +1397,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     const isOwner = comment.userId != null && comment.userId === currentUserId;
     return isOwner || hasPermission('edit_comments');
   };
-
-  const isActivityLoading = isLoadingComments || isLoadingEvents;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
@@ -1485,124 +1514,150 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
             </CardContent>
           </Card>
 
-          {/* Unified Activity & History Feed */}
+          {/* Activity — Discussion + History tabs */}
           <Card className="border-border shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-muted-foreground" />
-                Activity &amp; History
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1">
-              {isActivityLoading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-20 w-full" />
+            <Tabs defaultValue="discussion">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-muted-foreground" />
+                    Activity
+                  </CardTitle>
+                  <TabsList>
+                    <TabsTrigger value="discussion">
+                      <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                      Discussion
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                      <History className="w-3.5 h-3.5 mr-1.5" />
+                      History
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-              ) : feedItems.length > 0 ? (
-                <div className="relative">
-                  {/* Vertical timeline line */}
-                  <div className="absolute left-4 top-0 bottom-0 w-px bg-border" aria-hidden="true" />
-                  <div className="space-y-0">
-                    {feedItems.map((item) => {
-                      if (item.kind === "comment") {
-                        // item is a root CommentNode (parentId === null)
-                        const rootNode = item as CommentNode;
-                        return (
-                          <CommentNodeRenderer
-                            key={`comment-${item.id}`}
-                            node={rootNode}
-                            taskId={taskId}
-                            currentUser={user}
-                            canDeleteFn={canDeleteComment}
-                            onDelete={(id) => deleteCommentMutation.mutate({ id })}
-                            canEditFn={canEditComment}
-                            replyingToId={replyingToId}
-                            setReplyingToId={setReplyingToId}
-                            replyText={replyText}
-                            setReplyText={setReplyText}
-                            onPostReply={handlePostReply}
-                            isPostingReply={replyMutation.isPending}
-                            commentsQueryKey={getListCommentsQueryKey(taskId)}
-                            members={members}
-                          />
-                        );
-                      }
+              </CardHeader>
 
-                      // Change event
-                      const isCreatedEvent = item.field === "created";
-                      const isBreachEvent  = item.field === "sla_breached";
-                      const isWarningEvent = item.field === "sla_warning";
-                      const actorInitials = (item.actorName ?? "?")
-                        .split(" ")
-                        .filter(Boolean)
-                        .map((w: string) => w[0].toUpperCase())
-                        .slice(0, 2)
-                        .join("");
-
-                      return (
-                        <div key={`event-${item.id}`} className="flex gap-3 py-2 pl-1 items-center">
-                          {/* Icon dot on timeline — bg-card gives a solid opaque base so the
-                              timeline line doesn't bleed through the semi-transparent tint. */}
-                          <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border bg-card ${
-                            isCreatedEvent
-                              ? "border-green-500/50 text-green-600 dark:text-green-400"
-                              : isBreachEvent
-                              ? "border-destructive/50 text-destructive"
-                              : isWarningEvent
-                              ? "border-amber-500/50 text-amber-600 dark:text-amber-400"
-                              : "border-border text-muted-foreground"
-                          }`}>
-                            {isCreatedEvent
-                              ? <Activity className="w-3.5 h-3.5" />
-                              : isBreachEvent
-                              ? <Clock className="w-3.5 h-3.5" />
-                              : isWarningEvent
-                              ? <AlertTriangle className="w-3.5 h-3.5" />
-                              : <History className="w-3.5 h-3.5" />
-                            }
-                          </div>
-                          <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                            {item.actorName && (
-                              <span className="text-xs font-medium text-foreground/80">{item.actorName}</span>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {eventDescription(item.field, item.oldValue, item.newValue)}
-                            </span>
-                            <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
-                              {formatTimeAgo(item.createdAt)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
+              {/* ── Discussion tab ── */}
+              <TabsContent value="discussion">
+                <CardContent className="space-y-1">
+                  {isLoadingComments ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-20 w-full" />
+                      <Skeleton className="h-20 w-full" />
+                    </div>
+                  ) : discussionItems.length > 0 ? (
+                    <div className="space-y-0">
+                      {discussionItems.map((node) => (
+                        <CommentNodeRenderer
+                          key={`comment-${node.id}`}
+                          node={node}
+                          taskId={taskId}
+                          currentUser={user}
+                          canDeleteFn={canDeleteComment}
+                          onDelete={(id) => deleteCommentMutation.mutate({ id })}
+                          canEditFn={canEditComment}
+                          replyingToId={replyingToId}
+                          setReplyingToId={setReplyingToId}
+                          replyText={replyText}
+                          setReplyText={setReplyText}
+                          onPostReply={handlePostReply}
+                          isPostingReply={replyMutation.isPending}
+                          commentsQueryKey={getListCommentsQueryKey(taskId)}
+                          members={members}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
+                      No comments yet. Be the first to start the discussion.
+                    </div>
+                  )}
+                </CardContent>
+                <CardFooter className="bg-muted/10 border-t border-border p-4 flex-col items-stretch gap-3">
+                  <MentionTextarea
+                    placeholder="Add a comment… type @ to mention someone"
+                    className="min-h-[80px] bg-background font-sans text-sm resize-y"
+                    value={commentText}
+                    onChange={setCommentText}
+                    members={members}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handlePostComment}
+                      disabled={!commentText.trim() || commentMutation.isPending}
+                      className="text-xs"
+                    >
+                      {commentMutation.isPending ? "Posting..." : "Post Comment"}
+                    </Button>
                   </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
-                  No activity yet. Start the conversation below.
-                </div>
-              )}
-            </CardContent>
-            <CardFooter className="bg-muted/10 border-t border-border p-4 flex-col items-stretch gap-3">
-              <MentionTextarea
-                placeholder="Add a comment… type @ to mention someone"
-                className="min-h-[80px] bg-background font-sans text-sm resize-y"
-                value={commentText}
-                onChange={setCommentText}
-                members={members}
-              />
-              <div className="flex justify-end">
-                <Button 
-                  size="sm" 
-                  onClick={handlePostComment}
-                  disabled={!commentText.trim() || commentMutation.isPending}
-                  className="text-xs"
-                >
-                  {commentMutation.isPending ? "Posting..." : "Post Comment"}
-                </Button>
-              </div>
-            </CardFooter>
+                </CardFooter>
+              </TabsContent>
+
+              {/* ── History tab ── */}
+              <TabsContent value="history">
+                <CardContent className="space-y-1 pb-6">
+                  {isLoadingEvents ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                      <Skeleton className="h-12 w-full" />
+                    </div>
+                  ) : historyItems.length > 0 ? (
+                    <div className="relative">
+                      {/* Vertical timeline line */}
+                      <div className="absolute left-4 top-0 bottom-0 w-px bg-border" aria-hidden="true" />
+                      <div className="space-y-0">
+                        {historyItems.map((item) => {
+                          const isCreatedEvent = item.field === "created";
+                          const isBreachEvent  = item.field === "sla_breached";
+                          const isWarningEvent = item.field === "sla_warning";
+                          return (
+                            <div key={`event-${item.id}`} className="flex gap-3 py-2 pl-1 items-center">
+                              {/* Icon dot on timeline — bg-card gives a solid opaque base */}
+                              <div className={`w-8 h-8 rounded-full shrink-0 flex items-center justify-center z-10 border bg-card ${
+                                isCreatedEvent
+                                  ? "border-green-500/50 text-green-600 dark:text-green-400"
+                                  : isBreachEvent
+                                  ? "border-destructive/50 text-destructive"
+                                  : isWarningEvent
+                                  ? "border-amber-500/50 text-amber-600 dark:text-amber-400"
+                                  : "border-border text-muted-foreground"
+                              }`}>
+                                {isCreatedEvent
+                                  ? <Activity className="w-3.5 h-3.5" />
+                                  : isBreachEvent
+                                  ? <Clock className="w-3.5 h-3.5" />
+                                  : isWarningEvent
+                                  ? <AlertTriangle className="w-3.5 h-3.5" />
+                                  : <History className="w-3.5 h-3.5" />
+                                }
+                              </div>
+                              <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                {item.actorName && (
+                                  <span className="text-xs font-medium text-foreground/80">{item.actorName}</span>
+                                )}
+                                <span className="text-xs text-muted-foreground">
+                                  {eventDescription(item.field, item.oldValue, item.newValue)}
+                                </span>
+                                <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
+                                  {formatTimeAgo(item.createdAt)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
+                      {hasPermission("view_audit_log")
+                        ? "No history recorded for this task yet."
+                        : "You don't have permission to view the task history."}
+                    </div>
+                  )}
+                </CardContent>
+              </TabsContent>
+            </Tabs>
           </Card>
         </div>
 
