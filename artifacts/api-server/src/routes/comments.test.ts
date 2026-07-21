@@ -53,6 +53,7 @@ vi.mock("@workspace/db", () => {
       insert: () => ({
         values: () => ({
           returning: () => Promise.resolve(mockState.insertResult),
+          onConflictDoNothing: () => Promise.resolve([]),
         }),
       }),
       delete: () => ({
@@ -68,6 +69,9 @@ vi.mock("@workspace/db", () => {
     notesTable: {},
     usersTable: {},
     workflowStagesTable: {},
+    commentReactionsTable: {},
+    organizationsTable: {},
+    taskWatchersTable: {},
   };
 });
 
@@ -77,6 +81,7 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   isNull: () => ({}),
   sql: () => ({}),
+  inArray: () => ({}),
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
@@ -154,6 +159,7 @@ describe("GET /api/tasks/:id/comments", () => {
   it("returns 200 with the comment list when comments exist", async () => {
     mockState.selectQueue.push([MOCK_TASK]);        // task found
     mockState.selectQueue.push([MOCK_COMMENT]);     // one comment
+    mockState.selectQueue.push([]);                 // reactions enrichment (empty)
 
     const res = await request(buildApp()).get("/api/tasks/1/comments");
 

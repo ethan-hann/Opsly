@@ -419,12 +419,19 @@ export const ListCommentsParams = zod.object({
   "id": zod.coerce.number().describe('Numeric ID of the task whose comments to list.')
 })
 
+export const listCommentsResponseReactionsDefault = [];
+
 export const ListCommentsResponseItem = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
   "taskId": zod.number().describe('ID of the task this comment belongs to.'),
   "content": zod.string().describe('Plain-text body of the comment.'),
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string().describe('The unicode emoji character.'),
+  "count": zod.number().describe('Total number of reactions with this emoji.'),
+  "userIds": zod.array(zod.string()).describe('IDs of the users who reacted with this emoji.')
+}).describe('Aggregated emoji reaction counts for a single emoji on a comment.')).default(listCommentsResponseReactionsDefault).describe('Emoji reaction summaries for this comment.')
 }).describe('A comment attached to a task.')
 export const ListCommentsResponse = zod.array(ListCommentsResponseItem)
 
@@ -445,12 +452,19 @@ export const CreateCommentBody = zod.object({
   "author": zod.string().optional().describe('Optional display name for the author. Not validated against org membership; purely informational.\n')
 }).describe('Fields required to add a comment to a task.')
 
+export const createCommentResponseReactionsDefault = [];
+
 export const CreateCommentResponse = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
   "taskId": zod.number().describe('ID of the task this comment belongs to.'),
   "content": zod.string().describe('Plain-text body of the comment.'),
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string().describe('The unicode emoji character.'),
+  "count": zod.number().describe('Total number of reactions with this emoji.'),
+  "userIds": zod.array(zod.string()).describe('IDs of the users who reacted with this emoji.')
+}).describe('Aggregated emoji reaction counts for a single emoji on a comment.')).default(createCommentResponseReactionsDefault).describe('Emoji reaction summaries for this comment.')
 }).describe('A comment attached to a task.')
 
 
@@ -1115,7 +1129,8 @@ export const CreateOrgResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1184,7 +1199,8 @@ export const GetMyOrgResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1276,7 +1292,8 @@ export const ListOrgMembersResponseItem = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1384,7 +1401,8 @@ export const AcceptOrgInvitationResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1462,7 +1480,8 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1899,7 +1918,8 @@ export const ListRolesResponseItem = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -1934,7 +1954,8 @@ export const CreateRoleBody = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for creating a new custom role.')
 
@@ -1962,7 +1983,8 @@ export const CreateRoleResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -2000,7 +2022,8 @@ export const UpdateRoleBody = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for updating a role\'s name and\/or permissions. Only provided fields are changed. The Owner built-in role cannot be modified.\n')
 
@@ -2028,7 +2051,8 @@ export const UpdateRoleResponse = zod.object({
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
-  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')

@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -44,6 +44,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@workspace/replit-auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { MarkdownPreview } from "@/components/notes/markdown-preview";
+import { useReactionPalette, useAddReaction, useRemoveReaction } from "@/hooks/use-reactions";
+import type { ReactionSummaryType } from "@/hooks/use-reactions";
 
 // ─── Field change label helpers ───────────────────────────────────────────────
 
@@ -158,6 +160,7 @@ type FeedComment = {
   content: string;
   userId: string | null;
   createdAt: string;
+  reactions: ReactionSummaryType[];
 };
 
 type FeedEvent = {
@@ -475,6 +478,98 @@ function CustomFieldReadOnly({ value }: { value: unknown }) {
   );
 }
 
+// ─── Comment Reaction Bar ─────────────────────────────────────────────────────
+
+function CommentReactionBar({
+  commentId,
+  reactions,
+  currentUserId,
+  commentsQueryKey,
+}: {
+  commentId: number;
+  reactions: ReactionSummaryType[];
+  currentUserId: string | null;
+  commentsQueryKey: readonly unknown[];
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const { data: paletteData } = useReactionPalette();
+  const palette = paletteData?.palette ?? [];
+
+  const addMutation = useAddReaction(commentId, commentsQueryKey);
+  const removeMutation = useRemoveReaction(commentId, commentsQueryKey);
+
+  function handleToggle(emoji: string) {
+    const existing = reactions.find((r) => r.emoji === emoji);
+    const hasReacted = existing?.userIds.includes(currentUserId ?? "") ?? false;
+    if (hasReacted) {
+      removeMutation.mutate({ emoji });
+    } else {
+      addMutation.mutate({ emoji });
+    }
+  }
+
+  function handlePickerSelect(emoji: string) {
+    setPickerOpen(false);
+    handleToggle(emoji);
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1 mt-2">
+      {reactions.map((r) => {
+        const hasReacted = currentUserId ? r.userIds.includes(currentUserId) : false;
+        return (
+          <button
+            key={r.emoji}
+            type="button"
+            onClick={() => handleToggle(r.emoji)}
+            disabled={addMutation.isPending || removeMutation.isPending}
+            className={[
+              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors",
+              hasReacted
+                ? "border-primary/60 bg-primary/10 text-primary font-medium"
+                : "border-border bg-background hover:bg-muted text-foreground/70",
+            ].join(" ")}
+            title={`${r.count} reaction${r.count !== 1 ? "s" : ""}`}
+          >
+            <span>{r.emoji}</span>
+            <span>{r.count}</span>
+          </button>
+        );
+      })}
+      {/* "+" picker button */}
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary text-xs transition-colors"
+            title="Add reaction"
+          >
+            +
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-2" align="start">
+          <div className="flex flex-wrap gap-1 max-w-[200px]">
+            {palette.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => handlePickerSelect(emoji)}
+                className="text-lg hover:scale-125 transition-transform rounded p-0.5"
+                title={emoji}
+              >
+                {emoji}
+              </button>
+            ))}
+            {palette.length === 0 && (
+              <p className="text-xs text-muted-foreground px-1 py-0.5">No emoji configured</p>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 // ─── Watcher Avatar Stack ─────────────────────────────────────────────────────
 
 const AVATAR_PALETTE = [
@@ -769,6 +864,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       content: c.content,
       userId: (c as any).userId ?? null,
       createdAt: c.createdAt,
+      reactions: (c as any).reactions ?? [],
     })),
     ...(events ?? []).map((e): FeedEvent => ({
       kind: "event",
@@ -959,6 +1055,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                                 </div>
                               </div>
                               <p className="text-sm text-foreground/80 whitespace-pre-wrap">{item.content}</p>
+                              <CommentReactionBar
+                                commentId={item.id}
+                                reactions={item.reactions}
+                                currentUserId={user?.id ?? null}
+                                commentsQueryKey={getListCommentsQueryKey(taskId)}
+                              />
                             </div>
                           </div>
                         );

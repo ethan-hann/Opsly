@@ -188,6 +188,7 @@ vi.mock("@workspace/db", () => {
     workflowStagesTable: {},
     customFieldDefinitionsTable: {},
     taskWatchersTable: {},
+    commentReactionsTable: {},
     notificationsTable: {},
     notificationPreferencesTable: {},
     emailDigestPreferencesTable: {},
@@ -874,6 +875,7 @@ describe("Comment isolation — GET /api/tasks/:id/comments", () => {
     mockState.selectQueue.push([orgATask]); // task belongs to org-a
     const orgAComment = { ...ORG_B_COMMENT, id: 1, orgId: "org-a", taskId: 1 };
     mockState.selectQueue.push([orgAComment]); // comments scoped by orgId
+    mockState.selectQueue.push([]);            // reactions enrichment (empty)
 
     const res = await request(buildApp()).get("/api/tasks/1/comments");
     expect(res.status).toBe(200);

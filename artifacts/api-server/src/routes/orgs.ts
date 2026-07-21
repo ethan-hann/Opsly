@@ -18,7 +18,7 @@ import {
   TERMINOLOGY_DEFAULTS,
 } from '@workspace/db';
 import type { RolePermissions, TerminologyKey } from '@workspace/db';
-import { PatchOrgTerminologyBody } from '@workspace/api-zod';
+import { PatchOrgTerminologyBody, DEFAULT_REACTION_PALETTE } from '@workspace/api-zod';
 import {
   requireAuth,
   requireOrg,
@@ -1030,6 +1030,76 @@ router.put('/org/sla-policies', requireOrg, requireSlaTrackingFeature, requirePe
       updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
     })),
   );
+});
+
+// ─── Reaction palette ─────────────────────────────────────────────────────────
+
+/**
+ * Validate that a string is a single grapheme cluster (i.e. a single visible
+ * Unicode character such as an emoji). We use Intl.Segmenter when available
+ * and fall back to a length check otherwise.
+ */
+function isSingleEmoji(str: string): boolean {
+  if (!str.trim()) return false;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const segmenter = new (Intl as any).Segmenter();
+    const segments = [...segmenter.segment(str)];
+    return segments.length === 1;
+  } catch {
+    // Rough fallback: allow strings up to 8 code-points (covers ZWJ sequences)
+    return [...str].length <= 8;
+  }
+}
+
+// GET /orgs/reaction-palette — returns the org's active palette
+router.get('/orgs/reaction-palette', requireOrg, async (req, res): Promise<void> => {
+  const [org] = await db
+    .select({ reactionPalette: organizationsTable.reactionPalette })
+    .from(organizationsTable)
+    .where(eq(organizationsTable.id, req.orgId!))
+    .limit(1);
+
+  const palette =
+    org?.reactionPalette && org.reactionPalette.length > 0
+      ? org.reactionPalette
+      : DEFAULT_REACTION_PALETTE;
+
+  res.json({ palette });
+});
+
+// PATCH /orgs/reaction-palette — update the org's reaction palette
+router.patch('/orgs/reaction-palette', requireOrg, requirePermission('manage_reactions'), async (req, res): Promise<void> => {
+  const schema = z.object({
+    palette: z
+      .array(z.string())
+      .min(1, 'Palette must contain at least one emoji'),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  // Validate each entry is a single unicode emoji (grapheme cluster)
+  const invalidEntries = parsed.data.palette.filter((e) => !isSingleEmoji(e));
+  if (invalidEntries.length > 0) {
+    res.status(422).json({
+      error: `Invalid emoji entries (each must be a single unicode character): ${invalidEntries.join(', ')}`,
+    });
+    return;
+  }
+
+  // Deduplicate while preserving order
+  const palette = [...new Set(parsed.data.palette)];
+
+  await db
+    .update(organizationsTable)
+    .set({ reactionPalette: palette })
+    .where(eq(organizationsTable.id, req.orgId!));
+
+  res.json({ palette });
 });
 
 export default router;

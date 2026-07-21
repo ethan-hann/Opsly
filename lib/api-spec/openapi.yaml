@@ -3071,10 +3071,27 @@ components:
           type: string
           description: ISO 8601 timestamp when the event was recorded.
 
+    CommentReactionSummary:
+      description: Aggregated emoji reaction counts for a single emoji on a comment.
+      type: object
+      required: [emoji, count, userIds]
+      properties:
+        emoji:
+          type: string
+          description: The unicode emoji character.
+        count:
+          type: integer
+          description: Total number of reactions with this emoji.
+        userIds:
+          type: array
+          description: IDs of the users who reacted with this emoji.
+          items:
+            type: string
+
     Comment:
       description: A comment attached to a task.
       type: object
-      required: [id, taskId, content, createdAt]
+      required: [id, taskId, content, createdAt, reactions]
       properties:
         id:
           type: integer
@@ -3094,6 +3111,12 @@ components:
         createdAt:
           type: string
           description: ISO 8601 timestamp when the comment was posted.
+        reactions:
+          type: array
+          description: Emoji reaction summaries for this comment.
+          items:
+            $ref: '#/components/schemas/CommentReactionSummary'
+          default: []
 
     CommentInput:
       description: Fields required to add a comment to a task.
@@ -3647,6 +3670,7 @@ components:
         - manage_saved_views
         - view_audit_log
         - manage_terminology
+        - manage_reactions
       properties:
         view_tasks:
           type: boolean
@@ -3690,6 +3714,10 @@ components:
           description: >
             When true, the member can rename user-facing labels (Projects, Tasks,
             Members, Workflows, Stages) via the Terminology settings.
+        manage_reactions:
+          type: boolean
+          description: >
+            When true, the member can manage the org's emoji reaction palette.
 
     Role:
       description: A named role within an organization with a set of permission flags.

@@ -5,6 +5,7 @@
  * Opsly API
  * OpenAPI spec version: 0.1.0
  */
+import type { CommentReactionSummary } from './commentReactionSummary';
 
 /**
  * A comment attached to a task.
@@ -23,4 +24,6 @@ export interface Comment {
   author?: string | null;
   /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
+  /** Emoji reaction summaries for this comment. */
+  reactions: CommentReactionSummary[];
 }

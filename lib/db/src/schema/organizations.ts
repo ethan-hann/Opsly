@@ -34,6 +34,7 @@ export const ALL_PERMISSIONS = [
   'manage_saved_views',
   'view_audit_log',
   'manage_terminology',
+  'manage_reactions',
 ] as const;
 
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number];
@@ -58,6 +59,7 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   manage_saved_views: true,
   view_audit_log: true,
   manage_terminology: true,
+  manage_reactions: true,
 };
 
 /**
@@ -86,6 +88,7 @@ export const ADMIN_PERMISSIONS: RolePermissions = {
   manage_saved_views: true,
   view_audit_log: true,
   manage_terminology: true,
+  manage_reactions: true,
 };
 
 export const MEMBER_PERMISSIONS: RolePermissions = {
@@ -107,6 +110,7 @@ export const MEMBER_PERMISSIONS: RolePermissions = {
   manage_saved_views: false,
   view_audit_log: false,
   manage_terminology: false,
+  manage_reactions: false,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -124,6 +128,12 @@ export const organizationsTable = pgTable('organizations', {
   name: text('name').notNull(),
   /** When true, all members of this org will see a "suspended" screen. */
   isDisabled: boolean('is_disabled').notNull().default(false),
+  /**
+   * Custom reaction emoji palette for the org.
+   * NULL means "use the system default palette".
+   * When set, must be a non-empty array of unicode emoji strings.
+   */
+  reactionPalette: jsonb('reaction_palette').$type<string[]>(),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

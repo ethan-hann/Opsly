@@ -25,6 +25,7 @@ export * from './bulkTaskPatchInputPatchPriority';
 export * from './bulkTaskPatchResult';
 export * from './comment';
 export * from './commentInput';
+export * from './commentReactionSummary';
 export * from './createRoleInput';
 export * from './customFieldDefinition';
 export * from './customFieldDefinitionInput';

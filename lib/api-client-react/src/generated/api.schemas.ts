@@ -705,6 +705,18 @@ export interface TaskEvent {
 }
 
 /**
+ * Aggregated emoji reaction counts for a single emoji on a comment.
+ */
+export interface CommentReactionSummary {
+  /** The unicode emoji character. */
+  emoji: string;
+  /** Total number of reactions with this emoji. */
+  count: number;
+  /** IDs of the users who reacted with this emoji. */
+  userIds: string[];
+}
+
+/**
  * A comment attached to a task.
  */
 export interface Comment {
@@ -721,6 +733,8 @@ export interface Comment {
   author?: string | null;
   /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
+  /** Emoji reaction summaries for this comment. */
+  reactions: CommentReactionSummary[];
 }
 
 /**
@@ -1028,6 +1042,8 @@ export interface RolePermissions {
   view_audit_log: boolean;
   /** When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings. */
   manage_terminology: boolean;
+  /** When true, the member can manage the org's emoji reaction palette. */
+  manage_reactions: boolean;
 }
 
 /**

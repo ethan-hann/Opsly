@@ -33,6 +33,7 @@ import {
   getGetMyOrgQueryKey,
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
+import { useReactionPalette, usePatchReactionPalette } from "@/hooks/use-reactions";
 import type { TermKey } from "@/context/terminology-context";
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
@@ -61,6 +62,145 @@ import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
+
+// ─── Reaction Palette ─────────────────────────────────────────────────────────
+
+function ReactionPaletteCard() {
+  const { toast } = useToast();
+  const { hasPermission } = useOrgContext();
+  const canManage = hasPermission("manage_reactions");
+
+  const { data: paletteData, isLoading } = useReactionPalette();
+  const { mutate: savePalette, isPending: isSaving } = usePatchReactionPalette();
+
+  const [input, setInput] = useState("");
+  const [localPalette, setLocalPalette] = useState<string[]>([]);
+
+  // Sync local state when palette loads
+  useEffect(() => {
+    if (paletteData?.palette) {
+      setLocalPalette(paletteData.palette);
+    }
+  }, [paletteData?.palette]);
+
+  function handleAdd() {
+    const emoji = input.trim();
+    if (!emoji) return;
+    if (localPalette.includes(emoji)) {
+      toast({ title: "Emoji already in palette", variant: "destructive" });
+      return;
+    }
+    setLocalPalette((prev) => [...prev, emoji]);
+    setInput("");
+  }
+
+  function handleRemove(emoji: string) {
+    setLocalPalette((prev) => prev.filter((e) => e !== emoji));
+  }
+
+  function handleSave() {
+    if (localPalette.length === 0) {
+      toast({ title: "Palette must have at least one emoji", variant: "destructive" });
+      return;
+    }
+    savePalette(
+      { palette: localPalette },
+      {
+        onSuccess: () => toast({ title: "Reaction palette saved" }),
+        onError: (err: Error) => toast({ title: "Failed to save palette", description: err.message, variant: "destructive" }),
+      },
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <span role="img" aria-label="reactions">😊</span>
+          Reaction palette
+        </CardTitle>
+        <CardDescription>
+          Choose which emoji members can use to react to comments.
+          The default palette is used until you customize it here.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex gap-2 flex-wrap">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {localPalette.map((emoji) => (
+              <div
+                key={emoji}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/40 px-2 py-1 text-sm"
+              >
+                <span>{emoji}</span>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(emoji)}
+                    disabled={isSaving}
+                    className="text-muted-foreground hover:text-destructive transition-colors ml-0.5"
+                    aria-label={`Remove ${emoji}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+            {localPalette.length === 0 && (
+              <p className="text-sm text-muted-foreground italic">No emoji in palette.</p>
+            )}
+          </div>
+        )}
+
+        {canManage && (
+          <>
+            <div className="flex gap-2 items-center">
+              <Input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+                placeholder="Paste an emoji, e.g. 🚀"
+                className="h-8 text-sm w-40"
+                maxLength={16}
+                disabled={isSaving}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleAdd}
+                disabled={isSaving || !input.trim()}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add
+              </Button>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={isSaving || localPalette.length === 0}
+              >
+                {isSaving ? "Saving…" : "Save palette"}
+              </Button>
+            </div>
+          </>
+        )}
+        {!canManage && (
+          <p className="text-xs text-muted-foreground">
+            Only members with the "Manage reaction palette" permission can edit the emoji palette.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Terminology ──────────────────────────────────────────────────────────────
 
@@ -828,7 +968,7 @@ const PERM_GROUPS: PermGroup[] = [
     keys: [
       "manage_webhooks", "manage_api_keys", "manage_custom_fields",
       "manage_workflow_stages", "manage_sla_policies", "manage_task_templates",
-      "manage_saved_views", "view_audit_log", "manage_terminology",
+      "manage_saved_views", "view_audit_log", "manage_terminology", "manage_reactions",
     ],
   },
 ];
@@ -852,6 +992,7 @@ const PERM_LABELS: Record<PermKey, string> = {
   manage_saved_views: "Saved views",
   view_audit_log: "Audit log",
   manage_terminology: "Manage terminology",
+  manage_reactions: "Manage reaction palette",
 };
 
 // All permission keys in PERM_GROUPS order — used to build blank permission sets.
@@ -2661,6 +2802,9 @@ export default function OrgSettings() {
 
       {/* Terminology (visible to all members, editable with manage_terminology) */}
       <TerminologyCard />
+
+      {/* Reaction palette (visible to all members, editable with manage_reactions) */}
+      <ReactionPaletteCard />
 
       {/* API Keys (owner only, api_keys feature) */}
       {isOwner && <FeatureGate feature="api_keys"><ApiKeysCard /></FeatureGate>}
