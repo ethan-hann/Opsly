@@ -955,7 +955,25 @@ export default function WebhookInboundEditPage({
 
             {/* Task template picker */}
             <div className="space-y-1.5">
-              <Label>Task template <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <div className="flex items-center justify-between">
+                <Label>Task template <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                {taskTemplateId !== null &&
+                  taskTemplates.some((t) => t.id === taskTemplateId) &&
+                  !readOnly && (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                      disabled={isPending}
+                      onClick={() => {
+                        applyTaskTemplate(taskTemplateId);
+                        toast({ title: "Template re-applied" });
+                      }}
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Re-apply template
+                    </button>
+                  )}
+              </div>
               <Select
                 value={taskTemplateId?.toString() ?? "__none__"}
                 onValueChange={(v) => applyTaskTemplate(v === "__none__" ? null : Number(v))}
@@ -976,7 +994,7 @@ export default function WebhookInboundEditPage({
               {taskTemplateId !== null && (
                 <p className="text-xs text-muted-foreground">
                   Choosing a template fills in the defaults below — you can override any field before saving.
-                  The template is used as a starting point only; changes to the template later won't affect this webhook.
+                  Use <span className="font-medium text-foreground">Re-apply template</span> to pull in the latest template values at any time.
                 </p>
               )}
             </div>
