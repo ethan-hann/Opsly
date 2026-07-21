@@ -1168,15 +1168,16 @@ export function ExportCard() {
 
         <Button
           onClick={handleExport}
-          disabled={isExporting || scope.length === 0}
+          disabled={isExporting || jobQueued || scope.length === 0}
           className="gap-2"
+          title={jobQueued ? "An export is already being prepared — you'll be notified when it's ready" : undefined}
         >
-          {isExporting ? (
+          {isExporting || jobQueued ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <Download className="w-4 h-4" />
           )}
-          {isExporting ? "Preparing export…" : "Download export"}
+          {isExporting ? "Preparing export…" : jobQueued ? "Export in progress…" : "Download export"}
         </Button>
       </CardContent>
     </Card>
