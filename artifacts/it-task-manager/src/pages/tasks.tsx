@@ -18,7 +18,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import type { SavedView } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { getListTasksQueryKey } from "@workspace/api-client-react";
+import { getListTasksQueryKey, getListViewsQueryKey } from "@workspace/api-client-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -342,6 +342,7 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
   const createView = useCreateView();
   const updateView = useUpdateView();
   const deleteView = useDeleteView();
+  const queryClient = useQueryClient();
 
   // Check if current filters match an existing view
   const activeView = activeViewId ? views.find((v) => v.id === activeViewId) : null;
@@ -369,6 +370,7 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
     await createView.mutateAsync({
       data: { name: name.trim(), filters: filterPayload, isOrgWide, isDefault },
     });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setName("");
     setIsOrgWide(false);
     setIsDefault(false);
@@ -378,17 +380,20 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
   const handleRename = async (viewId: number) => {
     if (!newName.trim()) return;
     await updateView.mutateAsync({ id: viewId, data: { name: newName.trim() } });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setEditingName(false);
     setNewName("");
   };
 
   const handleDelete = async (viewId: number) => {
     await deleteView.mutateAsync({ id: viewId });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setOpen(false);
   };
 
   const handleToggleDefault = async (view: SavedView) => {
     await updateView.mutateAsync({ id: view.id, data: { isDefault: !view.isDefault } });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
   };
 
   return (

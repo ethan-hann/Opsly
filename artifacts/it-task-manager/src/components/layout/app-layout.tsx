@@ -40,7 +40,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useState, useEffect } from "react";
-import { useListViews, useUpdateView, useDeleteView } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useListViews, useUpdateView, useDeleteView, getListViewsQueryKey } from "@workspace/api-client-react";
 import type { SavedView } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { NotificationBell } from "@/components/notification-bell";
@@ -85,6 +86,14 @@ function viewHref(view: SavedView): string {
   if (f.dateTo) params.set("dateTo", f.dateTo);
   if (f.projectFilter && f.projectFilter !== "all") params.set("project", f.projectFilter);
   if (f.search) params.set("search", f.search);
+  if (f.customFieldId) {
+    params.set("customFieldId", String(f.customFieldId));
+    if (f.customFieldValue) params.set("customFieldValue", f.customFieldValue);
+  }
+  if (f.watching) params.set("watching", "true");
+  if (f.slaBreached) params.set("slaBreached", "true");
+  if (f.overdue) params.set("overdue", "true");
+  if (f.stageType) params.set("stageType", f.stageType);
   params.set("viewId", String(view.id));
   return "/tasks?" + params.toString();
 }
@@ -102,6 +111,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
   const { data: views } = useListViews();
   const updateView = useUpdateView();
   const deleteView = useDeleteView();
+  const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -115,16 +125,19 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
   const handleRename = async (viewId: number) => {
     if (!editingName.trim()) return;
     await updateView.mutateAsync({ id: viewId, data: { name: editingName.trim() } });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setEditingId(null);
     setEditingName("");
   };
 
   const handleDelete = async (viewId: number) => {
     await deleteView.mutateAsync({ id: viewId });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
   };
 
   const handleToggleDefault = async (view: SavedView) => {
     await updateView.mutateAsync({ id: view.id, data: { isDefault: !view.isDefault } });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
   };
 
   if (collapsed) {
