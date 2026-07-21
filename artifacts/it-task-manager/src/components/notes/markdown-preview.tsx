@@ -117,19 +117,26 @@ function extractCallout(children: React.ReactNode): CalloutType | null {
 
 function stripCalloutMarker(children: React.ReactNode): React.ReactNode {
   const arr = React.Children.toArray(children);
-  return arr.map((child, i) => {
-    if (i === 0 && React.isValidElement(child)) {
+  // rehype-raw inserts "\n" text nodes between block elements, so the first
+  // paragraph may not be at index 0. Find the first actual React element.
+  let markerStripped = false;
+  return arr.map((child) => {
+    if (!markerStripped && React.isValidElement(child)) {
+      markerStripped = true;
       const el = child as React.ReactElement<{ children?: React.ReactNode }>;
       const paraChildren = React.Children.toArray(el.props.children ?? []);
-      const newParaChildren = paraChildren.map((pc, j) => {
-        if (j === 0 && typeof pc === "string") {
-          return pc.replace(/^\[!(NOTE|TIP|WARNING|CAUTION)\]\n?/i, "").trimStart();
-        }
-        return pc;
-      }).filter(pc => pc !== "");
-      return newParaChildren.length > 0
-        ? React.cloneElement(el, {}, ...newParaChildren)
-        : null;
+      // Scan para children to strip the first string that starts with [!TYPE].
+      let done = false;
+      const next = paraChildren
+        .map((pc) => {
+          if (!done && typeof pc === "string") {
+            done = true;
+            return pc.replace(/^\[!(NOTE|TIP|WARNING|CAUTION)\]\n?/i, "").trimStart();
+          }
+          return pc;
+        })
+        .filter((pc) => pc !== "");
+      return next.length > 0 ? React.cloneElement(el, {}, ...next) : null;
     }
     return child;
   }).filter(Boolean);
