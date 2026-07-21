@@ -91,6 +91,11 @@ function varStatus(name: string): { name: string; status: "set" | "missing" } {
  */
 export function initStorageProvider(): void {
   const driver = (process.env.STORAGE_DRIVER ?? "replit").toLowerCase().trim();
+  // In development, missing storage config is non-fatal — export operations
+  // will fail at runtime with a clear error, which is acceptable when running
+  // without a provisioned storage bucket.  In production, exit immediately so
+  // the container orchestrator surfaces the misconfiguration before traffic arrives.
+  const isProd = process.env.NODE_ENV === "production";
 
   if (driver === "s3") {
     const required = (
@@ -99,27 +104,26 @@ export function initStorageProvider(): void {
     const missing = required.filter((v) => v.status === "missing");
 
     if (missing.length > 0) {
-      logger.fatal(
-        {
-          driver: "s3",
-          required,
-          optional: [
-            { name: "S3_ENDPOINT",     status: process.env.S3_ENDPOINT     ? "set" : "not set", note: "omit for AWS S3; set for MinIO, Cloudflare R2, Backblaze B2, etc." },
-            { name: "STORAGE_PREFIX",  status: process.env.STORAGE_PREFIX  ? "set" : "not set", note: "default: exports/" },
-          ],
-          fixGuide:
-            "Set the missing variables and restart:\n" +
-            "  S3_BUCKET            — bucket name\n" +
-            "  S3_REGION            — e.g. us-east-1\n" +
-            "  S3_ACCESS_KEY_ID     — IAM access key ID\n" +
-            "  S3_SECRET_ACCESS_KEY — IAM secret access key\n" +
-            "  S3_ENDPOINT          — (optional) custom endpoint URL\n" +
-            "  STORAGE_PREFIX       — (optional) object key prefix, default: exports/\n" +
-            "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
-        },
-        `Storage misconfigured: STORAGE_DRIVER=s3 requires ${missing.map((v) => v.name).join(", ")}`,
-      );
-      process.exit(1);
+      const ctx = {
+        driver: "s3",
+        required,
+        optional: [
+          { name: "S3_ENDPOINT",     status: process.env.S3_ENDPOINT     ? "set" : "not set", note: "omit for AWS S3; set for MinIO, Cloudflare R2, Backblaze B2, etc." },
+          { name: "STORAGE_PREFIX",  status: process.env.STORAGE_PREFIX  ? "set" : "not set", note: "default: exports/" },
+        ],
+        fixGuide:
+          "Set the missing variables and restart:\n" +
+          "  S3_BUCKET            — bucket name\n" +
+          "  S3_REGION            — e.g. us-east-1\n" +
+          "  S3_ACCESS_KEY_ID     — IAM access key ID\n" +
+          "  S3_SECRET_ACCESS_KEY — IAM secret access key\n" +
+          "  S3_ENDPOINT          — (optional) custom endpoint URL\n" +
+          "  STORAGE_PREFIX       — (optional) object key prefix, default: exports/\n" +
+          "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
+      };
+      const msg = `Storage misconfigured: STORAGE_DRIVER=s3 requires ${missing.map((v) => v.name).join(", ")}`;
+      if (isProd) { logger.fatal(ctx, msg); process.exit(1); }
+      else         { logger.warn(ctx, msg + " — export features disabled in this dev environment"); return; }
     }
 
     try {
@@ -144,22 +148,21 @@ export function initStorageProvider(): void {
     const missing = required.filter((v) => v.status === "missing");
 
     if (missing.length > 0) {
-      logger.fatal(
-        {
-          driver: "replit",
-          required,
-          optional: [
-            { name: "STORAGE_PREFIX", status: process.env.STORAGE_PREFIX ? "set" : "not set", note: "default: exports/" },
-          ],
-          fixGuide:
-            "Provision a Replit Object Storage bucket, then set:\n" +
-            "  DEFAULT_OBJECT_STORAGE_BUCKET_ID — bucket ID shown in the Replit Object Storage tool\n" +
-            "  STORAGE_PREFIX                   — (optional) object key prefix, default: exports/\n" +
-            "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
-        },
-        "Storage misconfigured: STORAGE_DRIVER=replit requires DEFAULT_OBJECT_STORAGE_BUCKET_ID",
-      );
-      process.exit(1);
+      const ctx = {
+        driver: "replit",
+        required,
+        optional: [
+          { name: "STORAGE_PREFIX", status: process.env.STORAGE_PREFIX ? "set" : "not set", note: "default: exports/" },
+        ],
+        fixGuide:
+          "Provision a Replit Object Storage bucket, then set:\n" +
+          "  DEFAULT_OBJECT_STORAGE_BUCKET_ID — bucket ID shown in the Replit Object Storage tool\n" +
+          "  STORAGE_PREFIX                   — (optional) object key prefix, default: exports/\n" +
+          "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
+      };
+      const msg = "Storage misconfigured: STORAGE_DRIVER=replit requires DEFAULT_OBJECT_STORAGE_BUCKET_ID";
+      if (isProd) { logger.fatal(ctx, msg); process.exit(1); }
+      else         { logger.warn(ctx, msg + " — export features disabled in this dev environment"); return; }
     }
 
     try {
