@@ -8,14 +8,15 @@ import { EditProjectModal } from "@/components/ui/edit-project-modal";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
@@ -30,7 +31,54 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
 // ─── SLA policy helpers ───────────────────────────────────────────────────────
+
+interface SlaAuditEntry {
+  id: number;
+  projectId: number;
+  actorId: string | null;
+  actorName: string | null;
+  previousPolicies: Array<{ priority: string; responseMinutes: number | null; resolutionMinutes: number | null; warningThresholdPercent: number | null }>;
+  newPolicies: Array<{ priority: string; responseMinutes: number | null; resolutionMinutes: number | null; warningThresholdPercent: number | null }>;
+  createdAt: string;
+}
+
+function useSlaAuditHistory(projectId: number) {
+  return useQuery<SlaAuditEntry[]>({
+    queryKey: ["project-sla-audit", projectId],
+    queryFn: async () => {
+      const res = await fetch(`${BASE}/api/projects/${projectId}/sla-policy-audit`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load SLA change history");
+      return res.json();
+    },
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+type AuditPolicy = SlaAuditEntry["newPolicies"][number];
+
+function auditActionLabel(prev: AuditPolicy[], next: AuditPolicy[]): { label: string; variant: "default" | "secondary" | "outline" } {
+  if (next.length === 0) return { label: "Cleared", variant: "outline" };
+  if (prev.length === 0) return { label: "Set", variant: "default" };
+  return { label: "Updated", variant: "secondary" };
+}
+
+function formatPolicyLine(p: AuditPolicy): string {
+  const parts: string[] = [];
+  if (p.responseMinutes != null) parts.push(`${p.responseMinutes}m resp`);
+  if (p.resolutionMinutes != null) parts.push(`${p.resolutionMinutes}m res`);
+  return parts.length > 0 ? parts.join(" · ") : "—";
+}
+
+const PRIORITY_LABEL: Record<string, string> = {
+  critical: "Critical",
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+};
 
 const PRIORITY_LEVELS = [
   { value: "critical" as const, label: "Critical" },
@@ -59,6 +107,9 @@ function displayToMinutes(v: string): number | null {
 
 function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { toast } = useToast();
+  const { hasPermission } = useOrgContext();
+  const canManagePolicies = hasPermission("manage_sla_policies");
+  const canViewHistory = hasPermission("view_audit_log") || canManagePolicies;
 
   const { data: projectPolicies, isLoading: isLoadingProject, refetch: refetchProject } =
     useGetProjectSLAPolicies(projectId);
@@ -67,6 +118,9 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(null);
   const [editing, setEditing] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const { data: auditHistory, isLoading: isLoadingHistory } = useSlaAuditHistory(projectId);
 
   const isLoading = isLoadingProject || isLoadingOrg;
 
@@ -148,7 +202,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               Unset priorities fall back to the org default.
             </CardDescription>
           </div>
-          {!editing && (
+          {canManagePolicies && !editing && (
             <div className="flex items-center gap-2 shrink-0">
               {hasAnyOverride && (
                 <AlertDialog>
@@ -272,6 +326,88 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
           </div>
         )}
       </CardContent>
+
+      {/* SLA change history — visible to manage_sla_policies or view_audit_log */}
+      {canViewHistory && (
+        <div className="border-t border-border/60">
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            className="w-full flex items-center justify-between px-6 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Change history
+              {auditHistory && auditHistory.length > 0 && (
+                <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{auditHistory.length}</span>
+              )}
+            </span>
+            {showHistory ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showHistory && (
+            <div className="px-6 pb-4">
+              {isLoadingHistory ? (
+                <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  Loading history…
+                </div>
+              ) : !auditHistory || auditHistory.length === 0 ? (
+                <p className="py-4 text-sm text-muted-foreground">No changes recorded yet.</p>
+              ) : (
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">When</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">By</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Action</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">New policy values</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {auditHistory.map((entry) => {
+                        const { label, variant } = auditActionLabel(entry.previousPolicies, entry.newPolicies);
+                        return (
+                          <tr key={entry.id} className="text-xs align-top">
+                            <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap font-mono">
+                              {new Date(entry.createdAt).toLocaleString()}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <span className="bg-muted px-1.5 py-0.5 rounded text-xs">
+                                {entry.actorName ?? entry.actorId ?? "System"}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <Badge variant={variant} className="text-xs">{label}</Badge>
+                            </td>
+                            <td className="px-3 py-2.5">
+                              {entry.newPolicies.length === 0 ? (
+                                <span className="text-muted-foreground italic">Reverted to org defaults</span>
+                              ) : (
+                                <div className="space-y-0.5">
+                                  {entry.newPolicies.map((p) => (
+                                    <div key={p.priority} className="flex items-baseline gap-1.5">
+                                      <span className="font-medium text-foreground w-14 shrink-0">
+                                        {PRIORITY_LABEL[p.priority] ?? p.priority}:
+                                      </span>
+                                      <span className="text-muted-foreground">{formatPolicyLine(p)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -440,8 +576,8 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* SLA Overrides (admin only) */}
-      {hasPermission("manage_sla_policies") && (
+      {/* SLA Overrides — visible to manage_sla_policies and view_audit_log */}
+      {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
         <ProjectSlaPoliciesCard projectId={projectId} />
       )}
 

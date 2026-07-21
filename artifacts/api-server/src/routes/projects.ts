@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, sql, and, isNotNull } from "drizzle-orm";
-import { db, projectsTable, tasksTable, slaPoliciesTable } from "@workspace/db";
+import { eq, sql, and, isNotNull, desc } from "drizzle-orm";
+import { db, projectsTable, tasksTable, slaPoliciesTable, projectSlaPolicyAuditTable } from "@workspace/db";
 import { z } from "zod";
 import {
   CreateProjectBody,
@@ -13,10 +13,41 @@ import {
   GetProjectResponse,
   UpdateProjectResponse,
 } from "@workspace/api-zod";
-import { requireOrgOrApiKey, requirePermission, requireScope } from "../middlewares/requireOrgMiddleware";
+import { requireOrgOrApiKey, requireOrg, requirePermission, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchProjectCreated, dispatchProjectUpdated, dispatchProjectDeleted } from "../lib/webhook-dispatcher";
 
 const router: IRouter = Router();
+
+// ─── Actor resolution ─────────────────────────────────────────────────────────
+
+function displayName(user: { firstName?: string | null; lastName?: string | null; email?: string | null }): string {
+  const full = [user.firstName, user.lastName].filter(Boolean).join(" ");
+  return full || user.email || "Unknown";
+}
+
+/**
+ * Derive the actor identity for audit events from the current request.
+ *
+ *  Session auth  → actorId = user.id, actorName = display name
+ *  API key auth  → actorId = key ID,  actorName = "API key: <key name>"
+ *  Neither       → both null
+ */
+function resolveActor(req: {
+  user?: { id?: string; firstName?: string | null; lastName?: string | null; email?: string | null } | null;
+  apiKeyId?: string;
+  apiKeyName?: string;
+}): { actorId: string | null; actorName: string | null } {
+  if (req.user) {
+    return { actorId: req.user.id ?? null, actorName: displayName(req.user) };
+  }
+  if (req.apiKeyId) {
+    return {
+      actorId: req.apiKeyId,
+      actorName: `API key: ${req.apiKeyName ?? req.apiKeyId}`,
+    };
+  }
+  return { actorId: null, actorName: null };
+}
 
 function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, completedTaskCount = 0, hasSlaOverrides = false) {
   return {
@@ -275,6 +306,12 @@ router.put(
 
     const orgId = req.orgId!;
 
+    // Snapshot previous policies before overwriting
+    const previousPolicies = await db
+      .select()
+      .from(slaPoliciesTable)
+      .where(and(eq(slaPoliciesTable.orgId, orgId), eq(slaPoliciesTable.projectId, id)));
+
     // Delete existing project-level policies then re-insert
     await db
       .delete(slaPoliciesTable)
@@ -301,11 +338,83 @@ router.put(
         .returning();
     }
 
+    // Write audit record
+    const { actorId, actorName } = resolveActor(req);
+    const serializePolicy = (p: typeof slaPoliciesTable.$inferSelect) => ({
+      priority: p.priority,
+      responseMinutes: p.responseMinutes,
+      resolutionMinutes: p.resolutionMinutes,
+      warningThresholdPercent: p.warningThresholdPercent,
+    });
+    await db.insert(projectSlaPolicyAuditTable).values({
+      orgId,
+      projectId: id,
+      actorId,
+      actorName,
+      previousPolicies: previousPolicies.map(serializePolicy),
+      newPolicies: result.map(serializePolicy),
+    });
+
     res.json(
       result.map((p) => ({
         ...p,
         createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
         updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
+      })),
+    );
+  },
+);
+
+/**
+ * GET /projects/:id/sla-policy-audit
+ * Returns the SLA policy change history for a project in reverse-chronological
+ * order (newest first, up to 50 entries). Requires view_audit_log OR
+ * manage_sla_policies permission.
+ */
+router.get(
+  "/projects/:id/sla-policy-audit",
+  requireOrg,  // session-only — API keys are blocked by design; audit logs are not a key-accessible resource
+  async (req, res): Promise<void> => {
+    if (!hasPermission(req, "view_audit_log") && !hasPermission(req, "manage_sla_policies")) {
+      res.status(403).json({ error: "Permission required: view_audit_log" });
+      return;
+    }
+
+    const params = ProjectIdParams.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid project id" });
+      return;
+    }
+    const id = params.data.id;
+    const orgId = req.orgId!;
+
+    const [project] = await db
+      .select({ id: projectsTable.id })
+      .from(projectsTable)
+      .where(and(eq(projectsTable.id, id), eq(projectsTable.orgId, orgId)))
+      .limit(1);
+
+    if (!project) {
+      res.status(404).json({ error: "Project not found" });
+      return;
+    }
+
+    const entries = await db
+      .select()
+      .from(projectSlaPolicyAuditTable)
+      .where(
+        and(
+          eq(projectSlaPolicyAuditTable.orgId, orgId),
+          eq(projectSlaPolicyAuditTable.projectId, id),
+        ),
+      )
+      .orderBy(desc(projectSlaPolicyAuditTable.createdAt))
+      .limit(50);
+
+    res.json(
+      entries.map((e) => ({
+        ...e,
+        createdAt: e.createdAt instanceof Date ? e.createdAt.toISOString() : e.createdAt,
       })),
     );
   },

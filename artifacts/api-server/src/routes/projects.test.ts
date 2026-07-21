@@ -21,10 +21,16 @@ import express from "express";
 // ---------------------------------------------------------------------------
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
-  insertResult: [] as any[],
+  /** Queue of return values for successive insert().values().returning() calls. */
+  insertQueue: [] as any[][],
+  /** Convenience alias: first entry in insertQueue (used by non-SLA tests). */
+  get insertResult() { return this.insertQueue[0] ?? []; },
+  set insertResult(v: any[]) { this.insertQueue = [v]; },
   updateResult: [] as any[],
   deleteResult: [] as any[],
   deleteCalls: 0,
+  /** Tracks calls to insert() so tests can assert on audit writes. */
+  insertCalls: 0,
   permissions: { manage_sla_policies: true } as Record<string, boolean>,
 }));
 
@@ -54,11 +60,20 @@ vi.mock("@workspace/db", () => {
   return {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
-      insert: () => ({
-        values: () => ({
-          returning: () => Promise.resolve(mockState.insertResult),
-        }),
-      }),
+      insert: () => {
+        mockState.insertCalls++;
+        const result = mockState.insertQueue.shift() ?? [];
+        const valuesResult = {
+          returning: () => Promise.resolve(result),
+          then(onfulfilled: any, onrejected: any) {
+            return Promise.resolve(undefined).then(onfulfilled, onrejected);
+          },
+          catch(onrejected: any) {
+            return Promise.resolve(undefined).catch(onrejected);
+          },
+        };
+        return { values: () => valuesResult };
+      },
       update: () => ({
         set: () => ({
           where: () => ({
@@ -82,6 +97,7 @@ vi.mock("@workspace/db", () => {
     outboundWebhooksTable: {},
     usersTable: {},
     slaPoliciesTable: {},
+    projectSlaPolicyAuditTable: {},
     workflowStagesTable: {},
     sql: () => ({}),
     eq: () => ({}),
@@ -97,6 +113,7 @@ vi.mock("drizzle-orm", () => ({
   isNull: () => ({}),
   isNotNull: () => ({}),
   sql: () => ({}),
+  desc: () => ({}),
 }));
 
 // Mock the outbound dispatcher so real HTTP calls are never attempted
@@ -463,10 +480,11 @@ describe("GET /api/projects/:id/sla-policies", () => {
 describe("PUT /api/projects/:id/sla-policies", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
-    mockState.insertResult = [];
+    mockState.insertQueue = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
     mockState.deleteCalls = 0;
+    mockState.insertCalls = 0;
     mockState.permissions = { manage_sla_policies: true };
   });
 
@@ -528,7 +546,9 @@ describe("PUT /api/projects/:id/sla-policies", () => {
       updatedAt: new Date("2025-01-01T00:00:00.000Z"),
     };
     mockState.selectQueue.push([{ id: 1 }]); // project ownership check
-    mockState.insertResult = [saved];
+    mockState.selectQueue.push([]);           // previous policies snapshot (none)
+    // First insert: sla_policies rows; second insert: audit record (no .returning())
+    mockState.insertQueue = [[saved], []];
 
     const res = await request(buildApp())
       .put("/api/projects/1/sla-policies")
@@ -539,10 +559,15 @@ describe("PUT /api/projects/:id/sla-policies", () => {
     expect(res.body[0]).toMatchObject({ priority: "high", resolutionMinutes: 60, projectId: 1 });
     // Existing project-level policies must have been deleted first
     expect(mockState.deleteCalls).toBe(1);
+    // Audit record must have been inserted
+    expect(mockState.insertCalls).toBe(2);
   });
 
   it("returns 200 with an empty array when policies is [] (clears all overrides)", async () => {
     mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.selectQueue.push([]);           // previous policies snapshot (none)
+    // Only the audit insert fires (no sla_policies insert when policies is [])
+    mockState.insertQueue = [[]];
 
     const res = await request(buildApp())
       .put("/api/projects/1/sla-policies")
@@ -551,5 +576,161 @@ describe("PUT /api/projects/:id/sla-policies", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
     expect(mockState.deleteCalls).toBe(1);
+    expect(mockState.insertCalls).toBe(1);
+  });
+
+  it("writes an audit record capturing the actor and previous/new policies", async () => {
+    const existing = {
+      id: 10,
+      orgId: "test-org",
+      projectId: 1,
+      priority: "critical",
+      responseMinutes: 30,
+      resolutionMinutes: 120,
+      warningThresholdPercent: 80,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+    };
+    const saved = {
+      id: 20,
+      orgId: "test-org",
+      projectId: 1,
+      priority: "high",
+      responseMinutes: null,
+      resolutionMinutes: 60,
+      warningThresholdPercent: 80,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+    };
+    mockState.selectQueue.push([{ id: 1 }]);    // project ownership check
+    mockState.selectQueue.push([existing]);      // previous policies snapshot
+    mockState.insertQueue = [[saved], []];       // sla insert + audit insert
+
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 60 }] });
+
+    expect(res.status).toBe(200);
+    // Both the sla insert and the audit insert must have been called
+    expect(mockState.insertCalls).toBe(2);
+  });
+
+  it("writes an audit record even when clearing all overrides (empty policies)", async () => {
+    const existing = {
+      id: 10,
+      orgId: "test-org",
+      projectId: 1,
+      priority: "high",
+      responseMinutes: null,
+      resolutionMinutes: 240,
+      warningThresholdPercent: 80,
+      createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      updatedAt: new Date("2025-01-01T00:00:00.000Z"),
+    };
+    mockState.selectQueue.push([{ id: 1 }]);    // project ownership check
+    mockState.selectQueue.push([existing]);      // previous policies snapshot
+    mockState.insertQueue = [[]];               // audit insert only
+
+    const res = await request(buildApp())
+      .put("/api/projects/1/sla-policies")
+      .send({ policies: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    // Audit insert fires even with an empty final state
+    expect(mockState.insertCalls).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /api/projects/:id/sla-policy-audit — permission gate + data retrieval
+// ---------------------------------------------------------------------------
+
+describe("GET /api/projects/:id/sla-policy-audit", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertQueue = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+    mockState.deleteCalls = 0;
+    mockState.insertCalls = 0;
+    mockState.permissions = { manage_sla_policies: true, view_audit_log: false } as any;
+  });
+
+  it("returns 403 when the caller has neither view_audit_log nor manage_sla_policies", async () => {
+    mockState.permissions = { manage_sla_policies: false, view_audit_log: false } as any;
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policy-audit");
+
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 200 for a caller with manage_sla_policies but not view_audit_log", async () => {
+    mockState.permissions = { manage_sla_policies: true, view_audit_log: false } as any;
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.selectQueue.push([]);           // audit entries (empty)
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policy-audit");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 200 for a caller with view_audit_log but not manage_sla_policies", async () => {
+    mockState.permissions = { manage_sla_policies: false, view_audit_log: true } as any;
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.selectQueue.push([]);           // audit entries (empty)
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policy-audit");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 404 when the project does not exist or belongs to another org", async () => {
+    mockState.permissions = { manage_sla_policies: true, view_audit_log: false } as any;
+    mockState.selectQueue.push([]); // project not found
+
+    const res = await request(buildApp()).get("/api/projects/999/sla-policy-audit");
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 for a non-integer project id", async () => {
+    const res = await request(buildApp()).get("/api/projects/bad-id/sla-policy-audit");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 with audit entries in order", async () => {
+    mockState.permissions = { manage_sla_policies: true, view_audit_log: false } as any;
+    const entry = {
+      id: 1,
+      orgId: "test-org",
+      projectId: 1,
+      actorId: "user-1",
+      actorName: "Alice",
+      previousPolicies: [],
+      newPolicies: [{ priority: "high", responseMinutes: null, resolutionMinutes: 60, warningThresholdPercent: 80 }],
+      createdAt: new Date("2025-06-01T12:00:00.000Z"),
+    };
+    mockState.selectQueue.push([{ id: 1 }]); // project ownership check
+    mockState.selectQueue.push([entry]);      // audit entries
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policy-audit");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ actorName: "Alice", projectId: 1 });
+    expect(res.body[0].newPolicies).toHaveLength(1);
+  });
+
+  it("returns 200 with an empty array when no changes have been recorded", async () => {
+    mockState.permissions = { view_audit_log: true, manage_sla_policies: false } as any;
+    mockState.selectQueue.push([{ id: 1 }]); // project found
+    mockState.selectQueue.push([]);           // no audit entries
+
+    const res = await request(buildApp()).get("/api/projects/1/sla-policy-audit");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
   });
 });
