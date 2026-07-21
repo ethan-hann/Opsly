@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useListOrgMembers,
@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
+import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
@@ -404,6 +405,23 @@ function ExportCard() {
       })
       .catch(() => {});
   }, [BASE]);
+
+  // Listen for export_ready notifications on the shared SSE stream so the
+  // download banner appears automatically without a full page refresh.
+  const handleExportReadyNotification = useCallback((raw: unknown) => {
+    const data = raw as { type?: string };
+    if (data.type !== "export_ready") return;
+    fetch(`${BASE}/api/export/pending`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res: { pending: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
+        if (res?.pending && res.token && res.filename && res.expiresAt) {
+          setPendingExport({ token: res.token, filename: res.filename, expiresAt: res.expiresAt });
+          setJobQueued(false);
+        }
+      })
+      .catch(() => {});
+  }, [BASE]);
+  useSseEvent("notification", handleExportReadyNotification);
 
   function toggleScope(value: ExportScopeValue) {
     setScope((s) =>
@@ -2520,7 +2538,11 @@ export default function OrgSettings() {
       )}
 
       {/* Export Data (admin only, data_export feature) */}
-      {isAdmin && <FeatureGate feature="data_export"><ExportCard /></FeatureGate>}
+      {isAdmin && (
+        <div id="export">
+          <FeatureGate feature="data_export"><ExportCard /></FeatureGate>
+        </div>
+      )}
 
       {/* Instance Admin Console (instance admins only) */}
       {isInstanceAdmin && (

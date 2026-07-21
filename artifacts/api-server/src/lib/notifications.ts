@@ -84,7 +84,7 @@ export async function createNotification(opts: {
         ),
       );
 
-    pushEvent(opts.userId, "notification", { unread_count: count });
+    pushEvent(opts.userId, "notification", { unread_count: count, type: opts.type });
   } catch (err) {
     logger.error({ err, opts }, "Failed to create notification");
   }

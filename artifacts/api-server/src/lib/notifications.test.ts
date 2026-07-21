@@ -122,8 +122,8 @@ describe("createNotification", () => {
       read: false,
     });
 
-    // SSE push carried the correct unread count
-    expect(pushEventSpy).toHaveBeenCalledWith("user-1", "notification", { unread_count: 3 });
+    // SSE push carried the correct unread count and notification type
+    expect(pushEventSpy).toHaveBeenCalledWith("user-1", "notification", { unread_count: 3, type: "task_assigned" });
   });
 
   it("is a no-op when the user has disabled that notification type", async () => {

@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSseEvent } from "@/hooks/use-sse";
 import { Link } from "wouter";
 import { Bell, Check, CheckCheck, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -116,7 +117,7 @@ function typeIcon(type: NotificationType): string {
 function entityLink(entityType: string, entityId: number): string {
   if (entityType === "task") return `/tasks/${entityId}`;
   if (entityType === "project") return `/projects/${entityId}`;
-  if (entityType === "export") return `/org-settings`;
+  if (entityType === "export") return `/org-settings#export`;
   return `/tasks`;
 }
 
@@ -140,45 +141,16 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
   }, []);
 
   // ── SSE: update badge when a notification event arrives ────────────────────
-  useEffect(() => {
-    const url = `${BASE}/api/events`;
-    let es: EventSource | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let active = true;
-
-    function connect() {
-      if (!active) return;
-      es = new EventSource(url, { withCredentials: true });
-
-      es.addEventListener("notification", (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data as string) as {
-            unread_count: number;
-          };
-          setUnreadCount(data.unread_count);
-        } catch {
-          // fallback: refetch count
-          fetchUnreadCount().then(setUnreadCount).catch(() => {});
-        }
-      });
-
-      es.onerror = () => {
-        es?.close();
-        es = null;
-        if (active) {
-          retryTimeout = setTimeout(connect, 5_000);
-        }
-      };
+  // Uses the shared SSE singleton to avoid opening a competing EventSource.
+  const handleNotification = useCallback((raw: unknown) => {
+    try {
+      const data = raw as { unread_count: number };
+      setUnreadCount(data.unread_count);
+    } catch {
+      fetchUnreadCount().then(setUnreadCount).catch(() => {});
     }
-
-    connect();
-
-    return () => {
-      active = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      es?.close();
-    };
   }, []);
+  useSseEvent("notification", handleNotification);
 
   // ── Load notifications when dropdown opens ─────────────────────────────────
   const loadNotifications = useCallback(async () => {

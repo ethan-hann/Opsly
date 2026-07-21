@@ -6,6 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useGetMyOrg } from "@workspace/api-client-react";
+import { useSseEvent } from "@/hooks/use-sse";
 import type { PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 import { OrgContext, type OrgContextValue, type OrgFeatureKey, type OrgFeatureState } from "@/hooks/use-org-context";
 import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
@@ -40,44 +41,12 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return () => clearInterval(id);
   }, [refetch]);
 
-  // ── SSE connection ─────────────────────────────────────────────────────────
-  // Open a persistent SSE connection so the server can push role-change events
-  // instantly rather than waiting for the next poll cycle.
-  useEffect(() => {
-    // BASE_URL includes the trailing slash; strip it before appending the path.
-    const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
-    const url = `${base}/api/events`;
-
-    let es: EventSource | null = null;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    let active = true;
-
-    function connect() {
-      if (!active) return;
-      es = new EventSource(url, { withCredentials: true });
-
-      es.addEventListener("role-changed", () => {
-        refetch();
-      });
-
-      es.onerror = () => {
-        es?.close();
-        es = null;
-        // Exponential-ish back-off capped at 30 s — reconnect after a brief pause
-        if (active) {
-          retryTimeout = setTimeout(connect, 5_000);
-        }
-      };
-    }
-
-    connect();
-
-    return () => {
-      active = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
-      es?.close();
-    };
+  // ── SSE: react to role-change events pushed from the server ────────────────
+  // Uses the shared SSE singleton so we don't open a competing EventSource.
+  const handleRoleChanged = useCallback(() => {
+    refetch();
   }, [refetch]);
+  useSseEvent("role-changed", handleRoleChanged);
 
   // ── Ownership transition detection ─────────────────────────────────────────
   // Track whether the current user was already an owner on the *previous*

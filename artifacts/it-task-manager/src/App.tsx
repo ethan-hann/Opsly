@@ -11,6 +11,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
 import { OrgGuard } from '@/hooks/org-guard';
 import { GlobalSearchProvider } from '@/hooks/use-global-search';
+import { SseProvider } from '@/hooks/use-sse';
 import { GlobalSearchPalette } from '@/components/global-search-palette';
 
 import Dashboard from '@/pages/dashboard';
@@ -62,7 +63,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoginPage />;
   }
 
-  return <>{children}</>;
+  return <SseProvider>{children}</SseProvider>;
 }
 
 /**
