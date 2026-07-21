@@ -138,6 +138,10 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
         .map((note) => {
           const isExpanded = expandedId === note.id;
           const canEdit = note.isOwner || note.visibility === "public_write";
+          const scratchPadLabel = canEdit ? "Edit in Scratch Pad" : "View in Scratch Pad";
+          const footerLabel = canEdit
+            ? "Edit full note in Scratch Pad"
+            : "View full note in Scratch Pad";
 
           return (
             <div key={note.id} className="border border-border rounded-md overflow-hidden bg-card">
@@ -170,24 +174,32 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
                 </div>
               </div>
 
-              {/* Body - read-only rendered preview */}
+              {/* Body - read-only rendered preview with height clamp */}
               {isExpanded && (
                 <div className="border-t border-border px-3 py-3 space-y-3">
-                  <MarkdownPreview
-                    content={note.content || ""}
-                    className="text-sm"
-                  />
-                  {canEdit && (
-                    <Link
-                      href={`/notes?note=${note.id}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <span className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer">
-                        <ExternalLink className="w-3 h-3" />
-                        Edit in Scratch Pad
-                      </span>
-                    </Link>
-                  )}
+                  {/* Clamped preview container with gradient fade */}
+                  <div
+                    className="relative max-h-48 overflow-hidden"
+                    data-testid="note-preview-clamp"
+                  >
+                    <MarkdownPreview
+                      content={note.content || ""}
+                      className="text-sm"
+                    />
+                    {/* Gradient fade at the bottom */}
+                    <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-card to-transparent" />
+                  </div>
+
+                  {/* Footer link — shown for all visibility levels */}
+                  <Link
+                    href={`/notes?note=${note.id}`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <span className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline cursor-pointer">
+                      <ExternalLink className="w-3 h-3" />
+                      {footerLabel}
+                    </span>
+                  </Link>
                 </div>
               )}
             </div>
