@@ -886,7 +886,8 @@ function ApiKeysCard() {
   );
 }
 
-// ─── ExportCard ───────────────────────────────────────────────────────────────
+// ─── ExportCard ─────────────────────────────────────────────────────────────
+// Exported for unit-testing the SSE live-update path.
 
 const EXPORT_SCOPE_OPTIONS = [
   { value: "tasks", label: "Tasks & custom fields" },
@@ -903,7 +904,7 @@ interface PendingExport {
   expiresAt: string;
 }
 
-function ExportCard() {
+export function ExportCard() {
   const { toast } = useToast();
   const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
