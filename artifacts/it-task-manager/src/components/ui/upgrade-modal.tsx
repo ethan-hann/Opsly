@@ -32,6 +32,7 @@ const FEATURE_LABELS: Record<OrgFeatureKey, string> = {
   custom_fields: "Custom Fields",
   custom_statuses: "Workflow Stages",
   sla_tracking: "SLA Tracking",
+  branding: "Branding",
 };
 
 const FEATURE_DESCRIPTIONS: Record<OrgFeatureKey, string> = {
@@ -47,6 +48,8 @@ const FEATURE_DESCRIPTIONS: Record<OrgFeatureKey, string> = {
     "Define custom workflow stages with colors to replace the built-in open/closed states.",
   sla_tracking:
     "Set response and resolution SLA policies per priority and get warned when tasks are at risk of breaching.",
+  branding:
+    "Apply a custom primary color and logo to white-label the app for your organization.",
 };
 
 // ─── UpgradeModal ─────────────────────────────────────────────────────────────

@@ -16,4 +16,8 @@ export interface Organization {
   name: string;
   /** ISO 8601 timestamp when the organization was created. */
   createdAt: string;
+  /** Custom primary brand color as a 6-digit hex string. Null when no branding is set. */
+  primaryColor?: string | null;
+  /** URL of the org logo image. Null when no logo has been set. */
+  logoUrl?: string | null;
 }

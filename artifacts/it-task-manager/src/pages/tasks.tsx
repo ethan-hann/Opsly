@@ -445,7 +445,7 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
                         <>
                           <button
                             onClick={() => handleToggleDefault(activeView)}
-                            className={`p-1 rounded transition-colors ${activeView.isDefault ? "text-amber-500" : "text-muted-foreground hover:text-foreground"}`}
+                            className={`p-1 rounded transition-colors ${activeView.isDefault ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
                             title={activeView.isDefault ? "Remove default" : "Set as default"}
                           >
                             <Star className="w-3.5 h-3.5" fill={activeView.isDefault ? "currentColor" : "none"} />
@@ -476,7 +476,7 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
                 ) : (
                   <><Lock className="w-3 h-3" /> Personal</>
                 )}
-                {activeView.isDefault && <span className="ml-1 text-amber-500">· Default</span>}
+                {activeView.isDefault && <span className="ml-1 text-primary">· Default</span>}
               </div>
             </div>
           )}
@@ -1139,7 +1139,7 @@ export default function TasksList() {
                 className={`px-3 h-8 capitalize transition-colors ${
                   filters.stageType === type
                     ? type === "open"
-                      ? "bg-amber-600 text-white"
+                      ? "bg-primary text-primary-foreground"
                       : "bg-emerald-600 text-white"
                     : "bg-background/50 text-muted-foreground hover:text-foreground hover:bg-background"
                 }`}
@@ -1295,13 +1295,13 @@ export default function TasksList() {
 
       {/* Pre-filter banner — shown when the task list is scoped to specific IDs (e.g. from the custom-field conflict warning) */}
       {preFilterIds && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-2 text-sm">
-          <span className="text-amber-800 dark:text-amber-300 font-medium">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+          <span className="text-primary font-medium">
             Showing {preFilterIds.size} task{preFilterIds.size === 1 ? "" : "s"} that use a removed custom-field option
           </span>
           <button
             onClick={clearIdsFilter}
-            className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+            className="flex items-center gap-1 text-xs text-primary/80 hover:text-primary transition-colors"
           >
             <X className="w-3 h-3" />
             Clear filter

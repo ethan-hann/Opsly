@@ -82,12 +82,12 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/projects">
-            <Button variant="ghost" className="font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 border-0">
+            <Button variant="ghost" className="font-medium text-primary bg-primary/10 hover:bg-primary/20 border-0">
               Manage {t("projects")}
             </Button>
           </Link>
           <Link href="/tasks">
-            <Button className="font-medium bg-amber-600 hover:bg-amber-700 text-white shadow-sm gap-2">
+            <Button className="font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm gap-2">
               View All {t("tasks")}
               <ArrowRight className="w-4 h-4" />
             </Button>
@@ -102,14 +102,14 @@ export default function Dashboard() {
         ) : summary ? (
           <>
             <Link href="/projects?status=active">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Active {t("projects")}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">{summary.activeProjects}</p>
                     <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Out of {summary.totalProjects} total</p>
                   </div>
-                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <Briefcase className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
@@ -117,7 +117,7 @@ export default function Dashboard() {
             </Link>
 
             <Link href="/tasks?stageType=open">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Open {t("tasks")}</p>
@@ -126,7 +126,7 @@ export default function Dashboard() {
                     </p>
                     <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Requires attention</p>
                   </div>
-                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <LayoutGrid className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
@@ -154,7 +154,7 @@ export default function Dashboard() {
               <div className={`bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
                 summary.overdueCount > 0
                   ? "border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700"
-                  : "border-stone-200 dark:border-stone-700 hover:border-amber-200 dark:hover:border-amber-700"
+                  : "border-stone-200 dark:border-stone-700 hover:border-primary/30"
               }`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -166,7 +166,7 @@ export default function Dashboard() {
                   <div className={`w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 ${
                     summary.overdueCount > 0
                       ? "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400"
-                      : "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                      : "bg-primary/10 text-primary"
                   }`}>
                     <Clock className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
@@ -243,7 +243,7 @@ export default function Dashboard() {
                     onClick={() => setSlaPeriod(opt.value)}
                     className={`px-3 py-1.5 transition-colors ${
                       slaPeriod === opt.value
-                        ? "bg-amber-600 text-white"
+                        ? "bg-primary text-primary-foreground"
                         : "bg-white dark:bg-stone-900 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
                     }`}
                   >
@@ -344,7 +344,7 @@ export default function Dashboard() {
                       </div>
                       <div className="space-y-1 min-w-0">
                         <Link href={`/tasks/${task.id}`}>
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer truncate">
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer truncate">
                             {task.title}
                           </h3>
                         </Link>
@@ -394,7 +394,7 @@ export default function Dashboard() {
                       </div>
                       <div className="space-y-1 min-w-0">
                         <Link href={`/tasks/${task.id}`}>
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer truncate">
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer truncate">
                             {task.title}
                           </h3>
                         </Link>
@@ -437,7 +437,7 @@ export default function Dashboard() {
                 <p className="text-sm text-stone-400 dark:text-stone-500">Ongoing operational streams</p>
               </div>
               <Link href="/projects">
-                <button className="p-2 text-stone-400 hover:text-amber-600 dark:hover:text-amber-400 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                <button className="p-2 text-stone-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors">
                   <LayoutGrid className="w-5 h-5" />
                 </button>
               </Link>
@@ -456,9 +456,9 @@ export default function Dashboard() {
                     : 0;
                   return (
                     <Link key={project.id} href={`/projects/${project.id}`}>
-                      <div className="p-4 rounded-xl border border-stone-100 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/30 hover:bg-amber-50/40 dark:hover:bg-amber-900/10 hover:border-amber-200 dark:hover:border-amber-700/50 transition-all cursor-pointer group">
+                      <div className="p-4 rounded-xl border border-stone-100 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/30 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 group-hover:text-amber-800 dark:group-hover:text-amber-400 transition-colors line-clamp-1">
+                          <h3 className="font-medium text-stone-800 dark:text-stone-200 group-hover:text-primary transition-colors line-clamp-1">
                             {project.name}
                           </h3>
                           <PriorityBadge priority={project.priority} />
@@ -470,7 +470,7 @@ export default function Dashboard() {
                           </div>
                           <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-amber-500 rounded-full transition-all duration-500"
+                              className="h-full bg-primary rounded-full transition-all duration-500"
                               style={{ width: `${progress}%` }}
                             />
                           </div>
@@ -521,12 +521,12 @@ export default function Dashboard() {
                   return (
                     <div key={item.id} className="relative flex items-start gap-4">
                       <div className="absolute left-0 mt-1 flex items-center justify-center z-10">
-                        <div className="w-5 h-5 rounded-full border-4 border-white dark:border-stone-900 bg-amber-400 dark:bg-amber-500 shrink-0" />
+                        <div className="w-5 h-5 rounded-full border-4 border-white dark:border-stone-900 bg-primary shrink-0" />
                       </div>
                       <div className="ml-8 space-y-0.5">
                         <p className="text-sm text-stone-600 dark:text-stone-400">
                           <Link href={href}>
-                            <span className="font-medium text-stone-800 dark:text-stone-200 hover:text-amber-700 dark:hover:text-amber-400 transition-colors cursor-pointer">
+                            <span className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer">
                               {item.title}
                             </span>
                           </Link>
@@ -547,7 +547,7 @@ export default function Dashboard() {
 
             {activity && activity.length > 0 && (
               <Link href="/tasks">
-                <button className="w-full mt-8 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-xl transition-colors">
+                <button className="w-full mt-8 py-2.5 text-sm font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
                   View All {t("tasks")}
                 </button>
               </Link>

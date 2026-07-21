@@ -38,6 +38,7 @@
     "migrate:add-delete-comments-permission": "pnpm dlx tsx src/migrations/add-delete-comments-permission.ts",
     "migrate:create-comment-reactions": "pnpm dlx tsx src/migrations/create-comment-reactions.ts",
     "migrate:add-reaction-palette": "pnpm dlx tsx src/migrations/add-reaction-palette.ts",
+    "migrate:add-org-branding": "pnpm dlx tsx src/migrations/add-org-branding.ts",
     "migrate:add-manage-reactions-permission": "pnpm dlx tsx src/migrations/add-manage-reactions-permission.ts",
     "migrate:add-comment-parent-id": "pnpm dlx tsx src/migrations/add-comment-parent-id.ts",
     "migrate:add-comment-soft-delete": "pnpm dlx tsx src/migrations/add-comment-soft-delete.ts",

@@ -1154,7 +1154,9 @@ export const CreateOrgResponse = zod.object({
   "org": zod.union([zod.object({
   "id": zod.string().describe('UUID of the organization.'),
   "name": zod.string().describe('Display name of the organization.'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.'),
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string. Null when no branding is set.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image. Null when no logo has been set.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
@@ -1213,7 +1215,9 @@ export const RenameOrgBody = zod.object({
 export const RenameOrgResponse = zod.object({
   "id": zod.string().describe('UUID of the organization.'),
   "name": zod.string().describe('Display name of the organization.'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.'),
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string. Null when no branding is set.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image. Null when no logo has been set.')
 }).describe('An organization record.')
 
 
@@ -1225,7 +1229,9 @@ export const GetMyOrgResponse = zod.object({
   "org": zod.union([zod.object({
   "id": zod.string().describe('UUID of the organization.'),
   "name": zod.string().describe('Display name of the organization.'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.'),
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string. Null when no branding is set.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image. Null when no logo has been set.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),
@@ -1267,6 +1273,24 @@ export const GetMyOrgResponse = zod.object({
   "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
 }).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
+
+
+/**
+ * Sets the custom primary color and/or logo URL for the caller's organization. Requires the manage_org_settings permission. primaryColor must be a 6-digit hex string like #f59e0b. logoUrl must use the https or http scheme. Pass null to clear a field.
+ * @summary Update org branding (primary color and logo URL)
+ */
+export const UpdateOrgBrandingBody = zod.object({
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string (e.g. \"#f59e0b\"). Pass null to clear.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image (https or http only). Pass null to clear.')
+}).describe('Request body for updating an organization\'s branding.')
+
+export const UpdateOrgBrandingResponse = zod.object({
+  "id": zod.string().describe('UUID of the organization.'),
+  "name": zod.string().describe('Display name of the organization.'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.'),
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string. Null when no branding is set.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image. Null when no logo has been set.')
+}).describe('An organization record.')
 
 
 /**
@@ -1429,7 +1453,9 @@ export const AcceptOrgInvitationResponse = zod.object({
   "org": zod.union([zod.object({
   "id": zod.string().describe('UUID of the organization.'),
   "name": zod.string().describe('Display name of the organization.'),
-  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.')
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the organization was created.'),
+  "primaryColor": zod.string().nullish().describe('Custom primary brand color as a 6-digit hex string. Null when no branding is set.'),
+  "logoUrl": zod.string().nullish().describe('URL of the org logo image. Null when no logo has been set.')
 }).describe('An organization record.'),zod.null()]).describe('The organization the user belongs to. Null if they are not a member.'),
   "roleId": zod.string().nullish().describe('ID of the caller\'s current role. Null when `org` is null.'),
   "roleName": zod.string().nullish().describe('Display name of the caller\'s current role. Null when `org` is null.'),

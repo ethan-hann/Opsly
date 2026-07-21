@@ -98,6 +98,7 @@ import type {
   UpdateComment404,
   UpdateCommentInput,
   UpdateMemberRoleInput,
+  UpdateOrgBrandingBody,
   UpdateRoleInput,
   WebhookIngestPayload,
   WebhookIngestSuccess,
@@ -3778,6 +3779,78 @@ export function useGetMyOrg<TData = Awaited<ReturnType<typeof getMyOrg>>, TError
 
 
 
+
+export const getUpdateOrgBrandingUrl = () => {
+
+
+
+
+  return `/api/orgs/me/branding`
+}
+
+/**
+ * Sets the custom primary color and/or logo URL for the caller's organization. Requires the manage_org_settings permission. primaryColor must be a 6-digit hex string like #f59e0b. logoUrl must use the https or http scheme. Pass null to clear a field.
+ * @summary Update org branding (primary color and logo URL)
+ */
+export const updateOrgBranding = async (updateOrgBrandingBody: UpdateOrgBrandingBody, options?: RequestInit): Promise<Organization> => {
+
+  return customFetch<Organization>(getUpdateOrgBrandingUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateOrgBrandingBody)
+  }
+);}
+
+
+
+
+
+export const getUpdateOrgBrandingMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgBranding>>, TError,{data: BodyType<UpdateOrgBrandingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOrgBranding>>, TError,{data: BodyType<UpdateOrgBrandingBody>}, TContext> => {
+
+const mutationKey = ['updateOrgBranding'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOrgBranding>>, {data: BodyType<UpdateOrgBrandingBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateOrgBranding(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOrgBrandingMutationResult = NonNullable<Awaited<ReturnType<typeof updateOrgBranding>>>
+    export type UpdateOrgBrandingMutationBody = BodyType<UpdateOrgBrandingBody>
+    export type UpdateOrgBrandingMutationError = ErrorType<void>
+
+    /**
+ * @summary Update org branding (primary color and logo URL)
+ */
+export const useUpdateOrgBranding = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOrgBranding>>, TError,{data: BodyType<UpdateOrgBrandingBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOrgBranding>>,
+        TError,
+        {data: BodyType<UpdateOrgBrandingBody>},
+        TContext
+      > => {
+      return useMutation(getUpdateOrgBrandingMutationOptions(options));
+    }
 
 export const getGetOrgTerminologyUrl = () => {
 

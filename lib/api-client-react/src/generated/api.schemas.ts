@@ -1013,6 +1013,10 @@ export interface Organization {
   name: string;
   /** ISO 8601 timestamp when the organization was created. */
   createdAt: string;
+  /** Custom primary brand color as a 6-digit hex string. Null when no branding is set. */
+  primaryColor?: string | null;
+  /** URL of the org logo image. Null when no logo has been set. */
+  logoUrl?: string | null;
 }
 
 /**
@@ -1118,6 +1122,16 @@ export interface OrgMeResponse {
   pendingInvitation: PendingInvitation | null;
   /** Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org. */
   terminology?: OrgTerminologyMap | null;
+}
+
+/**
+ * Request body for updating an organization's branding.
+ */
+export interface UpdateOrgBrandingBody {
+  /** Custom primary brand color as a 6-digit hex string (e.g. "#f59e0b"). Pass null to clear. */
+  primaryColor?: string | null;
+  /** URL of the org logo image (https or http only). Pass null to clear. */
+  logoUrl?: string | null;
 }
 
 /**

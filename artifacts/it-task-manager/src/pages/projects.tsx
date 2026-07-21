@@ -51,13 +51,13 @@ export default function ProjectsList() {
 
       {/* Active filter banner */}
       {statusFilter && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-4 py-2 text-sm">
-          <span className="text-amber-800 dark:text-amber-300 font-medium capitalize">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
+          <span className="text-primary font-medium capitalize">
             Showing {statusFilter} projects only
           </span>
           <button
             onClick={clearStatusFilter}
-            className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+            className="flex items-center gap-1 text-xs text-primary/80 hover:text-primary transition-colors"
           >
             <X className="w-3 h-3" />
             Clear filter

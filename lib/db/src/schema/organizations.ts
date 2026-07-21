@@ -138,6 +138,16 @@ export const organizationsTable = pgTable('organizations', {
    * When set, must be a non-empty array of unicode emoji strings.
    */
   reactionPalette: jsonb('reaction_palette').$type<string[]>(),
+  /**
+   * Custom primary brand color (6-digit hex, e.g. "#f59e0b").
+   * NULL means use the default amber theme.
+   */
+  primaryColor: varchar('primary_color', { length: 7 }),
+  /**
+   * URL of the org's logo image.
+   * NULL means show the default app icon/name.
+   */
+  logoUrl: text('logo_url'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

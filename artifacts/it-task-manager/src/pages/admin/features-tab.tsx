@@ -7,7 +7,7 @@ import { Building2, RefreshCw, Loader2 } from "lucide-react";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
-type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking";
+type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding";
 
 const FEATURES: Array<{ key: OrgFeature; label: string; description: string }> = [
   { key: "webhooks", label: "Webhooks", description: "Inbound and outbound webhook management" },
@@ -16,6 +16,7 @@ const FEATURES: Array<{ key: OrgFeature; label: string; description: string }> =
   { key: "custom_fields", label: "Custom Fields", description: "Custom field definitions on tasks" },
   { key: "custom_statuses", label: "Custom Statuses", description: "Custom workflow stage definitions" },
   { key: "sla_tracking", label: "SLA Tracking", description: "SLA policies and breach detection" },
+  { key: "branding", label: "Branding", description: "Custom primary color and logo for white-label deployments" },
 ];
 
 interface AdminOrg {

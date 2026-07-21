@@ -9,7 +9,8 @@ export type OrgFeatureKey =
   | "data_export"
   | "custom_fields"
   | "custom_statuses"
-  | "sla_tracking";
+  | "sla_tracking"
+  | "branding";
 
 export type OrgFeatureState = "enabled" | "disabled" | "unsubscribed";
 

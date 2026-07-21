@@ -105,6 +105,8 @@ async function getOrgMeData(userId: string) {
       orgId: orgMembersTable.orgId,
       orgName: organizationsTable.name,
       orgCreatedAt: organizationsTable.createdAt,
+      orgPrimaryColor: organizationsTable.primaryColor,
+      orgLogoUrl: organizationsTable.logoUrl,
       roleId: orgMembersTable.roleId,
       roleName: rolesTable.name,
       isOwner: rolesTable.isOwner,
@@ -126,6 +128,8 @@ async function getOrgMeData(userId: string) {
         id: membership.orgId,
         name: membership.orgName,
         createdAt: membership.orgCreatedAt.toISOString(),
+        primaryColor: membership.orgPrimaryColor ?? null,
+        logoUrl: membership.orgLogoUrl ?? null,
       },
       roleId: membership.roleId,
       roleName: membership.roleName,
@@ -258,6 +262,69 @@ router.patch('/orgs/me', requireOrg, requirePermission('manage_org_settings'), a
     id: updated.id,
     name: updated.name,
     createdAt: updated.createdAt.toISOString(),
+    primaryColor: updated.primaryColor ?? null,
+    logoUrl: updated.logoUrl ?? null,
+  });
+});
+
+const requireBrandingFeature = requireOrgFeature('branding');
+
+// PATCH /orgs/me/branding - update org branding (manage_org_settings + branding feature required)
+router.patch('/orgs/me/branding', requireOrg, requireBrandingFeature, requirePermission('manage_org_settings'), async (req, res): Promise<void> => {
+  const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+  const schema = z.object({
+    primaryColor: z
+      .string()
+      .regex(HEX_COLOR_RE, 'primaryColor must be a 6-digit hex string like #f59e0b')
+      .nullable()
+      .optional(),
+    logoUrl: z
+      .string()
+      .url('logoUrl must be a valid URL')
+      .refine((u) => /^https?:\/\//i.test(u), 'logoUrl must use http or https')
+      .nullable()
+      .optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.errors[0]?.message ?? 'Invalid branding data' });
+    return;
+  }
+
+  const updates: Record<string, unknown> = {};
+  if ('primaryColor' in parsed.data) updates['primaryColor'] = parsed.data.primaryColor ?? null;
+  if ('logoUrl' in parsed.data) updates['logoUrl'] = parsed.data.logoUrl ?? null;
+
+  if (Object.keys(updates).length === 0) {
+    // Nothing to update — return current state
+    const [current] = await db
+      .select()
+      .from(organizationsTable)
+      .where(eq(organizationsTable.id, req.orgId!))
+      .limit(1);
+    res.json({
+      id: current.id,
+      name: current.name,
+      createdAt: current.createdAt.toISOString(),
+      primaryColor: current.primaryColor ?? null,
+      logoUrl: current.logoUrl ?? null,
+    });
+    return;
+  }
+
+  const [updated] = await db
+    .update(organizationsTable)
+    .set(updates)
+    .where(eq(organizationsTable.id, req.orgId!))
+    .returning();
+
+  res.json({
+    id: updated.id,
+    name: updated.name,
+    createdAt: updated.createdAt.toISOString(),
+    primaryColor: updated.primaryColor ?? null,
+    logoUrl: updated.logoUrl ?? null,
   });
 });
 

@@ -1416,6 +1416,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrgMeResponse"
 
+  /orgs/me/branding:
+    patch:
+      operationId: updateOrgBranding
+      tags: [orgs]
+      summary: Update org branding (primary color and logo URL)
+      description: >
+        Sets the custom primary color and/or logo URL for the caller's organization.
+        Requires the manage_org_settings permission. primaryColor must be a
+        6-digit hex string like #f59e0b. logoUrl must use the https or http
+        scheme. Pass null to clear a field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgBrandingBody"
+      responses:
+        "200":
+          description: Updated organization branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          description: Invalid primaryColor format or logoUrl scheme.
+        "403":
+          description: Caller lacks the manage_org_settings permission.
+
   /orgs/terminology:
     get:
       operationId: getOrgTerminology
@@ -3510,6 +3538,14 @@ components:
         createdAt:
           type: string
           description: ISO 8601 timestamp when the organization was created.
+        primaryColor:
+          type: string
+          nullable: true
+          description: Custom primary brand color as a 6-digit hex string. Null when no branding is set.
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL of the org logo image. Null when no logo has been set.
 
     PendingInvitation:
       description: Summary of a pending invitation shown to a user who has not yet joined an org.
@@ -3609,6 +3645,19 @@ components:
         stages:
           type: string
           description: Label for "Stages" (e.g. "Steps", "Statuses", "Phases").
+
+    UpdateOrgBrandingBody:
+      description: Request body for updating an organization's branding.
+      type: object
+      properties:
+        primaryColor:
+          type: string
+          nullable: true
+          description: Custom primary brand color as a 6-digit hex string (e.g. "#f59e0b"). Pass null to clear.
+        logoUrl:
+          type: string
+          nullable: true
+          description: URL of the org logo image (https or http only). Pass null to clear.
 
     PatchOrgTerminologyBody:
       description: >

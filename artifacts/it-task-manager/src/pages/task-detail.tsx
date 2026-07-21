@@ -170,7 +170,7 @@ function renderCommentContent(text: string): ReactNode {
     if (part === "@[everyone]") {
       return (
         <Fragment key={i}>
-          <span className="inline-flex items-center px-1 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 text-sm font-medium">
+          <span className="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">
             @everyone
           </span>
         </Fragment>

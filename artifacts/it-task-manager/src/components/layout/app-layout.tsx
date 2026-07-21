@@ -47,6 +47,7 @@ import { Input } from "@/components/ui/input";
 import { NotificationBell } from "@/components/notification-bell";
 import { useGlobalSearch } from "@/hooks/use-global-search";
 import { useTerminology } from "@/context/terminology-context";
+import { useBranding } from "@/context/branding-context";
 
 const externalNavItems = [
   { href: "/api/docs", label: "API Docs", icon: BookOpen },
@@ -279,6 +280,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed } = useOrgContext();
   const { open: openSearch } = useGlobalSearch();
   const { t } = useTerminology();
+  const { logoUrl } = useBranding();
 
   // Mobile: drawer open/closed
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -325,9 +327,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* ── Mobile top bar ─────────────────────────────────────────────── */}
         <header className="md:hidden shrink-0 h-14 flex items-center justify-between px-4 border-b border-border bg-card z-20">
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 rounded bg-primary flex items-center justify-center text-primary-foreground shrink-0">
-              <Activity className="w-4 h-4" />
-            </div>
+            {/* Icon slot: org logo if set, else Activity icon */}
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Org logo"
+                className="h-7 w-auto max-w-[32px] object-contain shrink-0 rounded"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded bg-primary flex items-center justify-center text-primary-foreground shrink-0">
+                <Activity className="w-4 h-4" />
+              </div>
+            )}
+            {/* App name is always "Opsly" */}
             <span className="font-semibold tracking-tight truncate">
               Opsly
             </span>
@@ -371,12 +383,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div
             className={`hidden md:flex items-center border-b border-sidebar-border shrink-0 h-[61px] ${collapsed ? "justify-center px-2" : "px-5 gap-3"}`}
           >
-            <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground shadow-sm shrink-0">
-              <Activity className="w-5 h-5" />
-            </div>
+            {/* Icon slot: org logo if set, else Activity icon */}
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Org logo"
+                className="h-8 w-auto max-w-[32px] object-contain shrink-0 rounded"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground shadow-sm shrink-0">
+                <Activity className="w-5 h-5" />
+              </div>
+            )}
             {!collapsed && (
               <>
                 <div className="min-w-0 flex-1">
+                  {/* App name is always "Opsly" */}
                   <p className="font-bold tracking-tight leading-tight">
                     Opsly
                   </p>

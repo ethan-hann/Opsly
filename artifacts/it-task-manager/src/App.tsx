@@ -14,6 +14,7 @@ import { GlobalSearchProvider } from '@/hooks/use-global-search';
 import { SseProvider } from '@/hooks/use-sse';
 import { GlobalSearchPalette } from '@/components/global-search-palette';
 import { TerminologyProvider } from '@/context/terminology-context';
+import { BrandingProvider } from '@/context/branding-context';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
@@ -143,10 +144,12 @@ function OrgAwareApp() {
         />
       )}
     >
-      <TerminologyProvider>
-        <Router />
-        <GlobalSearchPalette />
-      </TerminologyProvider>
+      <BrandingProvider>
+        <TerminologyProvider>
+          <Router />
+          <GlobalSearchPalette />
+        </TerminologyProvider>
+      </BrandingProvider>
     </OrgGuard>
   );
 }

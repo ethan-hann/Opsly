@@ -30,16 +30,18 @@ import {
   useRevokeApiKey,
   getListApiKeysQueryKey,
   usePatchOrgTerminology,
+  useUpdateOrgBranding,
   getGetMyOrgQueryKey,
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
+import { useBranding } from "@/context/branding-context";
 import { useReactionPalette, usePatchReactionPalette } from "@/hooks/use-reactions";
 import type { TermKey } from "@/context/terminology-context";
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
   AlertTriangle, Building2, Clock, Copy, Crown, Download, ExternalLink, FileText, GripVertical, Key, Link2, Loader2, LogOut,
-  Mail, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
+  Mail, Palette, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
   Workflow, Check, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,6 +64,142 @@ import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
+
+// ─── Branding ─────────────────────────────────────────────────────────────────
+
+function BrandingCard() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { hasPermission } = useOrgContext();
+  const canManage = hasPermission("manage_org_settings");
+
+  const { primaryColor: currentPrimaryColor, logoUrl: currentLogoUrl } = useBranding();
+
+  const [colorDraft, setColorDraft] = useState(currentPrimaryColor ?? "#f59e0b");
+  const [logoUrlDraft, setLogoUrlDraft] = useState(currentLogoUrl ?? "");
+
+  // Sync drafts when branding loads/changes from server
+  useEffect(() => {
+    setColorDraft(currentPrimaryColor ?? "#f59e0b");
+    setLogoUrlDraft(currentLogoUrl ?? "");
+  }, [currentPrimaryColor, currentLogoUrl]);
+
+  const { mutate: saveBranding, isPending } = useUpdateOrgBranding({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Branding saved" });
+        queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to save branding", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleSave() {
+    const trimmedUrl = logoUrlDraft.trim();
+    saveBranding({
+      data: {
+        primaryColor: colorDraft,
+        logoUrl: trimmedUrl || null,
+      },
+    });
+  }
+
+  function handleClear() {
+    saveBranding(
+      { data: { primaryColor: null, logoUrl: null } },
+      {
+        onSuccess: () => {
+          toast({ title: "Branding cleared — default theme restored" });
+          queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
+          setColorDraft("#f59e0b");
+          setLogoUrlDraft("");
+        },
+      },
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Palette className="w-4 h-4" />
+          Branding
+        </CardTitle>
+        <CardDescription>
+          Set a custom primary color and logo for your organization.
+          The color is applied to buttons, badges, and the sidebar across the entire app.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Primary color */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Primary color</Label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={colorDraft}
+              onChange={(e) => setColorDraft(e.target.value)}
+              disabled={!canManage || isPending}
+              className="w-10 h-10 rounded cursor-pointer border border-border bg-transparent p-0.5 disabled:cursor-not-allowed"
+              title="Pick a brand color"
+            />
+            <code className="text-sm font-mono text-muted-foreground">{colorDraft}</code>
+            {/* Live swatch preview */}
+            <div
+              className="w-6 h-6 rounded-full border border-border shrink-0"
+              style={{ backgroundColor: colorDraft }}
+              title="Color preview"
+            />
+          </div>
+        </div>
+
+        {/* Logo URL */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Logo URL</Label>
+          <Input
+            value={logoUrlDraft}
+            onChange={(e) => setLogoUrlDraft(e.target.value)}
+            placeholder="https://example.com/logo.png"
+            disabled={!canManage || isPending}
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            The logo appears in the sidebar. Use an https URL. Leave blank to show the default icon.
+          </p>
+          {logoUrlDraft && (
+            <img
+              src={logoUrlDraft}
+              alt="Logo preview"
+              className="h-8 w-auto object-contain rounded border border-border"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              onLoad={(e) => { (e.target as HTMLImageElement).style.display = ""; }}
+            />
+          )}
+        </div>
+
+        {canManage && (
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={handleSave} disabled={isPending}>
+              {isPending ? "Saving…" : "Save branding"}
+            </Button>
+            {(currentPrimaryColor || currentLogoUrl) && (
+              <Button size="sm" variant="ghost" onClick={handleClear} disabled={isPending}>
+                Clear branding
+              </Button>
+            )}
+          </div>
+        )}
+        {!canManage && (
+          <p className="text-xs text-muted-foreground">
+            Only members with the "Manage org settings" permission can edit branding.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── Reaction Palette ─────────────────────────────────────────────────────────
 
@@ -2484,6 +2622,11 @@ export default function OrgSettings() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Branding (manage_org_settings + branding feature) */}
+      <FeatureGate feature="branding">
+        {hasPermission("manage_org_settings") && <BrandingCard />}
+      </FeatureGate>
 
       {/* Members */}
       <Card>

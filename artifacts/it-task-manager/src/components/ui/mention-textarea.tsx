@@ -146,7 +146,7 @@ export function MentionTextarea({
               }}
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground text-sm transition-colors"
             >
-              <span className="font-semibold text-amber-600 dark:text-amber-400">
+              <span className="font-semibold text-primary">
                 @everyone
               </span>
               <span className="text-xs text-muted-foreground">
