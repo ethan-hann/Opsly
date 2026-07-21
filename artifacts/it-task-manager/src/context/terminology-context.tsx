@@ -36,7 +36,13 @@ interface TerminologyContextValue {
   t: (key: TermKey) => string;
   /**
    * Resolve a terminology key to a singular label.
-   * Derived automatically from the custom or default plural — no extra API call.
+   * Uses the admin-set singular override when available; falls back to
+   * auto-deriving the singular from the plural via `singularize()`.
+   */
+  ts: (key: TermKey) => string;
+  /**
+   * @deprecated Use `ts()` instead.
+   * Kept for backward compatibility — resolves to the same value as `ts()`.
    */
   tSingular: (key: TermKey) => string;
   /** The full resolved map of all five keys. */
@@ -63,10 +69,19 @@ export function TerminologyProvider({ children }: { children: React.ReactNode })
   }
 
   const t = (key: TermKey): string => terminology[key];
-  const tSingular = (key: TermKey): string => singularize(terminology[key]);
+
+  /**
+   * Returns the admin-set singular override for a key when present,
+   * falling back to auto-deriving from the plural label via singularize().
+   */
+  const ts = (key: TermKey): string => {
+    const singularKey = `${key}Singular` as keyof typeof raw;
+    const override = raw?.[singularKey] as string | undefined;
+    return override || singularize(terminology[key]);
+  };
 
   return (
-    <TerminologyContext.Provider value={{ t, tSingular, terminology }}>
+    <TerminologyContext.Provider value={{ t, ts, tSingular: ts, terminology }}>
       {children}
     </TerminologyContext.Provider>
   );

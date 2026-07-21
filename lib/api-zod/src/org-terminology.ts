@@ -15,3 +15,14 @@ export const TERMINOLOGY_KEYS = [
 ] as const;
 
 export type TerminologyKey = (typeof TERMINOLOGY_KEYS)[number];
+
+/** Keys used to store and transmit admin-set singular overrides. */
+export const SINGULAR_TERMINOLOGY_KEYS = [
+  'projectsSingular',
+  'tasksSingular',
+  'membersSingular',
+  'workflowsSingular',
+  'stagesSingular',
+] as const;
+
+export type SingularTerminologyKey = (typeof SINGULAR_TERMINOLOGY_KEYS)[number];

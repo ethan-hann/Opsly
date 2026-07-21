@@ -32,6 +32,7 @@ import {
   usePatchOrgTerminology,
   useUpdateOrgBranding,
   getGetMyOrgQueryKey,
+  useGetMyOrg,
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
 import { useBranding } from "@/context/branding-context";
@@ -350,12 +351,24 @@ const TERMINOLOGY_KEY_LABELS: Record<TermKey, { label: string; description: stri
   stages: { label: "Stages", description: "E.g. Steps, Statuses, Phases" },
 };
 
+const SINGULAR_DRAFT_KEYS = [
+  "projectsSingular",
+  "tasksSingular",
+  "membersSingular",
+  "workflowsSingular",
+  "stagesSingular",
+] as const;
+type SingularDraftKey = (typeof SINGULAR_DRAFT_KEYS)[number];
+
 function TerminologyCard() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { hasPermission } = useOrgContext();
   const canManageTerminology = hasPermission("manage_terminology");
   const { terminology } = useTerminology();
+  // useGetMyOrg is already cached by OrgGuard — no extra network round-trip.
+  const { data: orgData } = useGetMyOrg();
+  const rawTerminology = orgData?.terminology;
 
   // Local draft state — one entry per term key
   const [draft, setDraft] = useState<Record<TermKey, string>>(() => ({
@@ -366,7 +379,16 @@ function TerminologyCard() {
     stages: terminology.stages,
   }));
 
-  // Keep draft in sync when the org's terminology changes (e.g. after save)
+  // Singular override drafts — empty string means "let the app auto-derive"
+  const [draftSingular, setDraftSingular] = useState<Record<SingularDraftKey, string>>(() => ({
+    projectsSingular: rawTerminology?.projectsSingular ?? "",
+    tasksSingular: rawTerminology?.tasksSingular ?? "",
+    membersSingular: rawTerminology?.membersSingular ?? "",
+    workflowsSingular: rawTerminology?.workflowsSingular ?? "",
+    stagesSingular: rawTerminology?.stagesSingular ?? "",
+  }));
+
+  // Keep drafts in sync when the org's terminology changes (e.g. after save)
   useEffect(() => {
     setDraft({
       projects: terminology.projects,
@@ -376,6 +398,23 @@ function TerminologyCard() {
       stages: terminology.stages,
     });
   }, [terminology.projects, terminology.tasks, terminology.members, terminology.workflows, terminology.stages]);
+
+  useEffect(() => {
+    setDraftSingular({
+      projectsSingular: rawTerminology?.projectsSingular ?? "",
+      tasksSingular: rawTerminology?.tasksSingular ?? "",
+      membersSingular: rawTerminology?.membersSingular ?? "",
+      workflowsSingular: rawTerminology?.workflowsSingular ?? "",
+      stagesSingular: rawTerminology?.stagesSingular ?? "",
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    rawTerminology?.projectsSingular,
+    rawTerminology?.tasksSingular,
+    rawTerminology?.membersSingular,
+    rawTerminology?.workflowsSingular,
+    rawTerminology?.stagesSingular,
+  ]);
 
   const { mutate: patch, isPending } = usePatchOrgTerminology({
     mutation: {
@@ -391,23 +430,29 @@ function TerminologyCard() {
   });
 
   function handleSave() {
-    const body: Partial<Record<TermKey, string>> = {};
-    (Object.keys(draft) as TermKey[]).forEach((key) => {
-      const val = draft[key].trim();
-      if (val && val !== TERM_DEFAULTS[key]) {
-        body[key] = val;
-      }
+    // Build plural payload — always send all five so the backend can persist resets
+    const payload: Record<string, string | null> = (Object.keys(draft) as TermKey[]).reduce(
+      (acc, key) => {
+        acc[key] = draft[key].trim() || TERM_DEFAULTS[key];
+        return acc;
+      },
+      {} as Record<string, string | null>,
+    );
+    // Include singular overrides: non-empty value → upsert, empty string → null to clear the DB row
+    SINGULAR_DRAFT_KEYS.forEach((singularKey) => {
+      const val = draftSingular[singularKey].trim();
+      payload[singularKey] = val || null;
     });
-    // If everything is reset to default, we still need to send a valid body.
-    // Send all current non-empty values.
-    const payload = Object.keys(draft).length > 0
-      ? (Object.keys(draft) as TermKey[]).reduce((acc, key) => {
-          const val = draft[key].trim();
-          acc[key] = val || TERM_DEFAULTS[key];
-          return acc;
-        }, {} as Record<TermKey, string>)
-      : TERM_DEFAULTS;
     patch({ data: payload });
+  }
+
+  // Derive singular placeholder (auto-derived form) for each key
+  function autoSingular(key: TermKey): string {
+    const label = draft[key].trim() || TERM_DEFAULTS[key];
+    if (label.endsWith("ies")) return label.slice(0, -3) + "y";
+    if (/(?:s|z|ch|sh)es$/.test(label)) return label.slice(0, -2);
+    if (label.endsWith("s")) return label.slice(0, -1);
+    return label;
   }
 
   return (
@@ -419,29 +464,48 @@ function TerminologyCard() {
         </CardTitle>
         <CardDescription>
           Rename user-facing labels to match your team's language.
-          Changes appear in navigation, page headings, and empty states.
+          Set a plural label (used in headings and nav) and optionally a singular
+          form (used in buttons like "New Task"). Leave singular blank to auto-derive.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
           {(Object.keys(TERMINOLOGY_KEY_LABELS) as TermKey[]).map((key) => {
             const meta = TERMINOLOGY_KEY_LABELS[key];
+            const singularKey = `${key}Singular` as SingularDraftKey;
             return (
-              <div key={key} className="space-y-1">
-                <Label className="text-xs font-medium">
-                  {meta.label}
-                  <span className="ml-1.5 text-muted-foreground font-normal">
-                    (default: "{TERM_DEFAULTS[key]}")
-                  </span>
-                </Label>
-                <Input
-                  value={draft[key]}
-                  onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
-                  placeholder={meta.description}
-                  disabled={!canManageTerminology || isPending}
-                  maxLength={50}
-                  className="h-8 text-sm"
-                />
+              <div key={key} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">
+                    {meta.label} <span className="text-muted-foreground font-normal">(plural)</span>
+                    <span className="ml-1.5 text-muted-foreground font-normal">
+                      default: "{TERM_DEFAULTS[key]}"
+                    </span>
+                  </Label>
+                  <Input
+                    value={draft[key]}
+                    onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                    placeholder={meta.description}
+                    disabled={!canManageTerminology || isPending}
+                    maxLength={50}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Singular <span className="font-normal">(for buttons — leave blank to auto-derive)</span>
+                  </Label>
+                  <Input
+                    value={draftSingular[singularKey]}
+                    onChange={(e) =>
+                      setDraftSingular((prev) => ({ ...prev, [singularKey]: e.target.value }))
+                    }
+                    placeholder={`e.g. "${autoSingular(key)}"`}
+                    disabled={!canManageTerminology || isPending}
+                    maxLength={50}
+                    className="h-8 text-sm"
+                  />
+                </div>
               </div>
             );
           })}
@@ -455,15 +519,22 @@ function TerminologyCard() {
               size="sm"
               variant="ghost"
               disabled={isPending}
-              onClick={() =>
+              onClick={() => {
                 setDraft({
                   projects: TERM_DEFAULTS.projects,
                   tasks: TERM_DEFAULTS.tasks,
                   members: TERM_DEFAULTS.members,
                   workflows: TERM_DEFAULTS.workflows,
                   stages: TERM_DEFAULTS.stages,
-                })
-              }
+                });
+                setDraftSingular({
+                  projectsSingular: "",
+                  tasksSingular: "",
+                  membersSingular: "",
+                  workflowsSingular: "",
+                  stagesSingular: "",
+                });
+              }}
             >
               Reset to defaults
             </Button>

@@ -3697,6 +3697,8 @@ components:
       description: >
         Resolved terminology map for an org — all five keys are always present,
         defaulting to English when no custom label has been set.
+        Optional singular overrides (e.g. projectsSingular) are included when
+        an admin has set them; absent means fall back to auto-derived singular.
       type: object
       required: [projects, tasks, members, workflows, stages]
       properties:
@@ -3715,6 +3717,21 @@ components:
         stages:
           type: string
           description: Label for "Stages" (e.g. "Steps", "Statuses", "Phases").
+        projectsSingular:
+          type: string
+          description: Admin-set singular form for "Project" (e.g. "Service"). Omitted when not set.
+        tasksSingular:
+          type: string
+          description: Admin-set singular form for "Task" (e.g. "Ticket"). Omitted when not set.
+        membersSingular:
+          type: string
+          description: Admin-set singular form for "Member" (e.g. "Agent"). Omitted when not set.
+        workflowsSingular:
+          type: string
+          description: Admin-set singular form for "Workflow" (e.g. "Pipeline"). Omitted when not set.
+        stagesSingular:
+          type: string
+          description: Admin-set singular form for "Stage" (e.g. "Step"). Omitted when not set.
 
     UpdateOrgBrandingBody:
       description: Request body for updating an organization's branding.
@@ -3733,6 +3750,8 @@ components:
       description: >
         Partial map of terminology overrides. Only supplied keys are updated.
         Each label must be a non-empty string of at most 50 characters.
+        Singular overrides (projectsSingular etc.) are optional; when provided
+        they override the auto-derived singular used in action buttons.
       type: object
       properties:
         projects:
@@ -3755,6 +3774,36 @@ components:
           type: string
           minLength: 1
           maxLength: 50
+        projectsSingular:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 50
+          description: Pass null to clear a previously set singular override and revert to auto-derived.
+        tasksSingular:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 50
+          description: Pass null to clear a previously set singular override and revert to auto-derived.
+        membersSingular:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 50
+          description: Pass null to clear a previously set singular override and revert to auto-derived.
+        workflowsSingular:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 50
+          description: Pass null to clear a previously set singular override and revert to auto-derived.
+        stagesSingular:
+          type: string
+          nullable: true
+          minLength: 1
+          maxLength: 50
+          description: Pass null to clear a previously set singular override and revert to auto-derived.
 
     OrgMemberInfo:
       description: Profile and membership information for a single org member.

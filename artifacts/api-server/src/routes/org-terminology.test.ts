@@ -120,6 +120,7 @@ vi.mock('@workspace/db', () => {
     MEMBER_PERMISSIONS: {},
     ALL_PERMISSIONS: [],
     TERMINOLOGY_KEYS: ['projects', 'tasks', 'members', 'workflows', 'stages'],
+    SINGULAR_TERMINOLOGY_KEYS: ['projectsSingular', 'tasksSingular', 'membersSingular', 'workflowsSingular', 'stagesSingular'],
     TERMINOLOGY_DEFAULTS: {
       projects: 'Projects',
       tasks: 'Tasks',

@@ -7,7 +7,7 @@
  */
 
 /**
- * Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters.
+ * Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters. Singular overrides (projectsSingular etc.) are optional; when provided they override the auto-derived singular used in action buttons.
  */
 export interface PatchOrgTerminologyBody {
   /**
@@ -35,4 +35,34 @@ export interface PatchOrgTerminologyBody {
      * @maxLength 50
      */
   stages?: string;
+  /**
+     * Pass null to clear a previously set singular override and revert to auto-derived.
+     * @minLength 1
+     * @maxLength 50
+     */
+  projectsSingular?: string | null;
+  /**
+     * Pass null to clear a previously set singular override and revert to auto-derived.
+     * @minLength 1
+     * @maxLength 50
+     */
+  tasksSingular?: string | null;
+  /**
+     * Pass null to clear a previously set singular override and revert to auto-derived.
+     * @minLength 1
+     * @maxLength 50
+     */
+  membersSingular?: string | null;
+  /**
+     * Pass null to clear a previously set singular override and revert to auto-derived.
+     * @minLength 1
+     * @maxLength 50
+     */
+  workflowsSingular?: string | null;
+  /**
+     * Pass null to clear a previously set singular override and revert to auto-derived.
+     * @minLength 1
+     * @maxLength 50
+     */
+  stagesSingular?: string | null;
 }

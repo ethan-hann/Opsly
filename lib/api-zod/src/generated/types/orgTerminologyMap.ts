@@ -7,7 +7,7 @@
  */
 
 /**
- * Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.
+ * Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.
  */
 export interface OrgTerminologyMap {
   /** Label for "Projects" (e.g. "Services", "Initiatives"). */
@@ -20,4 +20,14 @@ export interface OrgTerminologyMap {
   workflows: string;
   /** Label for "Stages" (e.g. "Steps", "Statuses", "Phases"). */
   stages: string;
+  /** Admin-set singular form for "Project" (e.g. "Service"). Omitted when not set. */
+  projectsSingular?: string;
+  /** Admin-set singular form for "Task" (e.g. "Ticket"). Omitted when not set. */
+  tasksSingular?: string;
+  /** Admin-set singular form for "Member" (e.g. "Agent"). Omitted when not set. */
+  membersSingular?: string;
+  /** Admin-set singular form for "Workflow" (e.g. "Pipeline"). Omitted when not set. */
+  workflowsSingular?: string;
+  /** Admin-set singular form for "Stage" (e.g. "Step"). Omitted when not set. */
+  stagesSingular?: string;
 }

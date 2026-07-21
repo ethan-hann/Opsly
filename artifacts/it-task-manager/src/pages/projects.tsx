@@ -16,7 +16,7 @@ export default function ProjectsList() {
   const [showNewProject, setShowNewProject] = useState(false);
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
-  const { t, tSingular } = useTerminology();
+  const { t, ts } = useTerminology();
 
   // URL-driven status filter (e.g. ?status=active from the dashboard KPI card)
   const urlSearch = useSearch();
@@ -44,7 +44,7 @@ export default function ProjectsList() {
         {canManageProjects && (
           <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
             <Plus className="w-4 h-4" />
-            New {tSingular("projects")}
+            New {ts("projects")}
           </Button>
         )}
       </div>
@@ -132,7 +132,7 @@ export default function ProjectsList() {
             <p className="text-muted-foreground mb-4">
               {statusFilter
                 ? `Try clearing the filter to see all ${t("projects").toLowerCase()}.`
-                : `Get started by creating a new ${tSingular("projects").toLowerCase()} initiative.`}
+                : `Get started by creating a new ${ts("projects").toLowerCase()} initiative.`}
             </p>
             {statusFilter ? (
               <Button variant="outline" className="gap-2" onClick={clearStatusFilter}>
@@ -142,7 +142,7 @@ export default function ProjectsList() {
             ) : canManageProjects ? (
               <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
                 <Plus className="w-4 h-4" />
-                Create {tSingular("projects")}
+                Create {ts("projects")}
               </Button>
             ) : null}
           </div>

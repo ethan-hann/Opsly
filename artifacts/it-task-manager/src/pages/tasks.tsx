@@ -877,7 +877,7 @@ function BulkActionBar({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TasksList() {
-  const { t: tLabel, tSingular } = useTerminology();
+  const { t: tLabel, ts } = useTerminology();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [showNewTask, setShowNewTask] = useState(false);
   const [templateForModal, setTemplateForModal] = useState<
@@ -1157,7 +1157,7 @@ export default function TasksList() {
               <PopoverTrigger asChild>
                 <Button variant="outline" className="gap-2">
                   <FileText className="w-4 h-4" />
-                  From template
+                  From {ts("tasks")} template
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-1" align="end">
@@ -1191,7 +1191,7 @@ export default function TasksList() {
             }}
           >
             <Plus className="w-4 h-4" />
-            New {tSingular("tasks")}
+            New {ts("tasks")}
           </Button>
         </div>
       </div>
@@ -1244,7 +1244,7 @@ export default function TasksList() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Project segment filter */}
           <div className="bg-background/50 flex p-1 rounded-md border border-border">
-            {getProjectFilterOptions(tLabel, tSingular).map((opt) => (
+            {getProjectFilterOptions(tLabel, ts).map((opt) => (
               <button
                 key={opt.value}
                 onClick={() =>
@@ -1596,7 +1596,7 @@ export default function TasksList() {
                   <span className="text-xs text-muted-foreground font-medium">
                     {someSelected
                       ? `${selectedIds.size} of ${filteredTasks.length} selected`
-                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? tSingular("tasks") : tLabel("tasks")}`}
+                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? ts("tasks") : tLabel("tasks")}`}
                   </span>
                 </div>
               )}
@@ -1620,7 +1620,7 @@ export default function TasksList() {
                           checked={isChecked}
                           onChange={() => toggleTask(task.id)}
                           onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${tSingular("tasks")} ${task.title}`}
+                          aria-label={`Select ${ts("tasks")} ${task.title}`}
                         />
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">

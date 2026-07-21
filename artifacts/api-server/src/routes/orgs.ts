@@ -16,8 +16,9 @@ import {
   MEMBER_PERMISSIONS,
   TERMINOLOGY_KEYS,
   TERMINOLOGY_DEFAULTS,
+  SINGULAR_TERMINOLOGY_KEYS,
 } from '@workspace/db';
-import type { RolePermissions, TerminologyKey } from '@workspace/db';
+import type { RolePermissions, TerminologyKey, SingularTerminologyKey } from '@workspace/db';
 import { PatchOrgTerminologyBody, DEFAULT_REACTION_PALETTE } from '@workspace/api-zod';
 import {
   requireAuth,
@@ -90,17 +91,20 @@ async function getMemberRoleId(orgId: string): Promise<string | null> {
   return row?.id ?? null;
 }
 
-/** Fetch and resolve the terminology map for an org (merges custom overrides over defaults). */
-async function resolveTerminology(orgId: string): Promise<Record<TerminologyKey, string>> {
+/** Fetch and resolve the terminology map for an org (merges custom overrides over defaults).
+ *  Also returns any admin-set singular overrides (e.g. projectsSingular) when present. */
+async function resolveTerminology(orgId: string): Promise<Record<TerminologyKey, string> & Partial<Record<SingularTerminologyKey, string>>> {
   const rows = await db
     .select({ termKey: orgTerminologyTable.termKey, customLabel: orgTerminologyTable.customLabel })
     .from(orgTerminologyTable)
     .where(eq(orgTerminologyTable.orgId, orgId));
 
-  const result = { ...TERMINOLOGY_DEFAULTS };
+  const result: Record<TerminologyKey, string> & Partial<Record<SingularTerminologyKey, string>> = { ...TERMINOLOGY_DEFAULTS };
   for (const row of rows) {
     if (TERMINOLOGY_KEYS.includes(row.termKey as TerminologyKey)) {
       result[row.termKey as TerminologyKey] = row.customLabel;
+    } else if (SINGULAR_TERMINOLOGY_KEYS.includes(row.termKey as SingularTerminologyKey)) {
+      result[row.termKey as SingularTerminologyKey] = row.customLabel;
     }
   }
   return result;
@@ -1098,16 +1102,24 @@ router.patch('/orgs/terminology', requireOrg, requirePermission('manage_terminol
   const orgId = req.orgId!;
   const now = new Date();
 
-  // Upsert each supplied key individually
-  for (const [key, label] of Object.entries(parsed.data) as [TerminologyKey, string][]) {
-    if (label === undefined) continue;
-    await db
-      .insert(orgTerminologyTable)
-      .values({ orgId, termKey: key, customLabel: label, updatedAt: now })
-      .onConflictDoUpdate({
-        target: [orgTerminologyTable.orgId, orgTerminologyTable.termKey],
-        set: { customLabel: label, updatedAt: now },
-      });
+  // Upsert or clear each supplied key individually (both plural and optional singular overrides)
+  const allValidKeys = new Set<string>([...TERMINOLOGY_KEYS, ...SINGULAR_TERMINOLOGY_KEYS]);
+  for (const [key, label] of Object.entries(parsed.data)) {
+    if (!allValidKeys.has(key)) continue;
+    if (label === null) {
+      // null means "clear this singular override" — delete the row so the app falls back to auto-derived
+      await db
+        .delete(orgTerminologyTable)
+        .where(and(eq(orgTerminologyTable.orgId, orgId), eq(orgTerminologyTable.termKey, key)));
+    } else if (label !== undefined) {
+      await db
+        .insert(orgTerminologyTable)
+        .values({ orgId, termKey: key, customLabel: label as string, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [orgTerminologyTable.orgId, orgTerminologyTable.termKey],
+          set: { customLabel: label as string, updatedAt: now },
+        });
+    }
   }
 
   const terminology = await resolveTerminology(orgId);

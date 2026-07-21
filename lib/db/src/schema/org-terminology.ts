@@ -21,6 +21,17 @@ export const TERMINOLOGY_KEYS = [
 
 export type TerminologyKey = (typeof TERMINOLOGY_KEYS)[number];
 
+/** Keys used to store admin-set singular overrides alongside the plural keys. */
+export const SINGULAR_TERMINOLOGY_KEYS = [
+  'projectsSingular',
+  'tasksSingular',
+  'membersSingular',
+  'workflowsSingular',
+  'stagesSingular',
+] as const;
+
+export type SingularTerminologyKey = (typeof SINGULAR_TERMINOLOGY_KEYS)[number];
+
 export const TERMINOLOGY_DEFAULTS: Record<TerminologyKey, string> = {
   projects: 'Projects',
   tasks: 'Tasks',

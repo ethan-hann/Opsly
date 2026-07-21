@@ -1195,8 +1195,13 @@ export const CreateOrgResponse = zod.object({
   "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
   "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
   "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
-  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
-}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").'),
+  "projectsSingular": zod.string().optional().describe('Admin-set singular form for \"Project\" (e.g. \"Service\"). Omitted when not set.'),
+  "tasksSingular": zod.string().optional().describe('Admin-set singular form for \"Task\" (e.g. \"Ticket\"). Omitted when not set.'),
+  "membersSingular": zod.string().optional().describe('Admin-set singular form for \"Member\" (e.g. \"Agent\"). Omitted when not set.'),
+  "workflowsSingular": zod.string().optional().describe('Admin-set singular form for \"Workflow\" (e.g. \"Pipeline\"). Omitted when not set.'),
+  "stagesSingular": zod.string().optional().describe('Admin-set singular form for \"Stage\" (e.g. \"Step\"). Omitted when not set.')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
@@ -1270,8 +1275,13 @@ export const GetMyOrgResponse = zod.object({
   "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
   "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
   "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
-  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
-}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").'),
+  "projectsSingular": zod.string().optional().describe('Admin-set singular form for \"Project\" (e.g. \"Service\"). Omitted when not set.'),
+  "tasksSingular": zod.string().optional().describe('Admin-set singular form for \"Task\" (e.g. \"Ticket\"). Omitted when not set.'),
+  "membersSingular": zod.string().optional().describe('Admin-set singular form for \"Member\" (e.g. \"Agent\"). Omitted when not set.'),
+  "workflowsSingular": zod.string().optional().describe('Admin-set singular form for \"Workflow\" (e.g. \"Pipeline\"). Omitted when not set.'),
+  "stagesSingular": zod.string().optional().describe('Admin-set singular form for \"Stage\" (e.g. \"Step\"). Omitted when not set.')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
@@ -1302,8 +1312,13 @@ export const GetOrgTerminologyResponse = zod.object({
   "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
   "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
   "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
-  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
-}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n')
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").'),
+  "projectsSingular": zod.string().optional().describe('Admin-set singular form for \"Project\" (e.g. \"Service\"). Omitted when not set.'),
+  "tasksSingular": zod.string().optional().describe('Admin-set singular form for \"Task\" (e.g. \"Ticket\"). Omitted when not set.'),
+  "membersSingular": zod.string().optional().describe('Admin-set singular form for \"Member\" (e.g. \"Agent\"). Omitted when not set.'),
+  "workflowsSingular": zod.string().optional().describe('Admin-set singular form for \"Workflow\" (e.g. \"Pipeline\"). Omitted when not set.'),
+  "stagesSingular": zod.string().optional().describe('Admin-set singular form for \"Stage\" (e.g. \"Step\"). Omitted when not set.')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.\n')
 
 
 /**
@@ -1320,6 +1335,16 @@ export const patchOrgTerminologyBodyWorkflowsMax = 50;
 
 export const patchOrgTerminologyBodyStagesMax = 50;
 
+export const patchOrgTerminologyBodyProjectsSingularMax = 50;
+
+export const patchOrgTerminologyBodyTasksSingularMax = 50;
+
+export const patchOrgTerminologyBodyMembersSingularMax = 50;
+
+export const patchOrgTerminologyBodyWorkflowsSingularMax = 50;
+
+export const patchOrgTerminologyBodyStagesSingularMax = 50;
+
 
 
 export const PatchOrgTerminologyBody = zod.object({
@@ -1327,16 +1352,26 @@ export const PatchOrgTerminologyBody = zod.object({
   "tasks": zod.string().min(1).max(patchOrgTerminologyBodyTasksMax).optional(),
   "members": zod.string().min(1).max(patchOrgTerminologyBodyMembersMax).optional(),
   "workflows": zod.string().min(1).max(patchOrgTerminologyBodyWorkflowsMax).optional(),
-  "stages": zod.string().min(1).max(patchOrgTerminologyBodyStagesMax).optional()
-}).describe('Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters.\n')
+  "stages": zod.string().min(1).max(patchOrgTerminologyBodyStagesMax).optional(),
+  "projectsSingular": zod.string().min(1).max(patchOrgTerminologyBodyProjectsSingularMax).nullish().describe('Pass null to clear a previously set singular override and revert to auto-derived.'),
+  "tasksSingular": zod.string().min(1).max(patchOrgTerminologyBodyTasksSingularMax).nullish().describe('Pass null to clear a previously set singular override and revert to auto-derived.'),
+  "membersSingular": zod.string().min(1).max(patchOrgTerminologyBodyMembersSingularMax).nullish().describe('Pass null to clear a previously set singular override and revert to auto-derived.'),
+  "workflowsSingular": zod.string().min(1).max(patchOrgTerminologyBodyWorkflowsSingularMax).nullish().describe('Pass null to clear a previously set singular override and revert to auto-derived.'),
+  "stagesSingular": zod.string().min(1).max(patchOrgTerminologyBodyStagesSingularMax).nullish().describe('Pass null to clear a previously set singular override and revert to auto-derived.')
+}).describe('Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters. Singular overrides (projectsSingular etc.) are optional; when provided they override the auto-derived singular used in action buttons.\n')
 
 export const PatchOrgTerminologyResponse = zod.object({
   "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
   "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
   "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
   "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
-  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
-}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n')
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").'),
+  "projectsSingular": zod.string().optional().describe('Admin-set singular form for \"Project\" (e.g. \"Service\"). Omitted when not set.'),
+  "tasksSingular": zod.string().optional().describe('Admin-set singular form for \"Task\" (e.g. \"Ticket\"). Omitted when not set.'),
+  "membersSingular": zod.string().optional().describe('Admin-set singular form for \"Member\" (e.g. \"Agent\"). Omitted when not set.'),
+  "workflowsSingular": zod.string().optional().describe('Admin-set singular form for \"Workflow\" (e.g. \"Pipeline\"). Omitted when not set.'),
+  "stagesSingular": zod.string().optional().describe('Admin-set singular form for \"Stage\" (e.g. \"Step\"). Omitted when not set.')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.\n')
 
 
 /**
@@ -1494,8 +1529,13 @@ export const AcceptOrgInvitationResponse = zod.object({
   "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
   "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
   "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
-  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
-}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").'),
+  "projectsSingular": zod.string().optional().describe('Admin-set singular form for \"Project\" (e.g. \"Service\"). Omitted when not set.'),
+  "tasksSingular": zod.string().optional().describe('Admin-set singular form for \"Task\" (e.g. \"Ticket\"). Omitted when not set.'),
+  "membersSingular": zod.string().optional().describe('Admin-set singular form for \"Member\" (e.g. \"Agent\"). Omitted when not set.'),
+  "workflowsSingular": zod.string().optional().describe('Admin-set singular form for \"Workflow\" (e.g. \"Pipeline\"). Omitted when not set.'),
+  "stagesSingular": zod.string().optional().describe('Admin-set singular form for \"Stage\" (e.g. \"Step\"). Omitted when not set.')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set. Optional singular overrides (e.g. projectsSingular) are included when an admin has set them; absent means fall back to auto-derived singular.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
