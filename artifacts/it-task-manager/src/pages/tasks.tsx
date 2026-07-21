@@ -1,4 +1,17 @@
-import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks, useListWorkflowStages, useListCustomFieldDefinitions } from "@workspace/api-client-react";
+import {
+  useListTasks,
+  useListOrgMembers,
+  useListViews,
+  useCreateView,
+  useUpdateView,
+  useDeleteView,
+  useGetSLAPolicies,
+  useListTaskTemplates,
+  useBulkUpdateTasks,
+  useBulkDeleteTasks,
+  useListWorkflowStages,
+  useListCustomFieldDefinitions,
+} from "@workspace/api-client-react";
 import { useTerminology } from "@/context/terminology-context";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
@@ -9,17 +22,47 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate } from "@/lib/utils";
-import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert, Clock, SlidersHorizontal } from "lucide-react";
+import {
+  Plus,
+  Search,
+  LayoutList,
+  Columns,
+  ChevronDown,
+  X,
+  Bookmark,
+  Globe,
+  Lock,
+  Pencil,
+  Trash2,
+  Star,
+  FileText,
+  CheckSquare,
+  UserCheck,
+  Tag,
+  AlertCircle,
+  Layers,
+  Eye,
+  ShieldAlert,
+  Clock,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { NewTaskModal } from "@/components/ui/new-task-modal";
 import { KanbanBoard } from "@/components/ui/kanban-board";
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { useAuth } from "@workspace/replit-auth-web";
 import type { SavedView } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgContext } from "@/hooks/use-org-context";
-import { getListTasksQueryKey, getListViewsQueryKey } from "@workspace/api-client-react";
+import {
+  getListTasksQueryKey,
+  getListViewsQueryKey,
+} from "@workspace/api-client-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -36,15 +79,15 @@ interface ActiveFilters {
   search: string;
   watching: boolean;
   slaBreached: boolean;
-  stageType: string;   // "open" | "closed" | ""
+  stageType: string; // "open" | "closed" | ""
   overdue: boolean;
-  customFieldId: string;    // numeric ID as string, or ""
+  customFieldId: string; // numeric ID as string, or ""
   customFieldValue: string; // option value, or ""
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-// Status options are now dynamic — fetched from the org's workflow stages
+// Status options are now dynamic - fetched from the org's workflow stages
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -62,10 +105,13 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-function getProjectFilterOptions(tLabel: (key: string) => string, tSingular: (key: string) => string): { value: ProjectFilter; label: string }[] {
+function getProjectFilterOptions(
+  tLabel: (key: string) => string,
+  tSingular: (key: string) => string,
+): { value: ProjectFilter; label: string }[] {
   return [
     { value: "all", label: `All ${tLabel("tasks")}` },
-    { value: "with_project", label: `In a ${tSingular("projects")}` },
+    { value: "with_project", label: `With ${tSingular("projects")}` },
     { value: "no_project", label: `No ${tSingular("projects")}` },
   ];
 }
@@ -95,7 +141,9 @@ function useTaskFilters() {
     customFieldValue: params.get("customFieldValue") ?? "",
   };
 
-  const activeViewId = params.get("viewId") ? Number(params.get("viewId")) : null;
+  const activeViewId = params.get("viewId")
+    ? Number(params.get("viewId"))
+    : null;
 
   const setFilter = useCallback(
     (key: keyof ActiveFilters, value: string) => {
@@ -140,11 +188,13 @@ function useTaskFilters() {
       if (f.assignee) next.set("assignee", f.assignee);
       if (f.dateFrom) next.set("dateFrom", f.dateFrom);
       if (f.dateTo) next.set("dateTo", f.dateTo);
-      if (f.projectFilter && f.projectFilter !== "all") next.set("project", f.projectFilter);
+      if (f.projectFilter && f.projectFilter !== "all")
+        next.set("project", f.projectFilter);
       if (f.search) next.set("search", f.search);
       if (f.customFieldId) {
         next.set("customFieldId", String(f.customFieldId));
-        if (f.customFieldValue) next.set("customFieldValue", f.customFieldValue);
+        if (f.customFieldValue)
+          next.set("customFieldValue", f.customFieldValue);
       }
       if (f.watching) next.set("watching", "true");
       if (f.slaBreached) next.set("slaBreached", "true");
@@ -246,7 +296,20 @@ function useTaskFilters() {
     filters.overdue ||
     !!filters.customFieldId;
 
-  return { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, setCustomFieldFilter, clearAll, applyView, hasActiveFilters, activeViewId };
+  return {
+    filters,
+    setFilter,
+    setSearch,
+    setWatching,
+    setSlaBreached,
+    setStageType,
+    setOverdue,
+    setCustomFieldFilter,
+    clearAll,
+    applyView,
+    hasActiveFilters,
+    activeViewId,
+  };
 }
 
 // ─── Filter chip component ────────────────────────────────────────────────────
@@ -259,7 +322,13 @@ interface FilterChipProps {
   onClear: () => void;
 }
 
-function FilterChip({ label, value, activeLabel, children, onClear }: FilterChipProps) {
+function FilterChip({
+  label,
+  value,
+  activeLabel,
+  children,
+  onClear,
+}: FilterChipProps) {
   const isActive = !!value;
   return (
     <Popover>
@@ -272,22 +341,23 @@ function FilterChip({ label, value, activeLabel, children, onClear }: FilterChip
                 : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
             }`}
           >
-            {isActive ? activeLabel ?? label : label}
+            {isActive ? (activeLabel ?? label) : label}
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
         </PopoverTrigger>
         {isActive && (
           <button
-            onClick={(e) => { e.stopPropagation(); onClear(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClear();
+            }}
             className="flex items-center justify-center w-6 h-8 rounded-r-md border border-l-0 border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
             aria-label={`Clear ${label} filter`}
           >
             <X className="w-3 h-3" />
           </button>
         )}
-        {!isActive && (
-          <div className="w-0 border-r-0" />
-        )}
+        {!isActive && <div className="w-0 border-r-0" />}
       </div>
       <PopoverContent className="w-48 p-1" align="start">
         {children}
@@ -334,7 +404,12 @@ interface SaveViewPopoverProps {
   userId: string | undefined;
 }
 
-function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopoverProps) {
+function SaveViewPopover({
+  filters,
+  activeViewId,
+  views,
+  userId,
+}: SaveViewPopoverProps) {
   const search = filters.search;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -347,7 +422,9 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
   const queryClient = useQueryClient();
 
   // Check if current filters match an existing view
-  const activeView = activeViewId ? views.find((v) => v.id === activeViewId) : null;
+  const activeView = activeViewId
+    ? views.find((v) => v.id === activeViewId)
+    : null;
   const [editingName, setEditingName] = useState(false);
   const [newName, setNewName] = useState("");
 
@@ -360,10 +437,16 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
       assignee: filters.assignee || undefined,
       dateFrom: filters.dateFrom || undefined,
       dateTo: filters.dateTo || undefined,
-      projectFilter: filters.projectFilter !== "all" ? filters.projectFilter : undefined,
+      projectFilter:
+        filters.projectFilter !== "all" ? filters.projectFilter : undefined,
       search: search || undefined,
-      customFieldId: filters.customFieldId ? Number(filters.customFieldId) : undefined,
-      customFieldValue: filters.customFieldId && filters.customFieldValue ? filters.customFieldValue : undefined,
+      customFieldId: filters.customFieldId
+        ? Number(filters.customFieldId)
+        : undefined,
+      customFieldValue:
+        filters.customFieldId && filters.customFieldValue
+          ? filters.customFieldValue
+          : undefined,
       watching: filters.watching || undefined,
       slaBreached: filters.slaBreached || undefined,
       overdue: filters.overdue || undefined,
@@ -381,7 +464,10 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
 
   const handleRename = async (viewId: number) => {
     if (!newName.trim()) return;
-    await updateView.mutateAsync({ id: viewId, data: { name: newName.trim() } });
+    await updateView.mutateAsync({
+      id: viewId,
+      data: { name: newName.trim() },
+    });
     await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setEditingName(false);
     setNewName("");
@@ -394,7 +480,10 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
   };
 
   const handleToggleDefault = async (view: SavedView) => {
-    await updateView.mutateAsync({ id: view.id, data: { isDefault: !view.isDefault } });
+    await updateView.mutateAsync({
+      id: view.id,
+      data: { isDefault: !view.isDefault },
+    });
     await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
   };
 
@@ -406,7 +495,9 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
           size="sm"
           className="h-8 gap-1.5 text-xs"
         >
-          <Bookmark className={`w-3.5 h-3.5 ${activeView ? "fill-current" : ""}`} />
+          <Bookmark
+            className={`w-3.5 h-3.5 ${activeView ? "fill-current" : ""}`}
+          />
           {activeView ? activeView.name : "Save view"}
         </Button>
       </PopoverTrigger>
@@ -425,7 +516,10 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleRename(activeView.id);
-                        if (e.key === "Escape") { setEditingName(false); setNewName(""); }
+                        if (e.key === "Escape") {
+                          setEditingName(false);
+                          setNewName("");
+                        }
                       }}
                     />
                     <Button
@@ -446,12 +540,24 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
                           <button
                             onClick={() => handleToggleDefault(activeView)}
                             className={`p-1 rounded transition-colors ${activeView.isDefault ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}
-                            title={activeView.isDefault ? "Remove default" : "Set as default"}
+                            title={
+                              activeView.isDefault
+                                ? "Remove default"
+                                : "Set as default"
+                            }
                           >
-                            <Star className="w-3.5 h-3.5" fill={activeView.isDefault ? "currentColor" : "none"} />
+                            <Star
+                              className="w-3.5 h-3.5"
+                              fill={
+                                activeView.isDefault ? "currentColor" : "none"
+                              }
+                            />
                           </button>
                           <button
-                            onClick={() => { setEditingName(true); setNewName(activeView.name); }}
+                            onClick={() => {
+                              setEditingName(true);
+                              setNewName(activeView.name);
+                            }}
                             className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
                             title="Rename"
                           >
@@ -472,11 +578,17 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
               </div>
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 {activeView.isOrgWide ? (
-                  <><Globe className="w-3 h-3" /> Org-wide</>
+                  <>
+                    <Globe className="w-3 h-3" /> Org-wide
+                  </>
                 ) : (
-                  <><Lock className="w-3 h-3" /> Personal</>
+                  <>
+                    <Lock className="w-3 h-3" /> Personal
+                  </>
                 )}
-                {activeView.isDefault && <span className="ml-1 text-primary">· Default</span>}
+                {activeView.isDefault && (
+                  <span className="ml-1 text-primary">· Default</span>
+                )}
               </div>
             </div>
           )}
@@ -489,7 +601,9 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-8 text-xs mb-2"
-              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+              }}
               autoFocus={!activeView}
             />
             <div className="flex items-center gap-3 mb-3">
@@ -536,7 +650,12 @@ interface BulkActionBarProps {
   onClear: () => void;
   assigneeOptions: { value: string; label: string }[];
   canDelete: boolean;
-  onBulkUpdate: (patch: { status?: string; priority?: string; category?: string; assignee?: string | null }) => Promise<void>;
+  onBulkUpdate: (patch: {
+    status?: string;
+    priority?: string;
+    category?: string;
+    assignee?: string | null;
+  }) => Promise<void>;
   onBulkDelete: () => Promise<void>;
   isPending: boolean;
 }
@@ -578,9 +697,17 @@ function BulkActionBar({
       </div>
 
       {/* Assign to */}
-      <Popover open={openPopover === "assignee"} onOpenChange={(o) => setOpenPopover(o ? "assignee" : null)}>
+      <Popover
+        open={openPopover === "assignee"}
+        onOpenChange={(o) => setOpenPopover(o ? "assignee" : null)}
+      >
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={isPending}
+          >
             <UserCheck className="w-3.5 h-3.5" />
             Assign to
           </Button>
@@ -607,9 +734,17 @@ function BulkActionBar({
       </Popover>
 
       {/* Change status */}
-      <Popover open={openPopover === "status"} onOpenChange={(o) => setOpenPopover(o ? "status" : null)}>
+      <Popover
+        open={openPopover === "status"}
+        onOpenChange={(o) => setOpenPopover(o ? "status" : null)}
+      >
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={isPending}
+          >
             <AlertCircle className="w-3.5 h-3.5" />
             Status
           </Button>
@@ -630,9 +765,17 @@ function BulkActionBar({
       </Popover>
 
       {/* Change priority */}
-      <Popover open={openPopover === "priority"} onOpenChange={(o) => setOpenPopover(o ? "priority" : null)}>
+      <Popover
+        open={openPopover === "priority"}
+        onOpenChange={(o) => setOpenPopover(o ? "priority" : null)}
+      >
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={isPending}
+          >
             <Tag className="w-3.5 h-3.5" />
             Priority
           </Button>
@@ -653,9 +796,17 @@ function BulkActionBar({
       </Popover>
 
       {/* Change category */}
-      <Popover open={openPopover === "category"} onOpenChange={(o) => setOpenPopover(o ? "category" : null)}>
+      <Popover
+        open={openPopover === "category"}
+        onOpenChange={(o) => setOpenPopover(o ? "category" : null)}
+      >
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs" disabled={isPending}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 text-xs"
+            disabled={isPending}
+          >
             <Layers className="w-3.5 h-3.5" />
             Category
           </Button>
@@ -681,7 +832,9 @@ function BulkActionBar({
           <div className="w-px h-6 bg-border" />
           {confirmDelete ? (
             <div className="flex items-center gap-2">
-              <span className="text-xs text-destructive font-medium">Delete {count}?</span>
+              <span className="text-xs text-destructive font-medium">
+                Delete {count}?
+              </span>
               <Button
                 variant="destructive"
                 size="sm"
@@ -727,14 +880,29 @@ export default function TasksList() {
   const { t: tLabel, tSingular } = useTerminology();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [showNewTask, setShowNewTask] = useState(false);
-  const [templateForModal, setTemplateForModal] = useState<TaskTemplate | undefined>(undefined);
+  const [templateForModal, setTemplateForModal] = useState<
+    TaskTemplate | undefined
+  >(undefined);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const defaultApplied = useRef(false);
 
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
-  const { filters, setFilter, setSearch, setWatching, setSlaBreached, setStageType, setOverdue, setCustomFieldFilter, clearAll, applyView, hasActiveFilters, activeViewId } = useTaskFilters();
+  const {
+    filters,
+    setFilter,
+    setSearch,
+    setWatching,
+    setSlaBreached,
+    setStageType,
+    setOverdue,
+    setCustomFieldFilter,
+    clearAll,
+    applyView,
+    hasActiveFilters,
+    activeViewId,
+  } = useTaskFilters();
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
@@ -744,7 +912,10 @@ export default function TasksList() {
   const preFilterIds = (() => {
     const raw = new URLSearchParams(urlSearch).get("ids");
     if (!raw) return null;
-    const ids = raw.split(",").map(Number).filter((n) => !isNaN(n) && n > 0);
+    const ids = raw
+      .split(",")
+      .map(Number)
+      .filter((n) => !isNaN(n) && n > 0);
     return ids.length > 0 ? new Set(ids) : null;
   })();
 
@@ -766,8 +937,12 @@ export default function TasksList() {
     ...(filters.dateTo ? { dateTo: filters.dateTo } : {}),
     ...(filters.watching ? { watching: "true" } : {}),
     ...(filters.slaBreached ? { slaBreached: "true" } : {}),
-    ...(filters.customFieldId ? { customFieldId: Number(filters.customFieldId) } : {}),
-    ...(filters.customFieldId && filters.customFieldValue ? { customFieldValue: filters.customFieldValue } : {}),
+    ...(filters.customFieldId
+      ? { customFieldId: Number(filters.customFieldId) }
+      : {}),
+    ...(filters.customFieldId && filters.customFieldValue
+      ? { customFieldValue: filters.customFieldValue }
+      : {}),
   } as Parameters<typeof useListTasks>[0];
 
   const { data: tasks, isLoading } = useListTasks(
@@ -796,7 +971,9 @@ export default function TasksList() {
     const params = new URLSearchParams(urlSearch);
     const hasFilters = params.size > 0;
     if (!hasFilters) {
-      const defaultView = views.find((v) => v.isDefault && v.createdBy === user?.id);
+      const defaultView = views.find(
+        (v) => v.isDefault && v.createdBy === user?.id,
+      );
       if (defaultView) {
         defaultApplied.current = true;
         applyView(defaultView);
@@ -843,30 +1020,42 @@ export default function TasksList() {
     .filter((m) => m.email)
     .map((m) => ({
       value: m.email!,
-      label:
-        [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email!,
+      label: [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email!,
     }));
 
   // Human-readable labels for active filters
-  const statusLabel = stageStatusOptions.find((o) => o.value === filters.status)?.label
-    ?? stages.find((s) => String(s.id) === filters.status)?.name;
-  const priorityLabel = PRIORITY_OPTIONS.find((o) => o.value === filters.priority)?.label;
-  const categoryLabel = CATEGORY_OPTIONS.find((o) => o.value === filters.category)?.label;
+  const statusLabel =
+    stageStatusOptions.find((o) => o.value === filters.status)?.label ??
+    stages.find((s) => String(s.id) === filters.status)?.name;
+  const priorityLabel = PRIORITY_OPTIONS.find(
+    (o) => o.value === filters.priority,
+  )?.label;
+  const categoryLabel = CATEGORY_OPTIONS.find(
+    (o) => o.value === filters.category,
+  )?.label;
   const assigneeLabel =
-    assigneeOptions.find((o) => o.value === filters.assignee)?.label ?? filters.assignee;
+    assigneeOptions.find((o) => o.value === filters.assignee)?.label ??
+    filters.assignee;
 
-  const dueDateLabel = filters.dateFrom || filters.dateTo
-    ? [filters.dateFrom && `From ${filters.dateFrom}`, filters.dateTo && `To ${filters.dateTo}`]
-        .filter(Boolean)
-        .join(" ")
-    : undefined;
+  const dueDateLabel =
+    filters.dateFrom || filters.dateTo
+      ? [
+          filters.dateFrom && `From ${filters.dateFrom}`,
+          filters.dateTo && `To ${filters.dateTo}`,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : undefined;
 
   // Custom-field filter: only non-deleted definitions
   const activeCustomFields = customFieldDefs.filter((f) => !f.deletedAt);
   const activeCustomField = filters.customFieldId
-    ? activeCustomFields.find((f) => String(f.id) === filters.customFieldId) ?? null
+    ? (activeCustomFields.find((f) => String(f.id) === filters.customFieldId) ??
+      null)
     : null;
-  const isCustomFieldSelect = activeCustomField?.type === "single_select" || activeCustomField?.type === "multi_select";
+  const isCustomFieldSelect =
+    activeCustomField?.type === "single_select" ||
+    activeCustomField?.type === "multi_select";
   const customFieldChipLabel = activeCustomField
     ? filters.customFieldValue
       ? `${activeCustomField.name}: ${filters.customFieldValue}`
@@ -876,13 +1065,15 @@ export default function TasksList() {
   // ─── Selection helpers ────────────────────────────────────────────────────
 
   const visibleIds = (filteredTasks ?? []).map((t) => t.id);
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const allSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someSelected = visibleIds.some((id) => selectedIds.has(id));
 
   const toggleTask = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -907,11 +1098,27 @@ export default function TasksList() {
 
   // ─── Bulk action handlers ─────────────────────────────────────────────────
 
-  const handleBulkUpdate = async (patch: { status?: string; priority?: string; category?: string; assignee?: string | null }) => {
+  const handleBulkUpdate = async (patch: {
+    status?: string;
+    priority?: string;
+    category?: string;
+    assignee?: string | null;
+  }) => {
     await bulkUpdate.mutateAsync({
       data: {
         ids: Array.from(selectedIds),
-        patch: patch as { status?: "todo" | "in_progress" | "blocked" | "done"; priority?: "low" | "medium" | "high" | "critical"; category?: "incident" | "change" | "maintenance" | "deployment" | "support" | "other"; assignee?: string | null },
+        patch: patch as {
+          status?: "todo" | "in_progress" | "blocked" | "done";
+          priority?: "low" | "medium" | "high" | "critical";
+          category?:
+            | "incident"
+            | "change"
+            | "maintenance"
+            | "deployment"
+            | "support"
+            | "other";
+          assignee?: string | null;
+        },
       },
     });
     await queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
@@ -934,12 +1141,19 @@ export default function TasksList() {
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{tLabel("tasks")}</h1>
-          <p className="text-muted-foreground mt-1">Manage incidents, changes, and operational work.</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {tLabel("tasks")}
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage incidents, changes, and operational work.
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {templates.length > 0 && (
-            <Popover open={showTemplatePicker} onOpenChange={setShowTemplatePicker}>
+            <Popover
+              open={showTemplatePicker}
+              onOpenChange={setShowTemplatePicker}
+            >
               <PopoverTrigger asChild>
                 <Button variant="outline" className="gap-2">
                   <FileText className="w-4 h-4" />
@@ -968,7 +1182,14 @@ export default function TasksList() {
               </PopoverContent>
             </Popover>
           )}
-          <Button className="gap-2" data-testid="button-create-task" onClick={() => { setTemplateForModal(undefined); setShowNewTask(true); }}>
+          <Button
+            className="gap-2"
+            data-testid="button-create-task"
+            onClick={() => {
+              setTemplateForModal(undefined);
+              setShowNewTask(true);
+            }}
+          >
             <Plus className="w-4 h-4" />
             New {tSingular("tasks")}
           </Button>
@@ -1026,7 +1247,12 @@ export default function TasksList() {
             {getProjectFilterOptions(tLabel, tSingular).map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setFilter("projectFilter", opt.value === "all" ? "" : opt.value)}
+                onClick={() =>
+                  setFilter(
+                    "projectFilter",
+                    opt.value === "all" ? "" : opt.value,
+                  )
+                }
                 className={`px-3 h-7 text-xs rounded-sm font-medium transition-colors ${
                   filters.projectFilter === opt.value
                     ? "bg-secondary text-secondary-foreground shadow-sm"
@@ -1097,7 +1323,9 @@ export default function TasksList() {
                 onChange={(v) => setFilter("assignee", v)}
               />
             ) : (
-              <p className="text-xs text-muted-foreground px-3 py-2">No members found</p>
+              <p className="text-xs text-muted-foreground px-3 py-2">
+                No members found
+              </p>
             )}
           </FilterChip>
 
@@ -1106,11 +1334,16 @@ export default function TasksList() {
             label="Due date"
             value={filters.dateFrom || filters.dateTo}
             activeLabel={dueDateLabel ?? "Due date"}
-            onClear={() => { setFilter("dateFrom", ""); setFilter("dateTo", ""); }}
+            onClear={() => {
+              setFilter("dateFrom", "");
+              setFilter("dateTo", "");
+            }}
           >
             <div className="flex flex-col gap-2 p-1">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">From</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  From
+                </label>
                 <input
                   type="date"
                   value={filters.dateFrom}
@@ -1119,7 +1352,9 @@ export default function TasksList() {
                 />
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">To</label>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  To
+                </label>
                 <input
                   type="date"
                   value={filters.dateTo}
@@ -1135,7 +1370,9 @@ export default function TasksList() {
             {(["open", "closed"] as const).map((type) => (
               <button
                 key={type}
-                onClick={() => setStageType(filters.stageType === type ? "" : type)}
+                onClick={() =>
+                  setStageType(filters.stageType === type ? "" : type)
+                }
                 className={`px-3 h-8 capitalize transition-colors ${
                   filters.stageType === type
                     ? type === "open"
@@ -1143,7 +1380,11 @@ export default function TasksList() {
                       : "bg-emerald-600 text-white"
                     : "bg-background/50 text-muted-foreground hover:text-foreground hover:bg-background"
                 }`}
-                title={filters.stageType === type ? `Showing ${type} tasks — click to clear` : `Show only ${type} tasks`}
+                title={
+                  filters.stageType === type
+                    ? `Showing ${type} ${tLabel("tasks").toLowerCase()} - click to clear`
+                    : `Show only ${type} ${tLabel("tasks").toLowerCase()}`
+                }
               >
                 {type}
               </button>
@@ -1158,13 +1399,17 @@ export default function TasksList() {
                 ? "bg-orange-500 text-white border-orange-500"
                 : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
             }`}
-            title={filters.overdue ? "Showing overdue / critical tasks — click to clear" : "Show overdue or critical priority tasks"}
+            title={
+              filters.overdue
+                ? `Showing overdue / critical ${tLabel("tasks").toLowerCase()} - click to clear`
+                : `Show overdue or critical priority ${tLabel("tasks").toLowerCase()}`
+            }
           >
             <Clock className="w-3.5 h-3.5" />
             Overdue
           </button>
 
-          {/* SLA Breached toggle — hidden when sla_tracking is off */}
+          {/* SLA Breached toggle - hidden when sla_tracking is off */}
           <FeatureGate feature="sla_tracking" compact>
             <button
               onClick={() => setSlaBreached(!filters.slaBreached)}
@@ -1173,7 +1418,11 @@ export default function TasksList() {
                   ? "bg-red-600 text-white border-red-600"
                   : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
               }`}
-              title={filters.slaBreached ? "Showing SLA-breached tasks only — click to clear" : "Show only tasks that have breached their SLA"}
+              title={
+                filters.slaBreached
+                  ? `Showing SLA-breached ${tLabel("tasks").toLowerCase()} only - click to clear`
+                  : `Show only ${tLabel("tasks").toLowerCase()} that have breached their SLA`
+              }
             >
               <ShieldAlert className="w-3.5 h-3.5" />
               SLA Breached
@@ -1188,13 +1437,17 @@ export default function TasksList() {
                 ? "bg-primary text-primary-foreground border-primary"
                 : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
             }`}
-            title={filters.watching ? "Showing only watched tasks — click to clear" : "Show only tasks you're watching"}
+            title={
+              filters.watching
+                ? `Showing only watched ${tLabel("tasks").toLowerCase()} - click to clear`
+                : `Show only ${tLabel("tasks").toLowerCase()} you're watching`
+            }
           >
             <Eye className="w-3.5 h-3.5" />
             Watching
           </button>
 
-          {/* Custom field filter chip — only rendered when org has custom fields */}
+          {/* Custom field filter chip - only rendered when org has custom fields */}
           {activeCustomFields.length > 0 && (
             <Popover>
               <div className="flex items-center">
@@ -1224,9 +1477,11 @@ export default function TasksList() {
               </div>
               <PopoverContent className="w-52 p-1" align="start">
                 {!filters.customFieldId ? (
-                  /* Step 1 — pick a field */
+                  /* Step 1 - pick a field */
                   <div className="flex flex-col gap-0.5">
-                    <p className="px-2 py-1 text-xs text-muted-foreground font-medium">Pick a field</p>
+                    <p className="px-2 py-1 text-xs text-muted-foreground font-medium">
+                      Pick a field
+                    </p>
                     {activeCustomFields.map((f) => (
                       <button
                         key={f.id}
@@ -1241,7 +1496,7 @@ export default function TasksList() {
                     ))}
                   </div>
                 ) : (
-                  /* Step 2 — pick a value (select types) or confirm (others) */
+                  /* Step 2 - pick a value (select types) or confirm (others) */
                   <div className="flex flex-col gap-0.5">
                     <button
                       onClick={() => setCustomFieldFilter("", "")}
@@ -1249,7 +1504,9 @@ export default function TasksList() {
                     >
                       ← Back
                     </button>
-                    <p className="px-2 pb-1 text-xs font-medium truncate">{activeCustomField?.name}</p>
+                    <p className="px-2 pb-1 text-xs font-medium truncate">
+                      {activeCustomField?.name}
+                    </p>
                     {isCustomFieldSelect && activeCustomField?.options ? (
                       (activeCustomField.options as string[]).map((opt) => (
                         <button
@@ -1271,7 +1528,7 @@ export default function TasksList() {
                       ))
                     ) : (
                       <p className="px-3 py-1.5 text-xs text-muted-foreground">
-                        Showing tasks with any value
+                        Showing ${tLabel("tasks")} with any value
                       </p>
                     )}
                   </div>
@@ -1293,11 +1550,12 @@ export default function TasksList() {
         </div>
       </div>
 
-      {/* Pre-filter banner — shown when the task list is scoped to specific IDs (e.g. from the custom-field conflict warning) */}
+      {/* Pre-filter banner - shown when the task list is scoped to specific IDs (e.g. from the custom-field conflict warning) */}
       {preFilterIds && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
           <span className="text-primary font-medium">
-            Showing {preFilterIds.size} task{preFilterIds.size === 1 ? "" : "s"} that use a removed custom-field option
+            Showing {preFilterIds.size} task{preFilterIds.size === 1 ? "" : "s"}{" "}
+            that use a removed custom-field option
           </span>
           <button
             onClick={clearIdsFilter}
@@ -1313,7 +1571,11 @@ export default function TasksList() {
       <div className="flex-1 min-h-0">
         {isLoading ? (
           <div className="space-y-3">
-            {Array(5).fill(0).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+            {Array(5)
+              .fill(0)
+              .map((_, i) => (
+                <Skeleton key={i} className="h-20 w-full" />
+              ))}
           </div>
         ) : viewMode === "list" ? (
           <Card className="overflow-hidden">
@@ -1334,7 +1596,7 @@ export default function TasksList() {
                   <span className="text-xs text-muted-foreground font-medium">
                     {someSelected
                       ? `${selectedIds.size} of ${filteredTasks.length} selected`
-                      : `${filteredTasks.length} task${filteredTasks.length === 1 ? "" : "s"}`}
+                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? tSingular("tasks") : tLabel("tasks")}`}
                   </span>
                 </div>
               )}
@@ -1348,15 +1610,17 @@ export default function TasksList() {
                       key={task.id}
                       className={`group p-4 hover:bg-muted/30 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 ${isChecked ? "bg-primary/5" : ""}`}
                     >
-                      {/* Checkbox — always visible when something is selected, hover-visible otherwise */}
-                      <div className={`flex items-start gap-3 ${anySelected ? "" : "group-hover:[&>input]:opacity-100"}`}>
+                      {/* Checkbox - always visible when something is selected, hover-visible otherwise */}
+                      <div
+                        className={`flex items-start gap-3 ${anySelected ? "" : "group-hover:[&>input]:opacity-100"}`}
+                      >
                         <input
                           type="checkbox"
                           className={`mt-0.5 w-4 h-4 rounded border-border cursor-pointer accent-primary flex-shrink-0 transition-opacity ${anySelected || isChecked ? "opacity-100" : "opacity-0"}`}
                           checked={isChecked}
                           onChange={() => toggleTask(task.id)}
                           onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select ${tLabel("tasks")} ${task.title}`}
+                          aria-label={`Select ${tSingular("tasks")} ${task.title}`}
                         />
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -1371,7 +1635,9 @@ export default function TasksList() {
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                             {task.projectName && (
-                              <span className="text-foreground/80">{task.projectName}</span>
+                              <span className="text-foreground/80">
+                                {task.projectName}
+                              </span>
                             )}
                             <span className="px-1.5 py-0.5 rounded border border-border">
                               {task.category}
@@ -1398,10 +1664,17 @@ export default function TasksList() {
                             status={task.status}
                             priority={task.priority}
                             policies={slaPolicies}
-                            stageType={task.stageType as "open" | "closed" | undefined}
+                            stageType={
+                              task.stageType as "open" | "closed" | undefined
+                            }
                           />
                         </FeatureGate>
-                        <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
+                        <StatusBadge
+                          status={task.status}
+                          stageName={task.stageName}
+                          stageColor={task.stageColor}
+                          stageArchived={task.stageArchived}
+                        />
                         <PriorityBadge priority={task.priority} />
                       </div>
                     </div>
@@ -1409,7 +1682,7 @@ export default function TasksList() {
                 })
               ) : (
                 <div className="p-12 text-center text-muted-foreground">
-                  No tasks found matching your criteria.
+                  No ${tLabel("tasks")} found matching your criteria.
                 </div>
               )}
             </div>
