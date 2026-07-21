@@ -153,8 +153,13 @@ function processCalloutBlockquote(node: AstNode): void {
 
   const type = m[1].toUpperCase();
   node.data ??= {};
+  // Stamp both data-callout and a CSS class so the type survives any
+  // downstream sanitization pass.  data-callout requires our extended
+  // sanitizeSchema; className ("class") is allowed on all elements by every
+  // sanitize schema including @uiw/react-markdown-preview's internal one.
   (node.data as { hProperties?: Record<string, string> }).hProperties = {
     "data-callout": type,
+    className: `callout callout-${type.toLowerCase()}`,
   };
 
   const stripped = firstText.value.replace(CALLOUT_RE, "").trimStart();
@@ -277,18 +282,30 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
     <td className="border border-border px-3 py-1.5">{children}</td>
   ),
 
-  // Blockquotes — render GitHub-style callouts when data-callout is present.
+  // Blockquotes — render GitHub-style callouts when the node was tagged by
+  // remarkCallouts.  We check two signals in priority order:
+  //   1. data-callout="NOTE" — set by our extended sanitizeSchema; survives in
+  //      react-markdown's own pipeline.
+  //   2. className contains "callout-note" — class is allowed on all elements
+  //      by every sanitize schema, so this survives @uiw/react-markdown-preview's
+  //      internal sanitization pass too.
   blockquote: ({
     children,
+    className,
     ...props
   }: React.HTMLAttributes<HTMLQuoteElement>) => {
     const dataCallout = (props as Record<string, unknown>)[
       "data-callout"
     ] as string | undefined;
+
+    // Extract type from className="callout callout-note" → "NOTE"
+    const classCallout = typeof className === "string"
+      ? (className.match(/\bcallout-([a-z]+)\b/) ?? [])[1]?.toUpperCase()
+      : undefined;
+
+    const raw = dataCallout ?? classCallout;
     const calloutType =
-      dataCallout && dataCallout in CALLOUT_CONFIG
-        ? (dataCallout as CalloutType)
-        : null;
+      raw && raw in CALLOUT_CONFIG ? (raw as CalloutType) : null;
 
     if (!calloutType) {
       return (
