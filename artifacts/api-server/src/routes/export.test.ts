@@ -640,3 +640,125 @@ describe("GET /export/download/:token — TTL expiry", () => {
     expect(mockStorageProvider.put).toHaveBeenCalledOnce();
   });
 });
+
+// ---------------------------------------------------------------------------
+// ── Restart-survival: download works after server restart mid-job ──────────
+//
+// The whole point of replacing the old in-memory Map<token, ExportJob> with
+// durable object storage + DB rows is that a server restart between job
+// completion and the admin clicking "Download" no longer destroys the file.
+//
+// This suite proves the property by:
+//   1. Completing a background export job (storage.put + DB update).
+//   2. Calling vi.resetModules() to wipe all module-level state — simulating
+//      a process restart: the _provider singleton in storage/provider.ts is
+//      reset, any hypothetical in-memory Map would be wiped, etc.
+//   3. Re-importing the router from scratch (fresh server process).
+//   4. Queuing the durable DB row and storage buffer (they survive restarts)
+//      and confirming GET /export/download/:token still returns 200.
+//
+// If the implementation regressed to an in-memory store the final GET would
+// return 404 because the token would not be found after the module reset.
+// ---------------------------------------------------------------------------
+describe("GET /export/download/:token — survives server restart", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+    mockState.selectQueue = [];
+    mockState.adminAccess = true;
+    mockState.storageBuffer = null;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns 200 after module state is wiped (server restart) between job completion and download", async () => {
+    // ── Phase 1: trigger and complete a background export ─────────────────
+    const app1 = await buildApp();
+
+    // POST /export → 202 (large org, background job)
+    queueCount(15_000); // countTotalRows → triggers background path
+    queueRows([]);      // SELECT: no existing job row for this user
+    const postRes = await request(app1)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json" });
+    expect(postRes.status).toBe(202);
+    expect(postRes.body).toMatchObject({ status: "pending" });
+
+    // Background setTimeout fires: fetch + put to object storage + DB update.
+    queueRows([]); // custom field defs (empty org)
+    queueRows([]); // tasks (empty org — minimal payload, just proves round-trip)
+    await vi.runAllTimersAsync();
+
+    // Verify durable write: file landed in object storage.
+    expect(mockStorageProvider.put).toHaveBeenCalledOnce();
+    const [objectKey, storedBuffer] = mockStorageProvider.put.mock.calls[0] as [
+      string,
+      Buffer,
+      string,
+    ];
+    // The objectKey format is "orgId/userId/token"; extract the token.
+    const token = objectKey.split("/").at(-1)!;
+    expect(token).toBeTruthy();
+
+    // ── Phase 2: simulate server restart ──────────────────────────────────
+    // vi.resetModules() clears the module registry so the next import()
+    // re-executes every module from scratch — equivalent to a process restart.
+    // Module-level singletons (e.g. _provider in storage/provider.ts) are wiped.
+    // Any in-memory job Map would also be wiped here.
+    // The DB and object-storage are external services and are NOT affected.
+    vi.resetModules();
+
+    // ── Phase 3: fresh server process — download must still work ──────────
+    const app2 = await buildApp(); // re-imports ./export with cleared module cache
+
+    // Durable object storage still holds the file.
+    mockState.storageBuffer = storedBuffer;
+
+    // Durable DB still has the completed row.
+    queueRows([
+      {
+        id: "job-1",
+        orgId: "org-1",
+        userId: "user-1",
+        token,
+        objectKey,
+        status: "complete",
+        filename: "export.json",
+        contentType: "application/json",
+        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+      },
+    ]);
+
+    // The download must succeed even though the server just restarted.
+    // With a regressed in-memory implementation this would return 404 because
+    // the token is no longer in the (now-empty) module-level Map.
+    const dlRes = await request(app2).get(`/export/download/${token}`);
+    expect(dlRes.status).toBe(200);
+    expect(dlRes.headers["content-disposition"]).toMatch(/attachment.*export\.json/);
+    expect(dlRes.headers["content-type"]).toMatch(/application\/json/);
+    // Confirm the file was fetched from durable object storage, not memory.
+    expect(mockStorageProvider.get).toHaveBeenCalledWith(objectKey);
+  });
+
+  it("returns 404 after restart when the DB row is absent — storage alone is not enough", async () => {
+    // This is the negative control: if the DB row is missing (e.g. it was
+    // never written, or was purged), the download must fail even if the
+    // object-storage file still exists.  The DB is the authoritative source
+    // of truth for token ownership and expiry.
+    vi.resetModules();
+    const app = await buildApp();
+
+    // Set storage buffer as if the file exists, but queue no DB row.
+    mockState.storageBuffer = Buffer.from('{"meta":{}}', "utf-8");
+    queueRows([]); // SELECT by token → no row
+
+    const dlRes = await request(app).get("/export/download/ghost-token");
+    expect(dlRes.status).toBe(404);
+    expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired/i) });
+    // Storage.get must NOT have been called — the route should bail on missing DB row.
+    expect(mockStorageProvider.get).not.toHaveBeenCalled();
+  });
+});
