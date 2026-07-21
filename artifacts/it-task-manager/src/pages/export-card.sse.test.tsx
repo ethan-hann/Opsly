@@ -383,6 +383,52 @@ describe("ExportCard — export_ready SSE live-update", () => {
     expect(screen.getByText("Your export is ready")).toBeInTheDocument();
   });
 
+  it("does not POST a second export when the button is disabled while a job is already queued", async () => {
+    // Mount: no pre-existing pending export.
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(mockPendingResponse(false));
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+
+    // Wait for the mount-time /api/export/pending check — that is call #1.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // Mock the POST /api/export response as 202 (background job queued).
+    fetchMock.mockReturnValueOnce(
+      Promise.resolve({ ok: true, status: 202 } as unknown as Response),
+    );
+
+    // First click — valid; triggers the POST and enters jobQueued state.
+    fireEvent.click(screen.getByRole("button", { name: /download export/i }));
+
+    // Wait until jobQueued=true: button is disabled and shows in-progress label.
+    await waitFor(() => {
+      const btn = screen.getByRole("button", { name: /export in progress/i });
+      expect(btn).toBeDisabled();
+    });
+
+    // Fetch has been called twice: once for the pending check, once for the POST.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Attempt a second click on the now-disabled button.
+    // A disabled <button> does not fire its onClick in a real browser; the
+    // test confirms the same contract holds here — no additional fetch call.
+    const disabledBtn = screen.getByRole("button", { name: /export in progress/i });
+    fireEvent.click(disabledBtn);
+
+    // Allow any microtasks/promises to settle.
+    await act(async () => {});
+
+    // fetch must still have been called exactly twice — no second POST.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // The button must remain disabled.
+    expect(disabledBtn).toBeDisabled();
+  });
+
   it("ignores SSE notifications with a type other than export_ready", async () => {
     // Mount: no pending export.
     const fetchMock = vi
