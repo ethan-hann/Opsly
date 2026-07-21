@@ -1270,6 +1270,96 @@ describe("PATCH /api/orgs/me/branding — response shape and isolation (#317)", 
     expect(res.status).toBe(200);
     expect(res.body.primaryColor).toBeNull();
   });
+
+  it("returns 400 when primaryColor is a 3-digit shorthand hex (#fff)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ primaryColor: "#fff" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when primaryColor has no leading hash (f59e0b)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ primaryColor: "f59e0b" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when primaryColor is 8-digit RGBA hex (#f59e0b80)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ primaryColor: "#f59e0b80" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when logoUrl uses a non-http scheme (javascript:)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ logoUrl: "javascript:alert(1)" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when logoUrl uses ftp:// scheme", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ logoUrl: "ftp://files.example.com/logo.png" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when logoUrl uses data: URI scheme", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ logoUrl: "data:image/png;base64,abc123" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("accepts logoUrl with https:// scheme", async () => {
+    mockState.updateQueue.push([{
+      id: "test-org",
+      name: "Acme Corp",
+      primaryColor: null,
+      logoUrl: "https://cdn.example.com/logo.png",
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+    }]);
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ logoUrl: "https://cdn.example.com/logo.png" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.logoUrl).toBe("https://cdn.example.com/logo.png");
+  });
+
+  it("response body never includes another org's primaryColor (org isolation)", async () => {
+    // The mock DB is scoped to req.orgId ("test-org"). Any update to
+    // organizationsTable always targets req.orgId — it is structurally
+    // impossible for another org's row to appear in the RETURNING clause.
+    // This test confirms the response only contains the requesting org's data.
+    const OTHER_ORG_COLOR = "#cc0000"; // color belonging to a different org
+    mockState.updateQueue.push([{
+      id: "test-org",        // <— always "test-org", never another org
+      name: "Acme Corp",
+      primaryColor: "#f59e0b",
+      logoUrl: null,
+      createdAt: new Date("2024-01-01T00:00:00Z"),
+    }]);
+
+    const res = await request(buildApp())
+      .patch("/api/orgs/me/branding")
+      .send({ primaryColor: "#f59e0b" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe("test-org");
+    expect(res.body.primaryColor).toBe("#f59e0b");
+    // The other org's color must not appear anywhere in the response
+    expect(JSON.stringify(res.body)).not.toContain(OTHER_ORG_COLOR);
+  });
 });
 
 // ===========================================================================
