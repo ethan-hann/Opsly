@@ -107,14 +107,26 @@ function BrandingCard() {
     });
   }
 
-  function handleClear() {
+  function handleResetColor() {
     saveBranding(
-      { data: { primaryColor: null, logoUrl: null } },
+      { data: { primaryColor: null } },
       {
         onSuccess: () => {
-          toast({ title: "Branding cleared — default theme restored" });
+          toast({ title: "Color reset — default amber theme restored" });
           queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
           setColorDraft("#f59e0b");
+        },
+      },
+    );
+  }
+
+  function handleRemoveLogo() {
+    saveBranding(
+      { data: { logoUrl: null } },
+      {
+        onSuccess: () => {
+          toast({ title: "Logo removed" });
+          queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
           setLogoUrlDraft("");
         },
       },
@@ -181,13 +193,18 @@ function BrandingCard() {
         </div>
 
         {canManage && (
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-1 flex-wrap">
             <Button size="sm" onClick={handleSave} disabled={isPending}>
               {isPending ? "Saving…" : "Save branding"}
             </Button>
-            {(currentPrimaryColor || currentLogoUrl) && (
-              <Button size="sm" variant="ghost" onClick={handleClear} disabled={isPending}>
-                Clear branding
+            {currentPrimaryColor && (
+              <Button size="sm" variant="ghost" onClick={handleResetColor} disabled={isPending}>
+                Reset color
+              </Button>
+            )}
+            {currentLogoUrl && (
+              <Button size="sm" variant="ghost" onClick={handleRemoveLogo} disabled={isPending}>
+                Remove logo
               </Button>
             )}
           </div>
