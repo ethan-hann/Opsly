@@ -144,4 +144,35 @@ describe("warnIfNoAdminConfigured", () => {
     expect(ctx).toHaveProperty("err");
     expect(msg).toMatch(/Could not verify instance-admin configuration/);
   });
+
+  // ── DB error — resolves, never rejects ────────────────────────────────────
+
+  it("resolves without throwing when the DB rejects (safe to void at boot)", async () => {
+    // Explicit .resolves assertion: if the function re-threw the DB error the
+    // promise would reject and this assertion would fail.
+    delete process.env.INSTANCE_ADMIN_TOKEN;
+    mockState.dbShouldThrow = true;
+
+    await expect(warnIfNoAdminConfigured()).resolves.toBeUndefined();
+  });
+
+  it("does not cause an unhandled rejection when called as void at startup", async () => {
+    // Mirrors the actual boot path in index.ts: `void warnIfNoAdminConfigured()`.
+    // A re-thrown error from inside the catch block would become an unhandled
+    // rejection; assert that no such event fires.
+    delete process.env.INSTANCE_ADMIN_TOKEN;
+    mockState.dbShouldThrow = true;
+
+    const unhandledSpy = vi.fn();
+    process.on("unhandledRejection", unhandledSpy);
+    try {
+      void warnIfNoAdminConfigured();
+      // Flush the microtask queue so any rejection would have surfaced.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    } finally {
+      process.off("unhandledRejection", unhandledSpy);
+    }
+
+    expect(unhandledSpy).not.toHaveBeenCalled();
+  });
 });
