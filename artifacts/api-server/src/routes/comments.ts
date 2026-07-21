@@ -20,7 +20,7 @@ import {
 import { requireOrgOrApiKey, requireScope, hasPermission, requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
-import { notifyCommentAdded, notifyMentions } from "../lib/notifications";
+import { notifyCommentAdded, notifyMentions, notifyCommentReply } from "../lib/notifications";
 
 const router: IRouter = Router();
 
@@ -161,10 +161,12 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
     return;
   }
 
-  // Validate parentId if provided
+  // Validate parentId if provided; capture the parent author's userId so the
+  // async notification block can send a reply notification without an extra query.
+  let parentCommentUserId: string | null = null;
   if (parsed.data.parentId != null) {
     const [parent] = await db
-      .select({ id: commentsTable.id })
+      .select({ id: commentsTable.id, userId: commentsTable.userId })
       .from(commentsTable)
       .where(
         and(
@@ -179,6 +181,8 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
       res.status(404).json({ error: "Parent comment not found" });
       return;
     }
+
+    parentCommentUserId = parent.userId ?? null;
   }
 
   // All newly created comments always have org_id and user_id set.
@@ -300,6 +304,20 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
           actorId,
           actorName,
           recipientUserIds: [...new Set(watcherIds)],
+        });
+      }
+
+      // ── Notify the parent comment's author if this is a reply ─────────────
+      // parentCommentUserId is captured synchronously before the insert so no
+      // extra DB round-trip is needed here.
+      if (comment.parentId != null && parentCommentUserId && parentCommentUserId !== actorId) {
+        await notifyCommentReply({
+          taskId: fullTask.id,
+          taskTitle: fullTask.title,
+          orgId: req.orgId!,
+          actorId,
+          actorName,
+          recipientUserId: parentCommentUserId,
         });
       }
     }

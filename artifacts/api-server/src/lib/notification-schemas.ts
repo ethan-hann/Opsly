@@ -14,6 +14,7 @@ export const NotificationTypeEnum = z.enum([
   "comment_added",
   "sla_breached",
   "mention",
+  "comment_reply",
 ]);
 export type NotificationType = z.infer<typeof NotificationTypeEnum>;
 

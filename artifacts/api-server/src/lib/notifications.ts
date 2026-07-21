@@ -235,6 +235,38 @@ export async function notifyMentions(opts: {
 }
 
 /**
+ * Dispatch a reply notification to the author of the parent comment.
+ *
+ * Called after a threaded reply is inserted (comment.parentId != null).
+ * The notification is only sent if the replier is a different user from
+ * the parent comment's author.
+ */
+export async function notifyCommentReply(opts: {
+  taskId: number;
+  taskTitle: string;
+  orgId: string;
+  actorId: string | null;
+  actorName: string | null;
+  /** userId of the parent comment's author. */
+  recipientUserId: string;
+}): Promise<void> {
+  // Never notify someone that their own reply appeared on their comment
+  if (opts.actorId && opts.actorId === opts.recipientUserId) return;
+
+  const actorLabel = opts.actorName ?? "Someone";
+  await createNotification({
+    userId: opts.recipientUserId,
+    orgId: opts.orgId,
+    type: "comment_reply",
+    actorId: opts.actorId,
+    actorName: opts.actorName,
+    entityType: "task",
+    entityId: opts.taskId,
+    message: `${actorLabel} replied to your comment on "${opts.taskTitle}"`,
+  });
+}
+
+/**
  * Dispatch SLA breach notifications.
  */
 export async function notifySlaBreached(opts: {
