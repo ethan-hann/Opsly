@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import {
   useListOrgMembers,
@@ -35,7 +35,7 @@ import {
   useGetMyOrg,
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
-import { useBranding } from "@/context/branding-context";
+import { useBranding, derivePalette } from "@/context/branding-context";
 import { useReactionPalette, usePatchReactionPalette, DEFAULT_REACTION_PALETTE } from "@/hooks/use-reactions";
 import type { TermKey } from "@/context/terminology-context";
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
@@ -67,6 +67,102 @@ import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
+
+/** Detects whether the page is currently in dark mode by watching the <html> class. */
+function useDarkMode(): boolean {
+  const [dark, setDark] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
+  useEffect(() => {
+    const el = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setDark(el.classList.contains("dark"));
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
+
+/** Mini preview panel that shows buttons, badges, and an active sidebar item
+ *  styled with the draft brand color — updates live as the picker moves. */
+function BrandingPreview({ colorHex }: { colorHex: string }) {
+  const isDark = useDarkMode();
+
+  const palette = useMemo(() => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(colorHex)) return null;
+    return derivePalette(colorHex);
+  }, [colorHex]);
+
+  if (!palette) return null;
+
+  const p = isDark ? palette.dark : palette.light;
+
+  // Helper: palette values are bare "H S% L%" strings; wrap for CSS
+  const c = (v: string) => `hsl(${v})`;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+        Live preview
+      </p>
+
+      {/* Row 1: primary button + outline button */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm select-none"
+          style={{ background: c(p.primary), color: c(p.primaryForeground) }}
+        >
+          Save branding
+        </span>
+        <span
+          className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium select-none"
+          style={{
+            borderColor: c(p.primary),
+            color: c(p.primary),
+            background: "transparent",
+          }}
+        >
+          Cancel
+        </span>
+      </div>
+
+      {/* Row 2: badges */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold select-none"
+          style={{ background: c(p.primary), color: c(p.primaryForeground) }}
+        >
+          New
+        </span>
+        <span
+          className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold select-none"
+          style={{ background: c(p.accent), color: c(p.accentForeground) }}
+        >
+          In Progress
+        </span>
+        <span
+          className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold select-none"
+          style={{ borderColor: c(p.primary), color: c(p.primary) }}
+        >
+          Open
+        </span>
+      </div>
+
+      {/* Row 3: active sidebar item */}
+      <div
+        className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium w-fit select-none"
+        style={{ background: c(p.sidebarAccent), color: c(p.sidebarAccentForeground) }}
+      >
+        <span
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ background: c(p.sidebarPrimary) }}
+        />
+        Active sidebar item
+      </div>
+    </div>
+  );
+}
 
 function BrandingCard() {
   const queryClient = useQueryClient();
@@ -165,8 +261,23 @@ function BrandingCard() {
               style={{ backgroundColor: colorDraft }}
               title="Color preview"
             />
+            {/* Revert to saved color if draft has drifted */}
+            {colorDraft !== (currentPrimaryColor ?? "#f59e0b") && (
+              <button
+                type="button"
+                onClick={() => setColorDraft(currentPrimaryColor ?? "#f59e0b")}
+                disabled={isPending}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors disabled:cursor-not-allowed"
+                title="Revert to saved color"
+              >
+                Revert
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Live theme preview */}
+        <BrandingPreview colorHex={colorDraft} />
 
         {/* Logo URL */}
         <div className="space-y-2">

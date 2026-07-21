@@ -40,7 +40,7 @@ function hsl(h: number, s: number, l: number) {
  * user's pick but assign each semantic slot an appropriate lightness so that
  * every surface stays readable in both themes.
  */
-function derivePalette(hex: string) {
+export function derivePalette(hex: string) {
   const { h, s } = hexToHsl(hex);
 
   // Clamp saturation: desaturated colours look washed-out; hyper-saturated
