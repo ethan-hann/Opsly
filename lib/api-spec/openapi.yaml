@@ -3634,6 +3634,7 @@ components:
         - edit_tasks
         - close_tasks
         - delete_tasks
+        - delete_comments
         - manage_projects
         - manage_org_settings
         - manage_members
@@ -3657,6 +3658,11 @@ components:
           type: boolean
         delete_tasks:
           type: boolean
+        delete_comments:
+          type: boolean
+          description: >
+            When true, the member can delete comments posted by other members.
+            Members can always delete their own comments regardless of this flag.
         manage_projects:
           type: boolean
         manage_org_settings:

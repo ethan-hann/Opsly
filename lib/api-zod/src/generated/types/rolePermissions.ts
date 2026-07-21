@@ -15,6 +15,8 @@ export interface RolePermissions {
   edit_tasks: boolean;
   close_tasks: boolean;
   delete_tasks: boolean;
+  /** When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag. */
+  delete_comments: boolean;
   manage_projects: boolean;
   manage_org_settings: boolean;
   manage_members: boolean;

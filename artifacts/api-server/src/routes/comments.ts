@@ -166,7 +166,7 @@ router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"
   }
 
   const currentUserId = req.user?.id ?? null;
-  const isAdmin = hasPermission(req, "manage_projects");
+  const isAdmin = hasPermission(req, "delete_comments");
   const isOwner = comment.userId != null && comment.userId === currentUserId;
 
   // Allow deletion if: the requester created the comment, OR they are an org admin.

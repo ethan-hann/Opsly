@@ -21,6 +21,7 @@ export const ALL_PERMISSIONS = [
   'edit_tasks',
   'close_tasks',
   'delete_tasks',
+  'delete_comments',
   'manage_projects',
   'manage_org_settings',
   'manage_members',
@@ -44,6 +45,7 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   edit_tasks: true,
   close_tasks: true,
   delete_tasks: true,
+  delete_comments: true,
   manage_projects: true,
   manage_org_settings: true,
   manage_members: true,
@@ -71,6 +73,7 @@ export const ADMIN_PERMISSIONS: RolePermissions = {
   edit_tasks: true,
   close_tasks: true,
   delete_tasks: true,
+  delete_comments: true,
   manage_projects: true,
   manage_org_settings: false,  // Owner-only
   manage_members: false,        // Owner-only
@@ -91,6 +94,7 @@ export const MEMBER_PERMISSIONS: RolePermissions = {
   edit_tasks: true,
   close_tasks: true,
   delete_tasks: false,
+  delete_comments: false,
   manage_projects: false,
   manage_org_settings: false,
   manage_members: false,
