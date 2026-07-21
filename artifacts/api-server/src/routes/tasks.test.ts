@@ -490,6 +490,88 @@ describe("GET /api/tasks", () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0]).toMatchObject({ id: 1 });
   });
+
+  // ── stageType filter ───────────────────────────────────────────────────────
+
+  it("returns only open-stage tasks when stageType=open", async () => {
+    // Route pre-fetches stage IDs of type "open" before querying tasks.
+    // Select queue order: stageType lookup → task list → getOrgStages → SLA policies → comment count
+    mockState.selectQueue.push([{ id: 1 }, { id: 2 }]); // open stage IDs
+    const openTask = { ...MOCK_TASK, status: "1" };
+    mockState.selectQueue.push([openTask]); // task list filtered to those stages
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp()).get("/api/tasks?stageType=open");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ id: 1, status: "1" });
+  });
+
+  it("returns only closed-stage tasks when stageType=closed", async () => {
+    mockState.selectQueue.push([{ id: 3 }]); // closed stage IDs
+    const closedTask = { ...MOCK_TASK, status: "3" };
+    mockState.selectQueue.push([closedTask]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?stageType=closed");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ id: 1, status: "3" });
+  });
+
+  it("returns an empty list immediately when no stages of the requested type exist", async () => {
+    // Simulates an org that has no closed stages — stageType=closed should
+    // short-circuit to [] without touching the tasks table.
+    mockState.selectQueue.push([]); // stageType lookup returns no rows
+
+    const res = await request(buildApp()).get("/api/tasks?stageType=closed");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    // The tasks select must NOT have been called — queue is still empty
+    expect(mockState.selectQueue).toHaveLength(0);
+  });
+
+  it("returns 400 when stageType has an invalid value", async () => {
+    const res = await request(buildApp()).get("/api/tasks?stageType=archived");
+
+    expect(res.status).toBe(400);
+  });
+
+  it("combines stageType=open with priority filter", async () => {
+    mockState.selectQueue.push([{ id: 1 }]); // open stage IDs
+    const criticalOpenTask = { ...MOCK_TASK, status: "1", priority: "critical" as const };
+    mockState.selectQueue.push([criticalOpenTask]);
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks?stageType=open&priority=critical");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].priority).toBe("critical");
+  });
+
+  it("returns all tasks when stageType is omitted (no stage-type filter applied)", async () => {
+    // Without stageType the stage-ID pre-fetch is skipped entirely —
+    // only task list + enrichment selects are consumed.
+    mockState.selectQueue.push([MOCK_TASK]); // task list (no stageType pre-fetch)
+    mockState.selectQueue.push([]); // getOrgStages
+    mockState.selectQueue.push([]); // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);
+
+    const res = await request(buildApp()).get("/api/tasks");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

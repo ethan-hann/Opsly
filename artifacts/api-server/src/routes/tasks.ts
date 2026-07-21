@@ -398,6 +398,16 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   const { projectId, status, priority, category, assignee, dateFrom, dateTo, slaBreached } = queryParams.data;
   const watchingOnly = watchingParam.success && watchingParam.data.watching === true;
 
+  // stageType is not part of ListTasksQueryParams (it lives on the response
+  // type only), so read it from req.query with manual validation — same
+  // approach used by customFieldId below.
+  const rawStageType = req.query.stageType;
+  if (rawStageType !== undefined && rawStageType !== "open" && rawStageType !== "closed") {
+    res.status(400).json({ error: 'stageType must be "open" or "closed"' });
+    return;
+  }
+  const stageType = rawStageType as "open" | "closed" | undefined;
+
   const conditions = [eq(tasksTable.orgId, orgId)];
   if (projectId != null) conditions.push(eq(tasksTable.projectId, projectId));
   if (status) conditions.push(eq(tasksTable.status, status));
@@ -407,6 +417,23 @@ router.get("/tasks", requireOrgOrApiKey, requireScope("tasks:read"), async (req,
   if (dateFrom) conditions.push(gte(tasksTable.dueDate, dateFrom));
   if (dateTo) conditions.push(lte(tasksTable.dueDate, dateTo));
   if (slaBreached === "true") conditions.push(isNotNull(tasksTable.slaBreachedAt));
+
+  // stageType filter — look up all stage IDs of the requested type for this
+  // org, then restrict tasks to those whose status (stored as the stage ID
+  // string) is in that set. If no stages of the given type exist the result
+  // is an empty list, returned early so the main query is skipped.
+  if (stageType) {
+    const stageRows = await db
+      .select({ id: workflowStagesTable.id })
+      .from(workflowStagesTable)
+      .where(and(eq(workflowStagesTable.orgId, orgId), eq(workflowStagesTable.type, stageType)));
+    if (stageRows.length === 0) {
+      res.json(ListTasksResponse.parse([]));
+      return;
+    }
+    const stageIds = stageRows.map((s) => String(s.id));
+    conditions.push(inArray(tasksTable.status, stageIds));
+  }
 
   // Custom field filter — validate the field belongs to this org before using
   // its ID in a query.  An org-b field ID must not reveal any metadata: if the
