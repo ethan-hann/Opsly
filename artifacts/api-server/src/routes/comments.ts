@@ -17,7 +17,7 @@ import {
 import { requireOrgOrApiKey, requireScope, hasPermission, requireOrg } from "../middlewares/requireOrgMiddleware";
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
-import { notifyCommentAdded } from "../lib/notifications";
+import { notifyCommentAdded, notifyMentions } from "../lib/notifications";
 
 const router: IRouter = Router();
 
@@ -216,22 +216,79 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
         serializedComment,
       );
 
-      // Notify all watchers (includes assignee if they're watching)
+      const actorId = req.user?.id ?? null;
+      const actorName = req.user
+        ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
+          req.user.email ||
+          "Someone"
+        : "Someone";
+
+      // ── Parse @mention tokens from the comment content ─────────────────────
+      //
+      // Token formats (documented here as the canonical reference):
+      //   Individual:  @[<userId>:<Display Name>]
+      //   Broadcast:   @[everyone]
+      //
+      // Each named user receives a `mention` notification.  @[everyone]
+      // dispatches to every active org member except the commenter.
+      // Mention recipients are excluded from the parallel `comment_added`
+      // watcher notification so they never receive both.
+
+      const mentionTokenRe = /@\[([^:\]]+):[^\]]*\]/g;
+      const mentionedUserIds = new Set<string>();
+      let mtMatch: RegExpExecArray | null;
+      while ((mtMatch = mentionTokenRe.exec(comment.content)) !== null) {
+        mentionedUserIds.add(mtMatch[1]);
+      }
+      const hasEveryoneMention = /@\[everyone\]/.test(comment.content);
+
+      // Fetch all active org members when needed
+      let orgMemberUserIds: string[] = [];
+      if (hasEveryoneMention || mentionedUserIds.size > 0) {
+        const allOrgMembers = await db
+          .select({ userId: orgMembersTable.userId })
+          .from(orgMembersTable)
+          .where(eq(orgMembersTable.orgId, req.orgId!));
+        orgMemberUserIds = allOrgMembers.map((m) => m.userId);
+      }
+
+      // Build the deduplicated set of mention notification targets
+      const mentionTargets = new Set<string>();
+      if (hasEveryoneMention) {
+        for (const uid of orgMemberUserIds) {
+          if (uid !== actorId) mentionTargets.add(uid);
+        }
+      } else {
+        const orgMemberSet = new Set(orgMemberUserIds);
+        for (const uid of mentionedUserIds) {
+          if (orgMemberSet.has(uid) && uid !== actorId) {
+            mentionTargets.add(uid);
+          }
+        }
+      }
+
+      if (mentionTargets.size > 0) {
+        await notifyMentions({
+          taskId: fullTask.id,
+          taskTitle: fullTask.title,
+          orgId: req.orgId!,
+          actorId,
+          actorName,
+          recipientUserIds: [...mentionTargets],
+        });
+      }
+
+      // ── Notify watchers — skip anyone who already got a mention ────────────
       const watcherRows = await db
         .select({ userId: taskWatchersTable.userId })
         .from(taskWatchersTable)
         .where(eq(taskWatchersTable.taskId, fullTask.id));
 
-      const watcherIds = watcherRows.map((r) => r.userId);
+      const watcherIds = watcherRows
+        .map((r) => r.userId)
+        .filter((id) => !mentionTargets.has(id));
 
       if (watcherIds.length > 0) {
-        const actorId = req.user?.id ?? null;
-        const actorName = req.user
-          ? [req.user.firstName, req.user.lastName].filter(Boolean).join(" ") ||
-            req.user.email ||
-            "Someone"
-          : "Someone";
-
         await notifyCommentAdded({
           taskId: fullTask.id,
           taskTitle: fullTask.title,

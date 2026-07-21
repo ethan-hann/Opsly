@@ -1,4 +1,5 @@
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
+import { MentionTextarea } from "@/components/ui/mention-textarea";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -16,7 +17,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode, Fragment } from "react";
 import { EditTaskModal } from "@/components/ui/edit-task-modal";
 import {
   AlertDialog,
@@ -151,6 +152,44 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
   return `${label} changed from ${oldStr} → ${newStr}`;
 }
 
+// ─── Mention token rendering ──────────────────────────────────────────────────
+
+/**
+ * Parse @[userId:Display Name] and @[everyone] tokens in comment content and
+ * return an array of React nodes: plain text segments interspersed with styled
+ * mention chips.
+ *
+ * Token format (canonical):
+ *   Individual:  @[<userId>:<Display Name>]
+ *   Broadcast:   @[everyone]
+ */
+function renderCommentContent(text: string): ReactNode {
+  const TOKEN_RE = /(@\[[^\]]+\])/g;
+  const parts = text.split(TOKEN_RE);
+  return parts.map((part, i) => {
+    if (part === "@[everyone]") {
+      return (
+        <Fragment key={i}>
+          <span className="inline-flex items-center px-1 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 text-sm font-medium">
+            @everyone
+          </span>
+        </Fragment>
+      );
+    }
+    const m = part.match(/^@\[([^:]+):([^\]]+)\]$/);
+    if (m) {
+      return (
+        <Fragment key={i}>
+          <span className="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">
+            @{m[2]}
+          </span>
+        </Fragment>
+      );
+    }
+    return <Fragment key={i}>{part}</Fragment>;
+  });
+}
+
 // ─── Unified feed item types ──────────────────────────────────────────────────
 
 type FeedComment = {
@@ -241,6 +280,7 @@ function CommentNodeRenderer({
   onPostReply,
   isPostingReply,
   commentsQueryKey,
+  members,
 }: {
   node: CommentNode;
   taskId: number;
@@ -254,6 +294,7 @@ function CommentNodeRenderer({
   onPostReply: (parentId: number) => void;
   isPostingReply: boolean;
   commentsQueryKey: readonly unknown[];
+  members: import("@workspace/api-client-react").OrgMemberInfo[];
 }) {
   const [expanded, setExpanded] = useState(true);
 
@@ -319,6 +360,7 @@ function CommentNodeRenderer({
             onPostReply={onPostReply}
             isPostingReply={isPostingReply}
             commentsQueryKey={commentsQueryKey}
+            members={members}
           />
         ))}
       </div>
@@ -369,7 +411,9 @@ function CommentNodeRenderer({
               )}
             </div>
           </div>
-          <p className="text-sm text-foreground/80 whitespace-pre-wrap">{node.content}</p>
+          <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">
+            {renderCommentContent(node.content)}
+          </p>
           <CommentReactionBar
             commentId={node.id}
             reactions={node.reactions}
@@ -380,11 +424,12 @@ function CommentNodeRenderer({
           {/* Inline reply composer */}
           {isReplying && (
             <div className="mt-3 flex flex-col gap-2">
-              <Textarea
+              <MentionTextarea
                 placeholder={`Reply to ${node.author || "this comment"}…`}
                 className="min-h-[64px] bg-background font-sans text-sm resize-y"
                 value={replyText}
-                onChange={(e) => setReplyText(e.target.value)}
+                onChange={setReplyText}
+                members={members}
                 autoFocus
               />
               <div className="flex items-center gap-2 justify-end">
@@ -452,6 +497,7 @@ function CommentNodeRenderer({
                 onPostReply={onPostReply}
                 isPostingReply={isPostingReply}
                 commentsQueryKey={commentsQueryKey}
+                members={members}
               />
             ))}
           </>
@@ -1391,6 +1437,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                             onPostReply={handlePostReply}
                             isPostingReply={replyMutation.isPending}
                             commentsQueryKey={getListCommentsQueryKey(taskId)}
+                            members={members}
                           />
                         );
                       }
@@ -1451,11 +1498,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               )}
             </CardContent>
             <CardFooter className="bg-muted/10 border-t border-border p-4 flex-col items-stretch gap-3">
-              <Textarea 
-                placeholder="Add a comment or update..." 
+              <MentionTextarea
+                placeholder="Add a comment… type @ to mention someone"
                 className="min-h-[80px] bg-background font-sans text-sm resize-y"
                 value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
+                onChange={setCommentText}
+                members={members}
               />
               <div className="flex justify-end">
                 <Button 

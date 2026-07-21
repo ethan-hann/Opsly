@@ -45,7 +45,6 @@ interface ActiveFilters {
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 // Status options are now dynamic — fetched from the org's workflow stages
-const STATUS_OPTIONS: { value: string; label: string }[] = [];
 
 const PRIORITY_OPTIONS = [
   { value: "low", label: "Low" },
@@ -1330,7 +1329,7 @@ export default function TasksList() {
                       if (el) el.indeterminate = someSelected && !allSelected;
                     }}
                     onChange={toggleAll}
-                    aria-label="Select all tasks"
+                    aria-label={`Select all ${tLabel("tasks")}`}
                   />
                   <span className="text-xs text-muted-foreground font-medium">
                     {someSelected
@@ -1357,7 +1356,7 @@ export default function TasksList() {
                           checked={isChecked}
                           onChange={() => toggleTask(task.id)}
                           onClick={(e) => e.stopPropagation()}
-                          aria-label={`Select task ${task.title}`}
+                          aria-label={`Select ${tLabel("tasks")} ${task.title}`}
                         />
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">

@@ -195,6 +195,46 @@ export async function notifyCommentAdded(opts: {
 }
 
 /**
+ * Dispatch @mention notifications.
+ *
+ * Called after a comment is created when one or more @[userId:…] or
+ * @[everyone] tokens are present. Each named user — or every active org
+ * member for @everyone — receives a `mention` notification.
+ *
+ * The caller is responsible for excluding mention recipients from the
+ * parallel `notifyCommentAdded` call so they don't receive both.
+ */
+export async function notifyMentions(opts: {
+  taskId: number;
+  taskTitle: string;
+  orgId: string;
+  actorId: string | null;
+  actorName: string | null;
+  /** Deduplicated set of userIds to notify (commenter already excluded). */
+  recipientUserIds: string[];
+}): Promise<void> {
+  const actorLabel = opts.actorName ?? "Someone";
+  const message = `${actorLabel} mentioned you in a comment on "${opts.taskTitle}"`;
+
+  await Promise.all(
+    opts.recipientUserIds
+      .filter((id) => id !== opts.actorId)
+      .map((userId) =>
+        createNotification({
+          userId,
+          orgId: opts.orgId,
+          type: "mention",
+          actorId: opts.actorId,
+          actorName: opts.actorName,
+          entityType: "task",
+          entityId: opts.taskId,
+          message,
+        }),
+      ),
+  );
+}
+
+/**
  * Dispatch SLA breach notifications.
  */
 export async function notifySlaBreached(opts: {
