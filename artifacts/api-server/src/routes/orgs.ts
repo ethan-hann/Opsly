@@ -1228,9 +1228,37 @@ router.put('/org/sla-policies', requireOrg, requireSlaTrackingFeature, requirePe
  * Validate that a string is a single grapheme cluster (i.e. a single visible
  * Unicode character such as an emoji). We use Intl.Segmenter when available
  * and fall back to a length check otherwise.
+ *
+ * Additionally rejects strings that are whitespace-only or consist entirely
+ * of invisible Unicode characters (zero-width spaces, BOM, variation
+ * selectors, directional/format markers, etc.) that would render as a blank
+ * pill in the UI.
  */
+
+/**
+ * Matches strings made up exclusively of invisible/non-printing Unicode code
+ * points that would appear blank in the reaction UI:
+ *   \u00AD   soft hyphen
+ *   \u034F   combining grapheme joiner
+ *   \u061C   Arabic letter mark
+ *   \u115F   Hangul choseong filler
+ *   \u1160   Hangul jungseong filler
+ *   \u17B4-\u17B5  Khmer inherent vowel
+ *   \u180B-\u180D  Mongolian free variation selectors
+ *   \u180E   Mongolian vowel separator
+ *   \u200B-\u200F  zero-width space/ZWNJ/ZWJ/LRM/RLM
+ *   \u202A-\u202F  directional formatting characters
+ *   \u2060-\u206F  word joiner, invisible operators, etc.
+ *   \uFE00-\uFE0F  variation selectors 1–16
+ *   \uFEFF   BOM / zero-width no-break space
+ */
+const INVISIBLE_ONLY_RE =
+  /^[\s\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202F\u2060-\u206F\uFE00-\uFE0F\uFEFF]+$/u;
+
 function isSingleEmoji(str: string): boolean {
-  if (!str.trim()) return false;
+  if (!str) return false;
+  // Reject whitespace-only and invisible-character-only strings
+  if (INVISIBLE_ONLY_RE.test(str)) return false;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const segmenter = new (Intl as any).Segmenter();

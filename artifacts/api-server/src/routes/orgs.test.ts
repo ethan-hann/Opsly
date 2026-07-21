@@ -1101,3 +1101,77 @@ describe("POST /api/orgs/leave", () => {
     expect(webhookDispatcher.dispatchMemberRemoved).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// PATCH /orgs/reaction-palette — invisible / whitespace-only emoji rejection
+// ---------------------------------------------------------------------------
+
+describe("PATCH /orgs/reaction-palette — invisible character rejection", () => {
+  beforeEach(() => {
+    mockState.selectQueue = [];
+    mockState.updateQueue = [];
+    mockState.updateCalls = 0;
+  });
+
+  it("accepts a valid emoji and returns 200", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["👍"] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ palette: ["👍"] });
+  });
+
+  it("returns 422 for a zero-width space (\\u200B)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["\u200B"] });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 422 for a BOM character (\\uFEFF)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["\uFEFF"] });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 422 for a variation selector alone (\\uFE0F)", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["\uFE0F"] });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 422 for a whitespace-only string", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["   "] });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 422 when one entry in a mixed palette is invisible", async () => {
+    const res = await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["👍", "\u200B", "❤️"] });
+
+    expect(res.status).toBe(422);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("does not increment updateCalls when an invisible entry is rejected", async () => {
+    await request(buildApp())
+      .patch("/api/orgs/reaction-palette")
+      .send({ palette: ["\uFEFF"] });
+
+    expect(mockState.updateCalls).toBe(0);
+  });
+});
