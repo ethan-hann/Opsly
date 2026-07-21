@@ -28,7 +28,12 @@ Override the library's GitHub-style CSS variables (`--color-canvas-default`, `--
 
 **MDEditor built-in preview** uses `@uiw/react-markdown-preview`, which hard-codes `remarkAlert` from `remark-github-blockquote-alert` *before* any plugins we supply (see `preview.js` line 55: `[remarkAlert, ...our plugins, gfm]`). `remarkAlert` transforms the blockquote into `<div class="markdown-alert markdown-alert-note">` with a `<p class="markdown-alert-title">` child — **the `blockquote` component is never called**. Our `remarkCallouts` plugin runs after but finds no `[!NOTE]` text (already consumed) and does nothing.
 
-**Fix**: Pure CSS in `index.css` overrides `.wmde-markdown .markdown-alert*` with our design-system colours. No React component customisation needed for the editor preview path.
+**Root cause**: `remark-github-blockquote-alert` uses `hName: "div"` to transform the blockquote into a `<div class="markdown-alert markdown-alert-note">`. But `div` is **not** in `hast-util-sanitize`'s `defaultSchema.tagNames`, so our `rehypeSanitize` pass strips the wrapper div and leaves bare `<p>` tags — completely unstyled.
+
+**Fix**:
+1. Add `"div"`, `"svg"`, `"path"` to `sanitizeSchema.tagNames` in `markdown-config.tsx` (so the alert wrapper and GitHub octicon icons survive sanitization).
+2. Add allowed attributes: `div: ["class","dir"]`, `svg: ["class","viewBox","width","height","ariaHidden"]`, `path: ["d"]`, `p: [..., "dir"]`.
+3. Pure CSS in `index.css` overrides `.wmde-markdown .markdown-alert*` with our design-system colours. No React component customisation needed for the editor preview path.
 
 **Why `className` fallback in `blockquote` component is still needed**: the standalone MarkdownPreview path uses react-markdown without `remarkAlert`; `remarkCallouts` stamps the class there and the blockquote component reads it.
 

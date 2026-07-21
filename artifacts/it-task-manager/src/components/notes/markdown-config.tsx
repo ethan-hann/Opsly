@@ -29,6 +29,13 @@ export const sanitizeSchema = {
     "mark",
     "sub",
     "sup",
+    // remark-github-blockquote-alert transforms [!NOTE] blockquotes into
+    // <div class="markdown-alert markdown-alert-note"> elements with an SVG
+    // octicon title.  div/svg/path are not in the defaultSchema so they would
+    // be stripped, leaving bare unstyled paragraphs.
+    "div",
+    "svg",
+    "path",
   ],
   attributes: {
     ...defaultSchema.attributes,
@@ -36,6 +43,11 @@ export const sanitizeSchema = {
       ...(defaultSchema.attributes?.blockquote ?? []),
       "data-callout",
     ],
+    // Allow the attributes the alert plugin stamps on its elements
+    div:  ["class", "dir"],
+    p:    [...(defaultSchema.attributes?.p    ?? []), "dir"],
+    svg:  ["class", "viewBox", "width", "height", "ariaHidden"],
+    path: ["d"],
   },
 };
 
