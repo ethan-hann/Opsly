@@ -358,7 +358,7 @@ export default function Dashboard() {
                         priority={task.priority}
                         policies={slaPolicies}
                       />
-                      <StatusBadge status={task.status} />
+                      <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                       <PriorityBadge priority={task.priority} />
                     </div>
                   </div>
@@ -413,7 +413,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="flex items-center flex-wrap gap-2 shrink-0">
-                      <StatusBadge status={task.status} />
+                      <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                       <PriorityBadge priority={task.priority} />
                     </div>
                   </div>
