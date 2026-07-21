@@ -471,6 +471,16 @@ export function MarkdownEditor({ value, onChange, placeholder, className, readOn
         <ToolBtn title="Table" onClick={table}>
           <span className="text-xs font-mono">⊞</span>
         </ToolBtn>
+        <ToolBtn title="Mermaid diagram" onClick={() => codeBlock("mermaid")}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="6" height="4" rx="1"/>
+            <rect x="15" y="3" width="6" height="4" rx="1"/>
+            <rect x="9" y="17" width="6" height="4" rx="1"/>
+            <line x1="9" y1="5" x2="15" y2="5"/>
+            <line x1="6" y1="7" x2="12" y2="17"/>
+            <line x1="18" y1="7" x2="12" y2="17"/>
+          </svg>
+        </ToolBtn>
 
         <Sep />
 
