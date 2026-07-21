@@ -1,3 +1,4 @@
+- [Post-merge procedure](post-merge-procedure.md) — schema push + API rebuild required after every merge; automated via scripts/post-merge.sh; backfill migrations still manual.
 - [Notes feature architecture](notes-feature.md) — monorepo entity add sequence; api-server must use @workspace/api-zod not raw zod; useToast path; TipTap install approach.
 - [API server build quirks](api-server-build-quirks.md) — esbuild bundles api-server; zod must be in package.json dependencies (not just workspace catalog); orval schema naming pitfalls.
 - [api-client-react dist rebuild](api-client-react-dist-rebuild.md) — after orval regenerates sources, tsc incremental skips api-client-react (not in root tsconfig references); must manually rebuild its dist.
