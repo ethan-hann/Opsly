@@ -638,6 +638,25 @@ describe("POST /api/orgs/invite — email delivery", () => {
     expect(html).toContain(inviteLink);
   });
 
+  it("assembles a subject that contains 'Opsly' when SMTP is configured", async () => {
+    isEmailConfiguredMock.mockReturnValue(true);
+
+    mockState.insertQueue.push([MOCK_INVITATION]);
+    mockState.selectQueue.push([{ name: "Acme Corp" }]);
+    mockState.selectQueue.push([{ firstName: "Alice", lastName: null, email: "alice@example.com" }]);
+
+    const res = await request(buildApp())
+      .post("/api/orgs/invite")
+      .send({ email: "bob@example.com" });
+
+    expect(res.status).toBe(201);
+    // Allow the fire-and-forget sendMail promise to settle.
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(sendMailSpy).toHaveBeenCalledOnce();
+    const subject: string = sendMailSpy.mock.calls[0][0].subject;
+    expect(subject).toContain("Opsly");
+  });
+
   it("does NOT call sendMail when SMTP is not configured — silent no-op", async () => {
     // isEmailConfiguredMock defaults to false — no selects for org/inviter happen
     mockState.insertQueue.push([MOCK_INVITATION]);
