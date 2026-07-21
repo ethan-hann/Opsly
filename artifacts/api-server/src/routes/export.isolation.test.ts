@@ -677,3 +677,62 @@ describe("GET /export/pending — jobInProgress identification", () => {
     expect(res.body.jobInProgress).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /export/download/:token — cross-org isolation
+//
+// The route queries:
+//   WHERE token = :token AND orgId = <caller-org>
+//
+// So org-b's token is invisible to an org-a caller even if they know the
+// exact token string.  The mock simulates this by queueing [] for the
+// cross-org scenario and a valid row for the own-token control.
+// ---------------------------------------------------------------------------
+
+describe("GET /export/download/:token — org isolation", () => {
+  const futureDate = new Date(Date.now() + 3_600_000);
+
+  beforeEach(() => {
+    reset();
+  });
+
+  it("returns 404 when the token belongs to org-b — org-a caller cannot download another org's export", async () => {
+    // The real DB applies WHERE token='org-b-tok' AND orgId='org-a', which
+    // returns zero rows because the token is scoped to org-b.
+    // The mock simulates this by queueing an empty result.
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/export/download/org-b-secret-token");
+
+    expect(res.status).toBe(404);
+    // The response must NOT contain any file data.
+    expect(res.body.error).toBeDefined();
+    expect(res.header["content-disposition"]).toBeUndefined();
+  });
+
+  it("returns 200 and streams the file when org-a caller uses their own valid token", async () => {
+    // Control test: confirms the above 404 is caused by org isolation, not a
+    // misconfigured mock.  With org-a's own complete, non-expired job row in
+    // the queue the route must succeed.
+    mockState.selectQueue.push([
+      {
+        id: 10,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "org-a-valid-token",
+        objectKey: "org-a/user-a1/org-a-valid-token",
+        status: "complete",
+        filename: "export-org-a.json",
+        contentType: "application/json",
+        expiresAt: futureDate,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/download/org-a-valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.header["content-disposition"]).toMatch(/export-org-a\.json/);
+    expect(res.header["content-type"]).toMatch(/application\/json/);
+  });
+});
