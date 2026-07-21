@@ -1,5 +1,5 @@
 /**
- * Shared SSE singleton for the IT Task Manager frontend.
+ * Shared SSE singleton for the Opsly frontend.
  *
  * The server enforces exactly one SSE connection per user. Opening multiple
  * EventSource instances (one per component) causes connection preemption and

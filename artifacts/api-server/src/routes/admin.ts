@@ -479,14 +479,14 @@ router.post('/admin/email/test', async (req, res) => {
 
   const result = await sendMail({
     to,
-    subject: 'IT Task Manager — SMTP test email',
+    subject: 'Opsly — SMTP test email',
     html: `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <style>body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f9fafb;margin:0;padding:32px}.card{max-width:520px;margin:0 auto;background:#fff;border-radius:8px;border:1px solid #e5e7eb;padding:32px}.badge{display:inline-block;background:#dcfce7;color:#166534;border-radius:4px;padding:4px 10px;font-size:13px;font-weight:600;margin-bottom:16px}</style>
 </head>
 <body><div class="card">
   <div class="badge">✓ SMTP working</div>
-  <h2 style="margin-top:8px;color:#111827">Test email from IT Task Manager</h2>
+  <h2 style="margin-top:8px;color:#111827">Test email from Opsly</h2>
   <p style="color:#6b7280">This message confirms that your SMTP configuration is correct and email delivery is working.</p>
   <p style="color:#6b7280;font-size:13px">Sent from: ${config.from}<br>Server: ${config.host}:${config.port}</p>
 </div></body></html>`,

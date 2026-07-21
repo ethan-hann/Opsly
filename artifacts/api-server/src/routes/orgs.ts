@@ -531,7 +531,7 @@ router.post('/orgs/invite', requireOrg, requirePermission('manage_members'), asy
     // Fire-and-forget — don't block the response on email delivery.
     void sendMail({
       to: parsed.data.email,
-      subject: `You've been invited to join ${orgName} on IT Task Manager`,
+      subject: `You've been invited to join ${orgName} on Opsly`,
       html: buildInviteEmail({ orgName, inviterName, inviteLink, expiresAt }),
     }).then((result) => {
       if (!result.ok) {
