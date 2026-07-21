@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, varchar, index } from "drizzle-orm/pg-core";
 import { tasksTable } from "./tasks";
 import { organizationsTable } from "./organizations";
 
@@ -30,6 +30,8 @@ export const taskEventsTable = pgTable("task_events", {
   /** Serialized new value. Null when the field was cleared. */
   newValue: text("new_value"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [
+  index("task_events_task_id_org_id_idx").on(t.taskId, t.orgId),
+]);
 
 export type TaskEvent = typeof taskEventsTable.$inferSelect;
