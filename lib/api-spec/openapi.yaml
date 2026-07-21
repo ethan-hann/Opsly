@@ -2085,6 +2085,76 @@ paths:
         "404":
           description: Project not found.
 
+  /org/audit-log:
+    get:
+      operationId: getOrgAuditLog
+      tags: [orgs]
+      summary: Get unified org audit log
+      description: >
+        Returns a reverse-chronological feed of org-level events and task-level
+        events for the current org. Requires the `view_audit_log` permission.
+        Supports keyset pagination via the `cursor` query parameter.
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          description: Keyset pagination cursor returned from a previous response.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of events to return (1–200, default 50).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: from
+          in: query
+          required: false
+          description: ISO date lower bound (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          required: false
+          description: ISO date upper bound (inclusive).
+          schema:
+            type: string
+            format: date
+        - name: actor
+          in: query
+          required: false
+          description: Case-insensitive substring filter on the actor name.
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          description: Filter by event category.
+          schema:
+            type: string
+            enum:
+              - member
+              - project
+              - webhook
+              - role
+              - settings
+              - custom_field
+              - workflow
+              - task
+      responses:
+        "200":
+          description: Audit log page.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgAuditLogPage"
+        "403":
+          description: Permission denied.
+
   /org/sla-policies:
     get:
       operationId: getSLAPolicies
@@ -3922,6 +3992,53 @@ components:
           description: New display name. Must be unique within the org.
         permissions:
           $ref: '#/components/schemas/RolePermissions'
+
+    AuditEvent:
+      description: A single normalised event in the org audit log.
+      type: object
+      required: [id, source, category, action, actorId, actorName, targetId, targetName, description, createdAt]
+      properties:
+        id:
+          type: string
+          description: Opaque cursor token (source:numericId:timestamp).
+        source:
+          type: string
+          enum: [org, task]
+        category:
+          type: string
+          enum: [member, project, webhook, role, settings, custom_field, workflow, task]
+        action:
+          type: string
+        actorId:
+          type: string
+          nullable: true
+        actorName:
+          type: string
+          nullable: true
+        targetId:
+          type: string
+          nullable: true
+        targetName:
+          type: string
+          nullable: true
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    OrgAuditLogPage:
+      description: A page of audit log events with a keyset pagination cursor.
+      type: object
+      required: [events, nextCursor]
+      properties:
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        nextCursor:
+          type: string
+          nullable: true
 
     SimpleSuccess:
       description: Generic success acknowledgement with no additional data.

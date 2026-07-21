@@ -1909,6 +1909,41 @@ export const UpsertProjectSLAPoliciesResponse = zod.array(UpsertProjectSLAPolici
 
 
 /**
+ * Returns a reverse-chronological feed of org-level events and task-level events for the current org. Requires the `view_audit_log` permission. Supports keyset pagination via the `cursor` query parameter.
+ * @summary Get unified org audit log
+ */
+export const getOrgAuditLogQueryLimitDefault = 50;
+export const getOrgAuditLogQueryLimitMax = 200;
+
+
+
+export const GetOrgAuditLogQueryParams = zod.object({
+  "cursor": zod.coerce.string().optional().describe('Keyset pagination cursor returned from a previous response.'),
+  "limit": zod.coerce.number().min(1).max(getOrgAuditLogQueryLimitMax).default(getOrgAuditLogQueryLimitDefault).describe('Maximum number of events to return (1–200, default 50).'),
+  "from": zod.date().optional().describe('ISO date lower bound (inclusive).'),
+  "to": zod.date().optional().describe('ISO date upper bound (inclusive).'),
+  "actor": zod.coerce.string().optional().describe('Case-insensitive substring filter on the actor name.'),
+  "category": zod.enum(['member', 'project', 'webhook', 'role', 'settings', 'custom_field', 'workflow', 'task']).optional().describe('Filter by event category.')
+})
+
+export const GetOrgAuditLogResponse = zod.object({
+  "events": zod.array(zod.object({
+  "id": zod.string().describe('Opaque cursor token (source:numericId:timestamp).'),
+  "source": zod.enum(['org', 'task']),
+  "category": zod.enum(['member', 'project', 'webhook', 'role', 'settings', 'custom_field', 'workflow', 'task']),
+  "action": zod.string(),
+  "actorId": zod.string().nullable(),
+  "actorName": zod.string().nullable(),
+  "targetId": zod.string().nullable(),
+  "targetName": zod.string().nullable(),
+  "description": zod.string(),
+  "createdAt": zod.coerce.date()
+}).describe('A single normalised event in the org audit log.')),
+  "nextCursor": zod.string().nullable()
+}).describe('A page of audit log events with a keyset pagination cursor.')
+
+
+/**
  * Returns the SLA response and resolution targets for each priority level. Priorities with no configured policy are omitted from the response.
  * @summary Get SLA policies for the current org
  */

@@ -22,6 +22,7 @@ import {
   Star,
   ChevronRight,
   Search,
+  ScrollText,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -277,7 +278,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { setTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed } = useOrgContext();
+  const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed, hasPermission } = useOrgContext();
   const { open: openSearch } = useGlobalSearch();
   const { t } = useTerminology();
   const { logoUrl } = useBranding();
@@ -304,6 +305,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const webhooksVisible =
     isFeatureEnabled("webhooks") || isFeatureUnsubscribed("webhooks");
 
+  const canViewAuditLog = hasPermission("view_audit_log");
+
   // Build nav items dynamically so terminology labels update with the org's custom terms.
   const dynamicNavItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -317,6 +320,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     ...dynamicNavItems.filter(
       (item) => item.href !== "/webhooks" || webhooksVisible,
     ),
+    ...(canViewAuditLog ? [{ href: "/audit-log", label: "Audit Log", icon: ScrollText }] : []),
     { href: "/org/settings", label: "Org Settings", icon: Settings },
   ];
 

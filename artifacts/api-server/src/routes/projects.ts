@@ -15,6 +15,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgOrApiKey, requireOrg, requirePermission, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchProjectCreated, dispatchProjectUpdated, dispatchProjectDeleted } from "../lib/webhook-dispatcher";
+import { logOrgEvent } from "../lib/log-org-event";
 
 const router: IRouter = Router();
 
@@ -115,6 +116,19 @@ router.post("/projects", requireOrgOrApiKey, requireScope("projects:write"), asy
 
   const serialized = serializeProject(project, 0, 0);
   dispatchProjectCreated(req.orgId!, serialized);
+
+  const { actorId: pActorId, actorName: pActorName } = resolveActor(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: pActorId,
+    actorName: pActorName,
+    category: 'project',
+    action: 'project.created',
+    targetId: String(project.id),
+    targetName: project.name,
+    metadata: null,
+  });
+
   res.status(201).json(CreateProjectResponse.parse(serialized));
 });
 
@@ -182,6 +196,19 @@ router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write")
 
   const serializedUpdate = serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0);
   dispatchProjectUpdated(req.orgId!, serializedUpdate);
+
+  const { actorId: upActorId, actorName: upActorName } = resolveActor(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: upActorId,
+    actorName: upActorName,
+    category: 'project',
+    action: 'project.updated',
+    targetId: String(project.id),
+    targetName: project.name,
+    metadata: Object.keys(parsed.data).length > 0 ? parsed.data as Record<string, unknown> : null,
+  });
+
   res.json(UpdateProjectResponse.parse(serializedUpdate));
 });
 
@@ -203,6 +230,18 @@ router.delete("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"
   }
 
   dispatchProjectDeleted(req.orgId!, { id: project.id, name: project.name });
+
+  const { actorId: delActorId, actorName: delActorName } = resolveActor(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: delActorId,
+    actorName: delActorName,
+    category: 'project',
+    action: 'project.deleted',
+    targetId: String(project.id),
+    targetName: project.name,
+    metadata: null,
+  });
 
   res.sendStatus(204);
 });
@@ -340,6 +379,16 @@ router.put(
 
     // Write audit record
     const { actorId, actorName } = resolveActor(req);
+    void logOrgEvent({
+      orgId,
+      actorId,
+      actorName,
+      category: 'project',
+      action: 'project.sla_policies_updated',
+      targetId: String(id),
+      targetName: null,
+      metadata: { projectId: id, count: result.length },
+    });
     const serializePolicy = (p: typeof slaPoliciesTable.$inferSelect) => ({
       priority: p.priority,
       responseMinutes: p.responseMinutes,

@@ -14,6 +14,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
+import { logOrgEvent } from "../lib/log-org-event";
 
 const router: IRouter = Router();
 
@@ -83,6 +84,17 @@ router.post(
       })
       .returning();
 
+    void logOrgEvent({
+      orgId,
+      actorId: req.user?.id ?? null,
+      actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+      category: 'workflow',
+      action: 'workflow.stage_created',
+      targetId: String(stage.id),
+      targetName: stage.name,
+      metadata: { type: stage.type, color: stage.color },
+    });
+
     res.status(201).json(CreateWorkflowStageResponse.parse(serializeStage(stage)));
   },
 );
@@ -114,6 +126,17 @@ router.post(
           .where(and(eq(workflowStagesTable.id, id), eq(workflowStagesTable.orgId, orgId))),
       ),
     );
+
+    void logOrgEvent({
+      orgId,
+      actorId: req.user?.id ?? null,
+      actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+      category: 'workflow',
+      action: 'workflow.stages_reordered',
+      targetId: null,
+      targetName: null,
+      metadata: { ids },
+    });
 
     res.sendStatus(204);
   },
@@ -216,6 +239,17 @@ router.patch(
       .where(and(eq(workflowStagesTable.id, params.data.id), eq(workflowStagesTable.orgId, orgId)))
       .returning();
 
+    void logOrgEvent({
+      orgId,
+      actorId: req.user?.id ?? null,
+      actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+      category: 'workflow',
+      action: 'workflow.stage_updated',
+      targetId: String(updated.id),
+      targetName: updated.name,
+      metadata: Object.keys(setData).length > 0 ? setData as Record<string, unknown> : null,
+    });
+
     res.json(UpdateWorkflowStageResponse.parse(serializeStage(updated)));
   },
 );
@@ -310,6 +344,17 @@ router.delete(
     await db
       .delete(workflowStagesTable)
       .where(and(eq(workflowStagesTable.id, stageId), eq(workflowStagesTable.orgId, orgId)));
+
+    void logOrgEvent({
+      orgId,
+      actorId: req.user?.id ?? null,
+      actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+      category: 'workflow',
+      action: 'workflow.stage_deleted',
+      targetId: String(stageId),
+      targetName: stage.name,
+      metadata: reassignTo ? { reassignedTo: reassignTo, affectedCount: count } : null,
+    });
 
     res.sendStatus(204);
   },

@@ -30,10 +30,18 @@ import { seedDefaultStages } from '../lib/workflow-stages';
 import { sendMail, buildInviteEmail, isEmailConfigured } from '../lib/email';
 import { logger } from '../lib/logger';
 import { dispatchMemberJoined, dispatchMemberRemoved } from '../lib/webhook-dispatcher';
+import { logOrgEvent } from '../lib/log-org-event';
 
 const router: IRouter = Router();
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+function actorFromSession(req: { user?: { id?: string; firstName?: string | null; lastName?: string | null; email?: string | null } | null }): { actorId: string | null; actorName: string | null } {
+  const u = req.user;
+  if (!u) return { actorId: null, actorName: null };
+  const full = [u.firstName, u.lastName].filter(Boolean).join(' ');
+  return { actorId: u.id ?? null, actorName: full || u.email || 'Unknown' };
+}
 
 function generateToken(): string {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -252,11 +260,31 @@ router.patch('/orgs/me', requireOrg, requirePermission('manage_org_settings'), a
     return;
   }
 
+  // Snapshot old name before update
+  const [currentOrg] = await db
+    .select({ name: organizationsTable.name })
+    .from(organizationsTable)
+    .where(eq(organizationsTable.id, req.orgId!))
+    .limit(1);
+  const oldName = currentOrg?.name ?? null;
+
   const [updated] = await db
     .update(organizationsTable)
     .set({ name: parsed.data.name })
     .where(eq(organizationsTable.id, req.orgId!))
     .returning();
+
+  const { actorId, actorName } = actorFromSession(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId,
+    actorName,
+    category: 'settings',
+    action: 'settings.org_renamed',
+    targetId: req.orgId!,
+    targetName: updated.name,
+    metadata: { from: oldName, to: updated.name },
+  });
 
   res.json({
     id: updated.id,
@@ -447,7 +475,20 @@ router.delete('/orgs/invitations/:id', requireOrg, requirePermission('manage_mem
     return;
   }
 
+  const { actorId, actorName } = actorFromSession(req);
   await db.delete(invitationsTable).where(eq(invitationsTable.id, id));
+
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId,
+    actorName,
+    category: 'member',
+    action: 'member.invite_cancelled',
+    targetId: id,
+    targetName: invitation.orgId,
+    metadata: null,
+  });
+
   res.status(204).send();
 });
 
@@ -540,6 +581,18 @@ router.post('/orgs/invite', requireOrg, requirePermission('manage_members'), asy
     });
   }
 
+  const { actorId, actorName } = actorFromSession(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId,
+    actorName,
+    category: 'member',
+    action: 'member.invited',
+    targetId: invitation.invitedUserId ?? null,
+    targetName: invitation.invitedEmail ?? invitation.invitedUserId ?? null,
+    metadata: null,
+  });
+
   res.status(201).json({
     id: invitation.id,
     orgId: invitation.orgId,
@@ -621,6 +674,17 @@ router.post('/orgs/invitations/:token/accept', requireAuth, async (req, res): Pr
     .where(eq(invitationsTable.id, invitation.id));
 
   dispatchMemberJoined(invitation.orgId, { userId, email: user?.email ?? null });
+
+  void logOrgEvent({
+    orgId: invitation.orgId,
+    actorId: userId,
+    actorName: user?.email ?? userId,
+    category: 'member',
+    action: 'member.joined',
+    targetId: userId,
+    targetName: user?.email ?? null,
+    metadata: null,
+  });
 
   const data = await getOrgMeData(userId);
   res.json(data);
@@ -736,6 +800,18 @@ router.delete('/orgs/members/:userId', requireOrg, requirePermission('manage_mem
     );
 
   dispatchMemberRemoved(req.orgId!, { userId: targetUserId, email: removedUser?.email ?? null });
+
+  const { actorId: removeActorId, actorName: removeActorName } = actorFromSession(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: removeActorId,
+    actorName: removeActorName,
+    category: 'member',
+    action: 'member.removed',
+    targetId: targetUserId,
+    targetName: removedUser?.email ?? targetUserId,
+    metadata: null,
+  });
 
   res.sendStatus(204);
 });
@@ -901,6 +977,18 @@ router.patch('/orgs/members/:userId/role', requireOrg, requirePermission('manage
     pushEvent(targetUserId, 'role-changed', { newRole: 'Owner' });
   }
 
+  const { actorId: roleActorId, actorName: roleActorName } = actorFromSession(req);
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: roleActorId,
+    actorName: roleActorName,
+    category: 'member',
+    action: 'member.role_changed',
+    targetId: targetUserId,
+    targetName: userInfo ? ([userInfo.firstName, userInfo.lastName].filter(Boolean).join(' ') || userInfo.email || targetUserId) : targetUserId,
+    metadata: { from: member.currentRoleIsOwner ? 'Owner' : 'previous', to: targetRole.name },
+  });
+
   res.json({
     userId: updated.userId,
     roleId: updated.roleId,
@@ -972,6 +1060,17 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
     );
 
   dispatchMemberRemoved(orgId, { userId, email: leavingUser?.email ?? null });
+
+  void logOrgEvent({
+    orgId,
+    actorId: userId,
+    actorName: leavingUser?.email ?? userId,
+    category: 'member',
+    action: 'member.left',
+    targetId: userId,
+    targetName: leavingUser?.email ?? null,
+    metadata: null,
+  });
 
   res.json({ success: true });
 });
@@ -1089,6 +1188,18 @@ router.put('/org/sla-policies', requireOrg, requireSlaTrackingFeature, requirePe
       )
       .returning();
   }
+
+  const { actorId: slaActorId, actorName: slaActorName } = actorFromSession(req);
+  void logOrgEvent({
+    orgId,
+    actorId: slaActorId,
+    actorName: slaActorName,
+    category: 'settings',
+    action: 'settings.sla_policies_updated',
+    targetId: orgId,
+    targetName: null,
+    metadata: { count: result.length },
+  });
 
   res.json(
     result.map((p) => ({

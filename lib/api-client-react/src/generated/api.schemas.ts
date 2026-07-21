@@ -1315,6 +1315,53 @@ export interface UpdateRoleInput {
   permissions?: RolePermissions;
 }
 
+export type AuditEventSource = typeof AuditEventSource[keyof typeof AuditEventSource];
+
+
+export const AuditEventSource = {
+  org: 'org',
+  task: 'task',
+} as const;
+
+export type AuditEventCategory = typeof AuditEventCategory[keyof typeof AuditEventCategory];
+
+
+export const AuditEventCategory = {
+  member: 'member',
+  project: 'project',
+  webhook: 'webhook',
+  role: 'role',
+  settings: 'settings',
+  custom_field: 'custom_field',
+  workflow: 'workflow',
+  task: 'task',
+} as const;
+
+/**
+ * A single normalised event in the org audit log.
+ */
+export interface AuditEvent {
+  /** Opaque cursor token (source:numericId:timestamp). */
+  id: string;
+  source: AuditEventSource;
+  category: AuditEventCategory;
+  action: string;
+  actorId: string | null;
+  actorName: string | null;
+  targetId: string | null;
+  targetName: string | null;
+  description: string;
+  createdAt: string;
+}
+
+/**
+ * A page of audit log events with a keyset pagination cursor.
+ */
+export interface OrgAuditLogPage {
+  events: AuditEvent[];
+  nextCursor: string | null;
+}
+
 /**
  * Generic success acknowledgement with no additional data.
  */
@@ -2356,4 +2403,47 @@ export type RemoveWorkflowStageParams = {
  */
 reassignTo?: number;
 };
+
+export type GetOrgAuditLogParams = {
+/**
+ * Keyset pagination cursor returned from a previous response.
+ */
+cursor?: string;
+/**
+ * Maximum number of events to return (1–200, default 50).
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * ISO date lower bound (inclusive).
+ */
+from?: string;
+/**
+ * ISO date upper bound (inclusive).
+ */
+to?: string;
+/**
+ * Case-insensitive substring filter on the actor name.
+ */
+actor?: string;
+/**
+ * Filter by event category.
+ */
+category?: GetOrgAuditLogCategory;
+};
+
+export type GetOrgAuditLogCategory = typeof GetOrgAuditLogCategory[keyof typeof GetOrgAuditLogCategory];
+
+
+export const GetOrgAuditLogCategory = {
+  member: 'member',
+  project: 'project',
+  webhook: 'webhook',
+  role: 'role',
+  settings: 'settings',
+  custom_field: 'custom_field',
+  workflow: 'workflow',
+  task: 'task',
+} as const;
 

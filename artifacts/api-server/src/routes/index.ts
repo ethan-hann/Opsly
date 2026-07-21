@@ -21,6 +21,7 @@ import apiKeysRouter from "./api-keys";
 import exportRouter from "./export";
 import adminRouter from "./admin";
 import unsubscribeRouter from "./unsubscribe";
+import auditLogRouter from "./audit-log";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use(apiKeysRouter);
 router.use(exportRouter);
 router.use(adminRouter);
 router.use(unsubscribeRouter);
+router.use(auditLogRouter);
 
 export default router;

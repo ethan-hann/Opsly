@@ -32,6 +32,7 @@ import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
 import UnsubscribePage from '@/pages/unsubscribe';
 import { NotificationPreferencesPage } from '@/pages/notification-preferences';
+import AuditLogPage from '@/pages/audit-log';
 import type { PendingInvitation } from '@workspace/api-client-react';
 import { useOrgContext } from '@/hooks/use-org-context';
 import type { OrgFeatureKey } from '@/hooks/use-org-context';
@@ -124,6 +125,7 @@ function Router() {
         <Route path="/webhooks/inbound/:id" component={(p: any) => <GatedRoute feature="webhooks" component={WebhookInboundEditPage} {...p} />} />
         <Route path="/webhooks/outbound/:id" component={(p: any) => <GatedRoute feature="webhooks" component={WebhookOutboundEditPage} {...p} />} />
         <Route path="/settings/notifications" component={NotificationPreferencesPage} />
+        <Route path="/audit-log" component={AuditLogPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

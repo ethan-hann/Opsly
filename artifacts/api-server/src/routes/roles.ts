@@ -26,6 +26,7 @@ import {
 import type { RolePermissions } from '@workspace/db';
 import { requireOrg, requireOwner } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse.js';
+import { logOrgEvent } from '../lib/log-org-event';
 
 const router: IRouter = Router();
 
@@ -117,6 +118,17 @@ router.post('/roles', requireOrg, requireOwner, async (req, res): Promise<void> 
     })
     .returning();
 
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: req.user?.id ?? null,
+    actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+    category: 'role',
+    action: 'role.created',
+    targetId: role.id,
+    targetName: role.name,
+    metadata: null,
+  });
+
   res.status(201).json(serializeRole(role));
 });
 
@@ -186,6 +198,20 @@ router.patch('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<v
     .set(updates)
     .where(and(eq(rolesTable.id, roleId), eq(rolesTable.orgId, req.orgId!)))
     .returning();
+
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: req.user?.id ?? null,
+    actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+    category: 'role',
+    action: 'role.updated',
+    targetId: role.id,
+    targetName: updated.name,
+    metadata: {
+      ...(parsed.data.name !== undefined ? { nameFrom: role.name, nameTo: updated.name } : {}),
+      ...(parsed.data.permissions !== undefined ? { permissionsChanged: true } : {}),
+    },
+  });
 
   res.json(serializeRole(updated));
 });
@@ -260,6 +286,17 @@ router.delete('/roles/:id', requireOrg, requireOwner, async (req, res): Promise<
   await db
     .delete(rolesTable)
     .where(and(eq(rolesTable.id, role.id), eq(rolesTable.orgId, req.orgId!)));
+
+  void logOrgEvent({
+    orgId: req.orgId!,
+    actorId: req.user?.id ?? null,
+    actorName: [req.user?.firstName, req.user?.lastName].filter(Boolean).join(' ') || req.user?.email || null,
+    category: 'role',
+    action: 'role.deleted',
+    targetId: role.id,
+    targetName: role.name,
+    metadata: affectedMembers.length > 0 ? { reassignedMemberCount: affectedMembers.length } : null,
+  });
 
   // Notify each affected member instantly so their UI refreshes permissions
   // without waiting for the next poll cycle.

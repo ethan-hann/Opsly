@@ -43,6 +43,7 @@ import type {
   DeleteComment403,
   ErrorEnvelope,
   GetDashboardSlaSummaryParams,
+  GetOrgAuditLogParams,
   GlobalSearchParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
@@ -63,6 +64,7 @@ import type {
   Note,
   NoteInput,
   NoteUpdate,
+  OrgAuditLogPage,
   OrgInput,
   OrgMeResponse,
   OrgMemberInfo,
@@ -5712,6 +5714,91 @@ export const useUpsertProjectSLAPolicies = <TError = ErrorType<void>,
       > => {
       return useMutation(getUpsertProjectSLAPoliciesMutationOptions(options));
     }
+
+export const getGetOrgAuditLogUrl = (params?: GetOrgAuditLogParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/org/audit-log?${stringifiedParams}` : `/api/org/audit-log`
+}
+
+/**
+ * Returns a reverse-chronological feed of org-level events and task-level events for the current org. Requires the `view_audit_log` permission. Supports keyset pagination via the `cursor` query parameter.
+ * @summary Get unified org audit log
+ */
+export const getOrgAuditLog = async (params?: GetOrgAuditLogParams, options?: RequestInit): Promise<OrgAuditLogPage> => {
+
+  return customFetch<OrgAuditLogPage>(getGetOrgAuditLogUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrgAuditLogQueryKey = (params?: GetOrgAuditLogParams,) => {
+    return [
+    `/api/org/audit-log`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetOrgAuditLogQueryOptions = <TData = Awaited<ReturnType<typeof getOrgAuditLog>>, TError = ErrorType<void>>(params?: GetOrgAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrgAuditLogQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrgAuditLog>>> = ({ signal }) => getOrgAuditLog(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrgAuditLog>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOrgAuditLogQueryResult = NonNullable<Awaited<ReturnType<typeof getOrgAuditLog>>>
+export type GetOrgAuditLogQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get unified org audit log
+ */
+
+export function useGetOrgAuditLog<TData = Awaited<ReturnType<typeof getOrgAuditLog>>, TError = ErrorType<void>>(
+ params?: GetOrgAuditLogParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgAuditLog>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOrgAuditLogQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetSLAPoliciesUrl = () => {
 

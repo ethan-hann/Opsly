@@ -17,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
+import { logOrgEvent } from "../lib/log-org-event";
 
 const router: IRouter = Router();
 
@@ -85,6 +86,17 @@ router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requireAdm
     .insert(customFieldDefinitionsTable)
     .values({ orgId, name, type, options: options ?? null, position: nextPosition })
     .returning();
+
+  void logOrgEvent({
+    orgId,
+    actorId: req.user?.id ?? null,
+    actorName: actorDisplayName(req.user ?? undefined),
+    category: 'custom_field',
+    action: 'custom_field.created',
+    targetId: String(def.id),
+    targetName: def.name,
+    metadata: { type: def.type },
+  });
 
   res.status(201).json(CreateCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
@@ -286,6 +298,20 @@ router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requi
     return;
   }
 
+  void logOrgEvent({
+    orgId,
+    actorId: req.user?.id ?? null,
+    actorName: actorDisplayName(req.user ?? undefined),
+    category: 'custom_field',
+    action: 'custom_field.updated',
+    targetId: String(def.id),
+    targetName: def.name,
+    metadata: {
+      ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+      ...(parsed.data.options !== undefined ? { optionsChanged: true } : {}),
+    },
+  });
+
   res.json(UpdateCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
 
@@ -315,6 +341,17 @@ router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requ
     res.status(404).json({ error: "Custom field not found" });
     return;
   }
+
+  void logOrgEvent({
+    orgId,
+    actorId: req.user?.id ?? null,
+    actorName: actorDisplayName(req.user ?? undefined),
+    category: 'custom_field',
+    action: 'custom_field.deleted',
+    targetId: String(def.id),
+    targetName: def.name,
+    metadata: null,
+  });
 
   res.sendStatus(204);
 });
@@ -439,6 +476,19 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
     res.status(404).json({ error: "Custom field not found" });
     return;
   }
+
+  // Log after the transaction so we only write the event if the purge succeeded.
+  // We can't easily get the field name here (it was deleted), so we pass the id.
+  void logOrgEvent({
+    orgId,
+    actorId: req.user?.id ?? null,
+    actorName: actorDisplayName(req.user ?? undefined),
+    category: 'custom_field',
+    action: 'custom_field.purged',
+    targetId: String(params.data.id),
+    targetName: null,
+    metadata: result !== null ? { affectedTaskCount: result } : null,
+  });
 
   res.json(PurgeCustomFieldDefinitionResponse.parse({ deletedFieldId: params.data.id, affectedTaskCount: result }));
 });

@@ -32,6 +32,23 @@ import {
 } from "@workspace/db";
 import type { WebhookTaskTemplate, OutboundWebhookEvent } from "@workspace/db";
 import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
+import { logOrgEvent } from "../lib/log-org-event";
+
+/** Resolve the audit actor from either a session user or an API-key caller. */
+function resolveWebhookActor(req: {
+  user?: { id?: string; firstName?: string | null; lastName?: string | null; email?: string | null } | null;
+  apiKeyId?: string;
+  apiKeyName?: string;
+}): { actorId: string | null; actorName: string | null } {
+  if (req.user?.id) {
+    const name = [req.user.firstName, req.user.lastName].filter(Boolean).join(" ");
+    return { actorId: req.user.id, actorName: name || req.user.email || req.user.id };
+  }
+  if (req.apiKeyId) {
+    return { actorId: req.apiKeyId, actorName: `API key: ${req.apiKeyName ?? req.apiKeyId}` };
+  }
+  return { actorId: null, actorName: null };
+}
 import { requireOrgFeature } from "../lib/org-features";
 
 const requireWebhooksFeature = requireOrgFeature('webhooks');
@@ -605,6 +622,17 @@ router.post("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, req
     .returning();
 
   const templateName = await resolveTemplateName(hook.taskTemplateId);
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.inbound_created',
+    targetId: String(hook.id),
+    targetName: hook.name,
+    metadata: { visibility: hook.visibility },
+  });
+
   res.status(201).json(serializeInbound(hook, userId, templateName));
 });
 
@@ -738,6 +766,17 @@ router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature
     .returning();
 
   const templateName = await resolveTemplateName(hook.taskTemplateId);
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.inbound_updated',
+    targetId: String(hook.id),
+    targetName: hook.name,
+    metadata: Object.keys(updateData).length > 0 ? updateData as Record<string, unknown> : null,
+  });
+
   res.json(serializeInbound(hook, userId, templateName));
 });
 
@@ -764,6 +803,16 @@ router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeatur
   await db
     .delete(inboundWebhooksTable)
     .where(and(eq(inboundWebhooksTable.id, id), eq(inboundWebhooksTable.orgId, orgId)));
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.inbound_deleted',
+    targetId: String(id),
+    targetName: existing.name,
+    metadata: null,
+  });
 
   res.sendStatus(204);
 });
@@ -795,6 +844,17 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireWe
     .returning();
 
   const templateName = await resolveTemplateName(hook.taskTemplateId);
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.inbound_secret_rotated',
+    targetId: String(hook.id),
+    targetName: hook.name,
+    metadata: null,
+  });
+
   res.json(serializeInbound(hook, userId, templateName));
 });
 
@@ -851,6 +911,16 @@ router.post("/webhooks/outbound", requireOrgOrApiKey, requireWebhooksFeature, re
       enabled,
     })
     .returning();
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.outbound_created',
+    targetId: String(hook.id),
+    targetName: hook.name,
+    metadata: { events: hook.events, visibility: hook.visibility },
+  });
 
   res.status(201).json(serializeOutbound(hook, userId));
 });
@@ -958,6 +1028,16 @@ router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeatur
     .where(and(eq(outboundWebhooksTable.id, id), eq(outboundWebhooksTable.orgId, orgId)))
     .returning();
 
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.outbound_updated',
+    targetId: String(hook.id),
+    targetName: hook.name,
+    metadata: Object.keys(updateData).length > 0 ? updateData as Record<string, unknown> : null,
+  });
+
   res.json(serializeOutbound(hook, userId));
 });
 
@@ -984,6 +1064,16 @@ router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeatu
   await db
     .delete(outboundWebhooksTable)
     .where(and(eq(outboundWebhooksTable.id, id), eq(outboundWebhooksTable.orgId, orgId)));
+
+  void logOrgEvent({
+    orgId,
+    ...resolveWebhookActor(req),
+    category: 'webhook',
+    action: 'webhook.outbound_deleted',
+    targetId: String(id),
+    targetName: existing.name,
+    metadata: null,
+  });
 
   res.sendStatus(204);
 });
