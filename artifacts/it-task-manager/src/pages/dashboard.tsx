@@ -93,80 +93,80 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      {/* KPI Cards — 2 cols on mobile, 5 across from lg onwards */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 xl:gap-4">
         {isLoadingSummary ? (
-          Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
+          Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)
         ) : summary ? (
           <>
             <Link href="/projects?status=active">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Active Projects</p>
-                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">{summary.activeProjects}</p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Out of {summary.totalProjects} total</p>
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Active Projects</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">{summary.activeProjects}</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Out of {summary.totalProjects} total</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform">
-                    <Briefcase className="w-6 h-6" />
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+                    <Briefcase className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
               </div>
             </Link>
 
             <Link href="/tasks?stageType=open">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Open Tasks</p>
-                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Open Tasks</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.open}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Requires attention</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Requires attention</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform">
-                    <LayoutGrid className="w-6 h-6" />
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+                    <LayoutGrid className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
               </div>
             </Link>
 
             <Link href="/tasks?stageType=closed">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Closed Tasks</p>
-                    <p className="text-3xl font-bold text-stone-800 dark:text-stone-100 mt-2">
+              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer h-full">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Closed Tasks</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.closed}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">Resolved</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Resolved</p>
                   </div>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 group-hover:scale-110 transition-transform">
-                    <CheckCircle2 className="w-6 h-6" />
+                  <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
+                    <CheckCircle2 className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
               </div>
             </Link>
 
             <Link href="/tasks?overdue=true">
-              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
+              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
                 summary.overdueCount > 0
                   ? "border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700"
                   : "border-stone-200 dark:border-stone-700 hover:border-amber-200 dark:hover:border-amber-700"
               }`}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-stone-500 dark:text-stone-400">Overdue Tasks</p>
-                    <p className={`text-3xl font-bold mt-2 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Overdue Tasks</p>
+                    <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
                       {summary.overdueCount}
                     </p>
                   </div>
-                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                  <div className={`w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 ${
                     summary.overdueCount > 0
                       ? "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400"
                       : "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
                   }`}>
-                    <Clock className="w-6 h-6" />
+                    <Clock className="w-4 h-4 xl:w-6 xl:h-6" />
                   </div>
                 </div>
               </div>
@@ -176,20 +176,20 @@ export default function Dashboard() {
 
         {/* SLA Compliance KPI card — loads independently */}
         {isLoadingSlaSummary ? (
-          <Skeleton className="h-28 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
         ) : slaSummary ? (
           <Link href="/tasks?slaBreached=true">
-            <div className={`bg-white dark:bg-stone-900 rounded-2xl p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer ${
+            <div className={`bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
               slaSummary.complianceRate >= 90
                 ? "border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700"
                 : slaSummary.complianceRate >= 70
                   ? "border-amber-200 dark:border-amber-800 hover:border-amber-300 dark:hover:border-amber-700"
                   : "border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
             }`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-stone-500 dark:text-stone-400">SLA Compliance</p>
-                  <p className={`text-3xl font-bold mt-2 ${
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">SLA Compliance</p>
+                  <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${
                     slaSummary.complianceRate >= 90
                       ? "text-emerald-600 dark:text-emerald-400"
                       : slaSummary.complianceRate >= 70
@@ -198,20 +198,20 @@ export default function Dashboard() {
                   }`}>
                     {slaSummary.complianceRate}%
                   </p>
-                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1">
+                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">
                     {slaSummary.totalTracked === 0
                       ? "No tracked tasks"
                       : `${slaSummary.breachedCount} breached · ${activePeriod.label}`}
                   </p>
                 </div>
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                <div className={`w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 ${
                   slaSummary.complianceRate >= 90
                     ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
                     : slaSummary.complianceRate >= 70
                       ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
                       : "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400"
                 }`}>
-                  <ShieldCheck className="w-6 h-6" />
+                  <ShieldCheck className="w-4 h-4 xl:w-6 xl:h-6" />
                 </div>
               </div>
             </div>
@@ -224,14 +224,14 @@ export default function Dashboard() {
       {(isLoadingSlaSummary || slaSummary) && (
         <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
           {/* Header: title + segmented control always rendered */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500" />
-              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-5">
+            <div className="flex items-center gap-2 min-w-0">
+              <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500 shrink-0" />
+              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 truncate">
                 SLA Compliance — {activePeriod.heading}
               </h2>
             </div>
-            <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
               {/* Period segmented control — always visible */}
               <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700 overflow-hidden text-xs font-medium">
                 {SLA_PERIOD_OPTIONS.map((opt) => (
@@ -250,15 +250,15 @@ export default function Dashboard() {
                 ))}
               </div>
               {slaSummary && slaSummary.totalTracked > 0 && (
-                <div className="flex items-center gap-4 text-sm text-stone-500 dark:text-stone-400">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
                   {slaSummary.avgBreachMinutes != null && (
-                    <span className="text-red-600 dark:text-red-400 font-medium">
+                    <span className="text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
                       Avg overshoot: {slaSummary.avgBreachMinutes >= 60
                         ? `${Math.round(slaSummary.avgBreachMinutes / 60 * 10) / 10}h`
                         : `${Math.round(slaSummary.avgBreachMinutes)}m`}
                     </span>
                   )}
-                  <span>{slaSummary.withinSlaCount} within target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
+                  <span className="whitespace-nowrap">{slaSummary.withinSlaCount} on target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
                 </div>
               )}
             </div>
