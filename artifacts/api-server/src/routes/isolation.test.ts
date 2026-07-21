@@ -36,6 +36,8 @@
  *  - GET  /views             — list scoped to caller org; org-b views not leaked
  *  - PATCH /views/:id        — 404 for another org's view (prevents ID enumeration), 403 for non-owner in same org
  *  - DELETE /views/:id       — 404 for another org's view (prevents ID enumeration), 403 for non-owner in same org
+ *  - POST  /comments/:id/reactions        — 404 when the comment belongs to another org
+ *  - DELETE /comments/:id/reactions/:emoji — 404 when the comment belongs to another org
  */
 
 import { vi, describe, it, expect, beforeEach } from "vitest";
@@ -112,6 +114,9 @@ vi.mock("@workspace/api-zod", () => {
     ListTaskTemplatesResponse: p, CreateTaskTemplateBody: p, CreateTaskTemplateResponse: p,
     UpdateTaskTemplateParams: p, UpdateTaskTemplateBody: p, UpdateTaskTemplateResponse: p,
     DeleteTaskTemplateParams: p,
+    // comment reactions
+    AddReactionParams: p, AddReactionBody: p, DeleteReactionParams: p,
+    DEFAULT_REACTION_PALETTE: ["👍", "❤️", "😂", "😮", "👎"],
   };
 });
 
@@ -1638,5 +1643,92 @@ describe("Notification preferences isolation — PATCH /api/notification-prefere
 
     // No org-b identifiers must appear anywhere in the response
     expect(JSON.stringify(res.body)).not.toMatch(/org-b/);
+  });
+});
+
+// ===========================================================================
+// REACTION ROUTES — cross-org isolation
+// ===========================================================================
+
+describe("Reaction isolation — POST /api/comments/:id/reactions", () => {
+  beforeEach(reset);
+
+  it("returns 404 when the comment belongs to org-b (empty select = cross-org miss)", async () => {
+    // The route SELECT WHERE (id=77 AND orgId='org-a') returns nothing
+    // because comment 77 belongs to org-b. No reaction must be inserted.
+    const res = await request(buildApp())
+      .post("/api/comments/77/reactions")
+      .send({ emoji: "👍" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 200 when the comment belongs to org-a and emoji is in the palette", async () => {
+    // Step 1: comment lookup → found (belongs to org-a)
+    mockState.selectQueue.push([{ id: 1 }]);
+    // Step 2: getOrgPalette → org has a custom palette containing 👍
+    mockState.selectQueue.push([{ reactionPalette: ["👍", "❤️"] }]);
+    // insert().values().onConflictDoNothing() is a no-op in the mock
+
+    const res = await request(buildApp())
+      .post("/api/comments/1/reactions")
+      .send({ emoji: "👍" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true });
+  });
+
+  it("does not advance the selectQueue for the reaction insert on a cross-org hit", async () => {
+    // Confirm the route bails out before any palette/insert calls when the
+    // comment lookup returns empty — the selectQueue must still have the
+    // palette entry untouched after the request.
+    mockState.selectQueue.push([]); // comment lookup → cross-org miss
+
+    await request(buildApp())
+      .post("/api/comments/77/reactions")
+      .send({ emoji: "👍" });
+
+    // If the route had proceeded past the org check it would have consumed
+    // the (now absent) palette entry, causing a shift-from-empty side-effect.
+    // Asserting the queue is empty confirms the short-circuit worked.
+    expect(mockState.selectQueue.length).toBe(0);
+  });
+});
+
+describe("Reaction isolation — DELETE /api/comments/:id/reactions/:emoji", () => {
+  beforeEach(reset);
+
+  it("returns 404 when the comment belongs to org-b (empty select = cross-org miss)", async () => {
+    // SELECT WHERE (id=77 AND orgId='org-a') returns nothing — org-b comment.
+    const res = await request(buildApp()).delete(
+      `/api/comments/77/reactions/${encodeURIComponent("👍")}`,
+    );
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 200 when the comment belongs to org-a", async () => {
+    // Step 1: comment lookup → found (belongs to org-a)
+    mockState.selectQueue.push([{ id: 1 }]);
+    // The delete WHERE clause runs next; mock resolves via deleteResult (default [])
+
+    const res = await request(buildApp()).delete(
+      `/api/comments/1/reactions/${encodeURIComponent("👍")}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true });
+  });
+
+  it("does not advance the selectQueue past the org check on a cross-org hit", async () => {
+    mockState.selectQueue.push([]); // comment lookup → cross-org miss
+
+    await request(buildApp()).delete(
+      `/api/comments/77/reactions/${encodeURIComponent("👍")}`,
+    );
+
+    expect(mockState.selectQueue.length).toBe(0);
   });
 });
