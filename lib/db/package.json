@@ -34,6 +34,7 @@
     "migrate:create-project-sla-audit": "pnpm dlx tsx src/migrations/create-project-sla-audit.ts",
     "migrate:add-task-events-index": "pnpm dlx tsx src/migrations/add-task-events-index.ts",
     "migrate:add-digest-claimed-at": "pnpm dlx tsx src/migrations/add-digest-claimed-at.ts",
+    "migrate:add-manage-terminology-permission": "pnpm dlx tsx src/migrations/add-manage-terminology-permission.ts",
     "make-admin": "pnpm dlx tsx src/make-admin.ts",
     "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke"
   },

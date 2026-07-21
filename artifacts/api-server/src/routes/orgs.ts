@@ -10,11 +10,15 @@ import {
   rolesTable,
   slaPoliciesTable,
   workflowStagesTable,
+  orgTerminologyTable,
   OWNER_PERMISSIONS,
   ADMIN_PERMISSIONS,
   MEMBER_PERMISSIONS,
+  TERMINOLOGY_KEYS,
+  TERMINOLOGY_DEFAULTS,
 } from '@workspace/db';
-import type { RolePermissions } from '@workspace/db';
+import type { RolePermissions, TerminologyKey } from '@workspace/db';
+import { PatchOrgTerminologyBody } from '@workspace/api-zod';
 import {
   requireAuth,
   requireOrg,
@@ -78,6 +82,22 @@ async function getMemberRoleId(orgId: string): Promise<string | null> {
   return row?.id ?? null;
 }
 
+/** Fetch and resolve the terminology map for an org (merges custom overrides over defaults). */
+async function resolveTerminology(orgId: string): Promise<Record<TerminologyKey, string>> {
+  const rows = await db
+    .select({ termKey: orgTerminologyTable.termKey, customLabel: orgTerminologyTable.customLabel })
+    .from(orgTerminologyTable)
+    .where(eq(orgTerminologyTable.orgId, orgId));
+
+  const result = { ...TERMINOLOGY_DEFAULTS };
+  for (const row of rows) {
+    if (TERMINOLOGY_KEYS.includes(row.termKey as TerminologyKey)) {
+      result[row.termKey as TerminologyKey] = row.customLabel;
+    }
+  }
+  return result;
+}
+
 async function getOrgMeData(userId: string) {
   // Check membership — join with roles to get full permission context
   const [membership] = await db
@@ -97,7 +117,10 @@ async function getOrgMeData(userId: string) {
     .limit(1);
 
   if (membership) {
-    const features = await getOrgFeatureStates(membership.orgId);
+    const [features, terminology] = await Promise.all([
+      getOrgFeatureStates(membership.orgId),
+      resolveTerminology(membership.orgId),
+    ]);
     return {
       org: {
         id: membership.orgId,
@@ -108,6 +131,7 @@ async function getOrgMeData(userId: string) {
       roleName: membership.roleName,
       permissions: membership.permissions,
       features,
+      terminology,
       pendingInvitation: null,
     };
   }
@@ -883,6 +907,41 @@ router.post('/orgs/leave', requireOrg, async (req, res): Promise<void> => {
   dispatchMemberRemoved(orgId, { userId, email: leavingUser?.email ?? null });
 
   res.json({ success: true });
+});
+
+// ─── Terminology ──────────────────────────────────────────────────────────────
+
+// GET /orgs/terminology - return resolved terminology map for calling org
+router.get('/orgs/terminology', requireOrg, async (req, res): Promise<void> => {
+  const terminology = await resolveTerminology(req.orgId!);
+  res.json(terminology);
+});
+
+// PATCH /orgs/terminology - upsert term overrides (manage_terminology required)
+router.patch('/orgs/terminology', requireOrg, requirePermission('manage_terminology'), async (req, res): Promise<void> => {
+  const parsed = PatchOrgTerminologyBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+  const now = new Date();
+
+  // Upsert each supplied key individually
+  for (const [key, label] of Object.entries(parsed.data) as [TerminologyKey, string][]) {
+    if (label === undefined) continue;
+    await db
+      .insert(orgTerminologyTable)
+      .values({ orgId, termKey: key, customLabel: label, updatedAt: now })
+      .onConflictDoUpdate({
+        target: [orgTerminologyTable.orgId, orgTerminologyTable.termKey],
+        set: { customLabel: label, updatedAt: now },
+      });
+  }
+
+  const terminology = await resolveTerminology(orgId);
+  res.json(terminology);
 });
 
 // ─── SLA Policies ─────────────────────────────────────────────────────────────

@@ -32,6 +32,7 @@ export const ALL_PERMISSIONS = [
   'manage_task_templates',
   'manage_saved_views',
   'view_audit_log',
+  'manage_terminology',
 ] as const;
 
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number];
@@ -54,6 +55,7 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   manage_task_templates: true,
   manage_saved_views: true,
   view_audit_log: true,
+  manage_terminology: true,
 };
 
 /**
@@ -80,6 +82,7 @@ export const ADMIN_PERMISSIONS: RolePermissions = {
   manage_task_templates: true,
   manage_saved_views: true,
   view_audit_log: true,
+  manage_terminology: true,
 };
 
 export const MEMBER_PERMISSIONS: RolePermissions = {
@@ -99,6 +102,7 @@ export const MEMBER_PERMISSIONS: RolePermissions = {
   manage_task_templates: false,
   manage_saved_views: false,
   view_audit_log: false,
+  manage_terminology: false,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────────────

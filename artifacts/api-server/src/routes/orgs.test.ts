@@ -116,15 +116,25 @@ vi.mock("@workspace/db", () => {
     usersTable: {},
     workflowStagesTable: {},
     orgFeaturesTable: { feature: "feature", featureState: "featureState", orgId: "orgId" },
+    orgTerminologyTable: { termKey: "termKey", customLabel: "customLabel", orgId: "orgId" },
     ORG_FEATURES: ["webhooks", "api_keys", "data_export", "custom_fields", "custom_statuses", "sla_tracking"],
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
     ALL_PERMISSIONS: [],
+    TERMINOLOGY_KEYS: ["projects", "tasks", "members", "workflows", "stages"],
+    TERMINOLOGY_DEFAULTS: {
+      projects: "Projects",
+      tasks: "Tasks",
+      members: "Members",
+      workflows: "Workflows",
+      stages: "Stages",
+    },
     eq: () => ({}),
     and: () => ({}),
     or: () => ({}),
     sql: () => ({}),
+    isNull: () => ({}),
   };
 });
 

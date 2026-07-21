@@ -18,3 +18,4 @@ export * from "./instance-admin";
 export * from "./email-digest";
 export * from "./project-sla-audit";
 export * from "./export-jobs";
+export * from "./org-terminology";
