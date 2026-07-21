@@ -1,4 +1,5 @@
 import { Link, useLocation, useSearch } from "wouter";
+import { useTerminology } from "@/context/terminology-context";
 import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
@@ -423,6 +424,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
+  const { t, tSingular } = useTerminology();
 
   const [editOpen, setEditOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -453,7 +455,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   }
 
   if (!project) {
-    return <div className="text-center py-12">Project not found</div>;
+    return <div className="text-center py-12">{tSingular("projects")} not found</div>;
   }
 
   const progress = project.taskCount ? Math.round(((project.completedTaskCount || 0) / project.taskCount) * 100) : 0;
@@ -479,7 +481,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         )}
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
           {!fromSearch && <ArrowLeft className="w-4 h-4" />}
-          Projects
+          {t("projects")}
         </Link>
         <span>/</span>
         <span className="text-foreground truncate">{project.name}</span>
@@ -509,11 +511,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               {canManageProjects && (
                 <>
                   <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-                    <Edit className="w-3.5 h-3.5" /> Edit Project
+                    <Edit className="w-3.5 h-3.5" /> Edit {tSingular("projects")}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete Project" data-testid="btn-delete-project">
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={`Delete ${tSingular("projects")}`} data-testid="btn-delete-project">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -531,7 +533,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                           onClick={() => deleteMutation.mutate({ id: project.id })}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          {deleteMutation.isPending ? "Deleting..." : "Delete Project"}
+                          {deleteMutation.isPending ? "Deleting..." : `Delete ${tSingular("projects")}`}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -551,11 +553,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           <div className="bg-card border border-border/50 rounded-lg p-4 mt-6">
             <div className="flex justify-between items-end mb-2">
               <div className="space-y-1">
-                <span className="text-sm font-medium text-muted-foreground">Project Progress</span>
+                <span className="text-sm font-medium text-muted-foreground">{tSingular("projects")} Progress</span>
                 <div className="text-2xl font-bold">{progress}%</div>
               </div>
               <div className="text-sm text-muted-foreground mb-1">
-                {project.completedTaskCount || 0} of {project.taskCount || 0} Tasks Completed
+                {project.completedTaskCount || 0} of {project.taskCount || 0} {t("tasks")} Completed
               </div>
             </div>
             <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
@@ -584,9 +586,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       {/* Tasks Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">Project Tasks</h2>
+          <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {t("tasks")}</h2>
           <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
-            <Plus className="w-4 h-4" /> Add Task
+            <Plus className="w-4 h-4" /> Add {tSingular("tasks")}
           </Button>
         </div>
 
@@ -633,7 +635,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             ) : (
               <div className="text-center py-12 text-muted-foreground">
                 <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>No tasks found for this project.</p>
+                <p>No {t("tasks").toLowerCase()} found for this {tSingular("projects").toLowerCase()}.</p>
               </div>
             )}
           </CardContent>

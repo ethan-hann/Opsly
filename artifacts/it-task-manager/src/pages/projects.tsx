@@ -9,12 +9,14 @@ import { Plus, FolderGit2, Calendar, X, Shield } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import { NewProjectModal } from "@/components/ui/new-project-modal";
+import { useTerminology } from "@/context/terminology-context";
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
   const [showNewProject, setShowNewProject] = useState(false);
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
+  const { t, tSingular } = useTerminology();
 
   // URL-driven status filter (e.g. ?status=active from the dashboard KPI card)
   const urlSearch = useSearch();
@@ -36,13 +38,13 @@ export default function ProjectsList() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("projects")}</h1>
           <p className="text-muted-foreground mt-1">Manage IT initiatives, deployments, and epics.</p>
         </div>
         {canManageProjects && (
           <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
             <Plus className="w-4 h-4" />
-            New Project
+            New {tSingular("projects")}
           </Button>
         )}
       </div>
@@ -113,7 +115,7 @@ export default function ProjectsList() {
                         />
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-1 text-right">
-                        {project.completedTaskCount || 0} / {project.taskCount || 0} TASKS
+                        {project.completedTaskCount || 0} / {project.taskCount || 0} {t("tasks").toUpperCase()}
                       </div>
                     </div>
                   </CardContent>
@@ -125,12 +127,12 @@ export default function ProjectsList() {
           <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-card/50">
             <FolderGit2 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-lg font-medium">
-              {statusFilter ? `No ${statusFilter} projects` : "No projects found"}
+              {statusFilter ? `No ${statusFilter} ${t("projects").toLowerCase()}` : `No ${t("projects").toLowerCase()} found`}
             </h3>
             <p className="text-muted-foreground mb-4">
               {statusFilter
-                ? "Try clearing the filter to see all projects."
-                : "Get started by creating a new project initiative."}
+                ? `Try clearing the filter to see all ${t("projects").toLowerCase()}.`
+                : `Get started by creating a new ${tSingular("projects").toLowerCase()} initiative.`}
             </p>
             {statusFilter ? (
               <Button variant="outline" className="gap-2" onClick={clearStatusFilter}>
@@ -140,7 +142,7 @@ export default function ProjectsList() {
             ) : canManageProjects ? (
               <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
                 <Plus className="w-4 h-4" />
-                Create Project
+                Create {tSingular("projects")}
               </Button>
             ) : null}
           </div>

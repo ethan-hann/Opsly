@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -110,6 +111,7 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ stageId, label, color, tasks, isOver, archived }: KanbanColumnProps) {
+  const { t } = useTerminology();
   const { setNodeRef } = useDroppable({ id: `${COL_PREFIX}${stageId}` });
 
   const r = parseInt(color.replace("#", "").slice(0, 2), 16);
@@ -161,7 +163,7 @@ function KanbanColumn({ stageId, label, color, tasks, isOver, archived }: Kanban
         </SortableContext>
         {tasks.length === 0 && (
           <p className="text-xs text-center text-muted-foreground/50 py-6">
-            No tasks
+            No {t("tasks").toLowerCase()}
           </p>
         )}
       </div>

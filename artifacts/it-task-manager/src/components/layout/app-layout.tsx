@@ -46,14 +46,7 @@ import type { SavedView } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { NotificationBell } from "@/components/notification-bell";
 import { useGlobalSearch } from "@/hooks/use-global-search";
-
-const mainNavItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderGit2 },
-  { href: "/tasks", label: "Tasks", icon: CheckSquare },
-  { href: "/notes", label: "Scratch Pad", icon: StickyNote },
-  { href: "/webhooks", label: "Webhooks", icon: Webhook },
-];
+import { useTerminology } from "@/context/terminology-context";
 
 const externalNavItems = [
   { href: "/api/docs", label: "API Docs", icon: BookOpen },
@@ -285,6 +278,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed } = useOrgContext();
   const { open: openSearch } = useGlobalSearch();
+  const { t } = useTerminology();
 
   // Mobile: drawer open/closed
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -308,8 +302,17 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const webhooksVisible =
     isFeatureEnabled("webhooks") || isFeatureUnsubscribed("webhooks");
 
+  // Build nav items dynamically so terminology labels update with the org's custom terms.
+  const dynamicNavItems = [
+    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/projects", label: t("projects"), icon: FolderGit2 },
+    { href: "/tasks", label: t("tasks"), icon: CheckSquare },
+    { href: "/notes", label: "Scratch Pad", icon: StickyNote },
+    { href: "/webhooks", label: "Webhooks", icon: Webhook },
+  ];
+
   const allNavItems = [
-    ...mainNavItems.filter(
+    ...dynamicNavItems.filter(
       (item) => item.href !== "/webhooks" || webhooksVisible,
     ),
     { href: "/org/settings", label: "Org Settings", icon: Settings },

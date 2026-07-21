@@ -72,6 +72,7 @@ export * from './orgInput';
 export * from './orgMemberInfo';
 export * from './orgMeResponse';
 export * from './orgMeResponseFeatures';
+export * from './orgTerminologyMap';
 export * from './outboundWebhook';
 export * from './outboundWebhookDelivery';
 export * from './outboundWebhookEventsItem';

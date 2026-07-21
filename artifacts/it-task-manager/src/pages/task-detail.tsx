@@ -1,4 +1,5 @@
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey } from "@workspace/api-client-react";
+import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -211,6 +212,7 @@ function InlineAssignee({
   onOpenChange: (v: boolean) => void;
   onSelect: (email: string) => void;
 }) {
+  const { t: tTerm } = useTerminology();
   const selected = members.find((m) => m.email?.toLowerCase() === value.toLowerCase());
   const label = selected
     ? ([selected.firstName, selected.lastName].filter(Boolean).join(" ") || selected.email)
@@ -228,9 +230,9 @@ function InlineAssignee({
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search members…" />
+          <CommandInput placeholder={`Search ${tTerm("members").toLowerCase()}…`} />
           <CommandList>
-            <CommandEmpty>No members found.</CommandEmpty>
+            <CommandEmpty>No {tTerm("members").toLowerCase()} found.</CommandEmpty>
             <CommandGroup>
               <CommandItem value="__unassigned__" onSelect={() => onSelect("")}>
                 <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
@@ -601,6 +603,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { hasPermission } = useOrgContext();
+  const { t, tSingular } = useTerminology();
 
   const [commentText, setCommentText] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -716,7 +719,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   }
 
   if (!task) {
-    return <div className="text-center py-12">Task not found</div>;
+    return <div className="text-center py-12">{tSingular("tasks")} not found</div>;
   }
 
   const handleStatusChange = (newStatus: any) => {
@@ -801,7 +804,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         )}
         <Link href="/tasks" className="hover:text-foreground flex items-center gap-1 transition-colors">
           {!fromSearch && <ArrowLeft className="w-4 h-4" />}
-          Tasks
+          {t("tasks")}
         </Link>
         <span>/</span>
         <span className="text-foreground">TSK-{task.orgTaskNumber}</span>
@@ -837,19 +840,19 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   </Button>
                   {canEdit && (
                     <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-                      <Edit className="w-3.5 h-3.5" /> Edit Task
+                      <Edit className="w-3.5 h-3.5" /> Edit {tSingular("tasks")}
                     </Button>
                   )}
                   {canDelete && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete Task">
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={`Delete ${tSingular("tasks")}`}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+                          <AlertDialogTitle>Delete this {tSingular("tasks").toLowerCase()}?</AlertDialogTitle>
                           <AlertDialogDescription>
                             This action cannot be undone. This will permanently delete the task and all associated comments.
                           </AlertDialogDescription>
@@ -1056,7 +1059,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               <div className="divide-y divide-border text-sm">
 
                 {/* Project */}
-                <PropertyRow icon={<FolderGit2 className="w-4 h-4" />} label="Project">
+                <PropertyRow icon={<FolderGit2 className="w-4 h-4" />} label={tSingular("projects")}>
                   {canEdit ? (
                     <Select value={task.projectId?.toString() ?? "none"} onValueChange={handleProjectChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">

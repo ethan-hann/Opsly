@@ -1362,6 +1362,51 @@ paths:
               schema:
                 $ref: "#/components/schemas/OrgMeResponse"
 
+  /orgs/terminology:
+    get:
+      operationId: getOrgTerminology
+      tags: [orgs]
+      summary: Get the resolved terminology map for the current org
+      description: >
+        Returns all five terminology keys with their current custom labels (or
+        defaults if no override has been set). Available to any authenticated
+        org member.
+      responses:
+        "200":
+          description: Resolved terminology map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgTerminologyMap"
+        "401":
+          description: Not authenticated.
+        "403":
+          description: Caller is not a member of any org.
+    patch:
+      operationId: patchOrgTerminology
+      tags: [orgs]
+      summary: Update org terminology labels
+      description: >
+        Upserts custom labels for one or more of the five terminology keys.
+        Requires the `manage_terminology` permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchOrgTerminologyBody"
+      responses:
+        "200":
+          description: Updated resolved terminology map
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgTerminologyMap"
+        "400":
+          description: Invalid input — a label is empty or exceeds 50 characters.
+        "403":
+          description: Caller lacks the manage_terminology permission.
+
   /orgs/members:
     get:
       operationId: listOrgMembers
@@ -3419,6 +3464,63 @@ components:
           description: >
             The oldest non-expired pending invitation for this user. Present
             only when the user is not yet a member of any org. Null otherwise.
+        terminology:
+          oneOf:
+            - $ref: '#/components/schemas/OrgTerminologyMap'
+            - type: 'null'
+          description: >
+            Resolved terminology labels for this org. All five keys are always
+            present. Only set when the user is a member of an org.
+
+    OrgTerminologyMap:
+      description: >
+        Resolved terminology map for an org — all five keys are always present,
+        defaulting to English when no custom label has been set.
+      type: object
+      required: [projects, tasks, members, workflows, stages]
+      properties:
+        projects:
+          type: string
+          description: Label for "Projects" (e.g. "Services", "Initiatives").
+        tasks:
+          type: string
+          description: Label for "Tasks" (e.g. "Tickets", "Issues", "Requests").
+        members:
+          type: string
+          description: Label for "Members" (e.g. "Agents", "Users", "Staff").
+        workflows:
+          type: string
+          description: Label for "Workflows" (e.g. "Pipelines", "Processes").
+        stages:
+          type: string
+          description: Label for "Stages" (e.g. "Steps", "Statuses", "Phases").
+
+    PatchOrgTerminologyBody:
+      description: >
+        Partial map of terminology overrides. Only supplied keys are updated.
+        Each label must be a non-empty string of at most 50 characters.
+      type: object
+      properties:
+        projects:
+          type: string
+          minLength: 1
+          maxLength: 50
+        tasks:
+          type: string
+          minLength: 1
+          maxLength: 50
+        members:
+          type: string
+          minLength: 1
+          maxLength: 50
+        workflows:
+          type: string
+          minLength: 1
+          maxLength: 50
+        stages:
+          type: string
+          minLength: 1
+          maxLength: 50
 
     OrgMemberInfo:
       description: Profile and membership information for a single org member.
@@ -3543,6 +3645,7 @@ components:
         - manage_task_templates
         - manage_saved_views
         - view_audit_log
+        - manage_terminology
       properties:
         view_tasks:
           type: boolean
@@ -3576,6 +3679,11 @@ components:
           type: boolean
         view_audit_log:
           type: boolean
+        manage_terminology:
+          type: boolean
+          description: >
+            When true, the member can rename user-facing labels (Projects, Tasks,
+            Members, Workflows, Stages) via the Terminology settings.
 
     Role:
       description: A named role within an organization with a set of permission flags.

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateProject,
@@ -46,6 +47,7 @@ const PRIORITY_OPTIONS: { value: ProjectInputPriority; label: string }[] = [
 ];
 
 export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
+  const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: createProject, isPending } = useCreateProject();
 
@@ -111,7 +113,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
+          <DialogTitle>New {tSingular("projects")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1">

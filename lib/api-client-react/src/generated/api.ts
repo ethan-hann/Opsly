@@ -66,11 +66,13 @@ import type {
   OrgInput,
   OrgMeResponse,
   OrgMemberInfo,
+  OrgTerminologyMap,
   Organization,
   OutboundWebhook,
   OutboundWebhookDelivery,
   OutboundWebhookInput,
   OutboundWebhookUpdate,
+  PatchOrgTerminologyBody,
   Project,
   ProjectInput,
   ProjectUpdate,
@@ -3700,6 +3702,156 @@ export function useGetMyOrg<TData = Awaited<ReturnType<typeof getMyOrg>>, TError
 
 
 
+
+export const getGetOrgTerminologyUrl = () => {
+
+
+
+
+  return `/api/orgs/terminology`
+}
+
+/**
+ * Returns all five terminology keys with their current custom labels (or defaults if no override has been set). Available to any authenticated org member.
+ * @summary Get the resolved terminology map for the current org
+ */
+export const getOrgTerminology = async ( options?: RequestInit): Promise<OrgTerminologyMap> => {
+
+  return customFetch<OrgTerminologyMap>(getGetOrgTerminologyUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetOrgTerminologyQueryKey = () => {
+    return [
+    `/api/orgs/terminology`
+    ] as const;
+    }
+
+
+export const getGetOrgTerminologyQueryOptions = <TData = Awaited<ReturnType<typeof getOrgTerminology>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgTerminology>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetOrgTerminologyQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getOrgTerminology>>> = ({ signal }) => getOrgTerminology({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getOrgTerminology>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetOrgTerminologyQueryResult = NonNullable<Awaited<ReturnType<typeof getOrgTerminology>>>
+export type GetOrgTerminologyQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get the resolved terminology map for the current org
+ */
+
+export function useGetOrgTerminology<TData = Awaited<ReturnType<typeof getOrgTerminology>>, TError = ErrorType<void>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getOrgTerminology>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetOrgTerminologyQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPatchOrgTerminologyUrl = () => {
+
+
+
+
+  return `/api/orgs/terminology`
+}
+
+/**
+ * Upserts custom labels for one or more of the five terminology keys. Requires the `manage_terminology` permission.
+ * @summary Update org terminology labels
+ */
+export const patchOrgTerminology = async (patchOrgTerminologyBody: PatchOrgTerminologyBody, options?: RequestInit): Promise<OrgTerminologyMap> => {
+
+  return customFetch<OrgTerminologyMap>(getPatchOrgTerminologyUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(patchOrgTerminologyBody)
+  }
+);}
+
+
+
+
+
+export const getPatchOrgTerminologyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchOrgTerminology>>, TError,{data: BodyType<PatchOrgTerminologyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchOrgTerminology>>, TError,{data: BodyType<PatchOrgTerminologyBody>}, TContext> => {
+
+const mutationKey = ['patchOrgTerminology'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchOrgTerminology>>, {data: BodyType<PatchOrgTerminologyBody>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchOrgTerminology(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchOrgTerminologyMutationResult = NonNullable<Awaited<ReturnType<typeof patchOrgTerminology>>>
+    export type PatchOrgTerminologyMutationBody = BodyType<PatchOrgTerminologyBody>
+    export type PatchOrgTerminologyMutationError = ErrorType<void>
+
+    /**
+ * @summary Update org terminology labels
+ */
+export const usePatchOrgTerminology = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchOrgTerminology>>, TError,{data: BodyType<PatchOrgTerminologyBody>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof patchOrgTerminology>>,
+        TError,
+        {data: BodyType<PatchOrgTerminologyBody>},
+        TContext
+      > => {
+      return useMutation(getPatchOrgTerminologyMutationOptions(options));
+    }
 
 export const getListOrgMembersUrl = () => {
 

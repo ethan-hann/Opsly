@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useCreateTask,
@@ -145,6 +146,7 @@ function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: Templa
 // ─── Modal ────────────────────────────────────────────────────────────────────
 
 export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemplate }: NewTaskModalProps) {
+  const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: createTask, isPending } = useCreateTask();
   const { data: projects } = useListProjects();
@@ -272,7 +274,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>New Task</DialogTitle>
+          <DialogTitle>New {tSingular("tasks")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           {/* Template picker */}

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { Link } from "wouter";
 import {
   useGetDashboardSummary,
@@ -34,6 +35,7 @@ const SLA_PERIOD_OPTIONS: { value: SlaPeriod; label: string; heading: string }[]
 ];
 
 export default function Dashboard() {
+  const { t, tSingular } = useTerminology();
   const [slaPeriod, setSlaPeriod] = useState<SlaPeriod>("30d");
 
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
@@ -81,12 +83,12 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Link href="/projects">
             <Button variant="ghost" className="font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:hover:bg-amber-900/50 border-0">
-              Manage Projects
+              Manage {t("projects")}
             </Button>
           </Link>
           <Link href="/tasks">
             <Button className="font-medium bg-amber-600 hover:bg-amber-700 text-white shadow-sm gap-2">
-              View All Tasks
+              View All {t("tasks")}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -103,7 +105,7 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Active Projects</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Active {t("projects")}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">{summary.activeProjects}</p>
                     <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Out of {summary.totalProjects} total</p>
                   </div>
@@ -118,7 +120,7 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-amber-200 dark:hover:border-amber-700 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Open Tasks</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Open {t("tasks")}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.open}
                     </p>
@@ -135,7 +137,7 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Closed Tasks</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Closed {t("tasks")}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.closed}
                     </p>
@@ -156,7 +158,7 @@ export default function Dashboard() {
               }`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Overdue Tasks</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Overdue {t("tasks")}</p>
                     <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
                       {summary.overdueCount}
                     </p>
@@ -431,7 +433,7 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Active Projects</h2>
+                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Active {t("projects")}</h2>
                 <p className="text-sm text-stone-400 dark:text-stone-500">Ongoing operational streams</p>
               </div>
               <Link href="/projects">
@@ -474,7 +476,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50">
-                          <span>{project.completedTaskCount || 0}/{project.taskCount || 0} tasks</span>
+                          <span>{project.completedTaskCount || 0}/{project.taskCount || 0} {t("tasks").toLowerCase()}</span>
                           <span>{progress}% complete</span>
                         </div>
                       </div>
@@ -484,7 +486,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
-                No active projects.
+                No active {t("projects").toLowerCase()}.
               </div>
             )}
           </div>
@@ -546,7 +548,7 @@ export default function Dashboard() {
             {activity && activity.length > 0 && (
               <Link href="/tasks">
                 <button className="w-full mt-8 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded-xl transition-colors">
-                  View All Tasks
+                  View All {t("tasks")}
                 </button>
               </Link>
             )}

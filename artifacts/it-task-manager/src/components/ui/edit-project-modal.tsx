@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateProject,
@@ -56,6 +57,7 @@ const PRIORITY_OPTIONS: { value: ProjectInputPriority; label: string }[] = [
 ];
 
 export function EditProjectModal({ open, onOpenChange, project }: EditProjectModalProps) {
+  const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: updateProject, isPending } = useUpdateProject();
 
@@ -113,7 +115,7 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Edit Project</DialogTitle>
+          <DialogTitle>Edit {tSingular("projects")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1">

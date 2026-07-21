@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useLocation } from "wouter";
 import { CheckSquare, FolderGit2, StickyNote, Search, ArrowRight, Loader2 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -82,6 +83,7 @@ interface FlatResult {
 }
 
 export function GlobalSearchPalette() {
+  const { t } = useTerminology();
   const { isOpen, close } = useGlobalSearch();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
@@ -249,7 +251,7 @@ export function GlobalSearchPalette() {
           {/* Tasks section */}
           {!isFetching && taskCount > 0 && (
             <div role="group" aria-label="Tasks">
-              <SectionHeading label="Tasks" />
+              <SectionHeading label={t("tasks")} />
               {data!.tasks.map((t, i) => {
                 const idx = taskStartIdx + i;
                 return (
@@ -274,7 +276,7 @@ export function GlobalSearchPalette() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
               >
                 <ArrowRight className="w-3 h-3" />
-                View all results for &ldquo;{debouncedQuery}&rdquo; in Tasks
+                View all results for &ldquo;{debouncedQuery}&rdquo; in {t("tasks")}
               </a>
             </div>
           )}
@@ -282,7 +284,7 @@ export function GlobalSearchPalette() {
           {/* Projects section */}
           {!isFetching && projectCount > 0 && (
             <div role="group" aria-label="Projects">
-              <SectionHeading label="Projects" />
+              <SectionHeading label={t("projects")} />
               {data!.projects.map((p, i) => {
                 const idx = projectStartIdx + i;
                 return (
@@ -306,7 +308,7 @@ export function GlobalSearchPalette() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
               >
                 <ArrowRight className="w-3 h-3" />
-                View all results for &ldquo;{debouncedQuery}&rdquo; in Projects
+                View all results for &ldquo;{debouncedQuery}&rdquo; in {t("projects")}
               </a>
             </div>
           )}

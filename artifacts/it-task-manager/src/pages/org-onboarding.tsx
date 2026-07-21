@@ -45,8 +45,8 @@ export default function OrgOnboarding({ onCreated }: OrgOnboardingProps) {
             <Activity className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Mission Control</h1>
-            <p className="text-muted-foreground text-sm mt-1">Opsly</p>
+            <h1 className="text-2xl font-bold tracking-tight">Opsly</h1>
+            <p className="text-muted-foreground text-sm mt-1">Track incidents, manage deployments, and coordinate projects</p>
           </div>
         </div>
 

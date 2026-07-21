@@ -7,6 +7,7 @@
  */
 import type { Organization } from './organization';
 import type { OrgMeResponseFeatures } from './orgMeResponseFeatures';
+import type { OrgTerminologyMap } from './orgTerminologyMap';
 import type { PendingInvitation } from './pendingInvitation';
 import type { RolePermissions } from './rolePermissions';
 
@@ -32,4 +33,6 @@ export interface OrgMeResponse {
   features?: OrgMeResponseFeatures;
   /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
+  /** Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org. */
+  terminology?: OrgTerminologyMap | null;
 }

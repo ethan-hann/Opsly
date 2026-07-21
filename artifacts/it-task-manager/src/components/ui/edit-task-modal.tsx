@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useUpdateTask,
@@ -75,6 +76,7 @@ const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
 ];
 
 export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) {
+  const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { hasPermission } = useOrgContext();
@@ -164,7 +166,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>Edit {tSingular("tasks")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1">

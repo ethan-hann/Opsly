@@ -924,6 +924,10 @@ router.patch('/orgs/terminology', requireOrg, requirePermission('manage_terminol
     res.status(400).json({ error: parsed.error.message });
     return;
   }
+  if (Object.keys(parsed.data).length === 0) {
+    res.status(400).json({ error: 'At least one terminology key must be provided' });
+    return;
+  }
 
   const orgId = req.orgId!;
   const now = new Date();

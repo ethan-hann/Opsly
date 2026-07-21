@@ -1,4 +1,5 @@
 import { useListTasks, useListOrgMembers, useListViews, useCreateView, useUpdateView, useDeleteView, useGetSLAPolicies, useListTaskTemplates, useBulkUpdateTasks, useBulkDeleteTasks, useListWorkflowStages, useListCustomFieldDefinitions } from "@workspace/api-client-react";
+import { useTerminology } from "@/context/terminology-context";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -62,11 +63,13 @@ const CATEGORY_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const PROJECT_FILTER_OPTIONS: { value: ProjectFilter; label: string }[] = [
-  { value: "all", label: "All Tasks" },
-  { value: "with_project", label: "In a Project" },
-  { value: "no_project", label: "No Project" },
-];
+function getProjectFilterOptions(tLabel: (key: string) => string, tSingular: (key: string) => string): { value: ProjectFilter; label: string }[] {
+  return [
+    { value: "all", label: `All ${tLabel("tasks")}` },
+    { value: "with_project", label: `In a ${tSingular("projects")}` },
+    { value: "no_project", label: `No ${tSingular("projects")}` },
+  ];
+}
 
 // ─── URL state hook ───────────────────────────────────────────────────────────
 
@@ -722,6 +725,7 @@ function BulkActionBar({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TasksList() {
+  const { t: tLabel, tSingular } = useTerminology();
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [showNewTask, setShowNewTask] = useState(false);
   const [templateForModal, setTemplateForModal] = useState<TaskTemplate | undefined>(undefined);
@@ -931,7 +935,7 @@ export default function TasksList() {
     <div className="space-y-6 max-w-7xl mx-auto h-full flex flex-col">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Tasks</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{tLabel("tasks")}</h1>
           <p className="text-muted-foreground mt-1">Manage incidents, changes, and operational work.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -967,7 +971,7 @@ export default function TasksList() {
           )}
           <Button className="gap-2" data-testid="button-create-task" onClick={() => { setTemplateForModal(undefined); setShowNewTask(true); }}>
             <Plus className="w-4 h-4" />
-            New Task
+            New {tSingular("tasks")}
           </Button>
         </div>
       </div>
@@ -979,7 +983,7 @@ export default function TasksList() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search tasks, tickets, projects..."
+              placeholder={`Search ${tLabel("tasks").toLowerCase()}, ${tLabel("projects").toLowerCase()}...`}
               className="pl-9 bg-background/50 border-transparent focus-visible:border-primary"
               value={filters.search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1020,7 +1024,7 @@ export default function TasksList() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Project segment filter */}
           <div className="bg-background/50 flex p-1 rounded-md border border-border">
-            {PROJECT_FILTER_OPTIONS.map((opt) => (
+            {getProjectFilterOptions(tLabel, tSingular).map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setFilter("projectFilter", opt.value === "all" ? "" : opt.value)}

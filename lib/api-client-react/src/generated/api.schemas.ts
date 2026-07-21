@@ -1024,6 +1024,24 @@ export interface RolePermissions {
   manage_task_templates: boolean;
   manage_saved_views: boolean;
   view_audit_log: boolean;
+  /** When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings. */
+  manage_terminology: boolean;
+}
+
+/**
+ * Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.
+ */
+export interface OrgTerminologyMap {
+  /** Label for "Projects" (e.g. "Services", "Initiatives"). */
+  projects: string;
+  /** Label for "Tasks" (e.g. "Tickets", "Issues", "Requests"). */
+  tasks: string;
+  /** Label for "Members" (e.g. "Agents", "Users", "Staff"). */
+  members: string;
+  /** Label for "Workflows" (e.g. "Pipelines", "Processes"). */
+  workflows: string;
+  /** Label for "Stages" (e.g. "Steps", "Statuses", "Phases"). */
+  stages: string;
 }
 
 /**
@@ -1048,6 +1066,39 @@ export interface OrgMeResponse {
   features?: OrgMeResponseFeatures;
   /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
+  /** Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org. */
+  terminology?: OrgTerminologyMap | null;
+}
+
+/**
+ * Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters.
+ */
+export interface PatchOrgTerminologyBody {
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  projects?: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  tasks?: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  members?: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  workflows?: string;
+  /**
+     * @minLength 1
+     * @maxLength 50
+     */
+  stages?: string;
 }
 
 /**

@@ -1113,7 +1113,8 @@ export const CreateOrgResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1122,7 +1123,14 @@ export const CreateOrgResponse = zod.object({
   "orgName": zod.string().describe('Display name of the inviting organization.'),
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
-}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n'),
+  "terminology": zod.union([zod.object({
+  "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
+  "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
+  "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
+  "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
@@ -1173,7 +1181,8 @@ export const GetMyOrgResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1182,8 +1191,61 @@ export const GetMyOrgResponse = zod.object({
   "orgName": zod.string().describe('Display name of the inviting organization.'),
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
-}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n'),
+  "terminology": zod.union([zod.object({
+  "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
+  "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
+  "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
+  "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
+
+
+/**
+ * Returns all five terminology keys with their current custom labels (or defaults if no override has been set). Available to any authenticated org member.
+ * @summary Get the resolved terminology map for the current org
+ */
+export const GetOrgTerminologyResponse = zod.object({
+  "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
+  "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
+  "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
+  "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n')
+
+
+/**
+ * Upserts custom labels for one or more of the five terminology keys. Requires the `manage_terminology` permission.
+ * @summary Update org terminology labels
+ */
+export const patchOrgTerminologyBodyProjectsMax = 50;
+
+export const patchOrgTerminologyBodyTasksMax = 50;
+
+export const patchOrgTerminologyBodyMembersMax = 50;
+
+export const patchOrgTerminologyBodyWorkflowsMax = 50;
+
+export const patchOrgTerminologyBodyStagesMax = 50;
+
+
+
+export const PatchOrgTerminologyBody = zod.object({
+  "projects": zod.string().min(1).max(patchOrgTerminologyBodyProjectsMax).optional(),
+  "tasks": zod.string().min(1).max(patchOrgTerminologyBodyTasksMax).optional(),
+  "members": zod.string().min(1).max(patchOrgTerminologyBodyMembersMax).optional(),
+  "workflows": zod.string().min(1).max(patchOrgTerminologyBodyWorkflowsMax).optional(),
+  "stages": zod.string().min(1).max(patchOrgTerminologyBodyStagesMax).optional()
+}).describe('Partial map of terminology overrides. Only supplied keys are updated. Each label must be a non-empty string of at most 50 characters.\n')
+
+export const PatchOrgTerminologyResponse = zod.object({
+  "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
+  "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
+  "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
+  "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n')
 
 
 /**
@@ -1210,7 +1272,8 @@ export const ListOrgMembersResponseItem = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1316,7 +1379,8 @@ export const AcceptOrgInvitationResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1325,7 +1389,14 @@ export const AcceptOrgInvitationResponse = zod.object({
   "orgName": zod.string().describe('Display name of the inviting organization.'),
   "token": zod.string().describe('Opaque token used to accept or decline the invitation.'),
   "expiresAt": zod.string().describe('ISO 8601 timestamp when this invitation expires.')
-}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n')
+}).describe('Summary of a pending invitation shown to a user who has not yet joined an org.'),zod.null()]).describe('The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise.\n'),
+  "terminology": zod.union([zod.object({
+  "projects": zod.string().describe('Label for \"Projects\" (e.g. \"Services\", \"Initiatives\").'),
+  "tasks": zod.string().describe('Label for \"Tasks\" (e.g. \"Tickets\", \"Issues\", \"Requests\").'),
+  "members": zod.string().describe('Label for \"Members\" (e.g. \"Agents\", \"Users\", \"Staff\").'),
+  "workflows": zod.string().describe('Label for \"Workflows\" (e.g. \"Pipelines\", \"Processes\").'),
+  "stages": zod.string().describe('Label for \"Stages\" (e.g. \"Steps\", \"Statuses\", \"Phases\").')
+}).describe('Resolved terminology map for an org — all five keys are always present, defaulting to English when no custom label has been set.\n'),zod.null()]).optional().describe('Resolved terminology labels for this org. All five keys are always present. Only set when the user is a member of an org.\n')
 }).describe('Current organization context for the authenticated user. Either `org` or `pendingInvitation` will be non-null; both are null when the user has no org relationship.\n')
 
 
@@ -1385,7 +1456,8 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1820,7 +1892,8 @@ export const ListRolesResponseItem = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -1853,7 +1926,8 @@ export const CreateRoleBody = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for creating a new custom role.')
 
@@ -1879,7 +1953,8 @@ export const CreateRoleResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -1915,7 +1990,8 @@ export const UpdateRoleBody = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for updating a role\'s name and\/or permissions. Only provided fields are changed. The Owner built-in role cannot be modified.\n')
 
@@ -1941,7 +2017,8 @@ export const UpdateRoleResponse = zod.object({
   "manage_sla_policies": zod.boolean(),
   "manage_task_templates": zod.boolean(),
   "manage_saved_views": zod.boolean(),
-  "view_audit_log": zod.boolean()
+  "view_audit_log": zod.boolean(),
+  "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')

@@ -26,4 +26,6 @@ export interface RolePermissions {
   manage_task_templates: boolean;
   manage_saved_views: boolean;
   view_audit_log: boolean;
+  /** When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings. */
+  manage_terminology: boolean;
 }

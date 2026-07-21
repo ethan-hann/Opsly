@@ -29,7 +29,11 @@ import {
   useCreateApiKey,
   useRevokeApiKey,
   getListApiKeysQueryKey,
+  usePatchOrgTerminology,
+  getGetMyOrgQueryKey,
 } from "@workspace/api-client-react";
+import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
+import type { TermKey } from "@/context/terminology-context";
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
@@ -57,6 +61,145 @@ import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
+
+// ─── Terminology ──────────────────────────────────────────────────────────────
+
+const TERMINOLOGY_KEY_LABELS: Record<TermKey, { label: string; description: string }> = {
+  projects: { label: "Projects", description: "E.g. Services, Initiatives, Epics" },
+  tasks: { label: "Tasks", description: "E.g. Tickets, Issues, Requests" },
+  members: { label: "Members", description: "E.g. Agents, Users, Staff" },
+  workflows: { label: "Workflows", description: "E.g. Pipelines, Processes" },
+  stages: { label: "Stages", description: "E.g. Steps, Statuses, Phases" },
+};
+
+function TerminologyCard() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { hasPermission } = useOrgContext();
+  const canManageTerminology = hasPermission("manage_terminology");
+  const { terminology } = useTerminology();
+
+  // Local draft state — one entry per term key
+  const [draft, setDraft] = useState<Record<TermKey, string>>(() => ({
+    projects: terminology.projects,
+    tasks: terminology.tasks,
+    members: terminology.members,
+    workflows: terminology.workflows,
+    stages: terminology.stages,
+  }));
+
+  // Keep draft in sync when the org's terminology changes (e.g. after save)
+  useEffect(() => {
+    setDraft({
+      projects: terminology.projects,
+      tasks: terminology.tasks,
+      members: terminology.members,
+      workflows: terminology.workflows,
+      stages: terminology.stages,
+    });
+  }, [terminology.projects, terminology.tasks, terminology.members, terminology.workflows, terminology.stages]);
+
+  const { mutate: patch, isPending } = usePatchOrgTerminology({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Terminology saved" });
+        // Invalidate /orgs/me so nav labels update on next render
+        queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
+      },
+      onError: (err: Error) => {
+        toast({ title: "Failed to save terminology", description: err.message, variant: "destructive" });
+      },
+    },
+  });
+
+  function handleSave() {
+    const body: Partial<Record<TermKey, string>> = {};
+    (Object.keys(draft) as TermKey[]).forEach((key) => {
+      const val = draft[key].trim();
+      if (val && val !== TERM_DEFAULTS[key]) {
+        body[key] = val;
+      }
+    });
+    // If everything is reset to default, we still need to send a valid body.
+    // Send all current non-empty values.
+    const payload = Object.keys(draft).length > 0
+      ? (Object.keys(draft) as TermKey[]).reduce((acc, key) => {
+          const val = draft[key].trim();
+          acc[key] = val || TERM_DEFAULTS[key];
+          return acc;
+        }, {} as Record<TermKey, string>)
+      : TERM_DEFAULTS;
+    patch({ data: payload });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Settings2 className="w-4 h-4" />
+          Terminology
+        </CardTitle>
+        <CardDescription>
+          Rename user-facing labels to match your team's language.
+          Changes appear in navigation, page headings, and empty states.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {(Object.keys(TERMINOLOGY_KEY_LABELS) as TermKey[]).map((key) => {
+            const meta = TERMINOLOGY_KEY_LABELS[key];
+            return (
+              <div key={key} className="space-y-1">
+                <Label className="text-xs font-medium">
+                  {meta.label}
+                  <span className="ml-1.5 text-muted-foreground font-normal">
+                    (default: "{TERM_DEFAULTS[key]}")
+                  </span>
+                </Label>
+                <Input
+                  value={draft[key]}
+                  onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                  placeholder={meta.description}
+                  disabled={!canManageTerminology || isPending}
+                  maxLength={50}
+                  className="h-8 text-sm"
+                />
+              </div>
+            );
+          })}
+        </div>
+        {canManageTerminology && (
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={handleSave} disabled={isPending}>
+              {isPending ? "Saving…" : "Save terminology"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={isPending}
+              onClick={() =>
+                setDraft({
+                  projects: TERM_DEFAULTS.projects,
+                  tasks: TERM_DEFAULTS.tasks,
+                  members: TERM_DEFAULTS.members,
+                  workflows: TERM_DEFAULTS.workflows,
+                  stages: TERM_DEFAULTS.stages,
+                })
+              }
+            >
+              Reset to defaults
+            </Button>
+          </div>
+        )}
+        {!canManageTerminology && (
+          <p className="text-xs text-muted-foreground">
+            Only members with the "Manage terminology" permission can edit these labels.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
@@ -685,7 +828,7 @@ const PERM_GROUPS: PermGroup[] = [
     keys: [
       "manage_webhooks", "manage_api_keys", "manage_custom_fields",
       "manage_workflow_stages", "manage_sla_policies", "manage_task_templates",
-      "manage_saved_views", "view_audit_log",
+      "manage_saved_views", "view_audit_log", "manage_terminology",
     ],
   },
 ];
@@ -707,6 +850,7 @@ const PERM_LABELS: Record<PermKey, string> = {
   manage_task_templates: "Task templates",
   manage_saved_views: "Saved views",
   view_audit_log: "Audit log",
+  manage_terminology: "Manage terminology",
 };
 
 // All permission keys in PERM_GROUPS order — used to build blank permission sets.
@@ -1946,6 +2090,7 @@ function SlaPoliciesCard() {
 // ─── OrgSettings page ─────────────────────────────────────────────────────────
 
 export default function OrgSettings() {
+  const { t, tSingular } = useTerminology();
   const { org, isAdmin, isOwner, hasPermission, refetchOrg } = useOrgContext();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -2200,8 +2345,8 @@ export default function OrgSettings() {
       {/* Members */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Members</CardTitle>
-          <CardDescription>{members.length} member{members.length !== 1 ? "s" : ""}</CardDescription>
+          <CardTitle className="text-base">{t("members")}</CardTitle>
+          <CardDescription>{members.length} {members.length !== 1 ? t("members").toLowerCase() : tSingular("members").toLowerCase()}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {members.map((m) => {
@@ -2383,7 +2528,7 @@ export default function OrgSettings() {
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <UserPlus className="w-4 h-4" />
-              Invite a member
+              Invite a {tSingular("members").toLowerCase()}
             </CardTitle>
             <CardDescription>
               Enter an email address or Replit user ID to invite someone to your organization.
@@ -2512,6 +2657,9 @@ export default function OrgSettings() {
 
       {/* Task Templates (admin only) */}
       {isAdmin && <TaskTemplatesCard />}
+
+      {/* Terminology (visible to all members, editable with manage_terminology) */}
+      <TerminologyCard />
 
       {/* API Keys (owner only, api_keys feature) */}
       {isOwner && <FeatureGate feature="api_keys"><ApiKeysCard /></FeatureGate>}

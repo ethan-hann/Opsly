@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTerminology } from "@/context/terminology-context";
 import { useListOrgMembers } from "@workspace/api-client-react";
 import { Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ export function AssigneeCombobox({
   error,
   onErrorChange,
 }: AssigneeComboboxProps) {
+  const { t } = useTerminology();
   const [open, setOpen] = useState(false);
   const { data: members = [] } = useListOrgMembers();
 
@@ -122,11 +124,11 @@ export function AssigneeCombobox({
                     </Button>
                   </div>
                 ) : (
-                  "No members found."
+                  `No ${t("members").toLowerCase()} found.`
                 )}
               </CommandEmpty>
               {members.length > 0 && (
-                <CommandGroup heading="Org members">
+                <CommandGroup heading={t("members")}>
                   <CommandItem
                     value="__unassigned__"
                     onSelect={() => handleSelect("")}
