@@ -86,6 +86,10 @@ export function MarkdownEditor({
         height="100%"
         // Hide the drag-bar resizer — layout is controlled externally.
         visibleDragbar={false}
+        // Disable the library's built-in copy button — it injects a div.copied
+        // into every <pre> which escapes its container when a custom pre
+        // component renderer is used, rendering displaced below the code block.
+        disableCopy
         previewOptions={{
           remarkPlugins,
           rehypePlugins,
