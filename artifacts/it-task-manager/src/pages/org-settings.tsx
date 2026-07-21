@@ -1737,6 +1737,7 @@ function TemplateRow({
 // ─── Workflow Stages Card ─────────────────────────────────────────────────────
 
 function WorkflowStagesCard() {
+  const { t, tSingular } = useTerminology();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { data: stages = [], isLoading } = useListWorkflowStages();
@@ -1829,7 +1830,7 @@ function WorkflowStagesCard() {
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <Workflow className="w-4 h-4" />
-          Workflow Stages
+          {tSingular("workflows")} {t("stages")}
         </CardTitle>
         <CardDescription>
           Define the stages tasks move through in your organization. Each stage has a name, color,
@@ -1992,6 +1993,7 @@ function WorkflowStagesCard() {
 }
 
 function TaskTemplatesCard() {
+  const { tSingular } = useTerminology();
   const { toast } = useToast();
   const { data: templates = [], isLoading, refetch } = useListTaskTemplates();
   const [isCreating, setIsCreating] = useState(false);
@@ -2032,7 +2034,7 @@ function TaskTemplatesCard() {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <FileText className="w-4 h-4" />
-              Task Templates
+              {tSingular("tasks")} Templates
             </CardTitle>
             <CardDescription className="mt-1">
               Define reusable starting points for common tasks. Members can pick a template when
@@ -2846,7 +2848,7 @@ export default function OrgSettings() {
             <div>
               <CardTitle className="text-base flex items-center gap-2">
                 <Settings2 className="w-4 h-4" />
-                Roles &amp; permissions
+                {tSingular("members")} Roles &amp; permissions
               </CardTitle>
               <CardDescription className="mt-1">
                 {isOwner
