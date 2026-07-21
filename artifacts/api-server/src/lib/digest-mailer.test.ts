@@ -342,6 +342,56 @@ describe("digest-mailer", () => {
     expect(releaseUpdate).toMatchObject({ digestClaimedAt: null });
   });
 
+  // ─── Stale claim TTL: crashed-process recovery ──────────────────────────
+
+  it("re-claims and sends when digestClaimedAt is older than CLAIM_TTL_MS (stale — crashed process)", async () => {
+    // A process crashed after claiming but before sending. The claim is now
+    // 21 h old — past the 20 h CLAIM_TTL_MS window — so the DB WHERE clause
+    // includes the row again. The mailer must take a new claim and send.
+    const now             = new Date();
+    const lastSentAt      = new Date(now.getTime() - DAILY_GAP_MS - 5000);
+    const staleClaimedAt  = new Date(now.getTime() - DAILY_GAP_MS - 1000); // 21 h ago
+    const notifTime       = new Date(lastSentAt.getTime() + 1000);
+
+    queueSelects(
+      [makePref("u1", "daily", lastSentAt, staleClaimedAt)], // duePref — stale claim passes DB filter
+      [makeUser("u1")],                                       // users
+      [{ userId: "u1", orgId: "org1", orgName: "Acme" }],    // memberships
+      [makeNotification("org1", notifTime)],                  // allUnread
+    );
+    queueUpdate([{ userId: "u1" }]); // new claim succeeds (stale claim cleared by WHERE)
+    queueUpdate([]);                 // lastSentAt write + clear claim on success
+
+    await triggerOneRun();
+
+    // Email must be sent — the stale claim must not block the send.
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "u1@example.com" }),
+    );
+
+    // The new claim must have been written (first update sets digestClaimedAt = now).
+    const claimUpdate = updateSpy.mock.calls[0]?.[0];
+    expect(claimUpdate).toHaveProperty("digestClaimedAt");
+    expect(claimUpdate?.digestClaimedAt).toBeInstanceOf(Date);
+
+    // The success-path update clears digestClaimedAt and writes lastSentAt.
+    const successUpdate = updateSpy.mock.calls[1]?.[0];
+    expect(successUpdate).toMatchObject({ digestClaimedAt: null });
+    expect(successUpdate).toHaveProperty("lastSentAt");
+  });
+
+  it("does NOT select or send when digestClaimedAt is only 1 h old (claim still fresh)", async () => {
+    // A fresh claim (< CLAIM_TTL_MS) means another process is actively sending.
+    // The DB WHERE clause excludes the row; the mailer receives an empty duePref.
+    queueSelects([]); // duePref → empty (DB WHERE filtered out the fresh-claimed row)
+
+    await triggerOneRun();
+
+    expect(sendMailMock).not.toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
   // ─── Email not configured ────────────────────────────────────────────────
 
   it("does NOT send when email is not configured", async () => {
