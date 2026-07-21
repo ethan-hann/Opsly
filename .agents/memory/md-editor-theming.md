@@ -22,6 +22,16 @@ Override the library's GitHub-style CSS variables (`--color-canvas-default`, `--
 - `--color-accent-fg`       → `hsl(var(--primary))` (toolbar active state → amber)
 - `--color-danger-fg`       → `hsl(var(--destructive))`
 
+## Callout rendering — two separate pipelines
+
+**Standalone `MarkdownPreview`** uses `react-markdown` directly. `remarkCallouts` runs, stamps `data-callout` + `className="callout callout-note"` on the blockquote, and the custom `blockquote` component in `previewComponents` renders the styled box.
+
+**MDEditor built-in preview** uses `@uiw/react-markdown-preview`, which hard-codes `remarkAlert` from `remark-github-blockquote-alert` *before* any plugins we supply (see `preview.js` line 55: `[remarkAlert, ...our plugins, gfm]`). `remarkAlert` transforms the blockquote into `<div class="markdown-alert markdown-alert-note">` with a `<p class="markdown-alert-title">` child — **the `blockquote` component is never called**. Our `remarkCallouts` plugin runs after but finds no `[!NOTE]` text (already consumed) and does nothing.
+
+**Fix**: Pure CSS in `index.css` overrides `.wmde-markdown .markdown-alert*` with our design-system colours. No React component customisation needed for the editor preview path.
+
+**Why `className` fallback in `blockquote` component is still needed**: the standalone MarkdownPreview path uses react-markdown without `remarkAlert`; `remarkCallouts` stamps the class there and the blockquote component reads it.
+
 ## Notes page: dock system removed
 The custom dock/preview-panel system (hide/right/bottom/window dock buttons, `PanelGroup` splits, `openPreviewWindow`) was replaced by MDEditor's built-in Edit/Split/Preview toolbar buttons. In `notes.tsx`, the editor is rendered with `previewMode="live"` so users get the split view by default.
 
