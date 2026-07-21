@@ -529,3 +529,111 @@ describe("Background export job isolation — large-org path", () => {
     expect(exportBody.meta.orgId).not.toBe("org-b");
   });
 });
+
+// ---------------------------------------------------------------------------
+// GET /export/pending — jobInProgress flag integration tests
+//
+// These tests exercise the OR clause added to the pending-check query:
+//   WHERE status = 'complete' OR status = 'pending'
+//
+// The mock DB returns whatever is at the front of selectQueue when
+// db.select().from().where().limit(1) resolves.  Four cases are covered:
+//   1. No row at all              → { pending: false }
+//   2. Row with status="pending"  → { pending: false, jobInProgress: true }
+//   3. Row status="complete", not expired → { pending: true, token, ... }
+//   4. Row status="complete", expired    → { pending: false }
+// ---------------------------------------------------------------------------
+
+describe("GET /export/pending — jobInProgress identification", () => {
+  const futureDate = new Date(Date.now() + 3_600_000); // 1 hour ahead
+  const pastDate   = new Date(Date.now() - 3_600_000); // 1 hour ago
+
+  beforeEach(() => {
+    reset();
+  });
+
+  it("returns { pending: false } when no export job row exists", async () => {
+    // Queue an empty result — simulates no row for (userId, orgId).
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ pending: false });
+  });
+
+  it("returns { pending: false, jobInProgress: true } when the job row has status='pending'", async () => {
+    // Simulates a background export job that is still running.  The route
+    // must detect this row (via the OR clause) and signal jobInProgress so
+    // the client can restore the disabled-button guard after a page reload.
+    mockState.selectQueue.push([
+      {
+        id: 1,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "tok-in-progress",
+        objectKey: "org-a/user-a1/tok-in-progress",
+        status: "pending",
+        filename: "export.json",
+        contentType: "application/json",
+        expiresAt: futureDate,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ pending: false, jobInProgress: true });
+  });
+
+  it("returns { pending: true, token, filename, expiresAt } when the job row has status='complete' and has not expired", async () => {
+    const expiresAt = futureDate;
+
+    mockState.selectQueue.push([
+      {
+        id: 2,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "tok-complete",
+        objectKey: "org-a/user-a1/tok-complete",
+        status: "complete",
+        filename: "export-complete.json",
+        contentType: "application/json",
+        expiresAt,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toBe(true);
+    expect(res.body.token).toBe("tok-complete");
+    expect(res.body.filename).toBe("export-complete.json");
+    expect(typeof res.body.expiresAt).toBe("string");
+  });
+
+  it("returns { pending: false } when the completed job row has already expired", async () => {
+    // expiresAt is in the past — the export link has lapsed.
+    mockState.selectQueue.push([
+      {
+        id: 3,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "tok-expired",
+        objectKey: "org-a/user-a1/tok-expired",
+        status: "complete",
+        filename: "export-expired.json",
+        contentType: "application/json",
+        expiresAt: pastDate,
+        createdAt: new Date(Date.now() - 7_200_000),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ pending: false });
+  });
+});
