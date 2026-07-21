@@ -332,6 +332,22 @@
   border-radius: calc(var(--radius) - 2px);
 }
 
+/* ── Editor preview list styling ─────────────────────────────────────────────
+   Tailwind's preflight resets `list-style: none` on all ul/ol.  The library's
+   CSS sets padding-left but not list-style-type, so markers disappear.  Force
+   them back with !important to win the specificity race.                      */
+
+.wmde-markdown ul { list-style-type: disc    !important; }
+.wmde-markdown ol { list-style-type: decimal !important; }
+.wmde-markdown ul ul     { list-style-type: circle      !important; }
+.wmde-markdown ol ol,
+.wmde-markdown ul ol     { list-style-type: lower-roman !important; }
+.wmde-markdown ul ul ol,
+.wmde-markdown ul ol ol,
+.wmde-markdown ol ul ol,
+.wmde-markdown ol ol ol  { list-style-type: lower-alpha !important; }
+.wmde-markdown li        { display: list-item           !important; }
+
 /* ── Alert callout blocks ─────────────────────────────────────────────────────
    remark-github-blockquote-alert (pre-pended by @uiw/react-markdown-preview)
    transforms [!NOTE] blockquotes into:
@@ -362,16 +378,16 @@
   margin-bottom: 0.375rem !important;
 }
 
-/* NOTE — blue */
+/* NOTE — sky blue (desaturated vs pure blue, avoids dark-navy look on dark bg) */
 .wmde-markdown .markdown-alert.markdown-alert-note {
-  background-color: hsl(217 91% 60% / 0.08) !important;
-  border-left-color: hsl(217 91% 60%) !important;
+  background-color: hsl(199 80% 55% / 0.08) !important;
+  border-left-color: hsl(199 80% 50%) !important;
 }
 .wmde-markdown .markdown-alert.markdown-alert-note .markdown-alert-title {
-  color: hsl(217 91% 45%) !important;
+  color: hsl(199 80% 35%) !important;
 }
 .dark .wmde-markdown .markdown-alert.markdown-alert-note .markdown-alert-title {
-  color: hsl(217 91% 70%) !important;
+  color: hsl(199 80% 65%) !important;
 }
 
 /* TIP — green */

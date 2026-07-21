@@ -207,7 +207,8 @@ export function remarkCallouts() {
 // ── Callout configuration ─────────────────────────────────────────────────────
 
 export const CALLOUT_CONFIG = {
-  NOTE:    { icon: "ℹ️", border: "border-blue-500",   bg: "bg-blue-500/8",   label: "text-blue-600 dark:text-blue-400" },
+  // sky-500 (cyan-adjacent) avoids the dark-navy appearance blue-500 gives on dark stone backgrounds
+  NOTE:    { icon: "ℹ️", border: "border-sky-500",    bg: "bg-sky-500/8",    label: "text-sky-600 dark:text-sky-300" },
   TIP:     { icon: "💡", border: "border-green-500",  bg: "bg-green-500/8",  label: "text-green-600 dark:text-green-400" },
   WARNING: { icon: "⚠️", border: "border-yellow-500", bg: "bg-yellow-500/8", label: "text-yellow-600 dark:text-yellow-400" },
   CAUTION: { icon: "🚨", border: "border-red-500",    bg: "bg-red-500/8",    label: "text-red-600 dark:text-red-400" },
