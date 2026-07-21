@@ -1,37 +1,100 @@
 /**
  * Email client — nodemailer-based SMTP transporter.
  *
- * Configuration is read from environment variables:
+ * Configuration is read from environment variables at startup:
  *   SMTP_HOST     — mail server hostname
  *   SMTP_PORT     — port (default 587)
  *   SMTP_SECURE   — "true" for TLS/SSL (port 465), "false" for STARTTLS
  *   SMTP_USER     — SMTP auth username
  *   SMTP_PASS     — SMTP auth password
- *   SMTP_FROM     — sender address, e.g. "IT Tasks <noreply@example.com>"
+ *   SMTP_FROM     — sender address, e.g. "Opsly <noreply@example.com>"
  *   APP_URL       — base URL of the frontend, used in email links
  *
- * When SMTP_HOST is unset, sendMail is a silent no-op and the app runs
- * without email capability. All callers must handle this gracefully.
+ * A DB override (instance_smtp_config row) silently wins over env vars at
+ * runtime. Call loadSmtpOverride() on startup (after DB is ready) to apply
+ * any existing override, and applySmtpOverride() / clearSmtpOverride() from
+ * admin routes to change the live config without a restart.
+ *
+ * The SMTP password is never returned in any API response or log — only a
+ * boolean `hasPassword` is exposed.
+ *
+ * When SMTP_HOST is unset (and no DB override is active), sendMail is a
+ * silent no-op and the app runs without email capability.
  */
 
 import nodemailer from "nodemailer";
 import { logger } from "./logger";
+import { encrypt, decrypt } from "./encryption";
+import { db, instanceSmtpConfigTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
-// ─── Configuration ────────────────────────────────────────────────────────────
+// ─── Env-var defaults (immutable after startup) ───────────────────────────────
 
-const SMTP_HOST = process.env["SMTP_HOST"] ?? "";
-const SMTP_PORT = Number(process.env["SMTP_PORT"] ?? "587");
-const SMTP_SECURE = process.env["SMTP_SECURE"] === "true";
-const SMTP_USER = process.env["SMTP_USER"] ?? "";
-const SMTP_PASS = process.env["SMTP_PASS"] ?? "";
-const SMTP_FROM = process.env["SMTP_FROM"] ?? "IT Task Manager <noreply@example.com>";
+const ENV_CONFIG = {
+  host: process.env["SMTP_HOST"] ?? "",
+  port: Number(process.env["SMTP_PORT"] ?? "587"),
+  secure: process.env["SMTP_SECURE"] === "true",
+  user: process.env["SMTP_USER"] ?? "",
+  pass: process.env["SMTP_PASS"] ?? "",
+  from: process.env["SMTP_FROM"] ?? "Opsly <noreply@example.com>",
+};
+
+// ─── Mutable runtime config ───────────────────────────────────────────────────
+
+interface SmtpRuntimeConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  /** Plain-text password for the transporter — never exposed in API responses. */
+  pass: string;
+  from: string;
+  /** Where the active config came from. */
+  source: "env" | "db";
+}
+
+let _config: SmtpRuntimeConfig = {
+  ...ENV_CONFIG,
+  source: "env",
+};
+
+// ─── Transporter ─────────────────────────────────────────────────────────────
+
+let _transporter: nodemailer.Transporter | null = null;
+
+function buildTransporter(cfg: SmtpRuntimeConfig): nodemailer.Transporter | null {
+  if (!cfg.host) return null;
+  return nodemailer.createTransport({
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    ...(cfg.user && cfg.pass ? { auth: { user: cfg.user, pass: cfg.pass } } : {}),
+  });
+}
+
+function refreshTransporter(): void {
+  _transporter = buildTransporter(_config);
+}
+
+function getTransporter(): nodemailer.Transporter | null {
+  if (!_config.host) return null;
+  if (!_transporter) {
+    _transporter = buildTransporter(_config);
+  }
+  return _transporter;
+}
+
+// ─── Public config API ────────────────────────────────────────────────────────
 
 /** Returns true when SMTP has been configured. */
 export function isEmailConfigured(): boolean {
-  return Boolean(SMTP_HOST);
+  return Boolean(_config.host);
 }
 
-/** Returns a sanitized config snapshot (no password) for status display. */
+/**
+ * Returns a sanitized config snapshot — no password, only `hasPassword`.
+ * Includes `source` ("env" | "db") so the UI can show the appropriate badge.
+ */
 export function getEmailConfig(): {
   configured: boolean;
   host: string;
@@ -39,34 +102,135 @@ export function getEmailConfig(): {
   secure: boolean;
   user: string;
   from: string;
+  source: "env" | "db";
+  hasPassword: boolean;
 } {
   return {
     configured: isEmailConfigured(),
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    user: SMTP_USER,
-    from: SMTP_FROM,
+    host: _config.host,
+    port: _config.port,
+    secure: _config.secure,
+    user: _config.user,
+    from: _config.from,
+    source: _config.source,
+    hasPassword: Boolean(_config.pass),
   };
 }
 
-// ─── Transporter (lazy singleton) ─────────────────────────────────────────────
+// ─── DB override lifecycle ────────────────────────────────────────────────────
 
-let _transporter: nodemailer.Transporter | null = null;
+/**
+ * Read the instance_smtp_config row from the DB and, if present, merge it
+ * over the env-var defaults. Call once at server startup (after DB is ready).
+ */
+export async function loadSmtpOverride(): Promise<void> {
+  try {
+    const [row] = await db
+      .select()
+      .from(instanceSmtpConfigTable)
+      .where(eq(instanceSmtpConfigTable.id, "default"))
+      .limit(1);
 
-function getTransporter(): nodemailer.Transporter | null {
-  if (!isEmailConfigured()) return null;
-  if (!_transporter) {
-    _transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
-      ...(SMTP_USER && SMTP_PASS
-        ? { auth: { user: SMTP_USER, pass: SMTP_PASS } }
-        : {}),
-    });
+    if (!row) {
+      logger.debug("No SMTP DB override found — using environment variables");
+      return;
+    }
+
+    let pass = "";
+    if (row.passEncrypted) {
+      try {
+        pass = decrypt(row.passEncrypted);
+      } catch (err) {
+        logger.error({ err }, "Failed to decrypt SMTP password from DB — ignoring override");
+        return;
+      }
+    }
+
+    _config = {
+      host: row.host,
+      port: Number(row.port),
+      secure: row.secure,
+      user: row.user,
+      pass,
+      from: row.fromAddress,
+      source: "db",
+    };
+    refreshTransporter();
+    logger.info("SMTP config loaded from DB override");
+  } catch (err) {
+    logger.error({ err }, "Failed to load SMTP override from DB — using environment variables");
   }
-  return _transporter;
+}
+
+/**
+ * Persist a new SMTP config to the DB and apply it immediately.
+ * `pass` is optional — if omitted the existing password (if any) is retained.
+ */
+export async function applySmtpOverride(config: {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass?: string;
+  from: string;
+}): Promise<void> {
+  // Determine the password to store: use the new value if supplied, otherwise
+  // re-encrypt the current in-memory password (which came from the existing DB
+  // row or env vars).
+  const plainPass = config.pass !== undefined ? config.pass : _config.pass;
+  const passEncrypted = plainPass ? encrypt(plainPass) : null;
+
+  await db
+    .insert(instanceSmtpConfigTable)
+    .values({
+      id: "default",
+      host: config.host,
+      port: String(config.port),
+      secure: config.secure,
+      user: config.user,
+      passEncrypted,
+      fromAddress: config.from,
+    })
+    .onConflictDoUpdate({
+      target: instanceSmtpConfigTable.id,
+      set: {
+        host: config.host,
+        port: String(config.port),
+        secure: config.secure,
+        user: config.user,
+        passEncrypted,
+        fromAddress: config.from,
+        updatedAt: new Date(),
+      },
+    });
+
+  _config = {
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    user: config.user,
+    pass: plainPass,
+    from: config.from,
+    source: "db",
+  };
+  refreshTransporter();
+  logger.info({ host: config.host, port: config.port }, "SMTP config updated via admin override");
+}
+
+/**
+ * Delete the DB override row and revert to env-var values immediately.
+ */
+export async function clearSmtpOverride(): Promise<void> {
+  await db
+    .delete(instanceSmtpConfigTable)
+    .where(eq(instanceSmtpConfigTable.id, "default"));
+
+  _config = {
+    ...ENV_CONFIG,
+    source: "env",
+  };
+  refreshTransporter();
+  logger.info("SMTP DB override cleared — reverted to environment variables");
 }
 
 // ─── sendMail ─────────────────────────────────────────────────────────────────
@@ -94,7 +258,7 @@ export async function sendMail(
 
   try {
     await transporter.sendMail({
-      from: SMTP_FROM,
+      from: _config.from,
       to: opts.to,
       subject: opts.subject,
       html: opts.html,
@@ -142,14 +306,14 @@ export function buildInviteEmail(opts: {
 <head><meta charset="utf-8"><style>${STYLES}</style></head>
 <body>
 <div class="wrapper">
-  <div class="header"><h1>IT Task Manager</h1></div>
+  <div class="header"><h1>Opsly</h1></div>
   <div class="body">
     <h2>You've been invited to join ${opts.orgName}</h2>
-    <p>${opts.inviterName} has invited you to join their organization on IT Task Manager.</p>
+    <p>${opts.inviterName} has invited you to join their organization on Opsly.</p>
     <a class="cta" href="${opts.inviteLink}">Accept invitation</a>
     <p style="color:#6b7280;font-size:13px;">This invitation expires on ${expires}. If you did not expect this email, you can safely ignore it.</p>
   </div>
-  <div class="footer">IT Task Manager · This is an automated message.</div>
+  <div class="footer">Opsly · This is an automated message.</div>
 </div>
 </body>
 </html>`;
@@ -173,7 +337,7 @@ export function buildSlaBreachEmail(opts: {
 <head><meta charset="utf-8"><style>${STYLES}</style></head>
 <body>
 <div class="wrapper">
-  <div class="header"><h1>IT Task Manager — SLA Breach Alert</h1></div>
+  <div class="header"><h1>Opsly — SLA Breach Alert</h1></div>
   <div class="body">
     <h2>SLA breach: ${opts.taskTitle}</h2>
     <p>A task you are watching in <strong>${opts.orgName}</strong> has exceeded its SLA deadline.</p>
@@ -184,7 +348,7 @@ export function buildSlaBreachEmail(opts: {
     </table>
     <a class="cta" href="${opts.taskUrl}">View task</a>
   </div>
-  <div class="footer">IT Task Manager · This is an automated SLA alert.</div>
+  <div class="footer">Opsly · This is an automated SLA alert.</div>
 </div>
 </body>
 </html>`;
@@ -218,12 +382,12 @@ export function buildDigestEmail(opts: {
 <head><meta charset="utf-8"><style>${STYLES}</style></head>
 <body>
 <div class="wrapper">
-  <div class="header"><h1>IT Task Manager — ${period.charAt(0).toUpperCase() + period.slice(1)} digest</h1></div>
+  <div class="header"><h1>Opsly — ${period.charAt(0).toUpperCase() + period.slice(1)} digest</h1></div>
   <div class="body">
     <h2>Hi ${opts.userName},</h2>
     <p>Here's your ${period} notification digest for <strong>${opts.orgName}</strong>. You have ${opts.notifications.length} unread notification${opts.notifications.length !== 1 ? "s" : ""}.</p>
     <div style="margin:24px 0">${items}</div>
-    <a class="cta" href="${opts.appUrl}">Open IT Task Manager</a>
+    <a class="cta" href="${opts.appUrl}">Open Opsly</a>
     <p style="color:#6b7280;font-size:13px;margin-top:24px">
       You're receiving this because you opted into ${period} email digests.
       <a href="${opts.appUrl}/settings/notifications" style="color:#2563eb">Manage preferences</a>
@@ -231,7 +395,7 @@ export function buildDigestEmail(opts: {
       <a href="${opts.unsubscribeUrl}" style="color:#2563eb">Unsubscribe</a>
     </p>
   </div>
-  <div class="footer">IT Task Manager · This is an automated digest. <a href="${opts.unsubscribeUrl}" style="color:#6b7280">Unsubscribe from digest emails</a></div>
+  <div class="footer">Opsly · This is an automated digest. <a href="${opts.unsubscribeUrl}" style="color:#6b7280">Unsubscribe from digest emails</a></div>
 </div>
 </body>
 </html>`;

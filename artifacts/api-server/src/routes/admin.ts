@@ -20,7 +20,7 @@ import {
 } from '@workspace/db';
 import type { OrgFeature } from '@workspace/db';
 import { requireInstanceAdmin } from '../middlewares/requireInstanceAdmin';
-import { sendMail, getEmailConfig } from '../lib/email';
+import { sendMail, getEmailConfig, applySmtpOverride, clearSmtpOverride } from '../lib/email';
 
 const router: IRouter = Router();
 
@@ -378,8 +378,84 @@ router.get('/admin/usage', async (_req, res) => {
 /**
  * GET /api/admin/email/status
  * Return the current SMTP configuration status (no secrets exposed).
+ * Includes `source` ("env"|"db") and `hasPassword` boolean.
  */
 router.get('/admin/email/status', (_req, res) => {
+  res.json(getEmailConfig());
+});
+
+/**
+ * PUT /api/admin/email/config
+ * Persist a new SMTP config override and apply it immediately.
+ * The password field is optional — if omitted, the existing password is kept.
+ * Body: { host, port, secure, user, pass?, from }
+ */
+router.put('/admin/email/config', async (req, res) => {
+  const body = req.body as {
+    host?: unknown;
+    port?: unknown;
+    secure?: unknown;
+    user?: unknown;
+    pass?: unknown;
+    from?: unknown;
+  };
+
+  if (typeof body.host !== 'string' || !body.host.trim()) {
+    res.status(400).json({ error: 'host (string) is required' });
+    return;
+  }
+  const portNum = Number(body.port);
+  if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+    res.status(400).json({ error: 'port must be an integer between 1 and 65535' });
+    return;
+  }
+  if (typeof body.secure !== 'boolean') {
+    res.status(400).json({ error: 'secure (boolean) is required' });
+    return;
+  }
+  if (typeof body.from !== 'string' || !body.from.trim()) {
+    res.status(400).json({ error: 'from (string) is required' });
+    return;
+  }
+
+  const config: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    pass?: string;
+    from: string;
+  } = {
+    host: (body.host as string).trim(),
+    port: portNum,
+    secure: body.secure as boolean,
+    user: typeof body.user === 'string' ? body.user.trim() : '',
+    from: (body.from as string).trim(),
+  };
+
+  if (typeof body.pass === 'string') {
+    config.pass = body.pass;
+  }
+
+  await applySmtpOverride(config);
+
+  await logAdminAction(req.instanceAdminActor!, 'update_smtp_config', 'smtp', 'default', {
+    host: config.host,
+    port: config.port,
+  });
+
+  res.json(getEmailConfig());
+});
+
+/**
+ * DELETE /api/admin/email/config
+ * Remove the DB override and revert to environment variable values immediately.
+ */
+router.delete('/admin/email/config', async (req, res) => {
+  await clearSmtpOverride();
+
+  await logAdminAction(req.instanceAdminActor!, 'clear_smtp_config', 'smtp', 'default');
+
   res.json(getEmailConfig());
 });
 

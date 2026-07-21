@@ -5,6 +5,7 @@ import { startSlaPoller } from "./lib/sla-poller";
 import { startNotificationPruner } from "./lib/notification-pruner";
 import { startDigestMailer } from "./lib/digest-mailer";
 import { db, usersTable } from "@workspace/db";
+import { loadSmtpOverride } from "./lib/email";
 import { eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
@@ -65,6 +66,9 @@ const server = app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
   void warnIfNoAdminConfigured();
+  // Load any DB-persisted SMTP override so the first email after startup uses
+  // the correct config without needing a manual re-save.
+  void loadSmtpOverride();
   const slaPoller = startSlaPoller();
   const notificationPruner = startNotificationPruner();
   const digestMailer = startDigestMailer();

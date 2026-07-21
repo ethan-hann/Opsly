@@ -84,3 +84,33 @@ export type OrgFeatureRow = typeof orgFeaturesTable.$inferSelect;
 export type InsertOrgFeatureRow = typeof orgFeaturesTable.$inferInsert;
 export type InstanceAuditLog = typeof instanceAuditLogTable.$inferSelect;
 export type InsertInstanceAuditLog = typeof instanceAuditLogTable.$inferInsert;
+
+// ─── Instance SMTP config ─────────────────────────────────────────────────────
+
+/**
+ * Single-row table (keyed by id = 'default') that holds a live SMTP config
+ * override. When a row is present, the API server uses it in preference to
+ * environment variables. The password is stored AES-256-GCM encrypted via
+ * the encryption utility in artifacts/api-server/src/lib/encryption.ts.
+ *
+ * A server restart clears the in-memory override but the DB row persists,
+ * so loadSmtpOverride() re-applies it on next startup.
+ */
+export const instanceSmtpConfigTable = pgTable('instance_smtp_config', {
+  /** Always 'default' — single-row table. */
+  id: text('id').primaryKey().default('default'),
+  host: text('host').notNull(),
+  port: text('port').notNull(),
+  secure: boolean('secure').notNull().default(false),
+  user: text('user').notNull().default(''),
+  /** AES-256-GCM ciphertext from encrypt(). Null if no password is set. */
+  passEncrypted: text('pass_encrypted'),
+  fromAddress: text('from_address').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+export type InstanceSmtpConfig = typeof instanceSmtpConfigTable.$inferSelect;
+export type InsertInstanceSmtpConfig = typeof instanceSmtpConfigTable.$inferInsert;
