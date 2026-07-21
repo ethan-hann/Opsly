@@ -8,12 +8,13 @@
  *  - GET /tasks/:id/comments — org-scoping (task must belong to org), 404 on miss
  *  - POST /tasks/:id/comments — org-scoping, body validation, 201 on success
  *  - PATCH /comments/:id — ownership-or-edit_comments gate, body validation, 200 on success,
- *      editedAt is a proper ISO string in the response; list-comments also serializes editedAt correctly
+ *      editedAt is a proper ISO string in the response; list-comments also serializes editedAt correctly;
+ *      API key with comments:write scope bypasses ownership check via hasPermission → true
  *  - DELETE /comments/:id — org-scoped select (permission check) + DELETE WHERE id AND org_id
  *      to prevent cross-org race; 404 on miss/mismatch, 403 on insufficient permission, 204 on success
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
 
@@ -27,6 +28,8 @@ const mockState = vi.hoisted(() => ({
   updateResult: [] as any[], // used by soft-delete (db.update)
   currentUserId: "user-1",
   manageOrgSettings: false,
+  /** When true the middleware simulates an API key request (no session, apiKeyId set). */
+  isApiKey: false,
 }));
 
 // ---------------------------------------------------------------------------
@@ -95,16 +98,29 @@ vi.mock("drizzle-orm", () => ({
 }));
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
-  hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  // Mirror the real hasPermission: API key requests always return true (scope-gated
+  // at the requireScope middleware layer); session requests consult orgPermissions.
+  hasPermission: (req: any, key: string) => {
+    if (req.apiKeyId) return true;
+    return req.orgPermissions?.[key] ?? false;
+  },
   requireScope: () => (_req: any, _res: any, next: any) => next(),
   requireOrgOrApiKey: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
-    req.user = { id: mockState.currentUserId };
-    req.orgPermissions = {
-      manage_projects: mockState.manageOrgSettings,
-      delete_comments: mockState.manageOrgSettings,
-      edit_comments: mockState.manageOrgSettings,
-    };
+    if (mockState.isApiKey) {
+      // Simulate an API key request: no session user, apiKeyId present.
+      req.apiKeyId = "test-api-key";
+      req.apiKeyScopes = ["comments:write", "comments:read"];
+      req.user = null;
+      // orgPermissions intentionally not set — API keys rely on scope, not RBAC.
+    } else {
+      req.user = { id: mockState.currentUserId };
+      req.orgPermissions = {
+        manage_projects: mockState.manageOrgSettings,
+        delete_comments: mockState.manageOrgSettings,
+        edit_comments: mockState.manageOrgSettings,
+      };
+    }
     next();
   },
   requireOrg: (req: any, _res: any, next: any) => {
@@ -436,6 +452,91 @@ describe("PATCH /api/comments/:id", () => {
     const res = await request(buildApp())
       .patch("/api/comments/bad-id")
       .send({ content: "Updated content" });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/comments/:id — API key caller
+//
+// Authorization logic for API key requests:
+//   • requireOrgOrApiKey passes through without a session (orgId set by authMiddleware).
+//   • requireScope("comments:write") gates the route; a key without the scope is rejected.
+//   • hasPermission() returns true for any API key caller, so the ownership check
+//     (isOwner || canEdit) is always satisfied — the key can edit any comment in its org.
+//     This is intentional: scope enforcement already constrains what the key may do;
+//     layering an ownership check on top would make the API key useless for moderation
+//     tooling that legitimately needs to edit comments it did not create.
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/comments/:id — API key caller", () => {
+  const MOCK_EDITED_COMMENT_API = {
+    ...MOCK_COMMENT,
+    content: "Edited by API key",
+    editedAt: new Date("2024-07-01T09:00:00.000Z"),
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.updateResult = [];
+    mockState.isApiKey = true; // simulate API key request
+  });
+
+  afterEach(() => {
+    mockState.isApiKey = false; // restore default for other suites
+  });
+
+  it("returns 200 with updated content when editing a comment the key did not create", async () => {
+    // The comment belongs to "user-1" but the API key has no userId — ownership
+    // check must be bypassed via hasPermission() returning true for API keys.
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]); // comment found
+    mockState.updateResult = [MOCK_EDITED_COMMENT_API];                   // update succeeds
+    mockState.selectQueue.push([]);                                        // reactions enrichment (empty)
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Edited by API key" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 1, content: "Edited by API key" });
+    expect(typeof res.body.editedAt).toBe("string");
+    expect(res.body.editedAt).toBe("2024-07-01T09:00:00.000Z");
+  });
+
+  it("returns 200 when editing a legacy comment with no userId (null owner)", async () => {
+    // Comments created before the userId column was added have userId: null.
+    // An API key must still be able to edit them — the ownership check (null === null
+    // would be a false match) is bypassed entirely via hasPermission → true.
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: null }]); // legacy comment
+    mockState.updateResult = [{ ...MOCK_EDITED_COMMENT_API, userId: null }];
+    mockState.selectQueue.push([]);                                    // reactions enrichment
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Edited by API key" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ content: "Edited by API key" });
+  });
+
+  it("returns 404 when the comment does not exist", async () => {
+    mockState.selectQueue.push([]); // comment not found
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Edited by API key" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when content is missing", async () => {
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]);
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({});
 
     expect(res.status).toBe(400);
   });

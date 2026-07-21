@@ -328,6 +328,14 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
 });
 
 // ─── Update (edit) comment ────────────────────────────────────────────────────
+//
+// Authorization matrix:
+//   Session caller  — must be the comment author (userId match) OR have the
+//                     edit_comments RBAC permission (Admin / Owner role).
+//   API key caller  — requires comments:write scope; hasPermission() returns true
+//                     for all API key requests, so the ownership check is bypassed.
+//                     This lets automation tooling edit any comment in its org without
+//                     needing the key to be the original author.
 
 router.patch("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"), async (req, res): Promise<void> => {
   const params = UpdateCommentParams.safeParse(req.params);
