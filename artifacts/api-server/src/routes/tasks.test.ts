@@ -1985,3 +1985,127 @@ describe("DELETE /api/tasks/:id", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ===========================================================================
+// GET /api/tasks/:id/events — cf: event for purged custom fields (#212)
+//
+// When a custom field is purged its definition row is hard-deleted.  Task
+// events referencing the field via "cf:<name>" still exist in taskEventsTable.
+// The events endpoint must return those events without 500.
+// ===========================================================================
+
+describe("GET /api/tasks/:id/events — cf: events for purged custom fields (#212)", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+  });
+
+  it("returns cf: events without 500 even when the custom field has been purged", async () => {
+    const cfEvent = {
+      id: 5,
+      taskId: 1,
+      orgId: "test-org",
+      actorId: "user-a",
+      actorName: "Alice",
+      field: "cf:Severity",           // field name was stored at write time
+      oldValue: "P1",
+      newValue: null,                  // cleared when field was purged
+      createdAt: new Date().toISOString(),
+    };
+
+    mockState.selectQueue.push([MOCK_TASK]);   // task ownership check
+    mockState.selectQueue.push([cfEvent]);      // events query
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    // The cf: prefix is preserved exactly as stored
+    expect(res.body[0].field).toMatch(/^cf:/);
+    expect(res.body[0].newValue).toBeNull();
+  });
+
+  it("returns multiple events including a mix of standard and cf: fields", async () => {
+    const events = [
+      {
+        id: 1, taskId: 1, orgId: "test-org",
+        actorId: "user-a", actorName: "Alice",
+        field: "status", oldValue: "todo", newValue: "in_progress",
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 2, taskId: 1, orgId: "test-org",
+        actorId: "user-b", actorName: "Bob",
+        field: "cf:Environment",   // purged custom field
+        oldValue: "production", newValue: null,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push(events);
+
+    const res = await request(buildApp()).get("/api/tasks/1/events");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].field).toBe("status");
+    expect(res.body[1].field).toMatch(/^cf:/);
+  });
+});
+
+// ===========================================================================
+// GET /api/tasks/:id — stageType field in task response (#326)
+//
+// When GET /api/tasks/:id joins with workflow_stages, the task response must
+// include stageType derived from the joined stage row.  A task in a "closed"
+// stage should return stageType: "closed"; one with no stage (null join)
+// defaults to "open".
+// ===========================================================================
+
+describe("GET /api/tasks/:id — stageType in response (#326)", () => {
+  const CLOSED_STAGE = { ...MOCK_STAGE, type: "closed", name: "Done" };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+  });
+
+  it("returns stageType: closed when the task stage has type=closed", async () => {
+    const taskInClosedStage = { ...MOCK_TASK, status: "1" };
+    // GET /tasks/:id enrichment queue: task + getOrgStages + SLA policies + comment count
+    mockState.selectQueue.push([taskInClosedStage]);         // task lookup
+    mockState.selectQueue.push([CLOSED_STAGE]);               // getOrgStages → contains closed stage
+    mockState.selectQueue.push([]);                           // SLA policies
+    mockState.selectQueue.push([{ count: 0 }]);              // comment count
+
+    const res = await request(buildApp()).get("/api/tasks/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ stageType: "closed" });
+  });
+
+  it("returns stageType: open by default when status does not map to a stage", async () => {
+    pushEnrichedTask(); // uses MOCK_TASK with no matching stage
+
+    const res = await request(buildApp()).get("/api/tasks/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ stageType: "open" });
+  });
+});
+
+// ===========================================================================
+// GET /api/tasks — EXPLAIN index check (#205)
+//
+// This test requires a live database and must run in isolation-db.test.ts
+// where the real db is used.  It is intentionally kept as describe.skip here
+// because tasks.test.ts uses a mocked @workspace/db (db.execute is absent).
+// The live-DB version lives in isolation-db.test.ts.
+// ===========================================================================
+
+describe.skip("GET /api/tasks — EXPLAIN index check (#205) [run via isolation-db.test.ts]", () => {
+  it("task list query uses an index scan on orgId", async () => {});
+});

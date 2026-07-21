@@ -79,7 +79,7 @@ vi.mock("./logger", () => ({
 // ---------------------------------------------------------------------------
 // Import the module under test AFTER all mocks are registered
 // ---------------------------------------------------------------------------
-import { createNotification, notifyTaskAssigned, notifyCommentAdded } from "./notifications.js";
+import { createNotification, notifyTaskAssigned, notifyCommentAdded, notifyTaskUpdated } from "./notifications.js";
 
 // ---------------------------------------------------------------------------
 // Reset helpers
@@ -274,3 +274,97 @@ describe("notifyCommentAdded", () => {
     expect(insertSpy).toHaveBeenCalledTimes(3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// notifyTaskUpdated (#250)
+//
+// Should dispatch a notification to every recipient EXCEPT the actor.
+// ---------------------------------------------------------------------------
+
+describe("notifyTaskUpdated", () => {
+  beforeEach(reset);
+
+  it("dispatches to all recipients except the actor", async () => {
+    // user-1 = actor, user-2 + user-3 = recipients
+    // Each createNotification call: (1) pref lookup, (2) insert, (3) unread count
+    selectQueue.items.push([], []);                                  // pref lookups for user-2, user-3
+    selectQueue.items.push([{ count: 1 }], [{ count: 2 }]);         // unread counts
+
+    await notifyTaskUpdated({
+      taskId: 7,
+      taskTitle: "Deploy fix",
+      orgId: "org-a",
+      actorId: "user-1",
+      actorName: "Alice",
+      recipientUserIds: ["user-1", "user-2", "user-3"],
+      changedField: "status",
+      newValue: "done",
+    });
+
+    // user-1 (actor) filtered out → 2 inserts
+    expect(insertSpy).toHaveBeenCalledTimes(2);
+    const recipientIds = insertSpy.mock.calls.map((c: any[]) => c[0].userId);
+    expect(recipientIds).toContain("user-2");
+    expect(recipientIds).toContain("user-3");
+    expect(recipientIds).not.toContain("user-1");
+  });
+
+  it("does not dispatch any notification when the recipient list is empty", async () => {
+    await notifyTaskUpdated({
+      taskId: 8,
+      taskTitle: "Empty task",
+      orgId: "org-b",
+      actorId: "user-x",
+      actorName: "X",
+      recipientUserIds: [],
+      changedField: "priority",
+      newValue: "high",
+    });
+
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(pushEventSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when the only recipient IS the actor", async () => {
+    await notifyTaskUpdated({
+      taskId: 9,
+      taskTitle: "Self-assign task",
+      orgId: "org-a",
+      actorId: "user-solo",
+      actorName: "Solo",
+      recipientUserIds: ["user-solo"],
+      changedField: "assignee",
+      newValue: "user-solo",
+    });
+
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+
+  it("includes the changed field and new value in the notification message", async () => {
+    selectQueue.items.push([]);            // pref lookup
+    selectQueue.items.push([{ count: 0 }]); // unread count
+
+    await notifyTaskUpdated({
+      taskId: 10,
+      taskTitle: "API outage",
+      orgId: "org-a",
+      actorId: "user-a",
+      actorName: "Bob",
+      recipientUserIds: ["user-b"],
+      changedField: "status",
+      newValue: "resolved",
+    });
+
+    expect(insertSpy).toHaveBeenCalledOnce();
+    const insertArg = insertSpy.mock.calls[0][0];
+    expect(insertArg).toMatchObject({
+      userId: "user-b",
+      type: "task_updated",
+      entityId: 10,
+    });
+    expect(insertArg.message).toContain("status");
+    expect(insertArg.message).toContain("resolved");
+    expect(insertArg.message).toContain("API outage");
+  });
+});
+

@@ -1010,3 +1010,85 @@ describe("Body field injection — role: admin in body never bypasses webhook cr
     expect(res.status).toBe(403);
   });
 });
+
+// ===========================================================================
+// Outbound webhook — event-type validation for unrecognized event strings
+// (#216, #221)
+//
+// POST /webhooks/outbound must reject any event string not in OutboundEventEnum.
+// "task.overdue" has never been a valid event type (not in the schema).
+// "watcher.added" is the wrong spelling — the correct name is "task.watcher_added".
+// Both should return 400.
+// ===========================================================================
+
+describe("POST /webhooks/outbound — rejects unrecognized event types (#216, #221)", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.deleteResult = [];
+  });
+
+  it("returns 400 for a non-existent event type (task.overdue)", async () => {
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({
+        name: "Old client hook",
+        url: "https://example.com/hook",
+        events: ["task.overdue"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for the wrong watcher event name (watcher.added instead of task.watcher_added)", async () => {
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({
+        name: "v0 client hook",
+        url: "https://example.com/hook",
+        events: ["watcher.added"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for the wrong watcher removal event name (watcher.removed instead of task.watcher_removed)", async () => {
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({
+        name: "v0 client hook",
+        url: "https://example.com/hook",
+        events: ["watcher.removed"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when mixing a valid event with an invalid one", async () => {
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({
+        name: "Mixed hook",
+        url: "https://example.com/hook",
+        events: ["task.created", "task.overdue"],
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 201 when using the correct task.watcher_added event name (positive control)", async () => {
+    const hook = makeOutboundHook({ events: ["task.watcher_added"] });
+    mockState.insertResult = [hook];
+
+    const res = await request(buildApp())
+      .post("/api/webhooks/outbound")
+      .send({
+        name: "Watcher hook",
+        url: "https://example.com/hook",
+        events: ["task.watcher_added"],
+      });
+
+    expect(res.status).toBe(201);
+  });
+});

@@ -418,3 +418,84 @@ describe("digest-mailer", () => {
     expect(sendMailMock).not.toHaveBeenCalled();
   });
 });
+
+// ===========================================================================
+// Multi-org digest bundling (#330)
+//
+// A user who belongs to two organizations should receive ONE digest email
+// that bundles unread notifications from both orgs — not two separate emails.
+// ===========================================================================
+
+describe("digest-mailer — multi-org digest bundling (#330)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    selectQueue.items.length = 0;
+    (db as any)._updateQueue.length = 0;
+    updateSpy.mockClear();
+    sendMailMock.mockClear();
+    sendMailMock.mockResolvedValue({ ok: true });
+    isEmailCfgMock.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("sends exactly one email when the user has notifications from two different orgs", async () => {
+    const now        = new Date();
+    const lastSentAt = new Date(now.getTime() - DAILY_GAP_MS - 5000);
+    const notifTime  = new Date(lastSentAt.getTime() + 1000);
+
+    queueSelects(
+      [makePref("u1", "daily", lastSentAt)],                        // duePref
+      [makeUser("u1")],                                             // users
+      [                                                             // memberships — two orgs
+        { userId: "u1", orgId: "org-a", orgName: "Acme" },
+        { userId: "u1", orgId: "org-b", orgName: "Beta Co" },
+      ],
+      [                                                             // allUnread — notifications from both orgs
+        makeNotification("org-a", notifTime),
+        makeNotification("org-b", notifTime),
+      ],
+    );
+    queueUpdate([{ userId: "u1" }]);  // claim succeeds
+    queueUpdate([]);                   // lastSentAt write + clear claim
+
+    await triggerOneRun();
+
+    // ONE email — not two separate org-specific emails
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    expect(sendMailMock.mock.calls[0][0]).toMatchObject({
+      to: "u1@example.com",
+    });
+  });
+
+  it("does NOT split the digest into per-org emails", async () => {
+    const now        = new Date();
+    const lastSentAt = new Date(now.getTime() - DAILY_GAP_MS - 5000);
+    const notifTime  = new Date(lastSentAt.getTime() + 1000);
+
+    queueSelects(
+      [makePref("u2", "daily", lastSentAt)],
+      [makeUser("u2")],
+      [
+        { userId: "u2", orgId: "org-1", orgName: "Org One" },
+        { userId: "u2", orgId: "org-2", orgName: "Org Two" },
+        { userId: "u2", orgId: "org-3", orgName: "Org Three" },
+      ],
+      [
+        makeNotification("org-1", notifTime),
+        makeNotification("org-2", notifTime),
+        makeNotification("org-3", notifTime),
+      ],
+    );
+    queueUpdate([{ userId: "u2" }]); // claim
+    queueUpdate([]);                  // success update
+
+    await triggerOneRun();
+
+    // Still just ONE email regardless of how many orgs the user belongs to
+    expect(sendMailMock).toHaveBeenCalledOnce();
+    expect(sendMailMock.mock.calls[0][0].to).toBe("u2@example.com");
+  });
+});

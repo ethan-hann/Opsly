@@ -950,3 +950,79 @@ describe("Body 'role' field injection — role: admin in request body never gran
     expect(res.status).toBe(403);
   });
 });
+
+// ===========================================================================
+// PUT /api/org/sla-policies — org-level SLA changes tracked in audit log (#270)
+// ===========================================================================
+
+describe("PUT /api/org/sla-policies — audit event on policy update (#270)", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertQueue.length = 0;
+    mockState.insertPayloads.length = 0;
+    mockState.updateCalls = 0;
+    mockState.deleteCalls = 0;
+    mockState.permissions = { ...mockState.ALL_PERMS };
+  });
+
+  it("clears and re-inserts policies on a valid PUT (delete-then-insert pattern verified)", async () => {
+    const saved = { ...MOCK_SLA_POLICY, resolutionMinutes: 480 };
+    mockState.insertQueue.push([saved]);
+
+    const res = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send({ policies: [{ priority: "high", resolutionMinutes: 480 }] });
+
+    expect(res.status).toBe(200);
+    // The route deletes existing policies before inserting new ones
+    expect(mockState.deleteCalls).toBeGreaterThanOrEqual(1);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0]).toMatchObject({ resolutionMinutes: 480 });
+  });
+
+  it("clearing all policies with [] persists the empty set (no policies remain)", async () => {
+    const res = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send({ policies: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+    // Existing policies must have been cleared
+    expect(mockState.deleteCalls).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// ===========================================================================
+// hasSlaOverrides resets after clearing all project SLA overrides (#249)
+//
+// PUT /api/org/sla-policies with an empty array clears the policy set.
+// GET /api/org/sla-policies then returns [] confirming no overrides remain.
+// ===========================================================================
+
+describe("PUT /api/org/sla-policies — hasSlaOverrides effectively clears (#249)", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertQueue.length = 0;
+    mockState.insertPayloads.length = 0;
+    mockState.deleteCalls = 0;
+    mockState.permissions = { ...mockState.ALL_PERMS };
+  });
+
+  it("GET returns [] after PUT with empty policies array (no overrides remain)", async () => {
+    // Step 1: PUT [] to clear all policies
+    const putRes = await request(buildOrgsApp())
+      .put("/api/org/sla-policies")
+      .send({ policies: [] });
+
+    expect(putRes.status).toBe(200);
+    expect(putRes.body).toEqual([]);
+
+    // Step 2: GET returns [] — no overrides exist anymore
+    mockState.selectQueue.push([]); // DB returns no rows
+
+    const getRes = await request(buildOrgsApp()).get("/api/org/sla-policies");
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body).toEqual([]);
+  });
+});

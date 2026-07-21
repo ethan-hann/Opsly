@@ -551,3 +551,187 @@ describe("DELETE /api/comments/:id", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Notification spies — hoisted so vi.mock factory can reference them.
+// These only affect tests that explicitly await vi.waitFor; other tests are
+// unaffected because they don't assert on notification behaviour.
+// ---------------------------------------------------------------------------
+const notificationSpies = vi.hoisted(() => ({
+  mentions: vi.fn().mockResolvedValue(undefined),
+  commentAdded: vi.fn().mockResolvedValue(undefined),
+  commentReply: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("../lib/notifications", () => ({
+  notifyMentions: notificationSpies.mentions,
+  notifyCommentAdded: notificationSpies.commentAdded,
+  notifyCommentReply: notificationSpies.commentReply,
+  notifyTaskAssigned: vi.fn().mockResolvedValue(undefined),
+  notifyTaskUpdated: vi.fn().mockResolvedValue(undefined),
+  notifySlaBreached: vi.fn().mockResolvedValue(undefined),
+}));
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks/:id/comments — soft-deleted parent guard (#355)
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/comments — soft-deleted parent guard", () => {
+  beforeEach(() => {
+    mockState.selectQueue = [];
+    mockState.insertResult = [];
+    notificationSpies.mentions.mockClear();
+    notificationSpies.commentAdded.mockClear();
+  });
+
+  it("returns 404 when parentId points to a soft-deleted comment", async () => {
+    // selectQueue[0]: task found; selectQueue[1]: parent query returns empty (isNull check)
+    mockState.selectQueue.push([{ id: 1 }]);
+    mockState.selectQueue.push([]); // parent not found because deletedAt IS NOT NULL
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "reply to deleted", parentId: 99 });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: /[Pp]arent/ });
+  });
+
+  it("returns 201 when parentId points to a live (non-deleted) comment", async () => {
+    mockState.selectQueue.push([{ id: 1 }]);                       // task found
+    mockState.selectQueue.push([{ id: 99, userId: "user-2" }]);    // parent live ✓
+    mockState.insertResult = [{
+      id: 5, taskId: 1, orgId: "test-org", userId: "user-1",
+      content: "reply", parentId: 99, author: null,
+      createdAt: new Date(), editedAt: null, deletedAt: null,
+    }];
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "reply", parentId: 99 });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ content: "reply", parentId: 99 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks/:id/comments — mention de-duplication (#310)
+//
+// When a user is @-mentioned AND is a watcher, they should receive a mention
+// notification but NOT a duplicate watcher notification.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/comments — mention de-duplication", () => {
+  const FULL_TASK = {
+    id: 1, orgId: "test-org", orgTaskNumber: 1, title: "My Task",
+    status: "open", priority: "medium", projectId: null,
+    assignee: null, dueDate: null, category: null, description: null,
+    customFields: {}, slaBreachedAt: null, slaWarningSentAt: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue = [];
+    mockState.insertResult = [];
+    mockState.currentUserId = "user-actor";
+    notificationSpies.mentions.mockClear();
+    notificationSpies.commentAdded.mockClear();
+  });
+
+  it("calls notifyMentions once and skips notifyCommentAdded for the mentioned watcher", async () => {
+    // Queued in order the route's async IIFE consumes them:
+    //  [0] task (sync scope)
+    //  [1] fullTask (IIFE)
+    //  [2] customFieldDefs for resolveCustomFieldNames
+    //  [3] orgMembers — user-3 is active
+    //  [4] taskWatchers — user-3 is also a watcher → must be deduplicated
+    mockState.selectQueue.push([{ id: 1 }]);                                  // sync: task lookup
+    mockState.selectQueue.push([FULL_TASK]);                                   // IIFE: fullTask
+    mockState.selectQueue.push([]);                                            // IIFE: customFieldDefs
+    mockState.selectQueue.push([{ userId: "user-3" }]);                       // IIFE: orgMembers
+    mockState.selectQueue.push([{ userId: "user-3" }]);                       // IIFE: taskWatchers
+
+    mockState.insertResult = [{
+      id: 10, taskId: 1, orgId: "test-org", userId: "user-actor",
+      content: "hey @[user-3:Charlie]", parentId: null, author: null,
+      createdAt: new Date(), editedAt: null, deletedAt: null,
+    }];
+
+    await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "hey @[user-3:Charlie]" });
+
+    // Give the fire-and-forget IIFE time to complete
+    await vi.waitFor(() => {
+      expect(notificationSpies.mentions).toHaveBeenCalledOnce();
+    });
+
+    // user-3 was mentioned — must NOT also receive a watcher notification
+    expect(notificationSpies.commentAdded).not.toHaveBeenCalled();
+    expect(notificationSpies.mentions.mock.calls[0][0]).toMatchObject({
+      recipientUserIds: ["user-3"],
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/tasks/:id/comments — @everyone active-member scoping (#311)
+//
+// @[everyone] should notify only users present in orgMembersTable.
+// Pending invites and removed members have no orgMember row and are excluded.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/comments — @everyone active-only", () => {
+  const FULL_TASK = {
+    id: 1, orgId: "test-org", orgTaskNumber: 1, title: "Incident",
+    status: "open", priority: "high", projectId: null,
+    assignee: null, dueDate: null, category: null, description: null,
+    customFields: {}, slaBreachedAt: null, slaWarningSentAt: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue = [];
+    mockState.insertResult = [];
+    mockState.currentUserId = "user-actor";
+    notificationSpies.mentions.mockClear();
+    notificationSpies.commentAdded.mockClear();
+  });
+
+  it("notifies only orgMember rows — pending-invite and removed users are excluded", async () => {
+    // orgMembers returns ONLY the two active users.
+    // "pending-invite-user" and "removed-user" are NOT in this result
+    // because they have no orgMember row in a real DB.
+    mockState.selectQueue.push([{ id: 1 }]);                          // task
+    mockState.selectQueue.push([FULL_TASK]);                           // fullTask
+    mockState.selectQueue.push([]);                                    // customFieldDefs
+    mockState.selectQueue.push([                                       // orgMembers
+      { userId: "active-1" },
+      { userId: "active-2" },
+    ]);
+    mockState.selectQueue.push([]);                                    // taskWatchers
+
+    mockState.insertResult = [{
+      id: 11, taskId: 1, orgId: "test-org", userId: "user-actor",
+      content: "@[everyone]", parentId: null, author: null,
+      createdAt: new Date(), editedAt: null, deletedAt: null,
+    }];
+
+    await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "@[everyone]" });
+
+    await vi.waitFor(() => {
+      expect(notificationSpies.mentions).toHaveBeenCalledOnce();
+    });
+
+    const { recipientUserIds } = notificationSpies.mentions.mock.calls[0][0];
+    // Only the two active members — not the actor, not pending/removed
+    expect(recipientUserIds).toContain("active-1");
+    expect(recipientUserIds).toContain("active-2");
+    expect(recipientUserIds).not.toContain("user-actor");
+    expect(recipientUserIds).not.toContain("pending-invite-user");
+    expect(recipientUserIds).not.toContain("removed-user");
+  });
+});

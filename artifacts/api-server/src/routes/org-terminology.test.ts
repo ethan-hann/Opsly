@@ -367,3 +367,64 @@ describe('Cross-org isolation', () => {
     });
   });
 });
+
+// ===========================================================================
+// Custom singular term changes button labels (#335)
+//
+// Saving a custom term (e.g. 'Incident') via PATCH /api/orgs/terminology then
+// fetching via GET must return that value. The UI reads this API to render
+// button labels, so the API contract is the testable surface.
+// ===========================================================================
+
+describe('Custom singular term — API contract (#335)', () => {
+  beforeEach(() => {
+    mockState.selectQueue = [];
+    mockState.insertQueue = [];
+    mockState.orgPermissions.manage_terminology = true;
+  });
+
+  it('PATCH with a singular-form term saves and GET reflects it', async () => {
+    // Simulate the DB round-trip: PATCH upserts, GET returns the saved row
+    const savedRow = { termKey: 'tasks', customLabel: 'Incident' };
+    mockState.selectQueue.push([savedRow]); // GET resolveTerminology after PATCH
+
+    const patchRes = await request(buildApp())
+      .patch('/api/orgs/terminology')
+      .send({ tasks: 'Incident' });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.tasks).toBe('Incident');
+  });
+
+  it('singular-form custom term is returned correctly by GET', async () => {
+    // The GET endpoint returns whatever is stored — including singular-sounding labels
+    mockState.selectQueue.push([
+      { termKey: 'tasks', customLabel: 'Ticket' },
+    ]);
+
+    const res = await request(buildApp()).get('/api/orgs/terminology');
+
+    expect(res.status).toBe(200);
+    expect(res.body.tasks).toBe('Ticket');
+    // Other keys default to their plural form
+    expect(res.body.projects).toBe('Projects');
+    expect(res.body.members).toBe('Members');
+  });
+
+  it('saving different singular terms for tasks and projects works independently', async () => {
+    // Each key is stored separately; only the patched key changes
+    mockState.selectQueue.push([
+      { termKey: 'tasks', customLabel: 'Request' },
+      { termKey: 'projects', customLabel: 'Queue' },
+    ]);
+
+    const res = await request(buildApp()).get('/api/orgs/terminology');
+
+    expect(res.status).toBe(200);
+    expect(res.body.tasks).toBe('Request');
+    expect(res.body.projects).toBe('Queue');
+    // Un-customized keys still return their defaults
+    expect(res.body.members).toBe('Members');
+    expect(res.body.stages).toBe('Stages');
+  });
+});

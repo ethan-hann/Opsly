@@ -536,3 +536,85 @@ describe("GET /api/tasks?watching=true — org isolation", () => {
     expect(mockState.selectQueue).toHaveLength(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Watcher webhook payload fields (#222)
+//
+// dispatchWatcherAdded / dispatchWatcherRemoved must include task-identifying
+// fields (id, orgTaskNumber, orgId) and the watcher's userId.  Raw DB-internal
+// columns (e.g. foreign-key columns not meaningful to webhook consumers) must
+// not appear at the top level.
+// ---------------------------------------------------------------------------
+
+describe("POST /api/tasks/:id/watch — watcher webhook payload fields", () => {
+  const FULL_TASK = {
+    id: 5,
+    orgId: "org-a",
+    orgTaskNumber: 13,
+    title: "Investigate alert",
+    status: "open",
+    priority: "high",
+    projectId: 7,
+    assignee: null,
+    dueDate: null,
+    category: null,
+    description: null,
+    customFields: {},
+    slaBreachedAt: null,
+    slaWarningSentAt: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.onConflictReturning = [];
+    mockState.deleteReturning = [];
+    mockState.orgId = "org-a";
+    mockDispatch.watcherAdded.mockClear();
+    mockDispatch.watcherRemoved.mockClear();
+  });
+
+  it("dispatchWatcherAdded payload includes taskId, orgId, and watcherUserId", async () => {
+    mockState.selectQueue.push([FULL_TASK]);
+    mockState.onConflictReturning = [{ taskId: 5 }]; // new watcher inserted
+
+    await request(buildApp()).post("/api/tasks/5/watch");
+
+    expect(mockDispatch.watcherAdded).toHaveBeenCalledOnce();
+
+    const [orgId, projectId, taskArg, watcherArg] =
+      mockDispatch.watcherAdded.mock.calls[0];
+
+    expect(orgId).toBe("org-a");
+    expect(projectId).toBe(7);
+    // Task payload carries identity fields
+    expect(taskArg).toMatchObject({
+      id: 5,
+      orgTaskNumber: 13,
+    });
+    // Watcher payload carries the watcher's userId
+    expect(watcherArg).toHaveProperty("userId");
+    expect(watcherArg.userId).toBeTruthy();
+    // Raw DB join columns should not appear at the top level of watcherArg
+    expect(watcherArg).not.toHaveProperty("taskId"); // not a useful webhook field
+  });
+
+  it("dispatchWatcherRemoved payload includes orgId and watcherUserId", async () => {
+    mockState.selectQueue.push([FULL_TASK]);
+    mockState.deleteReturning = [{ taskId: 5 }]; // watcher row deleted
+
+    await request(buildApp()).delete("/api/tasks/5/watch");
+
+    expect(mockDispatch.watcherRemoved).toHaveBeenCalledOnce();
+
+    const [orgId, projectId, taskArg, watcherArg] =
+      mockDispatch.watcherRemoved.mock.calls[0];
+
+    expect(orgId).toBe("org-a");
+    expect(projectId).toBe(7);
+    expect(taskArg).toMatchObject({ id: 5, orgTaskNumber: 13 });
+    expect(watcherArg).toHaveProperty("userId");
+  });
+});

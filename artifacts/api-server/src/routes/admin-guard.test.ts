@@ -133,6 +133,9 @@ vi.mock("@workspace/db", () => {
     usersTable: {},
     workflowStagesTable: {},
     slaPoliciesTable: {},
+    orgEventsTable: {},
+    taskEventsTable: {},
+    tasksTable: {},
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: MEMBER_PERMS,
@@ -151,6 +154,18 @@ vi.mock("drizzle-orm", () => ({
   or: () => ({}),
   sql: () => ({}),
   isNull: () => ({}),
+  isNotNull: () => ({}),
+  asc: () => ({}),
+  desc: () => ({}),
+  lt: () => ({}),
+  lte: () => ({}),
+  gte: () => ({}),
+  gt: () => ({}),
+  ne: () => ({}),
+  not: () => ({}),
+  inArray: () => ({}),
+  notInArray: () => ({}),
+  ilike: () => ({}),
 }));
 
 // Email / SSE helpers are not relevant to permission tests — stub them out.
@@ -494,5 +509,75 @@ describe("Admin-guard pass-through: Owner caller is not blocked by the guards", 
     const res = await request(buildApp()).delete("/api/roles/role-custom");
 
     expect(res.status).not.toBe(403);
+  });
+});
+
+// ===========================================================================
+// view_audit_log permission gate — GET /api/audit-log (#323)
+// ===========================================================================
+
+import auditLogRouter from "./audit-log.js";
+
+describe("Admin-guard rejection: Member caller receives 403 on GET /api/audit-log", () => {
+  // Reuse the existing selectQueue for the member role lookup
+  function buildAuditApp() {
+    const app = express();
+    app.use(express.json());
+    // Inject req.user exactly as buildApp() does — requireOrg needs this.
+    app.use((req: Request, _res: Response, next: NextFunction) => {
+      (req as any).user = { id: "user-member" };
+      next();
+    });
+    app.use("/api", auditLogRouter);
+    return app;
+  }
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+  });
+
+  it("returns 403 for a Member who lacks view_audit_log", async () => {
+    // The REAL requireOrg middleware reads the orgMember+role row from the DB.
+    // The mock returns a Member with MEMBER_PERMS (view_audit_log: false).
+    // After requireOrg, audit-log.ts checks hasPermission(req, 'view_audit_log').
+    mockState.selectQueue.push([{
+      orgId: "test-org",
+      roleId: "role-member",
+      roleName: "Member",
+      isOwner: false,
+      permissions: MEMBER_PERMS,
+      isDisabled: false,
+    }]);
+
+    const res = await request(buildAuditApp()).get("/api/org/audit-log");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("does NOT return 403 for an admin who has view_audit_log", async () => {
+    // The key assertion: the permission guard must NOT block an admin caller.
+    // The route may still return another status (e.g. 500 if downstream mock
+    // queries fail) — that is a mock-complexity limitation, not a guard error.
+    // The critical contract is: view_audit_log: true → no 403 from the guard.
+    const adminPerms = { ...MEMBER_PERMS, view_audit_log: true };
+    mockState.selectQueue.push([{
+      orgId: "test-org",
+      roleId: "role-admin",
+      roleName: "Admin",
+      isOwner: false,
+      permissions: adminPerms,
+      isDisabled: false,
+    }]);
+    // Extra empty entries for the audit-log route's internal DB queries
+    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([]);
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildAuditApp()).get("/api/org/audit-log");
+
+    // 403 = permission denied.  Any other status means the guard passed.
+    expect(res.status).not.toBe(403);
+    expect(res.body?.error).not.toBe("Permission required: view_audit_log");
   });
 });

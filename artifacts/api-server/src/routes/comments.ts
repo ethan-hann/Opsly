@@ -173,6 +173,7 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
           eq(commentsTable.id, parsed.data.parentId),
           eq(commentsTable.taskId, params.data.id),
           eq(commentsTable.orgId, orgId),
+          isNull(commentsTable.deletedAt),
         ),
       )
       .limit(1);

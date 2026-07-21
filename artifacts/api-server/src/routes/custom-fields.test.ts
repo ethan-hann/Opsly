@@ -119,6 +119,10 @@ vi.mock("drizzle-orm", () => ({
   sql: mockSql,
 }));
 
+vi.mock("../lib/log-org-event", () => ({
+  logOrgEvent: async () => undefined,
+}));
+
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
   requireScope: () => (_req: any, _res: any, next: any) => next(),
@@ -1108,5 +1112,115 @@ describe("Body 'role' field injection — role: admin in request body never elev
       .send({ role: "admin" });
 
     expect(res.status).toBe(403);
+  });
+});
+
+// ===========================================================================
+// PATCH /api/custom-fields/:id — org isolation for option-removal conflict
+// check (#224)
+//
+// The conflict check queries tasks WHERE customFields->>fieldId IS NOT NULL
+// AND orgId = :orgId.  When the orgId clause is present, tasks from org-b
+// that happen to store the same option string cannot trigger a 409 for org-a.
+// ===========================================================================
+
+describe("PATCH /api/custom-fields/:id — org isolation on option-removal conflict check (#224)", () => {
+  // Reuse the module-level MOCK_SELECT_DEF fixture which matches the full DB
+  // row shape (id, orgId, name, type, options, position, deletedAt, createdAt,
+  // updatedAt) that the update returning() mock returns.
+  // The isolation behavior we're testing: the conflict-check WHERE clause
+  // scopes tasks to req.orgId, so org-b tasks never appear in the check result.
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    mockState.isAdmin = true;
+  });
+
+  it("returns 200 when no org-a tasks use the removed option (even if org-b tasks do)", async () => {
+    // The mock simulates: org-a's conflict query returns [] because the WHERE
+    // clause scopes to org-a only.  Org-b tasks with "dev" are never returned.
+    // MOCK_SELECT_DEF (module-scope) has the full field shape including position/timestamps
+    mockState.selectQueue.push([MOCK_SELECT_DEF]); // currentDef lookup
+    mockState.selectQueue.push([]);                 // conflict check → 0 org-a rows
+    mockState.updateResult = [{ ...MOCK_SELECT_DEF, options: ["prod", "staging"] }];
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"] }); // removing "dev"
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toEqual(["prod", "staging"]);
+  });
+
+  it("returns 409 when org-a tasks ARE using the removed option", async () => {
+    const ORG_A_TASKS = [{ id: 10, customFields: { "2": "dev" } }];
+
+    mockState.selectQueue.push([MOCK_SELECT_DEF]);
+    mockState.selectQueue.push(ORG_A_TASKS); // org-a has one affected task
+
+    const res = await request(buildApp())
+      .patch("/api/custom-fields/2")
+      .send({ options: ["prod", "staging"] });
+
+    expect(res.status).toBe(409);
+    expect(res.body.affectedTaskCount).toBe(1);
+  });
+});
+
+// ===========================================================================
+// POST /api/custom-fields/:id/purge — audit trail for already-soft-deleted field
+// (#236)
+//
+// If an admin soft-deletes a field and then purges it, the purge audit events
+// must still carry the field name (not null).  The route reads the field name
+// BEFORE deleting the DB row so the audit events remain meaningful.
+// ===========================================================================
+
+describe("POST /api/custom-fields/:id/purge — audit trail for soft-deleted field (#236)", () => {
+  const SOFT_DELETED_DEF = {
+    id: 3,
+    orgId: "test-org",
+    name: "Severity",
+    type: "single_select",
+    options: ["P1", "P2", "P3"],
+    deletedAt: new Date(Date.now() - 60_000), // already soft-deleted
+  };
+
+  const AFFECTED_TASKS = [
+    { id: 101, customFields: { "3": "P1" } },
+    { id: 102, customFields: { "3": "P2" } },
+  ];
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertCalls.length = 0;
+    mockState.insertResult = [];
+    mockState.isAdmin = true;
+  });
+
+  it("writes audit events with the field name even when the field is already soft-deleted", async () => {
+    // The purge route reads the field first, then finds affected tasks, then audits.
+    // Even if deletedAt is set, the route must still be able to read the field name.
+    mockState.selectQueue.push([SOFT_DELETED_DEF]);  // field lookup (includeing soft-deleted)
+    mockState.selectQueue.push(AFFECTED_TASKS);       // affected tasks
+
+    // insertCalls will capture the audit event inserts
+    const res = await request(buildApp()).post("/api/custom-fields/3/purge");
+
+    expect(res.status).toBe(200);
+    expect(res.body.affectedTaskCount).toBe(2);
+
+    // Verify audit events were written with the correct field name
+    const auditEvents = mockState.insertCalls.filter(
+      (c: any) => Array.isArray(c) && c.some((e: any) => e.field?.startsWith("cf:")),
+    );
+    expect(auditEvents.length).toBeGreaterThanOrEqual(1);
+
+    const firstEvent = auditEvents[0][0];
+    expect(firstEvent.field).toContain("Severity"); // field name must not be null
+    expect(firstEvent.newValue).toBeNull();
   });
 });
