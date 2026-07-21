@@ -300,6 +300,89 @@ describe("ExportCard — export_ready SSE live-update", () => {
     expect(screen.getByText("Your export is ready")).toBeInTheDocument();
   });
 
+  it("button is disabled with 'Export in progress…' label while a background job is queued", async () => {
+    // Mount: no pre-existing pending export.
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(mockPendingResponse(false));
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // Simulate a background-job export: POST /api/export responds 202.
+    fetchMock.mockReturnValueOnce(
+      Promise.resolve({ ok: true, status: 202 } as unknown as Response),
+    );
+
+    // Click the export button to enter the queued state.
+    const exportButton = screen.getByRole("button", { name: /download export/i });
+    expect(exportButton).not.toBeDisabled(); // enabled before queuing
+
+    fireEvent.click(exportButton);
+
+    // While jobQueued=true the button must be disabled and show the in-progress label.
+    await waitFor(() => {
+      const btn = screen.getByRole("button", { name: /export in progress/i });
+      expect(btn).toBeDisabled();
+    });
+  });
+
+  it("button re-enables with 'Download export' label after export_ready SSE fires", async () => {
+    const expiresAt = hoursFromNow(1);
+
+    // Mount: no pre-existing pending export.
+    const fetchMock = vi
+      .fn()
+      .mockReturnValueOnce(mockPendingResponse(false));
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    // Enter the queued state via a 202 response.
+    fetchMock.mockReturnValueOnce(
+      Promise.resolve({ ok: true, status: 202 } as unknown as Response),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /download export/i }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /export in progress/i })).toBeDisabled();
+    });
+
+    // Server now has the completed export — prepare the pending-check response.
+    fetchMock.mockReturnValueOnce(
+      mockPendingResponse(true, {
+        token: "tok-reopen",
+        filename: "export-reopen.json",
+        expiresAt,
+      }),
+    );
+
+    // Fire export_ready — clears jobQueued and sets pendingExport.
+    await act(async () => {
+      capturedSseHandler?.({ type: "export_ready" });
+    });
+
+    // The "Export in progress…" button must be gone — jobQueued was cleared.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /export in progress/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    // The main export button must now be enabled (not showing the disabled in-progress state).
+    // Use exact text "Download export" to distinguish it from the banner's file-specific link.
+    const exportBtns = screen.getAllByRole("button", { name: /download export/i });
+    const mainExportBtn = exportBtns.find((b) => b.textContent?.trim() === "Download export");
+    expect(mainExportBtn).toBeDefined();
+    expect(mainExportBtn).not.toBeDisabled();
+
+    // The download banner must also be visible.
+    expect(screen.getByText("Your export is ready")).toBeInTheDocument();
+  });
+
   it("ignores SSE notifications with a type other than export_ready", async () => {
     // Mount: no pending export.
     const fetchMock = vi
