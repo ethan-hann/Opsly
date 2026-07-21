@@ -599,7 +599,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
-  
+  const { hasPermission } = useOrgContext();
+
   const [commentText, setCommentText] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
@@ -636,17 +637,13 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     query: { enabled: !!taskId, queryKey: ["listComments", taskId] }
   });
 
-  const {
-    data: events,
-    isLoading: isLoadingEvents,
-    isError: isEventsError,
-  } = useListTaskEvents(taskId, {
+  const { data: events, isLoading: isLoadingEvents } = useListTaskEvents(taskId, {
     query: {
-      enabled: !!taskId,
+      // Only fetch if the user has the audit-log permission. Without it the
+      // server returns 403, which causes a retry/refetch loop that makes the
+      // Activity & History section flash every few seconds.
+      enabled: !!taskId && hasPermission('view_audit_log'),
       queryKey: ["listTaskEvents", taskId],
-      // Don't retry on 403 — users without view_audit_log get an immediate
-      // empty history rather than an endless spinner during the retry backoff.
-      retry: false,
     },
   });
 
@@ -702,8 +699,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       }
     }
   });
-
-  const { hasPermission } = useOrgContext();
 
   const { data: projects = [] } = useListProjects();
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
@@ -783,9 +778,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  // Don't treat a permission error on the events query as "still loading" —
-  // users without view_audit_log will see comments-only history immediately.
-  const isActivityLoading = isLoadingComments || (isLoadingEvents && !isEventsError);
+  const isActivityLoading = isLoadingComments || isLoadingEvents;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
