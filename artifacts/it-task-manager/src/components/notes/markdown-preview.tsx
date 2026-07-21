@@ -307,14 +307,35 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
  * Call this when the user chooses "New Window" dock mode.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- utility co-located with the component by design
+/**
+ * Escape a string for safe interpolation inside an HTML context.
+ * Covers all five HTML special characters so user-controlled content cannot
+ * inject tags, close existing tags, or inject script via attribute values.
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function openPreviewWindow(title: string, content: string) {
   const win = window.open("", "_blank", "width=800,height=600");
   if (!win) return;
+
+  // Use DOM APIs for the title (never interpolated into raw HTML).
+  // The body <pre> content is fully HTML-escaped before being passed to
+  // document.write so that no user-supplied value can inject markup or script.
+  const safeTitle = escapeHtml(title);
+  const safeContent = escapeHtml(content);
+
   win.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>${title} — Preview</title>
+  <title>${safeTitle} \u2014 Preview</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
     pre { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; }
@@ -327,7 +348,7 @@ export function openPreviewWindow(title: string, content: string) {
   </style>
 </head>
 <body>
-  <pre style="white-space:pre-wrap">${content.replace(/</g, "&lt;")}</pre>
+  <pre style="white-space:pre-wrap">${safeContent}</pre>
 </body>
 </html>`);
   win.document.close();

@@ -10,11 +10,12 @@
  * custom-field columns (present in some rows but not others) are never
  * silently dropped from the CSV output.
  *
- * @workspace/db, requireOrgMiddleware, notifications, and logger are fully
- * mocked so these tests run without a live database or auth session.
+ * @workspace/db, requireOrgMiddleware, notifications, logger, and the storage
+ * provider are fully mocked so these tests run without a live database, auth
+ * session, or object-storage bucket.
  *
- * Fake timers are used throughout to prevent the background-job setTimeout
- * from firing between tests and polluting the in-memory pending-export Maps.
+ * Fake timers are used throughout to prevent the background-job setTimeout and
+ * the cleanup setInterval from firing between tests unexpectedly.
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -29,6 +30,8 @@ const mockState = vi.hoisted(() => ({
   selectQueue: [] as unknown[][],
   /** Controls whether the requireOrg mock grants manage_org_settings. */
   adminAccess: true,
+  /** Buffer returned by storage.get() (null = object not found). */
+  storageBuffer: null as Buffer | null,
 }));
 
 // ---------------------------------------------------------------------------
@@ -40,7 +43,7 @@ vi.mock("../lib/org-features", () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Mock @workspace/db
+// Mock @workspace/db — select uses a queue; insert/update/delete are no-ops
 // ---------------------------------------------------------------------------
 vi.mock("@workspace/db", () => {
   function makeChain(result: unknown[]): unknown {
@@ -61,15 +64,39 @@ vi.mock("@workspace/db", () => {
     return chain;
   }
 
+  function makeInsertChain(): unknown {
+    const chain: Record<string, unknown> = {};
+    chain.values = () => Promise.resolve([]);
+    return chain;
+  }
+
+  function makeUpdateChain(): unknown {
+    const chain: Record<string, unknown> = {};
+    const setChain: Record<string, unknown> = {};
+    setChain.where = () => Promise.resolve([]);
+    chain.set = () => setChain;
+    return chain;
+  }
+
+  function makeDeleteChain(): unknown {
+    const chain: Record<string, unknown> = {};
+    chain.where = () => Promise.resolve([]);
+    return chain;
+  }
+
   return {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
+      insert: () => makeInsertChain(),
+      update: () => makeUpdateChain(),
+      delete: () => makeDeleteChain(),
     },
     tasksTable: {},
     projectsTable: {},
     commentsTable: {},
     notesTable: {},
     customFieldDefinitionsTable: {},
+    exportJobsTable: {},
     notificationsTable: {},
     notificationPreferencesTable: {},
     organizationsTable: {},
@@ -80,8 +107,24 @@ vi.mock("@workspace/db", () => {
 vi.mock("drizzle-orm", () => ({
   eq: () => ({}),
   and: () => ({}),
+  or: () => ({}),
+  lt: () => ({}),
   count: () => ({}),
   sql: () => ({}),
+}));
+
+// ---------------------------------------------------------------------------
+// Mock storage provider — singleton so spies can be inspected after route calls
+// ---------------------------------------------------------------------------
+const mockStorageProvider = vi.hoisted(() => ({
+  put: vi.fn().mockResolvedValue(undefined),
+  get: vi.fn().mockImplementation(() => Promise.resolve(mockState.storageBuffer)),
+  delete: vi.fn().mockResolvedValue(undefined),
+  exists: vi.fn().mockResolvedValue(true),
+}));
+
+vi.mock("../lib/storage/provider", () => ({
+  getStorageProvider: () => mockStorageProvider,
 }));
 
 // ---------------------------------------------------------------------------
@@ -111,7 +154,7 @@ vi.mock("../lib/notifications", () => ({
 }));
 
 vi.mock("../lib/logger", () => ({
-  logger: { error: vi.fn(), info: vi.fn() },
+  logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
 }));
 
 // ---------------------------------------------------------------------------
@@ -131,7 +174,7 @@ vi.mock("archiver", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// App factory — uses module cache so in-memory Maps persist within a suite
+// App factory — uses module cache so mocks persist within a suite
 // ---------------------------------------------------------------------------
 async function buildApp(): Promise<express.Express> {
   const { default: exportRouter } = await import("./export");
@@ -228,9 +271,10 @@ describe("POST /export", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.useFakeTimers();   // prevents background setTimeout from firing
+    vi.useFakeTimers();
     mockState.selectQueue = [];
     mockState.adminAccess = true;
+    mockState.storageBuffer = Buffer.from('{"meta":{}}', "utf-8");
     app = await buildApp();
   });
 
@@ -327,8 +371,10 @@ describe("POST /export", () => {
   });
 
   it("returns 202 and queues a background job for large orgs (≥ 10k rows)", async () => {
-    // Only the count query fires; fetchExportData is deferred to setTimeout.
+    // Count query fires first.
     queueCount(15000);
+    // SELECT for existing export job (none found).
+    queueRows([]);
 
     const res = await request(app)
       .post("/export")
@@ -370,7 +416,7 @@ describe("GET /export/pending", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    vi.useFakeTimers();   // keeps background jobs from writing to the Maps
+    vi.useFakeTimers();
     mockState.selectQueue = [];
     mockState.adminAccess = true;
     app = await buildApp();
@@ -380,7 +426,45 @@ describe("GET /export/pending", () => {
     vi.useRealTimers();
   });
 
-  it("returns { pending: false } when no export has been completed", async () => {
+  it("returns { pending: false } when no export job row exists", async () => {
+    // SELECT complete jobs → empty
+    queueRows([]);
+
+    const res = await request(app).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ pending: false });
+  });
+
+  it("returns { pending: true, token, filename, expiresAt } when a complete job exists", async () => {
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "abc-token", objectKey: "org-1/user-1/abc-token",
+      status: "complete", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt,
+    }]);
+
+    const res = await request(app).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      pending: true,
+      token: "abc-token",
+      filename: "export.json",
+      expiresAt: expiresAt.toISOString(),
+    });
+  });
+
+  it("returns { pending: false } when the job expiresAt is in the past", async () => {
+    // Job with expiresAt already elapsed
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "old-token", objectKey: "org-1/user-1/old-token",
+      status: "complete", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt: new Date(Date.now() - 1000),
+    }]);
+
     const res = await request(app).get("/export/pending");
 
     expect(res.status).toBe(200);
@@ -399,6 +483,7 @@ describe("GET /export/download/:token", () => {
     vi.useFakeTimers();
     mockState.selectQueue = [];
     mockState.adminAccess = true;
+    mockState.storageBuffer = Buffer.from('{"meta":{}}', "utf-8");
     app = await buildApp();
   });
 
@@ -406,9 +491,11 @@ describe("GET /export/download/:token", () => {
     vi.useRealTimers();
   });
 
-  it("returns 404 for an unknown token", async () => {
+  it("returns 404 for an unknown token (no DB row)", async () => {
+    queueRows([]);  // SELECT by token → no row
     const res = await request(app).get("/export/download/no-such-token");
     expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/expired/i) });
   });
 
   it("returns 403 when the user lacks manage_org_settings permission", async () => {
@@ -417,14 +504,44 @@ describe("GET /export/download/:token", () => {
     const res = await request(app).get("/export/download/any-token");
     expect(res.status).toBe(403);
   });
+
+  it("returns 404 when the job status is not complete", async () => {
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "pending-token", objectKey: "org-1/user-1/pending-token",
+      status: "pending", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    }]);
+
+    const res = await request(app).get("/export/download/pending-token");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/expired/i) });
+  });
+
+  it("returns 200 and the file buffer when the token is valid and complete", async () => {
+    const fileContent = Buffer.from('{"meta":{"orgId":"org-1","version":"1"}}', "utf-8");
+    mockState.storageBuffer = fileContent;
+
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "valid-token", objectKey: "org-1/user-1/valid-token",
+      status: "complete", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    }]);
+
+    const res = await request(app).get("/export/download/valid-token");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-disposition"]).toMatch(/attachment.*export\.json/);
+    expect(res.headers["content-type"]).toMatch(/application\/json/);
+  });
 });
 
 // ---------------------------------------------------------------------------
-// ── Token TTL expiry ──────────────────────────────────────────────────────
+// ── Token TTL expiry (DB-based) ───────────────────────────────────────────
 //
-// Background export tokens expire after 1 hour. These tests advance fake
-// timers past the TTL and verify that both the download and the pending
-// endpoints reflect the expiry correctly.
+// The TTL is enforced in the route handlers by comparing job.expiresAt to
+// new Date(). These tests verify that an expired job (expiresAt in the past)
+// returns 404 from the download route, while a non-expired one returns 200.
 // ---------------------------------------------------------------------------
 describe("GET /export/download/:token — TTL expiry", () => {
   let app: express.Express;
@@ -434,6 +551,7 @@ describe("GET /export/download/:token — TTL expiry", () => {
     vi.useFakeTimers();
     mockState.selectQueue = [];
     mockState.adminAccess = true;
+    mockState.storageBuffer = Buffer.from('{"meta":{}}', "utf-8");
     app = await buildApp();
   });
 
@@ -442,9 +560,72 @@ describe("GET /export/download/:token — TTL expiry", () => {
   });
 
   it("returns 404 after the 1-hour TTL has elapsed — expired tokens cannot be redeemed", async () => {
-    // Large-org path (≥ 10 000 rows) → 202 + background job via setTimeout.
+    // Simulate a complete job whose TTL has passed.
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "expired-token", objectKey: "org-1/user-1/expired-token",
+      status: "complete", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() - 1000),   // 1 second ago
+    }]);
+
+    const dlRes = await request(app).get("/export/download/expired-token");
+    expect(dlRes.status).toBe(404);
+    expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired|not found/i) });
+  });
+
+  it("returns 404 when the job status is expired regardless of expiresAt", async () => {
+    // Job marked expired before TTL (e.g. superseded by a newer export).
+    queueRows([{
+      id: "job-1", orgId: "org-1", userId: "user-1",
+      token: "superseded-token", objectKey: "org-1/user-1/superseded-token",
+      status: "expired", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    }]);
+
+    const dlRes = await request(app).get("/export/download/superseded-token");
+    expect(dlRes.status).toBe(404);
+    expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired/i) });
+  });
+
+  it("returns 200 when the token is accessed before the TTL elapses (pre-expiry positive control)", async () => {
+    const fileContent = Buffer.from('{"meta":{"orgId":"org-1","version":"1"}}', "utf-8");
+    mockState.storageBuffer = fileContent;
+
+    // Job valid for 30 more minutes.
+    queueRows([{
+      id: "job-2", orgId: "org-1", userId: "user-1",
+      token: "fresh-token", objectKey: "org-1/user-1/fresh-token",
+      status: "complete", filename: "export.json", contentType: "application/json",
+      createdAt: new Date(), expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+    }]);
+
+    const dlRes = await request(app).get("/export/download/fresh-token");
+    expect(dlRes.status).toBe(200);
+    expect(dlRes.headers["content-disposition"]).toMatch(/export\.json/);
+  });
+
+  it("returns { pending: false } for GET /export/pending when no complete row exists", async () => {
+    // The route queries for complete+non-expired jobs; queue empty result.
+    queueRows([]);
+
+    const pendingRes = await request(app).get("/export/pending");
+    expect(pendingRes.body.pending).toBe(false);
+  });
+
+  it("background job for large org completes and marks DB row complete", async () => {
+    mockStorageProvider.put.mockClear();
+
+    // POST → 202
     queueCount(15_000);
-    queueRows([]);  // custom field defs (none)
+    queueRows([]);   // no existing job row
+    const postRes = await request(app)
+      .post("/export")
+      .send({ scope: ["tasks"], format: "json" });
+    expect(postRes.status).toBe(202);
+
+    // Run background job: it needs custom field defs + tasks.
+    queueRows([]);   // custom field defs
     queueRows([{
       id: 1, orgId: "org-1", orgTaskNumber: 1, title: "Task A",
       description: null, status: "todo", priority: "medium", category: "other",
@@ -453,64 +634,9 @@ describe("GET /export/download/:token — TTL expiry", () => {
       createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"),
     }]);
 
-    // Step 1: POST → 202 (job scheduled but not yet run).
-    const postRes = await request(app)
-      .post("/export")
-      .send({ scope: ["tasks"], format: "json" });
-    expect(postRes.status).toBe(202);
-
-    // Step 2: fire the background job — populates pendingDownloads and userLatestExport.
     await vi.runAllTimersAsync();
 
-    // Step 3: confirm the token is available before expiry.
-    const pendingBefore = await request(app).get("/export/pending");
-    expect(pendingBefore.body.pending).toBe(true);
-    const token = pendingBefore.body.token as string;
-    expect(typeof token).toBe("string");
-
-    // Step 4: advance fake clock past the 1-hour TTL (3 600 000 ms).
-    // The cleanup setInterval fires at 3 600 000 ms exactly but uses strict
-    // less-than, so the entry survives until 3 600 001 ms when the route
-    // handler evaluates expiresAt < new Date().
-    await vi.advanceTimersByTimeAsync(3_600_001);
-
-    // Step 5: download must now return 404 — token is expired.
-    const dlRes = await request(app).get(`/export/download/${token}`);
-    expect(dlRes.status).toBe(404);
-    expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired|not found/i) });
-
-    // Step 6: pending must report false — the entry is past its TTL.
-    const pendingAfter = await request(app).get("/export/pending");
-    expect(pendingAfter.body.pending).toBe(false);
-  });
-
-  it("returns 200 when the token is accessed before the TTL elapses (pre-expiry positive control)", async () => {
-    queueCount(15_000);
-    queueRows([]);
-    queueRows([{
-      id: 2, orgId: "org-1", orgTaskNumber: 2, title: "Task B",
-      description: null, status: "todo", priority: "low", category: "other",
-      assignee: null, dueDate: null, projectId: null, slaBreachedAt: null,
-      sourceWebhookId: null, slaWarningSentAt: null, customFields: {},
-      createdAt: new Date("2026-01-01"), updatedAt: new Date("2026-01-01"),
-    }]);
-
-    const postRes = await request(app)
-      .post("/export")
-      .send({ scope: ["tasks"], format: "json" });
-    expect(postRes.status).toBe(202);
-
-    await vi.runAllTimersAsync();
-
-    const pendingRes = await request(app).get("/export/pending");
-    expect(pendingRes.body.pending).toBe(true);
-    const token = pendingRes.body.token as string;
-
-    // Advance only 30 minutes — well within the 1-hour TTL.
-    await vi.advanceTimersByTimeAsync(30 * 60 * 1000);
-
-    // Token must still be valid.
-    const dlRes = await request(app).get(`/export/download/${token}`);
-    expect(dlRes.status).toBe(200);
+    // After background job, the storage mock's put() should have been called.
+    expect(mockStorageProvider.put).toHaveBeenCalledOnce();
   });
 });

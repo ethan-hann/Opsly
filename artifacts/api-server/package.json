@@ -11,6 +11,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1090.0",
+    "@google-cloud/storage": "^7.21.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "archiver": "^8.0.0",
@@ -18,6 +20,7 @@
     "cors": "^2.8.6",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
+    "google-auth-library": "^10.9.0",
     "js-yaml": "^5.2.1",
     "nodemailer": "^9.0.3",
     "openid-client": "^6.8.4",

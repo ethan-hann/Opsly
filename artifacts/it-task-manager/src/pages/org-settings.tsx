@@ -391,6 +391,7 @@ function ExportCard() {
   const [isExporting, setIsExporting] = useState(false);
   const [jobQueued, setJobQueued] = useState(false);
   const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
+  const [exportExpired, setExportExpired] = useState(false);
 
   // Check for a completed background export on mount.
   useEffect(() => {
@@ -415,8 +416,8 @@ function ExportCard() {
       credentials: "include",
     });
     if (!res.ok) {
-      toast({ title: "Export not found or expired", variant: "destructive" });
       setPendingExport(null);
+      setExportExpired(true);
       return;
     }
     const blob = await res.blob();
@@ -496,8 +497,37 @@ function ExportCard() {
       </CardHeader>
       <CardContent className="space-y-5">
 
+        {/* Export expired banner */}
+        {exportExpired && !pendingExport && (
+          <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+            <Download className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0 space-y-2">
+              <p className="text-sm font-medium text-destructive">
+                Export expired — start a new one
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => { setExportExpired(false); handleExport(); }}
+                disabled={isExporting || scope.length === 0}
+              >
+                <Download className="w-3.5 h-3.5" />
+                Start Export
+              </Button>
+            </div>
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setExportExpired(false)}
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Pending background export ready banner */}
-        {pendingExport && (
+        {pendingExport && !exportExpired && (
           <div className="flex items-start gap-3 rounded-lg border border-green-500/40 bg-green-500/5 p-4">
             <Download className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0 space-y-2">

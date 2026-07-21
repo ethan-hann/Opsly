@@ -16,8 +16,9 @@ import {
   commentsTable,
   notesTable,
   customFieldDefinitionsTable,
+  exportJobsTable,
 } from "@workspace/db";
-import { eq, count } from "drizzle-orm";
+import { eq, count, and, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
@@ -27,34 +28,9 @@ import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
 import crypto from "node:crypto";
+import { getStorageProvider } from "../lib/storage/provider";
 
 const router = Router();
-
-// ── In-memory stores ──────────────────────────────────────────────────────────
-
-interface PendingDownload {
-  buffer: Buffer;
-  filename: string;
-  contentType: string;
-  expiresAt: Date;
-}
-
-/** Download token → file data. TTL: 1 hour. */
-const pendingDownloads = new Map<string, PendingDownload>();
-
-/** userId:orgId → download token for the most recent completed background export. */
-const userLatestExport = new Map<string, { token: string; expiresAt: Date }>();
-
-/** Clean up expired entries every 10 minutes. */
-setInterval(() => {
-  const now = new Date();
-  for (const [token, dl] of pendingDownloads) {
-    if (dl.expiresAt < now) pendingDownloads.delete(token);
-  }
-  for (const [key, entry] of userLatestExport) {
-    if (entry.expiresAt < now) userLatestExport.delete(key);
-  }
-}, 10 * 60 * 1000).unref();
 
 // ── Request schema ────────────────────────────────────────────────────────────
 
@@ -265,6 +241,58 @@ async function countTotalRows(orgId: string, scope: ExportScope): Promise<number
   return counts.reduce((sum, result) => sum + (result ? Number(result[0].c) : 0), 0);
 }
 
+// ── Scheduled cleanup ─────────────────────────────────────────────────────────
+
+/**
+ * Every 10 minutes:
+ *  1. Expire rows past expiresAt → delete object from storage.
+ *  2. Purge DB rows older than 24 hours.
+ */
+setInterval(async () => {
+  try {
+    const now = new Date();
+    const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // 1. Find rows that have passed their TTL but are not yet marked expired.
+    const toExpire = await db
+      .select({ id: exportJobsTable.id, objectKey: exportJobsTable.objectKey })
+      .from(exportJobsTable)
+      .where(
+        and(
+          lt(exportJobsTable.expiresAt, now),
+          or(
+            eq(exportJobsTable.status, "pending"),
+            eq(exportJobsTable.status, "complete"),
+          ),
+        ),
+      );
+
+    if (toExpire.length > 0) {
+      const storage = getStorageProvider();
+      await Promise.all(
+        toExpire.map(async (row) => {
+          try {
+            await storage.delete(row.objectKey);
+          } catch (err) {
+            logger.warn({ err, objectKey: row.objectKey }, "Failed to delete expired export object");
+          }
+          await db
+            .update(exportJobsTable)
+            .set({ status: "expired" })
+            .where(eq(exportJobsTable.id, row.id));
+        }),
+      );
+    }
+
+    // 2. Purge rows older than 24 hours (any status).
+    await db
+      .delete(exportJobsTable)
+      .where(lt(exportJobsTable.createdAt, cutoff24h));
+  } catch (err) {
+    logger.warn({ err }, "Export cleanup task failed");
+  }
+}, 10 * 60 * 1000).unref();
+
 // ── POST /export ──────────────────────────────────────────────────────────────
 
 router.post("/export", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
@@ -308,17 +336,64 @@ router.post("/export", requireOrg, requireDataExportFeature, requirePermission("
         return;
       }
 
+      // If the user already has an active export row for this org, expire it
+      // and delete its object before creating a new job.
+      const existing = await db
+        .select({ id: exportJobsTable.id, objectKey: exportJobsTable.objectKey, status: exportJobsTable.status })
+        .from(exportJobsTable)
+        .where(
+          and(
+            eq(exportJobsTable.userId, userId),
+            eq(exportJobsTable.orgId, orgId),
+          ),
+        )
+        .limit(1);
+
+      if (existing.length > 0) {
+        const old = existing[0];
+        try {
+          const storage = getStorageProvider();
+          await storage.delete(old.objectKey);
+        } catch (err) {
+          logger.warn({ err, objectKey: old.objectKey }, "Failed to delete old export object");
+        }
+        // Delete the old row so the unique (userId, orgId) index allows the new INSERT.
+        await db
+          .delete(exportJobsTable)
+          .where(eq(exportJobsTable.id, old.id));
+      }
+
+      // Create the new job row.
+      const token = crypto.randomUUID();
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      const objectKey = `${orgId}/${userId}/${token}`;
+      const filename = format === "json" ? "export.json" : "export.zip";
+      const contentType = format === "json" ? "application/json" : "application/zip";
+
+      await db.insert(exportJobsTable).values({
+        orgId,
+        userId,
+        token,
+        objectKey,
+        status: "pending",
+        filename,
+        contentType,
+        expiresAt,
+      });
+
       res.status(202).json({ status: "pending" });
 
       // Background job via setTimeout so the response flushes first.
       setTimeout(async () => {
         try {
-          const { buffer, filename, contentType } = await buildExport();
-          const token = crypto.randomUUID();
-          const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+          const { buffer } = await buildExport();
+          const storage = getStorageProvider();
+          await storage.put(objectKey, buffer, contentType);
 
-          pendingDownloads.set(token, { buffer, filename, contentType, expiresAt });
-          userLatestExport.set(`${userId}:${orgId}`, { token, expiresAt });
+          await db
+            .update(exportJobsTable)
+            .set({ status: "complete" })
+            .where(eq(exportJobsTable.token, token));
 
           await createNotification({
             userId,
@@ -343,7 +418,7 @@ router.post("/export", requireOrg, requireDataExportFeature, requirePermission("
 
 // ── GET /export/pending ───────────────────────────────────────────────────────
 
-router.get("/export/pending", requireOrg, requireDataExportFeature, (req, res) => {
+router.get("/export/pending", requireOrg, requireDataExportFeature, async (req, res) => {
   const userId = req.user?.id;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -351,45 +426,81 @@ router.get("/export/pending", requireOrg, requireDataExportFeature, (req, res) =
   }
 
   const orgId = req.orgId!;
-  const entry = userLatestExport.get(`${userId}:${orgId}`);
+  const now = new Date();
 
-  if (!entry || entry.expiresAt < new Date()) {
-    res.json({ pending: false });
-    return;
-  }
+  const rows = await db
+    .select()
+    .from(exportJobsTable)
+    .where(
+      and(
+        eq(exportJobsTable.userId, userId),
+        eq(exportJobsTable.orgId, orgId),
+        eq(exportJobsTable.status, "complete"),
+      ),
+    )
+    .limit(1);
 
-  const dl = pendingDownloads.get(entry.token);
-  if (!dl) {
-    userLatestExport.delete(`${userId}:${orgId}`);
+  const job = rows[0];
+
+  if (!job || job.expiresAt < now) {
     res.json({ pending: false });
     return;
   }
 
   res.json({
     pending: true,
-    token: entry.token,
-    filename: dl.filename,
-    expiresAt: entry.expiresAt.toISOString(),
+    token: job.token,
+    filename: job.filename,
+    expiresAt: job.expiresAt.toISOString(),
   });
 });
 
 // ── GET /export/download/:token ───────────────────────────────────────────────
 
-router.get("/export/download/:token", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), (req, res) => {
+router.get("/export/download/:token", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
   const token = String(req.params["token"] ?? "");
-  const dl = pendingDownloads.get(token);
-
-  if (!token || !dl || dl.expiresAt < new Date()) {
-    if (dl) pendingDownloads.delete(token);
-    res.status(404).json({ error: "Export not found or expired" });
+  if (!token) {
+    res.status(404).json({ error: "Export expired — start a new one" });
     return;
   }
 
-  res.setHeader("Content-Disposition", `attachment; filename="${dl.filename}"`);
-  res.setHeader("Content-Type", dl.contentType);
-  res.setHeader("Content-Length", String(dl.buffer.length));
-  res.send(dl.buffer);
-  // Token stays valid for re-downloads within the 1-hour TTL.
+  const now = new Date();
+
+  const rows = await db
+    .select()
+    .from(exportJobsTable)
+    .where(
+      and(
+        eq(exportJobsTable.token, token),
+        eq(exportJobsTable.orgId, req.orgId!),
+      ),
+    )
+    .limit(1);
+
+  const job = rows[0];
+
+  if (!job || job.status !== "complete" || job.expiresAt < now) {
+    res.status(404).json({ error: "Export expired — start a new one" });
+    return;
+  }
+
+  try {
+    const storage = getStorageProvider();
+    const buffer = await storage.get(job.objectKey);
+
+    if (!buffer) {
+      res.status(404).json({ error: "Export expired — start a new one" });
+      return;
+    }
+
+    res.setHeader("Content-Disposition", `attachment; filename="${job.filename}"`);
+    res.setHeader("Content-Type", job.contentType);
+    res.setHeader("Content-Length", String(buffer.length));
+    res.send(buffer);
+  } catch (err) {
+    logger.error({ err, token }, "Failed to stream export download");
+    res.status(500).json({ error: "Download failed" });
+  }
 });
 
 export default router;
