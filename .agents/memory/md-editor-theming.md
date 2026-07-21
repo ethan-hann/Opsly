@@ -28,12 +28,22 @@ Override the library's GitHub-style CSS variables (`--color-canvas-default`, `--
 
 **MDEditor built-in preview** uses `@uiw/react-markdown-preview`, which hard-codes `remarkAlert` from `remark-github-blockquote-alert` *before* any plugins we supply (see `preview.js` line 55: `[remarkAlert, ...our plugins, gfm]`). `remarkAlert` transforms the blockquote into `<div class="markdown-alert markdown-alert-note">` with a `<p class="markdown-alert-title">` child — **the `blockquote` component is never called**. Our `remarkCallouts` plugin runs after but finds no `[!NOTE]` text (already consumed) and does nothing.
 
-**Root cause**: `remark-github-blockquote-alert` uses `hName: "div"` to transform the blockquote into a `<div class="markdown-alert markdown-alert-note">`. But `div` is **not** in `hast-util-sanitize`'s `defaultSchema.tagNames`, so our `rehypeSanitize` pass strips the wrapper div and leaves bare `<p>` tags — completely unstyled.
+**Root cause (final, confirmed)**:
+Two separate bugs, both in `rehypeSanitize`:
 
-**Fix**:
-1. Add `"div"`, `"svg"`, `"path"` to `sanitizeSchema.tagNames` in `markdown-config.tsx` (so the alert wrapper and GitHub octicon icons survive sanitization).
-2. Add allowed attributes: `div: ["class","dir"]`, `svg: ["class","viewBox","width","height","ariaHidden"]`, `path: ["d"]`, `p: [..., "dir"]`.
-3. Pure CSS in `index.css` overrides `.wmde-markdown .markdown-alert*` with our design-system colours. No React component customisation needed for the editor preview path.
+1. **Missing tagNames**: `remark-github-blockquote-alert` transforms `[!NOTE]` into `<div class="markdown-alert markdown-alert-note">` with an SVG icon. `div`/`svg`/`path` are not in `defaultSchema.tagNames`, so they were stripped → bare unstyled `<p>` tags.
+
+2. **Missing `className` in allowlist**: `hast-util-sanitize`'s `defaultSchema.attributes["*"]` uses HAST property names. `className` (the HAST name for HTML `class`) is **not** in that list. This means `rehypeSanitize` stripped `className` from every element in every pipeline — so both the `div.markdown-alert-*` class check (MDEditor path) and the `callout callout-*` class check (standalone path) always returned null, causing everything to fall through to the plain-blockquote fallback.
+
+**Fix** (in `markdown-config.tsx` `sanitizeSchema`):
+1. Add `"div"`, `"svg"`, `"path"` to `tagNames`.
+2. Add `"className"` to `attributes["*"]` (restores class on all elements).
+3. Use HAST property names throughout: `div: ["className","dir"]`, `svg: ["className","viewBox","width","height","ariaHidden"]`, `path: ["d"]`.
+4. Add `"data*"` wildcard to `blockquote` attributes (covers `data-callout` regardless of camelCase conversion).
+
+**Two-pipeline awareness** (still applies):
+- MDEditor path: `remark-github-blockquote-alert` (prepended by library) → `div.markdown-alert-*` → `div` component renderer intercepts, renders callout card.
+- Standalone path: `remarkCallouts` (our plugin) → `blockquote[data-callout=TYPE]` with `className="callout callout-TYPE"` → `blockquote` component renderer intercepts, renders callout card.
 
 **Why `className` fallback in `blockquote` component is still needed**: the standalone MarkdownPreview path uses react-markdown without `remarkAlert`; `remarkCallouts` stamps the class there and the blockquote component reads it.
 

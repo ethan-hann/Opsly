@@ -39,14 +39,28 @@ export const sanitizeSchema = {
   ],
   attributes: {
     ...defaultSchema.attributes,
+    // hast-util-sanitize uses HAST property names (camelCase), NOT HTML
+    // attribute names.  The defaultSchema "*" list does NOT include "className"
+    // (the HAST name for the HTML "class" attribute), so rehypeSanitize strips
+    // class from every element — breaking all class-based callout detection.
+    // Adding "className" here restores it globally.
+    "*": [
+      ...(defaultSchema.attributes?.["*"] ?? []),
+      "className",
+    ],
     blockquote: [
       ...(defaultSchema.attributes?.blockquote ?? []),
+      // data-callout is set by remarkCallouts as the hProperties key
+      // "data-callout" (kept hyphenated — mdast-util-to-hast does not
+      // camelCase hProperties keys).  "data*" catches it either way.
       "data-callout",
+      "data*",
     ],
-    // Allow the attributes the alert plugin stamps on its elements
-    div:  ["class", "dir"],
+    // Allow the attributes the alert plugin stamps on its elements.
+    // Use HAST property names ("className" not "class").
+    div:  ["className", "dir"],
     p:    [...(defaultSchema.attributes?.p    ?? []), "dir"],
-    svg:  ["class", "viewBox", "width", "height", "ariaHidden"],
+    svg:  ["className", "viewBox", "width", "height", "ariaHidden"],
     path: ["d"],
   },
 };
