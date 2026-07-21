@@ -9,6 +9,32 @@
  * readability, and updates lastSentAt once after all orgs are processed.
  *
  * Users with no unread notifications in any org since their last digest are skipped.
+ *
+ * Duplicate-send prevention
+ * ─────────────────────────
+ * A "claim" pattern with optimistic concurrency guards against duplicate sends:
+ *
+ *   1. Eligibility: SELECT users due for a digest (lastSentAt cutoff check).
+ *   2. Unread check: skip users who have nothing new to send (no claim taken).
+ *   3. Claim: atomically UPDATE SET digestClaimedAt = now WHERE
+ *        userId = ?
+ *        AND (lastSentAt = <pre-read value> OR lastSentAt IS NULL)  ← OCC guard
+ *        AND (digestClaimedAt IS NULL OR digestClaimedAt < claimCutoff)
+ *      If 0 rows updated:
+ *        - Another process already holds a fresh claim, OR
+ *        - lastSentAt has changed (a concurrent worker already sent for this
+ *          window and wrote a new lastSentAt) → skip to avoid duplicate send.
+ *   4. Send: deliver the email inside a try/finally.
+ *   5. Success: write lastSentAt and clear digestClaimedAt (→ NULL).
+ *   6. Failure / exception: finally block clears digestClaimedAt so the next
+ *      run can retry.
+ *
+ * The OCC guard on lastSentAt in the claim WHERE closes the race where two
+ * workers both read the same stale row; worker A finishes and clears the claim,
+ * then worker B can no longer re-claim because lastSentAt no longer matches.
+ *
+ * A brief randomized startup jitter (0–30 s) also reduces the chance that
+ * multiple clustered restarts fire simultaneously.
  */
 
 import { and, eq, isNull, or, lt, inArray } from "drizzle-orm";
@@ -29,6 +55,22 @@ const APP_URL = (process.env["APP_URL"] ?? "").replace(/\/$/, "");
 const DAILY_GAP_MS  = 20 * 60 * 60 * 1000; // 20 h
 const WEEKLY_GAP_MS = 6  * 24 * 60 * 60 * 1000; // 6 d
 
+/**
+ * A claim is considered stale after this many milliseconds, allowing a
+ * subsequent process to take over if the previous one crashed mid-send.
+ * Set equal to the shortest gap (daily = 20 h) as an upper-bound safety net;
+ * in practice the claim is cleared immediately after each send attempt.
+ */
+const CLAIM_TTL_MS = DAILY_GAP_MS;
+
+/** Release the claim on a user's preference row (set digestClaimedAt → NULL). */
+async function releaseClaim(userId: string, now: Date): Promise<void> {
+  await db
+    .update(emailDigestPreferencesTable)
+    .set({ digestClaimedAt: null, updatedAt: now })
+    .where(eq(emailDigestPreferencesTable.userId, userId));
+}
+
 async function runDigest(): Promise<void> {
   if (!isEmailConfigured()) return;
 
@@ -38,6 +80,8 @@ async function runDigest(): Promise<void> {
     // ── Find users due for a digest ──────────────────────────────────────────
     const dailyCutoff  = new Date(now.getTime() - DAILY_GAP_MS);
     const weeklyCutoff = new Date(now.getTime() - WEEKLY_GAP_MS);
+    // A claim is stale when it's older than CLAIM_TTL_MS (crashed process).
+    const claimCutoff  = new Date(now.getTime() - CLAIM_TTL_MS);
 
     const duePref = await db
       .select()
@@ -50,12 +94,21 @@ async function runDigest(): Promise<void> {
               isNull(emailDigestPreferencesTable.lastSentAt),
               lt(emailDigestPreferencesTable.lastSentAt, dailyCutoff),
             ),
+            // Skip rows that are already claimed by a concurrent process.
+            or(
+              isNull(emailDigestPreferencesTable.digestClaimedAt),
+              lt(emailDigestPreferencesTable.digestClaimedAt, claimCutoff),
+            ),
           ),
           and(
             eq(emailDigestPreferencesTable.frequency, "weekly"),
             or(
               isNull(emailDigestPreferencesTable.lastSentAt),
               lt(emailDigestPreferencesTable.lastSentAt, weeklyCutoff),
+            ),
+            or(
+              isNull(emailDigestPreferencesTable.digestClaimedAt),
+              lt(emailDigestPreferencesTable.digestClaimedAt, claimCutoff),
             ),
           ),
         ),
@@ -79,8 +132,6 @@ async function runDigest(): Promise<void> {
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     // ── Resolve ALL org memberships per user ──────────────────────────────────
-    // Group into a Map<userId, Array<{orgId, orgName}>> so every org a user
-    // belongs to is included in their digest.
     const memberships = await db
       .select({
         userId: orgMembersTable.userId,
@@ -110,7 +161,8 @@ async function runDigest(): Promise<void> {
 
       if (!user?.email || userOrgs.length === 0) continue;
 
-      // Aggregate unread notifications across ALL orgs since lastSentAt.
+      // ── Step 1: Check for unread notifications BEFORE claiming ────────────
+      // This avoids holding a claim on users who have nothing to send.
       const lastSent = pref.lastSentAt;
       const orgIds = userOrgs.map((o) => o.orgId);
 
@@ -133,60 +185,100 @@ async function runDigest(): Promise<void> {
         )
         .orderBy(notificationsTable.createdAt);
 
-      // Filter to notifications created after the last digest (JS filter to
-      // avoid needing gt import; list is bounded to recent unread items).
       const notifications = lastSent
         ? allUnread.filter((n) => n.createdAt > lastSent)
         : allUnread;
 
+      // No new notifications → skip without ever touching digestClaimedAt.
       if (notifications.length === 0) continue;
 
-      // Use the org of the first notification for the email greeting; all
-      // notifications are linked individually so cross-org context is clear.
-      const primaryOrg = userOrgs[0]!;
-      const orgLabel =
-        userOrgs.length === 1
-          ? primaryOrg.orgName
-          : `${primaryOrg.orgName} (and ${userOrgs.length - 1} other org${userOrgs.length > 2 ? "s" : ""})`;
+      // ── Step 2: Atomically claim this user's digest slot ──────────────────
+      // The WHERE includes lastSentAt = <pre-read value> as an optimistic-
+      // concurrency guard. If another worker already sent for this window and
+      // wrote a new lastSentAt, our claim will find 0 rows and we skip — even
+      // if digestClaimedAt was cleared by the other worker.
+      const lastSentAtGuard = pref.lastSentAt
+        ? eq(emailDigestPreferencesTable.lastSentAt, pref.lastSentAt)
+        : isNull(emailDigestPreferencesTable.lastSentAt);
 
-      const userName =
-        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.email;
+      const claimed = await db
+        .update(emailDigestPreferencesTable)
+        .set({ digestClaimedAt: now })
+        .where(
+          and(
+            eq(emailDigestPreferencesTable.userId, pref.userId),
+            lastSentAtGuard,
+            or(
+              isNull(emailDigestPreferencesTable.digestClaimedAt),
+              lt(emailDigestPreferencesTable.digestClaimedAt, claimCutoff),
+            ),
+          ),
+        )
+        .returning({ userId: emailDigestPreferencesTable.userId });
 
-      const unsubscribeToken = generateUnsubscribeToken(pref.userId);
-      const unsubscribeUrl = `${APP_URL}/unsubscribe?token=${unsubscribeToken}`;
+      if (claimed.length === 0) {
+        logger.info({ userId: pref.userId }, "Digest claim lost — skipping (concurrent send or stale data)");
+        continue;
+      }
 
-      const html = buildDigestEmail({
-        orgName: orgLabel,
-        userName,
-        notifications: notifications.map((n) => ({
-          message: n.message,
-          createdAt: n.createdAt,
-          entityType: n.entityType,
-          entityId: n.entityId,
-        })),
-        appUrl: APP_URL,
-        frequency: pref.frequency as "daily" | "weekly",
-        unsubscribeUrl,
-      });
+      // ── Step 3: Build and send the email (claim is held) ─────────────────
+      // try/finally guarantees the claim is released even if an unexpected
+      // exception is thrown after claiming.
+      let sendSucceeded = false;
+      try {
+        const primaryOrg = userOrgs[0]!;
+        const orgLabel =
+          userOrgs.length === 1
+            ? primaryOrg.orgName
+            : `${primaryOrg.orgName} (and ${userOrgs.length - 1} other org${userOrgs.length > 2 ? "s" : ""})`;
 
-      const result = await sendMail({
-        to: user.email,
-        subject: `Your ${pref.frequency} digest — ${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`,
-        html,
-      });
+        const userName =
+          [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+          user.email;
 
-      if (result.ok) {
-        // Advance lastSentAt only after all orgs have been processed and the
-        // email has been delivered, so no notifications are silently skipped.
-        await db
-          .update(emailDigestPreferencesTable)
-          .set({ lastSentAt: now, updatedAt: now })
-          .where(eq(emailDigestPreferencesTable.userId, pref.userId));
-        logger.info(
-          { userId: pref.userId, count: notifications.length, orgCount: userOrgs.length },
-          "Digest email sent",
-        );
+        const unsubscribeToken = generateUnsubscribeToken(pref.userId);
+        const unsubscribeUrl = `${APP_URL}/unsubscribe?token=${unsubscribeToken}`;
+
+        const html = buildDigestEmail({
+          orgName: orgLabel,
+          userName,
+          notifications: notifications.map((n) => ({
+            message: n.message,
+            createdAt: n.createdAt,
+            entityType: n.entityType,
+            entityId: n.entityId,
+          })),
+          appUrl: APP_URL,
+          frequency: pref.frequency as "daily" | "weekly",
+          unsubscribeUrl,
+        });
+
+        const result = await sendMail({
+          to: user.email,
+          subject: `Your ${pref.frequency} digest — ${notifications.length} notification${notifications.length !== 1 ? "s" : ""}`,
+          html,
+        });
+
+        if (result.ok) {
+          // ── Step 4 (success): write lastSentAt and release the claim ─────
+          await db
+            .update(emailDigestPreferencesTable)
+            .set({ lastSentAt: now, digestClaimedAt: null, updatedAt: now })
+            .where(eq(emailDigestPreferencesTable.userId, pref.userId));
+          sendSucceeded = true;
+          logger.info(
+            { userId: pref.userId, count: notifications.length, orgCount: userOrgs.length },
+            "Digest email sent",
+          );
+        } else {
+          logger.warn({ userId: pref.userId }, "Digest send failed — claim will be released for retry");
+        }
+      } finally {
+        // ── Step 4 (failure / exception): release the claim so the next
+        // run can retry. No-op if sendSucceeded (claim already cleared above).
+        if (!sendSucceeded) {
+          await releaseClaim(pref.userId, now);
+        }
       }
     }
   } catch (err) {
@@ -195,11 +287,12 @@ async function runDigest(): Promise<void> {
 }
 
 /**
- * Start the digest mailer. Runs once immediately and then every hour.
- * Returns the interval handle for cleanup on shutdown.
+ * Start the digest mailer. Fires after a short randomized jitter (0–30 s) to
+ * reduce duplicate sends when multiple processes restart simultaneously, then
+ * every hour thereafter. Returns the interval handle for cleanup on shutdown.
  */
 export function startDigestMailer(): ReturnType<typeof setInterval> {
-  // Run immediately (fire-and-forget) then every hour
-  void runDigest();
+  const jitterMs = Math.floor(Math.random() * 30_000); // 0–30 s
+  setTimeout(() => void runDigest(), jitterMs);
   return setInterval(() => void runDigest(), 60 * 60 * 1000);
 }
