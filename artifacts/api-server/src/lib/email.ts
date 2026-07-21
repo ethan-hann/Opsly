@@ -199,6 +199,7 @@ export function buildDigestEmail(opts: {
   notifications: Array<{ message: string; createdAt: Date; entityType: string; entityId: number }>;
   appUrl: string;
   frequency: "daily" | "weekly";
+  unsubscribeUrl: string;
 }): string {
   const period = opts.frequency === "daily" ? "daily" : "weekly";
   const items = opts.notifications
@@ -226,9 +227,11 @@ export function buildDigestEmail(opts: {
     <p style="color:#6b7280;font-size:13px;margin-top:24px">
       You're receiving this because you opted into ${period} email digests.
       <a href="${opts.appUrl}/settings/notifications" style="color:#2563eb">Manage preferences</a>
+      &nbsp;·&nbsp;
+      <a href="${opts.unsubscribeUrl}" style="color:#2563eb">Unsubscribe</a>
     </p>
   </div>
-  <div class="footer">IT Task Manager · This is an automated digest.</div>
+  <div class="footer">IT Task Manager · This is an automated digest. <a href="${opts.unsubscribeUrl}" style="color:#6b7280">Unsubscribe from digest emails</a></div>
 </div>
 </body>
 </html>`;

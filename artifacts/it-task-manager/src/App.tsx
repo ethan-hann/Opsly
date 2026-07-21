@@ -28,6 +28,7 @@ import WebhooksPage from '@/pages/webhooks';
 import WebhookInboundEditPage from '@/pages/webhook-inbound-edit';
 import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
+import UnsubscribePage from '@/pages/unsubscribe';
 import { NotificationPreferencesPage } from '@/pages/notification-preferences';
 import type { PendingInvitation } from '@workspace/api-client-react';
 import { useOrgContext } from '@/hooks/use-org-context';
@@ -157,6 +158,8 @@ function App() {
                 {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
                     users can see the invite details before being asked to log in */}
                 <Route path="/invite/:token" component={InvitePage} />
+                {/* One-click unsubscribe - no login required; token is proof of identity */}
+                <Route path="/unsubscribe" component={UnsubscribePage} />
                 {/* Instance admin console - has its own auth check via /api/admin/me */}
                 <Route path="/admin" component={AdminConsolePage} />
                 <Route path="/admin/:rest*" component={AdminConsolePage} />

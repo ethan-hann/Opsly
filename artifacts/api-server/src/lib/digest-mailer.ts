@@ -21,6 +21,7 @@ import {
   organizationsTable,
 } from "@workspace/db";
 import { sendMail, buildDigestEmail, isEmailConfigured } from "./email";
+import { generateUnsubscribeToken } from "./unsubscribe-token";
 import { logger } from "./logger";
 
 const APP_URL = (process.env["APP_URL"] ?? "").replace(/\/$/, "");
@@ -152,6 +153,9 @@ async function runDigest(): Promise<void> {
         [user.firstName, user.lastName].filter(Boolean).join(" ") ||
         user.email;
 
+      const unsubscribeToken = generateUnsubscribeToken(pref.userId);
+      const unsubscribeUrl = `${APP_URL}/unsubscribe?token=${unsubscribeToken}`;
+
       const html = buildDigestEmail({
         orgName: orgLabel,
         userName,
@@ -163,6 +167,7 @@ async function runDigest(): Promise<void> {
         })),
         appUrl: APP_URL,
         frequency: pref.frequency as "daily" | "weekly",
+        unsubscribeUrl,
       });
 
       const result = await sendMail({

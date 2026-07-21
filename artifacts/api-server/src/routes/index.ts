@@ -20,6 +20,7 @@ import searchRouter from "./search";
 import apiKeysRouter from "./api-keys";
 import exportRouter from "./export";
 import adminRouter from "./admin";
+import unsubscribeRouter from "./unsubscribe";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(searchRouter);
 router.use(apiKeysRouter);
 router.use(exportRouter);
 router.use(adminRouter);
+router.use(unsubscribeRouter);
 
 export default router;
