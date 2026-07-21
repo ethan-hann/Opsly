@@ -138,6 +138,17 @@ export async function loadSmtpOverride(): Promise<void> {
 
     let pass = "";
     if (row.passEncrypted) {
+      // Fail fast if the encryption key is missing — attempting to decrypt
+      // without it would silently fall back to no password, which is worse
+      // than a clear startup failure.
+      if (!process.env["SECRET_ENCRYPTION_KEY"]) {
+        logger.fatal(
+          "FATAL: instance_smtp_config row exists with an encrypted password but " +
+            "SECRET_ENCRYPTION_KEY is not set. The server cannot safely load the SMTP " +
+            "override without the encryption key. Set SECRET_ENCRYPTION_KEY and restart.",
+        );
+        process.exit(1);
+      }
       try {
         pass = decrypt(row.passEncrypted);
       } catch (err) {
@@ -178,6 +189,16 @@ export async function applySmtpOverride(config: {
   // re-encrypt the current in-memory password (which came from the existing DB
   // row or env vars).
   const plainPass = config.pass !== undefined ? config.pass : _config.pass;
+
+  // Guard before encrypting — give the caller a descriptive error rather than
+  // a raw crypto throw that surfaces as an opaque 500.
+  if (plainPass && !process.env["SECRET_ENCRYPTION_KEY"]) {
+    throw new Error(
+      "SECRET_ENCRYPTION_KEY is not set. Cannot encrypt the SMTP password. " +
+        "Set the SECRET_ENCRYPTION_KEY environment variable and restart the server.",
+    );
+  }
+
   const passEncrypted = plainPass ? encrypt(plainPass) : null;
 
   await db

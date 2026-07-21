@@ -437,7 +437,21 @@ router.put('/admin/email/config', async (req, res) => {
     config.pass = body.pass;
   }
 
-  await applySmtpOverride(config);
+  try {
+    await applySmtpOverride(config);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    // Surface missing-key errors as a clear 500 rather than an unhandled throw.
+    if (message.includes('SECRET_ENCRYPTION_KEY')) {
+      res.status(500).json({
+        error:
+          'Server misconfiguration: SECRET_ENCRYPTION_KEY is not set. ' +
+          'The SMTP password cannot be encrypted until the environment variable is configured and the server is restarted.',
+      });
+      return;
+    }
+    throw err;
+  }
 
   await logAdminAction(req.instanceAdminActor!, 'update_smtp_config', 'smtp', 'default', {
     host: config.host,
