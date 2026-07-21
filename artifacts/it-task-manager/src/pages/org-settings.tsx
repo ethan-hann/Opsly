@@ -36,7 +36,7 @@ import {
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
 import { useBranding } from "@/context/branding-context";
-import { useReactionPalette, usePatchReactionPalette } from "@/hooks/use-reactions";
+import { useReactionPalette, usePatchReactionPalette, DEFAULT_REACTION_PALETTE } from "@/hooks/use-reactions";
 import type { TermKey } from "@/context/terminology-context";
 import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
@@ -251,6 +251,23 @@ function ReactionPaletteCard() {
     );
   }
 
+  const isDefault =
+    localPalette.length === DEFAULT_REACTION_PALETTE.length &&
+    DEFAULT_REACTION_PALETTE.every((e: string, i: number) => localPalette[i] === e);
+
+  function handleReset() {
+    savePalette(
+      { palette: DEFAULT_REACTION_PALETTE },
+      {
+        onSuccess: () => {
+          setLocalPalette(DEFAULT_REACTION_PALETTE);
+          toast({ title: "Reaction palette reset to defaults" });
+        },
+        onError: (err: Error) => toast({ title: "Failed to reset palette", description: err.message, variant: "destructive" }),
+      },
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -320,7 +337,7 @@ function ReactionPaletteCard() {
                 Add
               </Button>
             </div>
-            <div className="flex gap-2 pt-1">
+            <div className="flex gap-2 pt-1 flex-wrap">
               <Button
                 size="sm"
                 onClick={handleSave}
@@ -328,6 +345,17 @@ function ReactionPaletteCard() {
               >
                 {isSaving ? "Saving…" : "Save palette"}
               </Button>
+              {!isDefault && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReset}
+                  disabled={isSaving}
+                  title="Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+                >
+                  Reset to defaults
+                </Button>
+              )}
             </div>
           </>
         )}

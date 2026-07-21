@@ -24,6 +24,16 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// ─── Default palette ──────────────────────────────────────────────────────────
+
+/**
+ * The 12 built-in emoji that ship with every new org.
+ * Matches DEFAULT_REACTION_PALETTE in @workspace/api-zod.
+ */
+export const DEFAULT_REACTION_PALETTE: string[] = [
+  "👍", "👎", "❤️", "😂", "😮", "😢", "🎉", "🙌", "🔥", "✅", "🤔", "👀",
+];
+
 // ─── Query keys ───────────────────────────────────────────────────────────────
 
 export function reactionPaletteQueryKey() {
