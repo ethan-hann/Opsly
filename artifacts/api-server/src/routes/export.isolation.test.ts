@@ -636,4 +636,44 @@ describe("GET /export/pending — jobInProgress identification", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ pending: false });
   });
+
+  // ── Cross-org isolation ─────────────────────────────────────────────────
+  //
+  // Isolation contract: the route queries exportJobsTable with
+  //   WHERE userId = <caller> AND orgId = <caller-org>
+  // A real database never returns org-b's rows for an org-a query.
+  // The mock simulates this by pushing [] — exactly what the DB yields when
+  // org-b has a job but org-a does not.
+  //
+  // These tests pin the contract: even if org-b has an active or in-progress
+  // export job, org-a callers always see { pending: false } with no
+  // jobInProgress flag.
+
+  it("org isolation — org-b has a completed export job but org-a caller sees { pending: false }", async () => {
+    // Real DB applies WHERE orgId='org-a' AND userId='user-a1', so it returns
+    // zero rows even though org-b has a valid complete job.  The mock
+    // simulates this by queueing an empty result.
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    // org-a must not see org-b's completed export.
+    expect(res.body).toEqual({ pending: false });
+    expect(res.body.token).toBeUndefined();
+    expect(res.body.filename).toBeUndefined();
+  });
+
+  it("org isolation — org-b has an in-progress export job but org-a caller sees { pending: false } without jobInProgress", async () => {
+    // Real DB's WHERE orgId='org-a' clause excludes org-b's pending row.
+    // The mock returns [] to simulate this scoped query.
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/export/pending");
+
+    expect(res.status).toBe(200);
+    // org-a must not inherit org-b's jobInProgress state.
+    expect(res.body).toEqual({ pending: false });
+    expect(res.body.jobInProgress).toBeUndefined();
+  });
 });
