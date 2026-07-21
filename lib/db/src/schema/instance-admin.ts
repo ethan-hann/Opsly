@@ -28,6 +28,8 @@ export type OrgFeature = (typeof ORG_FEATURES)[number];
  * Per-org feature flags. If no row exists for a given org+feature, the feature
  * is considered enabled by default (opt-out model so existing orgs are unaffected).
  */
+export type OrgFeatureState = 'enabled' | 'disabled' | 'unsubscribed';
+
 export const orgFeaturesTable = pgTable(
   'org_features',
   {
@@ -37,6 +39,19 @@ export const orgFeaturesTable = pgTable(
       .references(() => organizationsTable.id, { onDelete: 'cascade' }),
     feature: text('feature').notNull().$type<OrgFeature>(),
     enabled: boolean('enabled').notNull().default(true),
+    /**
+     * Three-state feature flag:
+     *   'enabled'      — available to the org (default)
+     *   'disabled'     — turned off by an instance admin (hard-off)
+     *   'unsubscribed' — not included in the org's plan (upgrade prompt)
+     *
+     * Kept in sync with the legacy `enabled` boolean:
+     *   'enabled' ↔ enabled=true, 'disabled'/'unsubscribed' ↔ enabled=false.
+     */
+    featureState: text('feature_state')
+      .notNull()
+      .default('enabled')
+      .$type<OrgFeatureState>(),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow()

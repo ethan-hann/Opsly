@@ -1,6 +1,18 @@
 import { createContext, useContext } from "react";
 import type { Organization, PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 
+// ─── Feature types ────────────────────────────────────────────────────────────
+
+export type OrgFeatureKey =
+  | "webhooks"
+  | "api_keys"
+  | "data_export"
+  | "custom_fields"
+  | "custom_statuses"
+  | "sla_tracking";
+
+export type OrgFeatureState = "enabled" | "disabled" | "unsubscribed";
+
 // ─── Context value type ───────────────────────────────────────────────────────
 
 export interface OrgContextValue {
@@ -14,6 +26,19 @@ export interface OrgContextValue {
   isOwner: boolean;
   hasPermission: (key: keyof RolePermissions) => boolean;
   refetchOrg: () => void;
+
+  /** Full feature-state map. Absent keys default to 'enabled'. */
+  features: Partial<Record<OrgFeatureKey, OrgFeatureState>>;
+  /**
+   * Returns true only when the feature state is 'enabled'.
+   * Returns true for unknown/absent keys (opt-out model).
+   */
+  isFeatureEnabled: (feature: OrgFeatureKey) => boolean;
+  /**
+   * Returns true when the feature state is 'unsubscribed'.
+   * Used to show Upgrade prompts in place of real content.
+   */
+  isFeatureUnsubscribed: (feature: OrgFeatureKey) => boolean;
 }
 
 // ─── Context object (exported so OrgGuard can provide it) ────────────────────

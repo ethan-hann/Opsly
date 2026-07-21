@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate } from "@/lib/utils";
 import { Plus, Search, LayoutList, Columns, ChevronDown, X, Bookmark, Globe, Lock, Pencil, Trash2, Star, FileText, CheckSquare, UserCheck, Tag, AlertCircle, Layers, Eye, ShieldAlert, Clock, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -1147,19 +1148,21 @@ export default function TasksList() {
             Overdue
           </button>
 
-          {/* SLA Breached toggle */}
-          <button
-            onClick={() => setSlaBreached(!filters.slaBreached)}
-            className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-md font-medium border transition-colors ${
-              filters.slaBreached
-                ? "bg-red-600 text-white border-red-600"
-                : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
-            }`}
-            title={filters.slaBreached ? "Showing SLA-breached tasks only — click to clear" : "Show only tasks that have breached their SLA"}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            SLA Breached
-          </button>
+          {/* SLA Breached toggle — hidden when sla_tracking is off */}
+          <FeatureGate feature="sla_tracking" compact>
+            <button
+              onClick={() => setSlaBreached(!filters.slaBreached)}
+              className={`flex items-center gap-1.5 px-3 h-8 text-xs rounded-md font-medium border transition-colors ${
+                filters.slaBreached
+                  ? "bg-red-600 text-white border-red-600"
+                  : "bg-background/50 text-muted-foreground border-border hover:text-foreground hover:bg-background"
+              }`}
+              title={filters.slaBreached ? "Showing SLA-breached tasks only — click to clear" : "Show only tasks that have breached their SLA"}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              SLA Breached
+            </button>
+          </FeatureGate>
 
           {/* Watching toggle */}
           <button
@@ -1372,14 +1375,16 @@ export default function TasksList() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 pl-7 md:pl-0 flex-wrap justify-end">
-                        <SlaBadge
-                          createdAt={task.createdAt}
-                          updatedAt={task.updatedAt}
-                          status={task.status}
-                          priority={task.priority}
-                          policies={slaPolicies}
-                          stageType={task.stageType as "open" | "closed" | undefined}
-                        />
+                        <FeatureGate feature="sla_tracking" compact>
+                          <SlaBadge
+                            createdAt={task.createdAt}
+                            updatedAt={task.updatedAt}
+                            status={task.status}
+                            priority={task.priority}
+                            policies={slaPolicies}
+                            stageType={task.stageType as "open" | "closed" | undefined}
+                          />
+                        </FeatureGate>
                         <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                         <PriorityBadge priority={task.priority} />
                       </div>

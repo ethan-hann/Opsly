@@ -30,6 +30,9 @@ vi.mock("@/hooks/use-org-context", () => ({
     permissions: null,
     pendingInvitation: null,
     refetchOrg: vi.fn(),
+    features: {},
+    isFeatureEnabled: () => true,
+    isFeatureUnsubscribed: () => false,
   }),
 }));
 

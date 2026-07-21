@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Organization } from './organization';
+import type { OrgMeResponseFeatures } from './orgMeResponseFeatures';
 import type { PendingInvitation } from './pendingInvitation';
 import type { RolePermissions } from './rolePermissions';
 
@@ -27,6 +28,8 @@ export interface OrgMeResponse {
   roleName?: string | null;
   /** Full set of permission flags for the caller's role. Null when `org` is null. */
   permissions?: RolePermissions | null;
+  /** Map of each org feature key to its current state. Keys absent from the map default to 'enabled'. Only present when the user is a member of an org. */
+  features?: OrgMeResponseFeatures;
   /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
 }

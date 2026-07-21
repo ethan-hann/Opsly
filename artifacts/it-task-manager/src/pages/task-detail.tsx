@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
 import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff } from "lucide-react";
 import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
@@ -873,14 +874,16 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 <span className="text-xs font-mono uppercase bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border">
                   {task.category}
                 </span>
-                <SlaBadge
-                  createdAt={task.createdAt}
-                  updatedAt={task.updatedAt}
-                  status={task.status}
-                  priority={task.priority}
-                  policies={slaPolicies}
-                  stageType={task.stageType as "open" | "closed" | undefined}
-                />
+                <FeatureGate feature="sla_tracking" compact>
+                  <SlaBadge
+                    createdAt={task.createdAt}
+                    updatedAt={task.updatedAt}
+                    status={task.status}
+                    priority={task.priority}
+                    policies={slaPolicies}
+                    stageType={task.stageType as "open" | "closed" | undefined}
+                  />
+                </FeatureGate>
               </div>
             </CardHeader>
             <CardContent className="pt-6">
@@ -1164,23 +1167,25 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </PropertyRow>
 
                 {/* Custom Fields */}
-                {customFieldDefs.map((field) => {
-                  const cfId = String(field.id);
-                  const rawValue = (task.customFields as Record<string, unknown> | undefined)?.[cfId];
-                  return (
-                    <PropertyRow key={field.id} label={field.name}>
-                      {canEdit ? (
-                        <InlineCustomField
-                          field={field}
-                          value={rawValue}
-                          onChange={(val) => handleCustomFieldChange(cfId, val)}
-                        />
-                      ) : (
-                        <CustomFieldReadOnly value={rawValue} />
-                      )}
-                    </PropertyRow>
-                  );
-                })}
+                <FeatureGate feature="custom_fields">
+                  {customFieldDefs.map((field) => {
+                    const cfId = String(field.id);
+                    const rawValue = (task.customFields as Record<string, unknown> | undefined)?.[cfId];
+                    return (
+                      <PropertyRow key={field.id} label={field.name}>
+                        {canEdit ? (
+                          <InlineCustomField
+                            field={field}
+                            value={rawValue}
+                            onChange={(val) => handleCustomFieldChange(cfId, val)}
+                          />
+                        ) : (
+                          <CustomFieldReadOnly value={rawValue} />
+                        )}
+                      </PropertyRow>
+                    );
+                  })}
+                </FeatureGate>
 
                 {/* Created date — always read-only */}
                 <div className="p-3 flex flex-col gap-1.5 bg-muted/5">

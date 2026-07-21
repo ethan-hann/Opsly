@@ -7,7 +7,7 @@ import {
 } from "react";
 import { useGetMyOrg } from "@workspace/api-client-react";
 import type { PendingInvitation, RolePermissions } from "@workspace/api-client-react";
-import { OrgContext, type OrgContextValue } from "@/hooks/use-org-context";
+import { OrgContext, type OrgContextValue, type OrgFeatureKey, type OrgFeatureState } from "@/hooks/use-org-context";
 import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
 import { OrgSuspendedPage } from "@/pages/org-suspended";
 
@@ -131,6 +131,19 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return permissions?.[key] === true;
   }
 
+  // Feature-state helpers
+  const features = (data.features ?? {}) as Partial<Record<OrgFeatureKey, OrgFeatureState>>;
+
+  function isFeatureEnabled(feature: OrgFeatureKey): boolean {
+    const state = features[feature];
+    // Absent key = default 'enabled'
+    return state === undefined || state === "enabled";
+  }
+
+  function isFeatureUnsubscribed(feature: OrgFeatureKey): boolean {
+    return features[feature] === "unsubscribed";
+  }
+
   // Has org - render main app with context
   const value: OrgContextValue = {
     org: data.org,
@@ -144,6 +157,9 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     isOwner,
     hasPermission,
     refetchOrg,
+    features,
+    isFeatureEnabled,
+    isFeatureUnsubscribed,
   };
 
   return (

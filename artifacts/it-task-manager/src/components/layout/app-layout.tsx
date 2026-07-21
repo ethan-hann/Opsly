@@ -270,7 +270,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { setTheme } = useTheme();
   const { user, logout } = useAuth();
-  const { isAdmin, org } = useOrgContext();
+  const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed } = useOrgContext();
   const { open: openSearch } = useGlobalSearch();
 
   // Mobile: drawer open/closed
@@ -290,8 +290,15 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       return next;
     });
 
+  // Hide Webhooks link when the feature is strictly disabled (hard-off by admin).
+  // When unsubscribed, keep the link so the user lands on the Upgrade banner.
+  const webhooksVisible =
+    isFeatureEnabled("webhooks") || isFeatureUnsubscribed("webhooks");
+
   const allNavItems = [
-    ...mainNavItems,
+    ...mainNavItems.filter(
+      (item) => item.href !== "/webhooks" || webhooksVisible,
+    ),
     { href: "/org/settings", label: "Org Settings", icon: Settings },
   ];
 

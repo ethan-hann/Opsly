@@ -54,6 +54,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
+import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
 
 // ─── API Keys ─────────────────────────────────────────────────────────────────
@@ -2455,39 +2456,41 @@ export default function OrgSettings() {
         </CardContent>
       </Card>
 
-      {/* SLA Policies (admin only) */}
-      {isAdmin && <SlaPoliciesCard />}
+      {/* SLA Policies (admin only, sla_tracking feature) */}
+      {isAdmin && <FeatureGate feature="sla_tracking"><SlaPoliciesCard /></FeatureGate>}
 
-      {/* Workflow Stages (admin only) */}
-      {isAdmin && <WorkflowStagesCard />}
+      {/* Workflow Stages (admin only, custom_statuses feature) */}
+      {isAdmin && <FeatureGate feature="custom_statuses"><WorkflowStagesCard /></FeatureGate>}
 
       {/* Task Templates (admin only) */}
       {isAdmin && <TaskTemplatesCard />}
 
-      {/* API Keys (owner only) */}
-      {isOwner && <ApiKeysCard />}
+      {/* API Keys (owner only, api_keys feature) */}
+      {isOwner && <FeatureGate feature="api_keys"><ApiKeysCard /></FeatureGate>}
 
-      {/* Custom Fields (admin only) */}
+      {/* Custom Fields (admin only, custom_fields feature) */}
       {isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Sliders className="w-4 h-4" />
-              Custom Fields
-            </CardTitle>
-            <CardDescription>
-              Define typed fields that appear on every task in your organization.
-              Admins can create, rename, reorder, and delete fields.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CustomFieldsManager />
-          </CardContent>
-        </Card>
+        <FeatureGate feature="custom_fields">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sliders className="w-4 h-4" />
+                Custom Fields
+              </CardTitle>
+              <CardDescription>
+                Define typed fields that appear on every task in your organization.
+                Admins can create, rename, reorder, and delete fields.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CustomFieldsManager />
+            </CardContent>
+          </Card>
+        </FeatureGate>
       )}
 
-      {/* Export Data (admin only) */}
-      {isAdmin && <ExportCard />}
+      {/* Export Data (admin only, data_export feature) */}
+      {isAdmin && <FeatureGate feature="data_export"><ExportCard /></FeatureGate>}
 
       {/* Instance Admin Console (instance admins only) */}
       {isInstanceAdmin && (

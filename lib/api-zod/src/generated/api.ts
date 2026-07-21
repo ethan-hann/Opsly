@@ -1095,6 +1095,7 @@ export const CreateOrgResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean()
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
+  "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
@@ -1154,6 +1155,7 @@ export const GetMyOrgResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean()
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
+  "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),
@@ -1296,6 +1298,7 @@ export const AcceptOrgInvitationResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean()
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
+  "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
   "id": zod.string().describe('UUID of the invitation.'),
   "orgId": zod.string().describe('UUID of the organization that sent the invitation.'),

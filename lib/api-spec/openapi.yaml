@@ -3372,6 +3372,14 @@ components:
           type: string
           description: ISO 8601 timestamp when this invitation expires.
 
+    OrgFeatureState:
+      type: string
+      enum: [enabled, disabled, unsubscribed]
+      description: >
+        Activation state of an org feature flag.
+        'enabled' = available (default); 'disabled' = turned off by instance admin;
+        'unsubscribed' = not included in org's plan (shows Upgrade prompt).
+
     OrgMeResponse:
       description: >
         Current organization context for the authenticated user. Either `org`
@@ -3396,6 +3404,14 @@ components:
             - $ref: '#/components/schemas/RolePermissions'
             - type: 'null'
           description: Full set of permission flags for the caller's role. Null when `org` is null.
+        features:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/OrgFeatureState'
+          description: >
+            Map of each org feature key to its current state. Keys absent from
+            the map default to 'enabled'. Only present when the user is a member
+            of an org.
         pendingInvitation:
           oneOf:
             - $ref: '#/components/schemas/PendingInvitation'

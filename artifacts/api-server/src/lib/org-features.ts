@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
-import { db, orgFeaturesTable } from '@workspace/db';
-import type { OrgFeature } from '@workspace/db';
+import { db, orgFeaturesTable, ORG_FEATURES } from '@workspace/db';
+import type { OrgFeature, OrgFeatureState } from '@workspace/db';
 import type { NextFunction, Request, Response } from 'express';
 
 /**
@@ -16,6 +16,32 @@ export async function isOrgFeatureEnabled(orgId: string, feature: OrgFeature): P
 
   // No row = not configured = default enabled
   return row?.enabled ?? true;
+}
+
+/**
+ * Return the full feature-state map for an org.
+ * Each key is an OrgFeature; the value is 'enabled', 'disabled', or 'unsubscribed'.
+ * Features with no row default to 'enabled'.
+ */
+export async function getOrgFeatureStates(
+  orgId: string,
+): Promise<Record<OrgFeature, OrgFeatureState>> {
+  const rows = await db
+    .select({
+      feature: orgFeaturesTable.feature,
+      featureState: orgFeaturesTable.featureState,
+    })
+    .from(orgFeaturesTable)
+    .where(eq(orgFeaturesTable.orgId, orgId));
+
+  const result = {} as Record<OrgFeature, OrgFeatureState>;
+  for (const feat of ORG_FEATURES) {
+    result[feat] = 'enabled'; // default
+  }
+  for (const row of rows) {
+    result[row.feature] = (row.featureState ?? 'enabled') as OrgFeatureState;
+  }
+  return result;
 }
 
 /**

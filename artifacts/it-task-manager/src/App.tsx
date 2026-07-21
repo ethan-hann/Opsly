@@ -3,8 +3,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import AdminConsolePage from '@/pages/admin/index';
-import { Route, Switch, Router as WouterRouter } from 'wouter';
+import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
+import { useEffect } from 'react';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
@@ -28,6 +29,9 @@ import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
 import { NotificationPreferencesPage } from '@/pages/notification-preferences';
 import type { PendingInvitation } from '@workspace/api-client-react';
+import { useOrgContext } from '@/hooks/use-org-context';
+import type { OrgFeatureKey } from '@/hooks/use-org-context';
+import { UpgradeBanner } from '@/components/ui/upgrade-modal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,6 +65,46 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * GatedRoute — wraps a page component with a feature flag check.
+ *
+ * - disabled:     redirects to "/" (hard-off; instance admin removed the feature)
+ * - unsubscribed: renders <UpgradeBanner> in place of the page
+ * - enabled:      renders the page normally
+ *
+ * Route params (e.g. `params.id` from `/webhooks/inbound/:id`) are forwarded
+ * to the wrapped component so deep-link routes continue to work.
+ */
+function GatedRoute({
+  feature,
+  component: Component,
+  ...routeProps
+}: {
+  feature: OrgFeatureKey;
+  component: React.ComponentType<any>;
+  [key: string]: any;
+}) {
+  const { isFeatureEnabled, isFeatureUnsubscribed } = useOrgContext();
+  const [, setLocation] = useLocation();
+  const hardOff = !isFeatureEnabled(feature) && !isFeatureUnsubscribed(feature);
+
+  useEffect(() => {
+    if (hardOff) setLocation('/');
+  }, [hardOff, setLocation]);
+
+  if (hardOff) return null;
+
+  if (isFeatureUnsubscribed(feature)) {
+    return (
+      <div className="p-8 max-w-lg mx-auto">
+        <UpgradeBanner feature={feature} />
+      </div>
+    );
+  }
+
+  return <Component {...routeProps} />;
+}
+
 function Router() {
   return (
     <AppLayout>
@@ -72,9 +116,9 @@ function Router() {
         <Route path="/tasks/:id" component={TaskDetail} />
         <Route path="/notes" component={NotesPage} />
         <Route path="/org/settings" component={OrgSettings} />
-        <Route path="/webhooks" component={WebhooksPage} />
-        <Route path="/webhooks/inbound/:id" component={WebhookInboundEditPage} />
-        <Route path="/webhooks/outbound/:id" component={WebhookOutboundEditPage} />
+        <Route path="/webhooks" component={(p: any) => <GatedRoute feature="webhooks" component={WebhooksPage} {...p} />} />
+        <Route path="/webhooks/inbound/:id" component={(p: any) => <GatedRoute feature="webhooks" component={WebhookInboundEditPage} {...p} />} />
+        <Route path="/webhooks/outbound/:id" component={(p: any) => <GatedRoute feature="webhooks" component={WebhookOutboundEditPage} {...p} />} />
         <Route path="/settings/notifications" component={NotificationPreferencesPage} />
         <Route component={NotFound} />
       </Switch>

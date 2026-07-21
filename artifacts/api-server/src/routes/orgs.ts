@@ -21,7 +21,7 @@ import {
   requirePermission,
 } from '../middlewares/requireOrgMiddleware';
 import { pushEvent } from '../lib/sse';
-import { requireOrgFeature } from '../lib/org-features';
+import { requireOrgFeature, getOrgFeatureStates } from '../lib/org-features';
 import { seedDefaultStages } from '../lib/workflow-stages';
 import { sendMail, buildInviteEmail, isEmailConfigured } from '../lib/email';
 import { logger } from '../lib/logger';
@@ -97,6 +97,7 @@ async function getOrgMeData(userId: string) {
     .limit(1);
 
   if (membership) {
+    const features = await getOrgFeatureStates(membership.orgId);
     return {
       org: {
         id: membership.orgId,
@@ -106,6 +107,7 @@ async function getOrgMeData(userId: string) {
       roleId: membership.roleId,
       roleName: membership.roleName,
       permissions: membership.permissions,
+      features,
       pendingInvitation: null,
     };
   }

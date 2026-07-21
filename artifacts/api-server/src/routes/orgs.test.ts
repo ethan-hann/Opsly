@@ -115,6 +115,8 @@ vi.mock("@workspace/db", () => {
     invitationsTable: {},
     usersTable: {},
     workflowStagesTable: {},
+    orgFeaturesTable: { feature: "feature", featureState: "featureState", orgId: "orgId" },
+    ORG_FEATURES: ["webhooks", "api_keys", "data_export", "custom_fields", "custom_statuses", "sla_tracking"],
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -303,6 +305,7 @@ describe("GET /api/orgs/me", () => {
       orgName: "Acme Corp",
       orgCreatedAt: new Date("2024-01-01T00:00:00.000Z"),
     }]);
+    mockState.selectQueue.push([]); // getOrgFeatureStates — no feature overrides
 
     const res = await request(buildApp()).get("/api/orgs/me");
 
@@ -707,6 +710,7 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
       isOwner: false, permissions: MEMBER_PERMS,
       orgName: "Acme Corp", orgCreatedAt: new Date(),
     }]);
+    mockState.selectQueue.push([]); // getOrgFeatureStates — no feature overrides
 
     const res = await request(buildApp()).post("/api/orgs/invitations/abc123/accept");
 
@@ -727,6 +731,7 @@ describe("POST /api/orgs/invitations/:token/accept", () => {
       isOwner: false, permissions: MEMBER_PERMS,
       orgName: "Acme Corp", orgCreatedAt: new Date(),
     }]);
+    mockState.selectQueue.push([]); // getOrgFeatureStates — no feature overrides
 
     await request(buildApp()).post("/api/orgs/invitations/abc123/accept");
 

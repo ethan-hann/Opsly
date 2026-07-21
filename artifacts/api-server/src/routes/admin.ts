@@ -185,18 +185,42 @@ router.get('/admin/orgs/:id/features', async (req, res) => {
 /**
  * PATCH /api/admin/orgs/:id/features
  * Toggle one or more feature flags for an org.
- * Body: { feature: OrgFeature, enabled: boolean }
+ * Body: { feature: OrgFeature, enabled?: boolean, featureState?: 'enabled'|'disabled'|'unsubscribed' }
+ *
+ * Backward-compatible: if only `enabled` is supplied, derive featureState from it.
+ * If `featureState` is supplied, it takes precedence and `enabled` is derived from it.
  */
 router.patch('/admin/orgs/:id/features', async (req, res) => {
   const { id } = req.params;
-  const { feature, enabled } = req.body as { feature?: string; enabled?: boolean };
+  const { feature, enabled, featureState } = req.body as {
+    feature?: string;
+    enabled?: boolean;
+    featureState?: string;
+  };
 
   if (!feature || !ORG_FEATURES.includes(feature as OrgFeature)) {
     res.status(400).json({ error: `feature must be one of: ${ORG_FEATURES.join(', ')}` });
     return;
   }
-  if (typeof enabled !== 'boolean') {
-    res.status(400).json({ error: 'enabled (boolean) is required' });
+
+  const VALID_STATES = ['enabled', 'disabled', 'unsubscribed'] as const;
+
+  // Resolve the canonical featureState and derived enabled boolean
+  let resolvedState: 'enabled' | 'disabled' | 'unsubscribed';
+  let resolvedEnabled: boolean;
+
+  if (featureState !== undefined) {
+    if (!VALID_STATES.includes(featureState as (typeof VALID_STATES)[number])) {
+      res.status(400).json({ error: `featureState must be one of: ${VALID_STATES.join(', ')}` });
+      return;
+    }
+    resolvedState = featureState as 'enabled' | 'disabled' | 'unsubscribed';
+    resolvedEnabled = resolvedState === 'enabled';
+  } else if (typeof enabled === 'boolean') {
+    resolvedState = enabled ? 'enabled' : 'disabled';
+    resolvedEnabled = enabled;
+  } else {
+    res.status(400).json({ error: 'Either enabled (boolean) or featureState (string) is required' });
     return;
   }
 
@@ -213,18 +237,24 @@ router.patch('/admin/orgs/:id/features', async (req, res) => {
 
   await db
     .insert(orgFeaturesTable)
-    .values({ orgId: id, feature: feature as OrgFeature, enabled })
+    .values({
+      orgId: id,
+      feature: feature as OrgFeature,
+      enabled: resolvedEnabled,
+      featureState: resolvedState,
+    })
     .onConflictDoUpdate({
       target: [orgFeaturesTable.orgId, orgFeaturesTable.feature],
-      set: { enabled, updatedAt: new Date() },
+      set: { enabled: resolvedEnabled, featureState: resolvedState, updatedAt: new Date() },
     });
 
   await logAdminAction(req.instanceAdminActor!, 'toggle_feature', 'feature', id, {
     feature,
-    enabled,
+    featureState: resolvedState,
+    enabled: resolvedEnabled,
   });
 
-  res.json({ orgId: id, feature, enabled });
+  res.json({ orgId: id, feature, enabled: resolvedEnabled, featureState: resolvedState });
 });
 
 // ─── Users ───────────────────────────────────────────────────────────────────

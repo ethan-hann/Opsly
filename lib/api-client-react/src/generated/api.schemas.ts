@@ -988,6 +988,23 @@ export interface PendingInvitation {
 }
 
 /**
+ * Activation state of an org feature flag. 'enabled' = available (default); 'disabled' = turned off by instance admin; 'unsubscribed' = not included in org's plan (shows Upgrade prompt).
+ */
+export type OrgFeatureState = typeof OrgFeatureState[keyof typeof OrgFeatureState];
+
+
+export const OrgFeatureState = {
+  enabled: 'enabled',
+  disabled: 'disabled',
+  unsubscribed: 'unsubscribed',
+} as const;
+
+/**
+ * Map of each org feature key to its current state. Keys absent from the map default to 'enabled'. Only present when the user is a member of an org.
+ */
+export type OrgMeResponseFeatures = {[key: string]: OrgFeatureState};
+
+/**
  * Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.
  */
 export interface RolePermissions {
@@ -1027,6 +1044,8 @@ export interface OrgMeResponse {
   roleName?: string | null;
   /** Full set of permission flags for the caller's role. Null when `org` is null. */
   permissions?: RolePermissions | null;
+  /** Map of each org feature key to its current state. Keys absent from the map default to 'enabled'. Only present when the user is a member of an org. */
+  features?: OrgMeResponseFeatures;
   /** The oldest non-expired pending invitation for this user. Present only when the user is not yet a member of any org. Null otherwise. */
   pendingInvitation: PendingInvitation | null;
 }
