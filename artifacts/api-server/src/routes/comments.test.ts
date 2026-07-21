@@ -406,6 +406,32 @@ describe("PATCH /api/comments/:id", () => {
     expect(typeof res.body.editedAt).toBe("string");
   });
 
+  it("returns 404 when the comment is soft-deleted", async () => {
+    // The route queries with isNull(deletedAt), so a soft-deleted row is
+    // invisible to the handler — it sees no rows and responds with 404.
+    mockState.selectQueue.push([]); // soft-deleted comment excluded by DB predicate
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 404 when the comment belongs to a different org", async () => {
+    // The route queries with eq(orgId), so a comment from another org
+    // is invisible to the caller — the handler responds with 404.
+    mockState.selectQueue.push([]); // cross-org comment excluded by DB predicate
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
   it("returns 400 for a non-integer comment id", async () => {
     const res = await request(buildApp())
       .patch("/api/comments/bad-id")
