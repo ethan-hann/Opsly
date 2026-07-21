@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -16,6 +16,8 @@ interface MarkdownPreviewProps {
 // elements used by the editor (<kbd>, <mark>, <sub>, <sup>).  All dangerous
 // elements (script, style, iframe, object …) and event-handler attributes
 // (on*) remain blocked by the defaultSchema.
+// data-callout is permitted on <blockquote> so the callout remark plugin's
+// hProperties survive the sanitize pass.
 const sanitizeSchema = {
   ...defaultSchema,
   tagNames: [
@@ -25,6 +27,13 @@ const sanitizeSchema = {
     "sub",
     "sup",
   ],
+  attributes: {
+    ...defaultSchema.attributes,
+    blockquote: [
+      ...(defaultSchema.attributes?.blockquote ?? []),
+      "data-callout",
+    ],
+  },
 };
 
 // ─── SVG sanitizer ────────────────────────────────────────────────────────────
@@ -41,7 +50,6 @@ function sanitizeSvg(svg: string): string {
 // ─── Mermaid block ────────────────────────────────────────────────────────────
 
 function MermaidBlock({ code }: { code: string }) {
-  const divRef = useRef<HTMLDivElement>(null);
   const [svg, setSvg] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
@@ -49,18 +57,25 @@ function MermaidBlock({ code }: { code: string }) {
     let cancelled = false;
     import("mermaid")
       .then(async (mod) => {
+        const mermaid = mod.default;
+        mermaid.initialize({
+          startOnLoad: false,
+          // "antiscript" blocks JS execution inside diagrams while still
+          // rendering most diagram types — safer than "loose".
+          securityLevel: "antiscript",
+          // Suppress mermaid's own error rendering into the document body.
+          suppressErrorRendering: true,
+        });
         try {
-          const mermaid = mod.default;
-          mermaid.initialize({
-            startOnLoad: false,
-            // "antiscript" blocks JS execution inside diagrams while still
-            // rendering most diagram types — safer than "loose".
-            securityLevel: "antiscript",
-          });
+          // parse() throws on syntax errors before we ever call render(),
+          // preventing mermaid from injecting its error SVG into the DOM.
+          await mermaid.parse(code.trim());
           const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
           const { svg: rendered } = await mermaid.render(id, code.trim());
           if (!cancelled) setSvg(sanitizeSvg(rendered));
         } catch {
+          // Clean up any orphaned elements mermaid may have injected.
+          document.querySelectorAll('[id^="mermaid-"], [id^="d"][id*="mermaid"]').forEach(el => el.remove());
           if (!cancelled) setError(true);
         }
       })
@@ -70,9 +85,13 @@ function MermaidBlock({ code }: { code: string }) {
 
   if (error) {
     return (
-      <pre className="bg-muted rounded-md p-3 overflow-x-auto text-xs font-mono border-l-4 border-destructive">
-        <code>{code}</code>
-      </pre>
+      <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 my-3 text-xs text-destructive">
+        <span className="mt-0.5 shrink-0">⚠</span>
+        <div>
+          <p className="font-medium">Invalid Mermaid syntax</p>
+          <p className="text-destructive/70 mt-0.5">Fix the diagram code to see a preview.</p>
+        </div>
+      </div>
     );
   }
 
@@ -86,11 +105,75 @@ function MermaidBlock({ code }: { code: string }) {
 
   return (
     <div
-      ref={divRef}
       className="my-4 overflow-x-auto flex justify-center"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
+}
+
+// ─── Callout remark plugin ────────────────────────────────────────────────────
+// Walks the MDAST (Markdown AST) looking for blockquotes whose first text
+// starts with [!NOTE], [!TIP], [!WARNING], or [!CAUTION].  When found:
+//   • stamps node.data.hProperties['data-callout'] = TYPE so the attribute
+//     survives the remark→rehype→sanitize pipeline
+//   • strips the [!TYPE] prefix from the first text node so the rendered
+//     content is clean
+// This runs before rehype, avoiding the fragile React-children manipulation
+// that caused markers to remain visible.
+
+type AstNode = {
+  type: string;
+  children?: AstNode[];
+  value?: string;
+  data?: Record<string, unknown>;
+};
+
+const CALLOUT_RE = /^\[!(NOTE|TIP|WARNING|CAUTION)\]\n?/i;
+
+function walkForCallouts(node: AstNode): void {
+  if (!node.children) return;
+  for (const child of node.children) {
+    if (child.type === "blockquote") processCalloutBlockquote(child);
+    else walkForCallouts(child);
+  }
+}
+
+function processCalloutBlockquote(node: AstNode): void {
+  const children = node.children ?? [];
+  const firstPara = children.find(c => c.type === "paragraph");
+  if (!firstPara?.children?.length) return;
+
+  const firstText = firstPara.children[0];
+  if (firstText.type !== "text" || !firstText.value) return;
+
+  const m = firstText.value.match(CALLOUT_RE);
+  if (!m) return;
+
+  const type = m[1].toUpperCase();
+
+  // Stamp hProperties so the attribute survives rehype-sanitize.
+  node.data ??= {};
+  (node.data as { hProperties?: Record<string, string> }).hProperties = {
+    "data-callout": type,
+  };
+
+  // Strip [!TYPE] from the first text node.
+  const stripped = firstText.value.replace(CALLOUT_RE, "").trimStart();
+  if (stripped) {
+    firstText.value = stripped;
+  } else {
+    // The whole first text node is just the marker — remove it.
+    firstPara.children.shift();
+    // If that empties the paragraph, remove the paragraph too.
+    if (firstPara.children.length === 0) {
+      const idx = children.indexOf(firstPara);
+      if (idx !== -1) children.splice(idx, 1);
+    }
+  }
+}
+
+function remarkCallouts() {
+  return (tree: AstNode) => walkForCallouts(tree);
 }
 
 // ─── Callout configuration ────────────────────────────────────────────────────
@@ -103,44 +186,6 @@ const CALLOUT_CONFIG = {
 } as const;
 
 type CalloutType = keyof typeof CALLOUT_CONFIG;
-
-function extractCallout(children: React.ReactNode): CalloutType | null {
-  const arr = React.Children.toArray(children);
-  const firstEl = arr.find(c => React.isValidElement(c)) as React.ReactElement<{ children?: React.ReactNode }> | undefined;
-  if (!firstEl) return null;
-  const paraChildren = React.Children.toArray(firstEl.props.children ?? []);
-  const firstText = paraChildren.find(c => typeof c === "string") as string | undefined;
-  if (!firstText) return null;
-  const m = firstText.match(/^\[!(NOTE|TIP|WARNING|CAUTION)\]/i);
-  return m ? (m[1].toUpperCase() as CalloutType) : null;
-}
-
-function stripCalloutMarker(children: React.ReactNode): React.ReactNode {
-  const arr = React.Children.toArray(children);
-  // rehype-raw inserts "\n" text nodes between block elements, so the first
-  // paragraph may not be at index 0. Find the first actual React element.
-  let markerStripped = false;
-  return arr.map((child) => {
-    if (!markerStripped && React.isValidElement(child)) {
-      markerStripped = true;
-      const el = child as React.ReactElement<{ children?: React.ReactNode }>;
-      const paraChildren = React.Children.toArray(el.props.children ?? []);
-      // Scan para children to strip the first string that starts with [!TYPE].
-      let done = false;
-      const next = paraChildren
-        .map((pc) => {
-          if (!done && typeof pc === "string") {
-            done = true;
-            return pc.replace(/^\[!(NOTE|TIP|WARNING|CAUTION)\]\n?/i, "").trimStart();
-          }
-          return pc;
-        })
-        .filter((pc) => pc !== "");
-      return next.length > 0 ? React.cloneElement(el, {}, ...next) : null;
-    }
-    return child;
-  }).filter(Boolean);
-}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -156,7 +201,7 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
   return (
     <div className={cn("overflow-y-auto px-6 py-5", className)}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkCallouts]}
         // rehype-raw parses author-supplied raw HTML; rehype-sanitize
         // immediately strips anything dangerous (script, event handlers,
         // javascript: URLs) while keeping safe presentational tags.
@@ -220,9 +265,14 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
             <td className="border border-border px-3 py-1.5">{children}</td>
           ),
 
-          // Blockquotes — detect GitHub-flavoured callouts
-          blockquote: ({ children }) => {
-            const calloutType = extractCallout(children);
+          // Blockquotes — render GitHub-flavoured callouts via data-callout
+          // stamped by the remarkCallouts plugin, plain blockquotes otherwise.
+          blockquote: ({ children, ...props }) => {
+            const dataCallout = (props as Record<string, unknown>)["data-callout"] as string | undefined;
+            const calloutType = dataCallout && dataCallout in CALLOUT_CONFIG
+              ? (dataCallout as CalloutType)
+              : null;
+
             if (!calloutType) {
               return (
                 <blockquote className="border-l-4 border-primary/40 pl-4 text-muted-foreground italic my-3">
@@ -230,8 +280,8 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
                 </blockquote>
               );
             }
+
             const cfg = CALLOUT_CONFIG[calloutType];
-            const cleanedChildren = stripCalloutMarker(children);
             return (
               <div className={cn("rounded-md border-l-4 px-4 py-3 my-4", cfg.border, cfg.bg)}>
                 <div className={cn("flex items-center gap-1.5 text-xs font-semibold mb-1.5", cfg.label)}>
@@ -239,7 +289,7 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
                   <span>{calloutType}</span>
                 </div>
                 <div className="text-sm [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
-                  {cleanedChildren}
+                  {children}
                 </div>
               </div>
             );
@@ -258,100 +308,27 @@ export function MarkdownPreview({ content, className }: MarkdownPreviewProps) {
  */
 // eslint-disable-next-line react-refresh/only-export-components -- utility co-located with the component by design
 export function openPreviewWindow(title: string, content: string) {
-  const win = window.open("", "md-preview", "width=760,height=600,resizable=yes,scrollbars=yes");
+  const win = window.open("", "_blank", "width=800,height=600");
   if (!win) return;
-
-  const html = `<!DOCTYPE html>
+  win.document.write(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>${escHtml(title)} - Preview</title>
+  <title>${title} — Preview</title>
   <style>
-    :root { color-scheme: dark; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f1117; color: #e2e8f0;
-      padding: 2rem; font-size: 15px; line-height: 1.7;
-    }
-    h1,h2,h3,h4,h5,h6 { margin: 1.2em 0 0.4em; color: #f1f5f9; font-weight: 600; }
-    h1 { font-size: 1.8em; border-bottom: 1px solid #334155; padding-bottom: .4em; }
-    h2 { font-size: 1.4em; }
-    h3 { font-size: 1.2em; }
-    p  { margin: .8em 0; }
-    a  { color: #38bdf8; }
-    ul,ol { margin: .6em 0 .6em 1.4em; }
-    li { margin: .25em 0; }
-    code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 0.88em; color: #7dd3fc; }
-    pre  { background: #1e293b; border-radius: 6px; padding: 1em; overflow-x: auto; margin: .8em 0; }
-    pre code { background: none; padding: 0; color: inherit; }
-    blockquote { border-left: 3px solid #475569; padding-left: 1em; color: #94a3b8; margin: .8em 0; }
-    table { border-collapse: collapse; width: 100%; margin: .8em 0; }
-    th,td { border: 1px solid #334155; padding: .4em .75em; text-align: left; }
-    th { background: #1e293b; font-weight: 600; }
-    hr { border: none; border-top: 1px solid #334155; margin: 1.5em 0; }
-    input[type=checkbox] { accent-color: #0ea5e9; margin-right: 4px; }
-    img { max-width: 100%; border-radius: 4px; }
-    kbd { background: #1e293b; border: 1px solid #475569; border-radius: 3px; padding: 1px 5px; font-family: monospace; font-size: 0.85em; box-shadow: 0 1px 1px rgba(0,0,0,.2); }
-    mark { background: #fde04780; color: inherit; padding: 0 2px; border-radius: 2px; }
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+    pre { background: #f5f5f5; padding: 1rem; border-radius: 6px; overflow-x: auto; }
+    code { font-family: monospace; background: #f5f5f5; padding: 0.2em 0.4em; border-radius: 3px; }
+    blockquote { border-left: 4px solid #ccc; margin: 0; padding-left: 1rem; color: #666; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+    th { background: #f5f5f5; }
+    img { max-width: 100%; }
   </style>
 </head>
-<body>${markdownToHtmlFallback(content)}</body>
-</html>`;
-
-  win.document.open();
-  win.document.write(html);
+<body>
+  <pre style="white-space:pre-wrap">${content.replace(/</g, "&lt;")}</pre>
+</body>
+</html>`);
   win.document.close();
-  win.document.title = `${title} - Preview`;
-}
-
-function escHtml(s: string) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-/**
- * Minimal markdown-to-HTML for the popup window (no React available there).
- */
-function markdownToHtmlFallback(md: string): string {
-  let html = escHtml(md);
-
-  // Fenced code blocks
-  html = html.replace(/```[\s\S]*?```/g, (m) => {
-    const inner = m.slice(3, -3).replace(/^[^\n]*\n/, "");
-    return `<pre><code>${inner}</code></pre>`;
-  });
-  // Headings
-  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
-  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
-  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
-  // HR
-  html = html.replace(/^---$/gm, "<hr>");
-  // Blockquote
-  html = html.replace(/^&gt; (.+)$/gm, "<blockquote>$1</blockquote>");
-  // Bold / italic
-  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/_(.+?)_/g, "<em>$1</em>");
-  html = html.replace(/~~(.+?)~~/g, "<s>$1</s>");
-  // Highlight
-  html = html.replace(/==(.+?)==/g, "<mark>$1</mark>");
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-  // Kbd — match the escaped form produced by escHtml
-  html = html.replace(/&lt;kbd&gt;(.+?)&lt;\/kbd&gt;/g, "<kbd>$1</kbd>");
-  // Lists
-  html = html.replace(/^- \[ \] (.+)$/gm, '<li><input type="checkbox" disabled> $1</li>');
-  html = html.replace(/^- \[x\] (.+)$/gm, '<li><input type="checkbox" checked disabled> $1</li>');
-  html = html.replace(/^- (.+)$/gm, "<li>$1</li>");
-  html = html.replace(/^(\d+)\. (.+)$/gm, "<li>$2</li>");
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/(<li>[\s\S]*?<\/li>(\n|$))+/g, "<ul>$&</ul>");
-  // Paragraphs
-  html = html.replace(/\n\n+/g, "</p><p>");
-  html = `<p>${html}</p>`;
-  html = html.replace(/<p>(<h[1-6]>|<\/h[1-6]>|<ul>|<\/ul>|<li>|<\/li>|<pre>|<\/pre>|<hr>|<blockquote>)/g, "$1");
-  html = html.replace(/(<\/h[1-6]>|<\/ul>|<\/li>|<\/pre>|<hr>|<\/blockquote>)<\/p>/g, "$1");
-
-  return html;
 }

@@ -545,7 +545,8 @@ export function MarkdownEditor({ value, onChange, placeholder, className, readOn
           "flex-1 w-full resize-none bg-background text-foreground",
           "font-mono text-sm leading-relaxed p-4",
           "focus:outline-none placeholder:text-muted-foreground/50",
-          "scrollbar-thin",
+          "scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent",
+          "[scrollbar-color:hsl(var(--border))_transparent]",
           readOnly && "cursor-default select-text",
         )}
       />
