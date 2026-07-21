@@ -22,6 +22,7 @@ const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
   insertResult: [] as any[],
   deleteResult: [] as any[],
+  updateResult: [] as any[], // used by soft-delete (db.update)
   currentUserId: "user-1",
   manageOrgSettings: false,
 }));
@@ -59,6 +60,13 @@ vi.mock("@workspace/db", () => {
       delete: () => ({
         where: () => ({
           returning: () => Promise.resolve(mockState.deleteResult),
+        }),
+      }),
+      update: () => ({
+        set: () => ({
+          where: () => ({
+            returning: () => Promise.resolve(mockState.updateResult),
+          }),
         }),
       }),
     },
@@ -120,6 +128,7 @@ const MOCK_COMMENT = {
   id: 1,
   taskId: 1,
   orgId: "test-org",
+  parentId: null,
   content: "Looks good to me",
   author: "alice@example.com",
   userId: "user-1", // matches mockState.currentUserId default
@@ -234,6 +243,32 @@ describe("POST /api/tasks/:id/comments", () => {
       author: "alice@example.com",
     });
   });
+
+  it("returns 404 when the parentId refers to a comment not in this task/org", async () => {
+    mockState.selectQueue.push([MOCK_TASK]); // task found
+    mockState.selectQueue.push([]);          // parent comment not found
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "Reply to missing comment", parentId: 999 });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 201 with parentId set when replying to an existing comment", async () => {
+    const MOCK_REPLY = { ...MOCK_COMMENT, id: 2, parentId: 1, content: "This is a reply" };
+    mockState.selectQueue.push([MOCK_TASK]);    // task found
+    mockState.selectQueue.push([MOCK_COMMENT]); // parent comment found
+    mockState.insertResult = [MOCK_REPLY];
+
+    const res = await request(buildApp())
+      .post("/api/tasks/1/comments")
+      .send({ content: "This is a reply", parentId: 1 });
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ id: 2, parentId: 1, content: "This is a reply" });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -244,7 +279,8 @@ describe("DELETE /api/comments/:id", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
     mockState.insertResult = [];
-    mockState.deleteResult = [{ id: 1 }]; // default: deletion succeeds
+    mockState.deleteResult = [{ id: 1 }];
+    mockState.updateResult = [{ id: 1 }]; // default: soft-delete UPDATE RETURNING succeeds
     mockState.currentUserId = "user-1";
     mockState.manageOrgSettings = false;
   });
@@ -315,11 +351,11 @@ describe("DELETE /api/comments/:id", () => {
     expect(res.status).toBe(403);
   });
 
-  it("returns 404 when the comment was deleted by a concurrent request between SELECT and DELETE", async () => {
-    // SELECT finds the comment (author matches), but the DELETE RETURNING comes back empty —
-    // simulating a same-org race where another request deleted the row first.
+  it("returns 404 when the comment was soft-deleted by a concurrent request between SELECT and UPDATE", async () => {
+    // SELECT finds the comment (author matches), but the UPDATE RETURNING comes back empty —
+    // simulating a same-org race where another request soft-deleted the row first.
     mockState.selectQueue.push([MOCK_COMMENT]); // SELECT succeeds: author owns comment
-    mockState.deleteResult = [];                 // DELETE RETURNING: no row deleted
+    mockState.updateResult = [];                 // UPDATE RETURNING: no row updated (already deleted)
 
     const res = await request(buildApp()).delete("/api/comments/1");
 

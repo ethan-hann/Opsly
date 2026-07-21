@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, isNull } from "drizzle-orm";
 import { db, commentsTable, tasksTable, orgMembersTable, usersTable, taskWatchersTable, commentReactionsTable, organizationsTable } from "@workspace/db";
 import {
   CreateCommentBody,
@@ -111,12 +111,21 @@ router.get("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:rea
 
   const reactionsMap = await enrichWithReactions(comments);
 
-  res.json(ListCommentsResponse.parse(comments.map(c => ({
-    ...c,
-    author: c.author ?? null,
-    createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
-    reactions: reactionsMap.get(c.id) ?? [],
-  }))));
+  res.json(ListCommentsResponse.parse(comments.map(c => {
+    const isDeleted = c.deletedAt != null;
+    return {
+      ...c,
+      deleted: isDeleted,
+      // Mask sensitive fields for soft-deleted comments so the client only
+      // sees the tombstone flag — content, authorship, and reactions are hidden.
+      content: isDeleted ? "" : c.content,
+      author: isDeleted ? null : (c.author ?? null),
+      userId: isDeleted ? null : c.userId,
+      parentId: c.parentId ?? null,
+      createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
+      reactions: isDeleted ? [] : (reactionsMap.get(c.id) ?? []),
+    };
+  })));
 });
 
 // ─── Create comment ───────────────────────────────────────────────────────────
@@ -148,6 +157,26 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
     return;
   }
 
+  // Validate parentId if provided
+  if (parsed.data.parentId != null) {
+    const [parent] = await db
+      .select({ id: commentsTable.id })
+      .from(commentsTable)
+      .where(
+        and(
+          eq(commentsTable.id, parsed.data.parentId),
+          eq(commentsTable.taskId, params.data.id),
+          eq(commentsTable.orgId, orgId),
+        ),
+      )
+      .limit(1);
+
+    if (!parent) {
+      res.status(404).json({ error: "Parent comment not found" });
+      return;
+    }
+  }
+
   // All newly created comments always have org_id and user_id set.
   const [comment] = await db
     .insert(commentsTable)
@@ -156,7 +185,9 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
 
   const serializedComment = {
     ...comment,
+    deleted: false,
     author: comment.author ?? null,
+    parentId: comment.parentId ?? null,
     createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
     reactions: [],
   };
@@ -227,10 +258,18 @@ router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"
 
   const orgId = req.orgId!;
 
+  // Fetch comment; exclude already-soft-deleted rows so they appear as 404
+  // (idempotent from the caller's perspective).
   const [comment] = await db
     .select({ id: commentsTable.id, userId: commentsTable.userId })
     .from(commentsTable)
-    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
+    .where(
+      and(
+        eq(commentsTable.id, params.data.id),
+        eq(commentsTable.orgId, orgId),
+        isNull(commentsTable.deletedAt),
+      ),
+    )
     .limit(1);
 
   if (!comment) {
@@ -250,16 +289,24 @@ router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"
     return;
   }
 
-  // Include orgId in the DELETE predicate so that a racing concurrent request
-  // from another org cannot delete this comment between our SELECT and DELETE.
-  // Use RETURNING to detect a same-org race: if the comment was deleted by a
-  // concurrent request between our SELECT and DELETE, no row is returned and
-  // we respond 404 instead of silently returning 204.
-  const [deleted] = await db.delete(commentsTable)
-    .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
+  // Soft-delete: stamp deleted_at instead of removing the row. This preserves
+  // child replies so threaded discussions remain coherent — the UI renders a
+  // Reddit-style "This comment was deleted." tombstone in place of the content.
+  // The isNull(deletedAt) predicate guards against a same-org race where
+  // another request soft-deleted the row between our SELECT and UPDATE.
+  const [softDeleted] = await db
+    .update(commentsTable)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(commentsTable.id, params.data.id),
+        eq(commentsTable.orgId, orgId),
+        isNull(commentsTable.deletedAt),
+      ),
+    )
     .returning({ id: commentsTable.id });
 
-  if (!deleted) {
+  if (!softDeleted) {
     res.status(404).json({ error: "Comment not found" });
     return;
   }

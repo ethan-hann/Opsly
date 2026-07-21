@@ -419,13 +419,17 @@ export const ListCommentsParams = zod.object({
   "id": zod.coerce.number().describe('Numeric ID of the task whose comments to list.')
 })
 
+export const listCommentsResponseDeletedDefault = false;
 export const listCommentsResponseReactionsDefault = [];
 
 export const ListCommentsResponseItem = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
   "taskId": zod.number().describe('ID of the task this comment belongs to.'),
+  "parentId": zod.number().nullable().describe('ID of the parent comment this is a reply to. Null for top-level comments.\n'),
+  "userId": zod.string().nullish().describe('Internal user ID of the authenticated user who posted the comment. Null for legacy comments created before user tracking was added. Used by the client to determine ownership for delete eligibility.\n'),
   "content": zod.string().describe('Plain-text body of the comment.'),
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
+  "deleted": zod.boolean().default(listCommentsResponseDeletedDefault).describe('True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
   "reactions": zod.array(zod.object({
   "emoji": zod.string().describe('The unicode emoji character.'),
@@ -449,16 +453,21 @@ export const CreateCommentParams = zod.object({
 
 export const CreateCommentBody = zod.object({
   "content": zod.string().min(1).describe('Plain-text body of the comment (must be non-empty).'),
-  "author": zod.string().optional().describe('Optional display name for the author. Not validated against org membership; purely informational.\n')
+  "author": zod.string().optional().describe('Optional display name for the author. Not validated against org membership; purely informational.\n'),
+  "parentId": zod.number().optional().describe('Optional ID of the parent comment to reply to. The parent must belong to the same task and org.\n')
 }).describe('Fields required to add a comment to a task.')
 
+export const createCommentResponseDeletedDefault = false;
 export const createCommentResponseReactionsDefault = [];
 
 export const CreateCommentResponse = zod.object({
   "id": zod.number().describe('Auto-incremented primary key.'),
   "taskId": zod.number().describe('ID of the task this comment belongs to.'),
+  "parentId": zod.number().nullable().describe('ID of the parent comment this is a reply to. Null for top-level comments.\n'),
+  "userId": zod.string().nullish().describe('Internal user ID of the authenticated user who posted the comment. Null for legacy comments created before user tracking was added. Used by the client to determine ownership for delete eligibility.\n'),
   "content": zod.string().describe('Plain-text body of the comment.'),
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
+  "deleted": zod.boolean().default(createCommentResponseDeletedDefault).describe('True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
   "reactions": zod.array(zod.object({
   "emoji": zod.string().describe('The unicode emoji character.'),

@@ -15,6 +15,16 @@ export interface Comment {
   id: number;
   /** ID of the task this comment belongs to. */
   taskId: number;
+  /**
+     * ID of the parent comment this is a reply to. Null for top-level comments.
+     * @nullable
+     */
+  parentId: number | null;
+  /**
+     * Internal user ID of the authenticated user who posted the comment. Null for legacy comments created before user tracking was added. Used by the client to determine ownership for delete eligibility.
+     * @nullable
+     */
+  userId?: string | null;
   /** Plain-text body of the comment. */
   content: string;
   /**
@@ -22,6 +32,8 @@ export interface Comment {
      * @nullable
      */
   author?: string | null;
+  /** True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored. */
+  deleted: boolean;
   /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
   /** Emoji reaction summaries for this comment. */

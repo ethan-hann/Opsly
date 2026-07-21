@@ -17,4 +17,6 @@ export interface CommentInput {
   content: string;
   /** Optional display name for the author. Not validated against org membership; purely informational. */
   author?: string;
+  /** Optional ID of the parent comment to reply to. The parent must belong to the same task and org. */
+  parentId?: number;
 }

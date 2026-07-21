@@ -8,10 +8,12 @@ export const commentsTable = pgTable("comments", {
   id: serial("id").primaryKey(),
   orgId: varchar("org_id").notNull().references(() => organizationsTable.id, { onDelete: "cascade" }),
   taskId: integer("task_id").notNull().references(() => tasksTable.id, { onDelete: "cascade" }),
+  parentId: integer("parent_id").references((): any => commentsTable.id, { onDelete: "cascade" }),
   content: text("content").notNull(),
   author: text("author"),
   userId: text("user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });
 
 export const insertCommentSchema = createInsertSchema(commentsTable).omit({

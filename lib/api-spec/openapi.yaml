@@ -3091,7 +3091,7 @@ components:
     Comment:
       description: A comment attached to a task.
       type: object
-      required: [id, taskId, content, createdAt, reactions]
+      required: [id, taskId, content, createdAt, reactions, parentId, deleted]
       properties:
         id:
           type: integer
@@ -3099,6 +3099,17 @@ components:
         taskId:
           type: integer
           description: ID of the task this comment belongs to.
+        parentId:
+          type: ["integer", "null"]
+          description: >
+            ID of the parent comment this is a reply to. Null for top-level
+            comments.
+        userId:
+          type: ["string", "null"]
+          description: >
+            Internal user ID of the authenticated user who posted the comment.
+            Null for legacy comments created before user tracking was added.
+            Used by the client to determine ownership for delete eligibility.
         content:
           type: string
           description: Plain-text body of the comment.
@@ -3108,6 +3119,13 @@ components:
             Display name or identifier of the comment author. Not validated
             against org members. Null if no author was provided at creation
             time.
+        deleted:
+          type: boolean
+          description: >
+            True when the comment has been soft-deleted. Content, author, and
+            userId are masked in the response; the comment row is preserved so
+            child replies remain anchored.
+          default: false
         createdAt:
           type: string
           description: ISO 8601 timestamp when the comment was posted.
@@ -3132,6 +3150,11 @@ components:
           description: >
             Optional display name for the author. Not validated against org
             membership; purely informational.
+        parentId:
+          type: integer
+          description: >
+            Optional ID of the parent comment to reply to. The parent must
+            belong to the same task and org.
 
     NoteVisibility:
       type: string

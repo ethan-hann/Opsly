@@ -9,14 +9,14 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
-import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown } from "lucide-react";
 import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { EditTaskModal } from "@/components/ui/edit-task-modal";
 import {
   AlertDialog,
@@ -156,9 +156,11 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
 type FeedComment = {
   kind: "comment";
   id: number;
+  parentId: number | null;
   author: string | null;
   content: string;
   userId: string | null;
+  deleted: boolean;
   createdAt: string;
   reactions: ReactionSummaryType[];
 };
@@ -175,6 +177,289 @@ type FeedEvent = {
 };
 
 type FeedItem = FeedComment | FeedEvent;
+
+// ─── Comment tree ─────────────────────────────────────────────────────────────
+
+type CommentNode = FeedComment & { children: CommentNode[]; depth: number };
+
+function buildCommentTree(comments: FeedComment[]): CommentNode[] {
+  const byId = new Map<number, CommentNode>();
+  for (const c of comments) {
+    byId.set(c.id, { ...c, children: [], depth: 0 });
+  }
+
+  const roots: CommentNode[] = [];
+  for (const node of byId.values()) {
+    if (node.parentId == null) {
+      roots.push(node);
+    } else {
+      const parent = byId.get(node.parentId);
+      if (parent) {
+        node.depth = parent.depth + 1;
+        parent.children.push(node);
+      } else {
+        // Orphaned reply — treat as root
+        roots.push(node);
+      }
+    }
+  }
+
+  // Propagate depths for deeper levels
+  function setDepths(nodes: CommentNode[], depth: number) {
+    for (const n of nodes) {
+      n.depth = depth;
+      setDepths(n.children, depth + 1);
+    }
+  }
+  setDepths(roots, 0);
+
+  // Sort children by createdAt ascending so thread reads top-to-bottom
+  function sortTree(nodes: CommentNode[]) {
+    nodes.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    for (const n of nodes) sortTree(n.children);
+  }
+  sortTree(roots);
+
+  return roots;
+}
+
+// ─── Recursive comment node renderer ─────────────────────────────────────────
+
+const THREAD_COLLAPSE_DEPTH = 3;
+const INDENT_PX = 20;
+
+function CommentNodeRenderer({
+  node,
+  taskId,
+  currentUser,
+  canDeleteFn,
+  onDelete,
+  replyingToId,
+  setReplyingToId,
+  replyText,
+  setReplyText,
+  onPostReply,
+  isPostingReply,
+  commentsQueryKey,
+}: {
+  node: CommentNode;
+  taskId: number;
+  currentUser: { id?: string; firstName?: string | null; lastName?: string | null; profileImageUrl?: string | null; email?: string | null } | null;
+  canDeleteFn: (comment: { userId: string | null }) => boolean;
+  onDelete: (id: number) => void;
+  replyingToId: number | null;
+  setReplyingToId: (id: number | null) => void;
+  replyText: string;
+  setReplyText: (t: string) => void;
+  onPostReply: (parentId: number) => void;
+  isPostingReply: boolean;
+  commentsQueryKey: readonly unknown[];
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  const currentUserId = currentUser?.id ?? null;
+  const isCurrentUser = !!currentUser && (
+    node.userId ? node.userId === currentUserId :
+      (currentUser.firstName
+        ? `${currentUser.firstName} ${currentUser.lastName ?? ""}`.trim() === node.author
+        : currentUser.email === node.author)
+  );
+  const initials = (node.author ?? "?")
+    .split(" ")
+    .filter(Boolean)
+    .map((w: string) => w[0].toUpperCase())
+    .slice(0, 2)
+    .join("");
+
+  const canDelete = canDeleteFn({ userId: node.userId });
+  const isReplying = replyingToId === node.id;
+  const hasChildren = node.children.length > 0;
+  const isDeep = node.depth >= THREAD_COLLAPSE_DEPTH;
+
+  // Left border accent — gets slightly lighter with depth
+  const accentColors = [
+    "border-primary/40",
+    "border-blue-400/60",
+    "border-violet-400/60",
+    "border-emerald-400/60",
+    "border-amber-400/60",
+  ];
+  const accentColor = accentColors[Math.min(node.depth, accentColors.length - 1)];
+
+  // ── Tombstone rendering for soft-deleted comments ──────────────────────────
+  // Preserve the indentation and thread structure; replace the bubble content
+  // with italic placeholder text matching Reddit's "deleted comment" pattern.
+  if (node.deleted) {
+    return (
+      <div style={{ marginLeft: node.depth === 0 ? 0 : INDENT_PX }}>
+        <div className="flex gap-3 py-3 pl-1">
+          {/* Dim avatar placeholder */}
+          <div className="w-8 h-8 rounded-full bg-muted/40 border border-border/30 shrink-0 flex items-center justify-center">
+            <span className="text-xs text-muted-foreground/40 select-none">?</span>
+          </div>
+          <div className={`flex-1 min-w-0 bg-muted/15 border border-border/30 rounded-lg px-3 py-2.5 ${node.depth > 0 ? "border-l-2 border-l-border/30" : ""}`}>
+            <p className="text-sm italic text-muted-foreground/60 select-none">
+              This comment was deleted.
+            </p>
+          </div>
+        </div>
+        {/* Children still render normally below the tombstone */}
+        {node.children.map((child) => (
+          <CommentNodeRenderer
+            key={child.id}
+            node={child}
+            taskId={taskId}
+            currentUser={currentUser}
+            canDeleteFn={canDeleteFn}
+            onDelete={onDelete}
+            replyingToId={replyingToId}
+            setReplyingToId={setReplyingToId}
+            replyText={replyText}
+            setReplyText={setReplyText}
+            onPostReply={onPostReply}
+            isPostingReply={isPostingReply}
+            commentsQueryKey={commentsQueryKey}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginLeft: node.depth === 0 ? 0 : INDENT_PX }}>
+      <div className="flex gap-3 py-3 pl-1">
+        {/* Avatar dot */}
+        <div className={`w-8 h-8 rounded-full bg-card border ${accentColor} overflow-hidden shrink-0 flex items-center justify-center z-10`}>
+          {isCurrentUser && currentUser?.profileImageUrl
+            ? <img src={currentUser.profileImageUrl} alt={node.author ?? ""} className="w-full h-full object-cover" />
+            : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
+          }
+        </div>
+
+        <div className={`flex-1 min-w-0 bg-muted/30 border border-border/50 rounded-lg p-3 ${node.depth > 0 ? "border-l-2 " + accentColor.replace("border-", "border-l-") : ""}`}>
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-sm font-medium">{node.author || "System"}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{formatTimeAgo(node.createdAt)}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isReplying) {
+                    setReplyingToId(null);
+                    setReplyText("");
+                  } else {
+                    setReplyingToId(node.id);
+                    setReplyText("");
+                  }
+                }}
+                className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded text-xs flex items-center gap-0.5"
+                title="Reply to this comment"
+              >
+                <CornerDownRight className="w-3 h-3" />
+                Reply
+              </button>
+              {canDelete && (
+                <button
+                  onClick={() => onDelete(node.id)}
+                  className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
+                  title="Delete comment"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+          <p className="text-sm text-foreground/80 whitespace-pre-wrap">{node.content}</p>
+          <CommentReactionBar
+            commentId={node.id}
+            reactions={node.reactions}
+            currentUserId={currentUserId}
+            commentsQueryKey={commentsQueryKey}
+          />
+
+          {/* Inline reply composer */}
+          {isReplying && (
+            <div className="mt-3 flex flex-col gap-2">
+              <Textarea
+                placeholder={`Reply to ${node.author || "this comment"}…`}
+                className="min-h-[64px] bg-background font-sans text-sm resize-y"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
+                autoFocus
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => { setReplyingToId(null); setReplyText(""); }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => onPostReply(node.id)}
+                  disabled={!replyText.trim() || isPostingReply}
+                >
+                  {isPostingReply ? "Posting…" : "Post Reply"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Children */}
+      {hasChildren && (
+        isDeep && !expanded ? (
+          <div style={{ marginLeft: INDENT_PX }} className="pl-1 pb-2">
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+              Continue thread ({node.children.length} {node.children.length === 1 ? "reply" : "replies"}) →
+            </button>
+          </div>
+        ) : (
+          <>
+            {isDeep && expanded && (
+              <div style={{ marginLeft: INDENT_PX }} className="pl-1 pb-1">
+                <button
+                  type="button"
+                  onClick={() => setExpanded(false)}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                  Collapse thread
+                </button>
+              </div>
+            )}
+            {node.children.map((child) => (
+              <CommentNodeRenderer
+                key={child.id}
+                node={child}
+                taskId={taskId}
+                currentUser={currentUser}
+                canDeleteFn={canDeleteFn}
+                onDelete={onDelete}
+                replyingToId={replyingToId}
+                setReplyingToId={setReplyingToId}
+                replyText={replyText}
+                setReplyText={setReplyText}
+                onPostReply={onPostReply}
+                isPostingReply={isPostingReply}
+                commentsQueryKey={commentsQueryKey}
+              />
+            ))}
+          </>
+        )
+      )}
+    </div>
+  );
+}
 
 // ─── Shared ghost-trigger class (matches existing Select triggers in the pane) ─
 
@@ -491,12 +776,25 @@ function CommentReactionBar({
   currentUserId: string | null;
   commentsQueryKey: readonly unknown[];
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [paletteVisible, setPaletteVisible] = useState(false);
+  const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: paletteData } = useReactionPalette();
   const palette = paletteData?.palette ?? [];
 
-  const addMutation = useAddReaction(commentId, commentsQueryKey);
-  const removeMutation = useRemoveReaction(commentId, commentsQueryKey);
+  function openPalette() {
+    if (hideTimeout.current) {
+      clearTimeout(hideTimeout.current);
+      hideTimeout.current = null;
+    }
+    setPaletteVisible(true);
+  }
+
+  function schedulePaletteClose() {
+    hideTimeout.current = setTimeout(() => setPaletteVisible(false), 120);
+  }
+
+  const addMutation = useAddReaction(commentId, commentsQueryKey, currentUserId);
+  const removeMutation = useRemoveReaction(commentId, commentsQueryKey, currentUserId);
 
   function handleToggle(emoji: string) {
     const existing = reactions.find((r) => r.emoji === emoji);
@@ -508,14 +806,20 @@ function CommentReactionBar({
     }
   }
 
-  function handlePickerSelect(emoji: string) {
-    setPickerOpen(false);
-    handleToggle(emoji);
-  }
+  // Current user's reactions always first, then sort by count descending
+  const sortedReactions = [...reactions].sort((a, b) => {
+    const aOwn = currentUserId ? a.userIds.includes(currentUserId) : false;
+    const bOwn = currentUserId ? b.userIds.includes(currentUserId) : false;
+    if (aOwn !== bOwn) return aOwn ? -1 : 1;
+    return b.count - a.count;
+  });
+
+  // The trigger shows the first palette emoji (typically 👍) as a hint
+  const triggerEmoji = palette[0] ?? "👍";
 
   return (
     <div className="flex flex-wrap items-center gap-1 mt-2">
-      {reactions.map((r) => {
+      {sortedReactions.map((r) => {
         const hasReacted = currentUserId ? r.userIds.includes(currentUserId) : false;
         return (
           <button
@@ -536,36 +840,47 @@ function CommentReactionBar({
           </button>
         );
       })}
-      {/* "+" picker button */}
-      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-        <PopoverTrigger asChild>
+
+      {/* Hover-activated reaction palette — LinkedIn/Facebook style */}
+      {palette.length > 0 && (
+        <div
+          className="relative"
+          onMouseEnter={openPalette}
+          onMouseLeave={schedulePaletteClose}
+        >
           <button
             type="button"
-            className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary text-xs transition-colors"
+            className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary text-sm transition-colors leading-none"
             title="Add reaction"
+            aria-label="Add reaction"
           >
-            +
+            {triggerEmoji}
           </button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-2" align="start">
-          <div className="flex flex-wrap gap-1 max-w-[200px]">
-            {palette.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => handlePickerSelect(emoji)}
-                className="text-lg hover:scale-125 transition-transform rounded p-0.5"
-                title={emoji}
-              >
-                {emoji}
-              </button>
-            ))}
-            {palette.length === 0 && (
-              <p className="text-xs text-muted-foreground px-1 py-0.5">No emoji configured</p>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+
+          {paletteVisible && (
+            <div
+              className="absolute bottom-full left-0 mb-1.5 z-50 flex items-center gap-0.5 bg-popover border border-border rounded-2xl shadow-lg px-2 py-1.5"
+              onMouseEnter={openPalette}
+              onMouseLeave={schedulePaletteClose}
+            >
+              {palette.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => {
+                    setPaletteVisible(false);
+                    handleToggle(emoji);
+                  }}
+                  className="text-xl leading-none hover:scale-125 transition-transform rounded p-0.5 focus:outline-none"
+                  title={emoji}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -704,6 +1019,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const [editOpen, setEditOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [replyingToId, setReplyingToId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState("");
 
   // ── Watchers ──────────────────────────────────────────────────────────────
   const { data: watchersData } = useGetTaskWatchers(taskId);
@@ -733,7 +1050,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { data: stages = [] } = useListWorkflowStages();
 
   const { data: comments, isLoading: isLoadingComments } = useListComments(taskId, {
-    query: { enabled: !!taskId, queryKey: ["listComments", taskId] }
+    query: { enabled: !!taskId, queryKey: getListCommentsQueryKey(taskId) }
   });
 
   const { data: events, isLoading: isLoadingEvents } = useListTaskEvents(taskId, {
@@ -783,6 +1100,20 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         setCommentText("");
         toast({ title: "Comment posted" });
         queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
+      }
+    }
+  });
+
+  const replyMutation = useCreateComment({
+    mutation: {
+      onSuccess: () => {
+        setReplyText("");
+        setReplyingToId(null);
+        toast({ title: "Reply posted" });
+        queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
+      },
+      onError: () => {
+        toast({ title: "Failed to post reply", variant: "destructive" });
       }
     }
   });
@@ -855,17 +1186,37 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     });
   };
 
-  // Build unified chronological feed (comments + events, newest first)
+  const handlePostReply = (parentId: number) => {
+    if (!replyText.trim()) return;
+    replyMutation.mutate({
+      id: taskId,
+      data: {
+        content: replyText,
+        author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? "Unknown")) : "Unknown",
+        parentId,
+      },
+    });
+  };
+
+  // Build all feed comments (flat), then construct the tree
+  const allFeedComments: FeedComment[] = (comments ?? []).map((c): FeedComment => ({
+    kind: "comment",
+    id: c.id,
+    parentId: c.parentId ?? null,
+    author: c.author ?? null,
+    content: c.content,
+    userId: c.userId ?? null,
+    deleted: c.deleted ?? false,
+    createdAt: c.createdAt,
+    reactions: c.reactions ?? [],
+  }));
+
+  const commentTree = buildCommentTree(allFeedComments);
+
+  // Build unified chronological feed: root comments + events, newest first.
+  // Replies are rendered recursively under their parent — not at the feed level.
   const feedItems: FeedItem[] = [
-    ...(comments ?? []).map((c): FeedComment => ({
-      kind: "comment",
-      id: c.id,
-      author: c.author ?? null,
-      content: c.content,
-      userId: (c as any).userId ?? null,
-      createdAt: c.createdAt,
-      reactions: (c as any).reactions ?? [],
-    })),
+    ...commentTree.map((root): FeedComment => root),
     ...(events ?? []).map((e): FeedEvent => ({
       kind: "event",
       id: e.id,
@@ -877,6 +1228,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       createdAt: e.createdAt,
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const canDeleteComment = (comment: { userId: string | null }) => {
+    const currentUserId = user?.id ?? null;
+    const isOwner = comment.userId != null && comment.userId === currentUserId;
+    return isOwner || hasPermission('delete_comments');
+  };
 
   const isActivityLoading = isLoadingComments || isLoadingEvents;
 
@@ -1017,52 +1374,24 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   <div className="space-y-0">
                     {feedItems.map((item) => {
                       if (item.kind === "comment") {
-                        const currentUserName = user
-                          ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? ""))
-                          : "";
-                        const isCurrentUser = !!currentUserName && item.author === currentUserName;
-                        const initials = (item.author ?? "?")
-                          .split(" ")
-                          .filter(Boolean)
-                          .map((w: string) => w[0].toUpperCase())
-                          .slice(0, 2)
-                          .join("");
-                        const canDelete = isCurrentUser || hasPermission('delete_comments');
+                        // item is a root CommentNode (parentId === null)
+                        const rootNode = item as CommentNode;
                         return (
-                          <div key={`comment-${item.id}`} className="flex gap-3 py-3 pl-1">
-                            {/* Avatar dot on timeline */}
-                            <div className="w-8 h-8 rounded-full bg-card border border-primary/40 overflow-hidden shrink-0 flex items-center justify-center z-10">
-                              {isCurrentUser && user?.profileImageUrl
-                                ? <img src={user.profileImageUrl} alt={item.author ?? ""} className="w-full h-full object-cover" />
-                                : <span className="text-xs font-semibold text-primary select-none">{initials}</span>
-                              }
-                            </div>
-                            <div className="flex-1 min-w-0 bg-muted/30 border border-border/50 rounded-lg p-3">
-                              <div className="flex justify-between items-center mb-2">
-                                <span className="text-sm font-medium">{item.author || "System"}</span>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">{formatTimeAgo(item.createdAt)}</span>
-                                  {canDelete && (
-                                    <button
-                                      onClick={() => deleteCommentMutation.mutate({ id: item.id })}
-                                      disabled={deleteCommentMutation.isPending}
-                                      className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
-                                      title="Delete comment"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                              <p className="text-sm text-foreground/80 whitespace-pre-wrap">{item.content}</p>
-                              <CommentReactionBar
-                                commentId={item.id}
-                                reactions={item.reactions}
-                                currentUserId={user?.id ?? null}
-                                commentsQueryKey={getListCommentsQueryKey(taskId)}
-                              />
-                            </div>
-                          </div>
+                          <CommentNodeRenderer
+                            key={`comment-${item.id}`}
+                            node={rootNode}
+                            taskId={taskId}
+                            currentUser={user}
+                            canDeleteFn={canDeleteComment}
+                            onDelete={(id) => deleteCommentMutation.mutate({ id })}
+                            replyingToId={replyingToId}
+                            setReplyingToId={setReplyingToId}
+                            replyText={replyText}
+                            setReplyText={setReplyText}
+                            onPostReply={handlePostReply}
+                            isPostingReply={replyMutation.isPending}
+                            commentsQueryKey={getListCommentsQueryKey(taskId)}
+                          />
                         );
                       }
 
