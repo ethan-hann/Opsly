@@ -57,8 +57,11 @@ export const sanitizeSchema = {
       "data*",
     ],
     // Allow the attributes the alert plugin stamps on its elements.
-    // Use HAST property names ("className" not "class").
-    div:  ["className", "dir"],
+    // The library's copyElement() sets properties.class (HTML attribute form,
+    // not the HAST camelCase "className"), so both names must be allowed for
+    // the copy button's class to survive rehypeSanitize.
+    // "data*" covers the data-code attribute copyElement also sets.
+    div:  ["className", "class", "dir", "data*"],
     p:    [...(defaultSchema.attributes?.p    ?? []), "dir"],
     svg:  ["className", "viewBox", "width", "height", "ariaHidden"],
     path: ["d"],
