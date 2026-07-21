@@ -522,14 +522,31 @@ router.get("/export/pending", requireOrg, requireDataExportFeature, async (req, 
       and(
         eq(exportJobsTable.userId, userId),
         eq(exportJobsTable.orgId, orgId),
-        eq(exportJobsTable.status, "complete"),
+        or(
+          eq(exportJobsTable.status, "complete"),
+          eq(exportJobsTable.status, "pending"),
+        ),
       ),
     )
     .limit(1);
 
   const job = rows[0];
 
-  if (!job || job.expiresAt < now) {
+  if (!job) {
+    res.json({ pending: false });
+    return;
+  }
+
+  // In-flight background job — not yet complete but not expired either.
+  // The client should disable the export button and wait for the
+  // export_ready SSE notification.
+  if (job.status === "pending") {
+    res.json({ pending: false, jobInProgress: true });
+    return;
+  }
+
+  // Completed job — check expiry.
+  if (job.expiresAt < now) {
     res.json({ pending: false });
     return;
   }

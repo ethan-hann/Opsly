@@ -191,6 +191,162 @@ function mockPendingResponse(
 // Tests
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Mount-time / reload guard tests
+// ---------------------------------------------------------------------------
+
+describe("ExportCard — mount-time pending check (page-reload guard)", () => {
+  beforeEach(() => {
+    capturedSseHandler = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("disables the button immediately when the server reports a job is still in progress on mount", async () => {
+    // Simulates a page reload while a background export job is still running.
+    // The API now returns jobInProgress:true for pending-status jobs so the
+    // frontend can restore the disabled state without the user having to
+    // wait for the SSE notification (which may have already fired).
+    const fetchMock = vi.fn().mockReturnValueOnce(
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ pending: false, jobInProgress: true }),
+      } as unknown as Response),
+    );
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+
+    // Once the mount effect resolves jobQueued must be true.
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /export in progress/i }),
+      ).toBeDisabled();
+    });
+
+    // The "Preparing your export" notice must also be visible.
+    expect(screen.getByText(/preparing your export/i)).toBeInTheDocument();
+  });
+
+  it("shows the download banner immediately when a completed export is found on mount", async () => {
+    // Simulates a page reload after the export already completed.  The
+    // component must display the download banner without waiting for an
+    // SSE event — because the event fired before the reload.
+    const expiresAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    const fetchMock = vi.fn().mockReturnValueOnce(
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          pending: true,
+          token: "tok-reload",
+          filename: "export-reload.json",
+          expiresAt,
+        }),
+      } as unknown as Response),
+    );
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+
+    // Banner must appear from the mount check alone — no SSE required.
+    await waitFor(() => {
+      expect(screen.getByText("Your export is ready")).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole("button", { name: /download export-reload\.json/i }),
+    ).toBeInTheDocument();
+
+    // The export button must be enabled (no in-progress state).
+    const exportBtns = screen.getAllByRole("button", { name: /download export/i });
+    const mainBtn = exportBtns.find((b) => b.textContent?.trim() === "Download export");
+    expect(mainBtn).toBeDefined();
+    expect(mainBtn).not.toBeDisabled();
+  });
+
+  it("leaves the button enabled when no export job exists on mount", async () => {
+    const fetchMock = vi.fn().mockReturnValueOnce(
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: async () => ({ pending: false }),
+      } as unknown as Response),
+    );
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    expect(
+      screen.getByRole("button", { name: /download export/i }),
+    ).not.toBeDisabled();
+    expect(screen.queryByText("Your export is ready")).not.toBeInTheDocument();
+  });
+
+  it("clears jobInProgress and shows the download banner when export_ready SSE fires after a reload", async () => {
+    // Full reload + SSE cycle: mount finds an in-progress job → button disabled →
+    // SSE export_ready fires → banner appears and button re-enables.
+    const expiresAt = new Date(Date.now() + 3_600_000).toISOString();
+
+    const fetchMock = vi.fn()
+      // mount-time check: job still running
+      .mockReturnValueOnce(
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ pending: false, jobInProgress: true }),
+        } as unknown as Response),
+      )
+      // SSE handler follow-up check: job now complete
+      .mockReturnValueOnce(
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({
+            pending: true,
+            token: "tok-sse",
+            filename: "export-sse.json",
+            expiresAt,
+          }),
+        } as unknown as Response),
+      );
+
+    global.fetch = fetchMock;
+
+    render(<ExportCard />);
+
+    // Confirm disabled state was restored from mount.
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /export in progress/i }),
+      ).toBeDisabled();
+    });
+
+    // Simulate the SSE notification arriving.
+    await act(async () => {
+      capturedSseHandler?.({ type: "export_ready" });
+    });
+
+    // Button must re-enable and banner must appear.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: /export in progress/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Your export is ready")).toBeInTheDocument();
+  });
+});
+
 describe("ExportCard — export_ready SSE live-update", () => {
   beforeEach(() => {
     capturedSseHandler = null;

@@ -1043,11 +1043,19 @@ export function ExportCard() {
   const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
   const [exportExpired, setExportExpired] = useState(false);
 
-  // Check for a completed background export on mount.
+  // Check for a completed or in-progress background export on mount.
+  // When a job is still processing (jobInProgress: true) the button is
+  // disabled so the user cannot queue a duplicate — the guard is then
+  // restored by the export_ready SSE notification just as it would be
+  // after the original click.
   useEffect(() => {
     fetch(`${BASE}/api/export/pending`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { pending: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
+      .then((data: { pending: boolean; jobInProgress?: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
+        if (data?.jobInProgress) {
+          setJobQueued(true);
+          return;
+        }
         if (data?.pending && data.token && data.filename && data.expiresAt) {
           setPendingExport({ token: data.token, filename: data.filename, expiresAt: data.expiresAt });
         }
