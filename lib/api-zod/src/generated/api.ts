@@ -506,7 +506,11 @@ export const ListViewsResponseItem = zod.object({
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
   "search": zod.string().optional().describe('Free-text search string.'),
   "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
-  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.'),
+  "watching": zod.boolean().optional().describe('When true, limits results to tasks the user is watching.'),
+  "slaBreached": zod.boolean().optional().describe('When true, limits results to tasks that have breached their SLA deadline.'),
+  "overdue": zod.boolean().optional().describe('When true, limits results to tasks that are past their due date.'),
+  "stageType": zod.string().optional().describe('Filter by workflow stage type (e.g. \"open\" or \"closed\").')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
@@ -535,7 +539,11 @@ export const CreateViewBody = zod.object({
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
   "search": zod.string().optional().describe('Free-text search string.'),
   "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
-  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.'),
+  "watching": zod.boolean().optional().describe('When true, limits results to tasks the user is watching.'),
+  "slaBreached": zod.boolean().optional().describe('When true, limits results to tasks that have breached their SLA deadline.'),
+  "overdue": zod.boolean().optional().describe('When true, limits results to tasks that are past their due date.'),
+  "stageType": zod.string().optional().describe('Filter by workflow stage type (e.g. \"open\" or \"closed\").')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().optional().describe('Whether the view is visible to all org members. Defaults to false.'),
   "isDefault": zod.boolean().optional().describe('Whether this view should load automatically for the creator. Defaults to false.')
@@ -556,7 +564,11 @@ export const CreateViewResponse = zod.object({
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
   "search": zod.string().optional().describe('Free-text search string.'),
   "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
-  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.'),
+  "watching": zod.boolean().optional().describe('When true, limits results to tasks the user is watching.'),
+  "slaBreached": zod.boolean().optional().describe('When true, limits results to tasks that have breached their SLA deadline.'),
+  "overdue": zod.boolean().optional().describe('When true, limits results to tasks that are past their due date.'),
+  "stageType": zod.string().optional().describe('Filter by workflow stage type (e.g. \"open\" or \"closed\").')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),
@@ -588,7 +600,11 @@ export const UpdateViewBody = zod.object({
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
   "search": zod.string().optional().describe('Free-text search string.'),
   "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
-  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.'),
+  "watching": zod.boolean().optional().describe('When true, limits results to tasks the user is watching.'),
+  "slaBreached": zod.boolean().optional().describe('When true, limits results to tasks that have breached their SLA deadline.'),
+  "overdue": zod.boolean().optional().describe('When true, limits results to tasks that are past their due date.'),
+  "stageType": zod.string().optional().describe('Filter by workflow stage type (e.g. \"open\" or \"closed\").')
 }).optional().describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().optional().describe('Change org-wide visibility.'),
   "isDefault": zod.boolean().optional().describe('Pin or unpin as the user\'s default view.')
@@ -609,7 +625,11 @@ export const UpdateViewResponse = zod.object({
   "projectFilter": zod.enum(['all', 'with_project', 'no_project']).optional().describe('Project presence filter.'),
   "search": zod.string().optional().describe('Free-text search string.'),
   "customFieldId": zod.number().optional().describe('Custom field definition ID to filter by.'),
-  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.')
+  "customFieldValue": zod.string().optional().describe('Exact option value to match for the custom field identified by customFieldId.'),
+  "watching": zod.boolean().optional().describe('When true, limits results to tasks the user is watching.'),
+  "slaBreached": zod.boolean().optional().describe('When true, limits results to tasks that have breached their SLA deadline.'),
+  "overdue": zod.boolean().optional().describe('When true, limits results to tasks that are past their due date.'),
+  "stageType": zod.string().optional().describe('Filter by workflow stage type (e.g. \"open\" or \"closed\").')
 }).describe('Filter state stored in a saved view.'),
   "isOrgWide": zod.boolean().describe('When true the view is visible to all org members.'),
   "isDefault": zod.boolean().describe('When true this view loads automatically on \/tasks for its owner.'),

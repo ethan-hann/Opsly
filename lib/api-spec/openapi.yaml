@@ -4186,6 +4186,18 @@ components:
         customFieldValue:
           type: string
           description: Exact option value to match for the custom field identified by customFieldId.
+        watching:
+          type: boolean
+          description: When true, limits results to tasks the user is watching.
+        slaBreached:
+          type: boolean
+          description: When true, limits results to tasks that have breached their SLA deadline.
+        overdue:
+          type: boolean
+          description: When true, limits results to tasks that are past their due date.
+        stageType:
+          type: string
+          description: Filter by workflow stage type (e.g. "open" or "closed").
 
     SavedView:
       description: A named, persisted set of task filters.

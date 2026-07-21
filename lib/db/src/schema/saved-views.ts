@@ -11,6 +11,14 @@ export interface SavedViewFilters {
   dateTo?: string;
   projectFilter?: "all" | "with_project" | "no_project";
   search?: string;
+  /** Limit to tasks the user is watching. */
+  watching?: boolean;
+  /** Limit to tasks that have breached their SLA deadline. */
+  slaBreached?: boolean;
+  /** Limit to tasks that are past their due date. */
+  overdue?: boolean;
+  /** Filter by workflow stage type: "open" | "closed" or a custom value. */
+  stageType?: string;
 }
 
 export const savedViewsTable = pgTable("saved_views", {

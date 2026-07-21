@@ -144,6 +144,10 @@ function useTaskFilters() {
         next.set("customFieldId", String(f.customFieldId));
         if (f.customFieldValue) next.set("customFieldValue", f.customFieldValue);
       }
+      if (f.watching) next.set("watching", "true");
+      if (f.slaBreached) next.set("slaBreached", "true");
+      if (f.overdue) next.set("overdue", "true");
+      if (f.stageType) next.set("stageType", f.stageType);
       next.set("viewId", String(view.id));
       setLocation("?" + next.toString(), { replace: true });
     },
@@ -357,6 +361,10 @@ function SaveViewPopover({ filters, activeViewId, views, userId }: SaveViewPopov
       search: search || undefined,
       customFieldId: filters.customFieldId ? Number(filters.customFieldId) : undefined,
       customFieldValue: filters.customFieldId && filters.customFieldValue ? filters.customFieldValue : undefined,
+      watching: filters.watching || undefined,
+      slaBreached: filters.slaBreached || undefined,
+      overdue: filters.overdue || undefined,
+      stageType: filters.stageType || undefined,
     };
     await createView.mutateAsync({
       data: { name: name.trim(), filters: filterPayload, isOrgWide, isDefault },

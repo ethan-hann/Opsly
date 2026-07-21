@@ -1870,6 +1870,14 @@ export interface SavedViewFilters {
   customFieldId?: number;
   /** Exact option value to match for the custom field identified by customFieldId. */
   customFieldValue?: string;
+  /** When true, limits results to tasks the user is watching. */
+  watching?: boolean;
+  /** When true, limits results to tasks that have breached their SLA deadline. */
+  slaBreached?: boolean;
+  /** When true, limits results to tasks that are past their due date. */
+  overdue?: boolean;
+  /** Filter by workflow stage type (e.g. "open" or "closed"). */
+  stageType?: string;
 }
 
 /**
