@@ -875,4 +875,24 @@ describe("runStorageAudit", () => {
     expect(mockStorageProvider.delete).toHaveBeenCalledWith(key1);
     expect(mockStorageProvider.delete).toHaveBeenCalledWith(key2);
   });
+
+  it("never deletes keys that list() did not return — foreign bucket objects are always safe", async () => {
+    // Both storage providers (Replit and S3) now use STORAGE_PREFIX scoping in
+    // list(), so foreign objects are never returned and therefore never reached
+    // by the audit.  This test proves the audit never calls delete() for any
+    // key outside the set returned by list(), even if unrelated keys somehow
+    // appeared in the environment.
+    const exportKey = "org-2/user-9/known-export";
+    const foreignKey = "some-other-app/data/file.json"; // never in list() result
+
+    mockStorageProvider.list.mockResolvedValue([exportKey]); // only export-managed key
+    queueRows([]); // exportKey is orphaned → will be deleted
+
+    await runStorageAudit();
+
+    // Only the key list() returned is ever passed to delete().
+    expect(mockStorageProvider.delete).toHaveBeenCalledTimes(1);
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(exportKey);
+    expect(mockStorageProvider.delete).not.toHaveBeenCalledWith(foreignKey);
+  });
 });

@@ -10,7 +10,13 @@
  *   S3_SECRET_ACCESS_KEY — secret access key
  *
  * Optional:
- *   S3_ENDPOINT — custom endpoint URL (omit for AWS S3)
+ *   S3_ENDPOINT      — custom endpoint URL (omit for AWS S3)
+ *   STORAGE_PREFIX   — key prefix applied to every object (default "exports/").
+ *                      Must match the prefix used by ReplitStorageProvider so
+ *                      the two drivers are interchangeable.  All keys passed to
+ *                      put/get/delete/exists are stored under this prefix; list()
+ *                      strips the prefix from returned keys so callers always
+ *                      work with unprefixed objectKeys (same format as the DB).
  */
 
 import {
@@ -22,6 +28,9 @@ import {
   ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import type { StorageProvider } from "./provider";
+
+// Must match the default used in replit.ts so drivers are interchangeable.
+const PREFIX = process.env.STORAGE_PREFIX ?? "exports/";
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -59,11 +68,16 @@ export class S3StorageProvider implements StorageProvider {
     this.bucket = requireEnv("S3_BUCKET");
   }
 
+  /** Prepend the storage prefix so the S3 key is isolated from other bucket objects. */
+  private fullKey(key: string): string {
+    return `${PREFIX}${key}`;
+  }
+
   async put(key: string, buffer: Buffer, contentType: string): Promise<void> {
     await this.client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
-        Key: key,
+        Key: this.fullKey(key),
         Body: buffer,
         ContentType: contentType,
         ContentLength: buffer.length,
@@ -74,7 +88,7 @@ export class S3StorageProvider implements StorageProvider {
   async get(key: string): Promise<Buffer | null> {
     try {
       const response = await this.client.send(
-        new GetObjectCommand({ Bucket: this.bucket, Key: key }),
+        new GetObjectCommand({ Bucket: this.bucket, Key: this.fullKey(key) }),
       );
       if (!response.Body) return null;
       // response.Body is a Readable in Node; collect into a Buffer.
@@ -93,7 +107,7 @@ export class S3StorageProvider implements StorageProvider {
   async delete(key: string): Promise<void> {
     try {
       await this.client.send(
-        new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+        new DeleteObjectCommand({ Bucket: this.bucket, Key: this.fullKey(key) }),
       );
     } catch (err: unknown) {
       const code = (err as { name?: string })?.name;
@@ -105,7 +119,7 @@ export class S3StorageProvider implements StorageProvider {
   async exists(key: string): Promise<boolean> {
     try {
       await this.client.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+        new HeadObjectCommand({ Bucket: this.bucket, Key: this.fullKey(key) }),
       );
       return true;
     } catch {
@@ -113,6 +127,14 @@ export class S3StorageProvider implements StorageProvider {
     }
   }
 
+  /**
+   * List all export-managed object keys in the bucket.
+   *
+   * Only objects under PREFIX are enumerated (foreign bucket objects are
+   * never visible).  The PREFIX is stripped from each returned key so the
+   * result matches the DB objectKey format, exactly as ReplitStorageProvider
+   * does.  Handles S3 pagination transparently.
+   */
   async list(): Promise<string[]> {
     const keys: string[] = [];
     let continuationToken: string | undefined;
@@ -120,11 +142,15 @@ export class S3StorageProvider implements StorageProvider {
       const response = await this.client.send(
         new ListObjectsV2Command({
           Bucket: this.bucket,
+          Prefix: PREFIX,  // scope to export-managed objects only
           ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
         }),
       );
       for (const obj of response.Contents ?? []) {
-        if (obj.Key) keys.push(obj.Key);
+        if (obj.Key) {
+          // Strip PREFIX so the key matches the DB objectKey column.
+          keys.push(obj.Key.slice(PREFIX.length));
+        }
       }
       continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
     } while (continuationToken);
