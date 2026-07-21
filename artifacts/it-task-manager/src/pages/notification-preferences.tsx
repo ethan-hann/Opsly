@@ -32,7 +32,8 @@ type NotificationType =
   | "task_updated"
   | "comment_added"
   | "sla_breached"
-  | "mention";
+  | "mention"
+  | "comment_reply";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -68,12 +69,17 @@ const TYPE_META: Record<
     label: "@Mention",
     description: "When someone mentions you in a comment.",
   },
+  comment_reply: {
+    label: "Reply to my comment",
+    description: "When someone replies directly to a comment you wrote.",
+  },
 };
 
 const ORDER: NotificationType[] = [
   "task_assigned",
   "task_updated",
   "comment_added",
+  "comment_reply",
   "sla_breached",
   "mention",
 ];
