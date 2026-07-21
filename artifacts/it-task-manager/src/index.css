@@ -294,6 +294,28 @@
   border-radius: 0 !important;
 }
 
+/* ── Background override ──────────────────────────────────────────────────────
+   @uiw/react-markdown-preview defines its own [data-color-mode*='dark'] block
+   that re-sets --color-canvas-default to GitHub's #0d1117 with a more
+   specific selector than our [data-color-mode="dark"] block, overriding it.
+   Beat it here with matching or higher specificity + !important on both the
+   variable and the computed background properties.                             */
+[data-color-mode] .wmde-markdown,
+[data-color-mode] .wmde-markdown-var,
+[data-color-mode] .w-md-editor {
+  --color-canvas-default:    hsl(var(--card))       !important;
+  --color-canvas-subtle:     hsl(var(--muted))      !important;
+  --color-fg-default:        hsl(var(--foreground)) !important;
+  --color-fg-muted:          hsl(var(--muted-foreground)) !important;
+  --color-border-default:    hsl(var(--border))     !important;
+  --color-border-muted:      hsl(var(--border))     !important;
+  --color-neutral-muted:     hsl(var(--muted))      !important;
+  --md-editor-background-color: hsl(var(--card))    !important;
+}
+/* Direct background overrides as belt-and-suspenders */
+[data-color-mode] .wmde-markdown { background-color: hsl(var(--card)) !important; }
+[data-color-mode] .w-md-editor   { background-color: hsl(var(--card)) !important; }
+
 /* Give the toolbar a distinct muted background so it reads as a control bar,
    not part of the editor surface.                                             */
 [data-color-mode] .w-md-editor-toolbar {
@@ -323,7 +345,7 @@
 
 /* Preview area background matches card surface                                */
 [data-color-mode] .w-md-editor-preview {
-  background-color: hsl(var(--card));
+  background-color: hsl(var(--card)) !important;
 }
 
 /* Full-border wrapper for modal contexts — applied via the parent .md-editor-bordered class */
@@ -331,6 +353,11 @@
 .md-editor-bordered [data-color-mode] {
   border-radius: calc(var(--radius) - 2px);
 }
+
+/* Hide the library's copy-to-clipboard button injected into every <pre>.
+   It renders displaced (below the block) when a custom pre component is used
+   because the absolute-positioned span escapes the intended containing block. */
+[data-color-mode] .wmde-markdown pre .copied { display: none !important; }
 
 /* ── Editor preview list styling ─────────────────────────────────────────────
    Tailwind's preflight resets `list-style: none` on all ul/ol.  The library's
