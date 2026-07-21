@@ -2,6 +2,46 @@
 
 _Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
 
+## First-time setup
+
+A fresh instance has no instance administrator configured. Before regular
+users can access admin-only endpoints you must set up at least **one** of
+the following two paths:
+
+### Path 1 — Static bearer token (recommended for automated / CI access)
+
+Set the `INSTANCE_ADMIN_TOKEN` environment variable to a long random secret.
+Any HTTP request that supplies `Authorization: Bearer <token>` with that
+value is treated as an instance administrator. No user account is required.
+
+```
+# Generate a token (example):
+openssl rand -hex 32
+
+# Then set it as an environment variable in your deployment / .env file:
+INSTANCE_ADMIN_TOKEN=<your-token>
+```
+
+### Path 2 — Promote an existing user account
+
+Once a user has registered, run the `make-admin` script to grant them
+instance-admin privileges:
+
+```
+DATABASE_URL=<your-db-url> pnpm --filter @workspace/db make-admin <email>
+```
+
+To revoke the privilege later:
+
+```
+DATABASE_URL=<your-db-url> pnpm --filter @workspace/db revoke-admin <email>
+```
+
+> **Startup warning:** If neither path is configured when the API server
+> starts, it logs a `WARN` message reminding you to set one up.
+
+---
+
 ## Run & Operate
 
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
