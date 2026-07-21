@@ -41,6 +41,8 @@
     "migrate:add-manage-reactions-permission": "pnpm dlx tsx src/migrations/add-manage-reactions-permission.ts",
     "migrate:add-comment-parent-id": "pnpm dlx tsx src/migrations/add-comment-parent-id.ts",
     "migrate:add-comment-soft-delete": "pnpm dlx tsx src/migrations/add-comment-soft-delete.ts",
+    "migrate:add-comment-edited-at": "pnpm dlx tsx src/migrations/add-comment-edited-at.ts",
+    "migrate:add-edit-comments-permission": "pnpm dlx tsx src/migrations/add-edit-comments-permission.ts",
     "make-admin": "pnpm dlx tsx src/make-admin.ts",
     "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke"
   },

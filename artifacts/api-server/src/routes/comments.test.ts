@@ -7,6 +7,8 @@
  * Covered regressions:
  *  - GET /tasks/:id/comments — org-scoping (task must belong to org), 404 on miss
  *  - POST /tasks/:id/comments — org-scoping, body validation, 201 on success
+ *  - PATCH /comments/:id — ownership-or-edit_comments gate, body validation, 200 on success,
+ *      editedAt is a proper ISO string in the response; list-comments also serializes editedAt correctly
  *  - DELETE /comments/:id — org-scoped select (permission check) + DELETE WHERE id AND org_id
  *      to prevent cross-org race; 404 on miss/mismatch, 403 on insufficient permission, 204 on success
  */
@@ -98,13 +100,21 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrgOrApiKey: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: mockState.currentUserId };
-    req.orgPermissions = { manage_projects: mockState.manageOrgSettings, delete_comments: mockState.manageOrgSettings };
+    req.orgPermissions = {
+      manage_projects: mockState.manageOrgSettings,
+      delete_comments: mockState.manageOrgSettings,
+      edit_comments: mockState.manageOrgSettings,
+    };
     next();
   },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: mockState.currentUserId };
-    req.orgPermissions = { manage_projects: mockState.manageOrgSettings, delete_comments: mockState.manageOrgSettings };
+    req.orgPermissions = {
+      manage_projects: mockState.manageOrgSettings,
+      delete_comments: mockState.manageOrgSettings,
+      edit_comments: mockState.manageOrgSettings,
+    };
     next();
   },
 }));
@@ -268,6 +278,150 @@ describe("POST /api/tasks/:id/comments", () => {
 
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ id: 2, parentId: 1, content: "This is a reply" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/comments/:id
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/comments/:id", () => {
+  const MOCK_EDITED_COMMENT = {
+    ...MOCK_COMMENT,
+    content: "Updated content",
+    editedAt: new Date("2024-06-01T12:00:00.000Z"),
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.updateResult = [];
+    mockState.currentUserId = "user-1";
+    mockState.manageOrgSettings = false;
+  });
+
+  it("returns 404 when the comment does not exist", async () => {
+    mockState.selectQueue.push([]); // comment not found
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when content is missing", async () => {
+    mockState.selectQueue.push([MOCK_COMMENT]); // comment found
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when content is an empty string", async () => {
+    mockState.selectQueue.push([MOCK_COMMENT]);
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "" });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 200 with updated content when the caller is the comment author", async () => {
+    // currentUserId === MOCK_COMMENT.userId ("user-1")
+    mockState.selectQueue.push([MOCK_COMMENT]);         // comment found
+    mockState.updateResult = [MOCK_EDITED_COMMENT];     // update succeeds
+    mockState.selectQueue.push([]);                     // reactions enrichment (empty)
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 1, content: "Updated content" });
+    // editedAt must be an ISO string, not a Date object
+    expect(typeof res.body.editedAt).toBe("string");
+    expect(res.body.editedAt).toBe("2024-06-01T12:00:00.000Z");
+  });
+
+  it("returns 403 when the caller is not the author and lacks edit_comments permission", async () => {
+    mockState.currentUserId = "user-2";
+    mockState.manageOrgSettings = false;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]);
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.any(String) });
+  });
+
+  it("returns 200 when the caller has edit_comments permission and edits another user's comment", async () => {
+    mockState.currentUserId = "admin-user";
+    mockState.manageOrgSettings = true;
+    mockState.selectQueue.push([{ ...MOCK_COMMENT, userId: "user-1" }]); // different userId
+    mockState.updateResult = [{ ...MOCK_EDITED_COMMENT, userId: "user-1" }];
+    mockState.selectQueue.push([]); // reactions enrichment
+
+    const res = await request(buildApp())
+      .patch("/api/comments/1")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ content: "Updated content" });
+    expect(typeof res.body.editedAt).toBe("string");
+  });
+
+  it("returns 400 for a non-integer comment id", async () => {
+    const res = await request(buildApp())
+      .patch("/api/comments/bad-id")
+      .send({ content: "Updated content" });
+
+    expect(res.status).toBe(400);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// editedAt serialization in GET /api/tasks/:id/comments
+// ---------------------------------------------------------------------------
+
+describe("GET /api/tasks/:id/comments — editedAt serialization", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+  });
+
+  it("serializes editedAt as an ISO string when the comment has been edited", async () => {
+    const editedComment = {
+      ...MOCK_COMMENT,
+      editedAt: new Date("2024-06-01T10:00:00.000Z"),
+      deletedAt: null,
+    };
+    mockState.selectQueue.push([MOCK_TASK]);      // task found
+    mockState.selectQueue.push([editedComment]);  // one edited comment
+    mockState.selectQueue.push([]);               // reactions enrichment
+
+    const res = await request(buildApp()).get("/api/tasks/1/comments");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(typeof res.body[0].editedAt).toBe("string");
+    expect(res.body[0].editedAt).toBe("2024-06-01T10:00:00.000Z");
+  });
+
+  it("returns null for editedAt when the comment has not been edited", async () => {
+    const uneditedComment = { ...MOCK_COMMENT, editedAt: null, deletedAt: null };
+    mockState.selectQueue.push([MOCK_TASK]);
+    mockState.selectQueue.push([uneditedComment]);
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp()).get("/api/tasks/1/comments");
+
+    expect(res.status).toBe(200);
+    expect(res.body[0].editedAt).toBeNull();
   });
 });
 

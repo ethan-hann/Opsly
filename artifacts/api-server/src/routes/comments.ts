@@ -9,6 +9,9 @@ import {
   ListCommentsResponse,
   CreateCommentResponse,
   DeleteCommentResponse,
+  UpdateCommentBody,
+  UpdateCommentParams,
+  UpdateCommentResponse,
   AddReactionParams,
   AddReactionBody,
   DeleteReactionParams,
@@ -123,6 +126,7 @@ router.get("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:rea
       userId: isDeleted ? null : c.userId,
       parentId: c.parentId ?? null,
       createdAt: c.createdAt instanceof Date ? c.createdAt.toISOString() : c.createdAt,
+      editedAt: c.editedAt instanceof Date ? c.editedAt.toISOString() : (c.editedAt ?? null),
       reactions: isDeleted ? [] : (reactionsMap.get(c.id) ?? []),
     };
   })));
@@ -302,6 +306,81 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
   })();
 
   res.status(201).json(CreateCommentResponse.parse(serializedComment));
+});
+
+// ─── Update (edit) comment ────────────────────────────────────────────────────
+
+router.patch("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"), async (req, res): Promise<void> => {
+  const params = UpdateCommentParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const orgId = req.orgId!;
+
+  const [comment] = await db
+    .select({ id: commentsTable.id, userId: commentsTable.userId, taskId: commentsTable.taskId, orgId: commentsTable.orgId, parentId: commentsTable.parentId, author: commentsTable.author, content: commentsTable.content, createdAt: commentsTable.createdAt, deletedAt: commentsTable.deletedAt, editedAt: commentsTable.editedAt })
+    .from(commentsTable)
+    .where(
+      and(
+        eq(commentsTable.id, params.data.id),
+        eq(commentsTable.orgId, orgId),
+        isNull(commentsTable.deletedAt),
+      ),
+    )
+    .limit(1);
+
+  if (!comment) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  const currentUserId = req.user?.id ?? null;
+  const canEdit = hasPermission(req, "edit_comments");
+  const isOwner = comment.userId != null && comment.userId === currentUserId;
+
+  if (!isOwner && !canEdit) {
+    res.status(403).json({ error: "You do not have permission to edit this comment" });
+    return;
+  }
+
+  const body = UpdateCommentBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const now = new Date();
+  const [updated] = await db
+    .update(commentsTable)
+    .set({ content: body.data.content, editedAt: now })
+    .where(
+      and(
+        eq(commentsTable.id, params.data.id),
+        eq(commentsTable.orgId, orgId),
+        isNull(commentsTable.deletedAt),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "Comment not found" });
+    return;
+  }
+
+  const reactionsMap = await enrichWithReactions([{ id: updated.id }]);
+  const serialized = {
+    ...updated,
+    deleted: false,
+    author: updated.author ?? null,
+    parentId: updated.parentId ?? null,
+    createdAt: updated.createdAt instanceof Date ? updated.createdAt.toISOString() : updated.createdAt,
+    editedAt: updated.editedAt instanceof Date ? updated.editedAt.toISOString() : (updated.editedAt ?? null),
+    reactions: reactionsMap.get(updated.id) ?? [],
+  };
+
+  res.json(UpdateCommentResponse.parse(serialized));
 });
 
 // ─── Delete comment ───────────────────────────────────────────────────────────

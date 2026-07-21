@@ -431,6 +431,7 @@ export const ListCommentsResponseItem = zod.object({
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
   "deleted": zod.boolean().default(listCommentsResponseDeletedDefault).describe('True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
+  "editedAt": zod.string().nullish().describe('ISO 8601 timestamp of the most recent edit. Null when the comment has never been edited. Used by the client to show an \"(edited)\" badge.\n'),
   "reactions": zod.array(zod.object({
   "emoji": zod.string().describe('The unicode emoji character.'),
   "count": zod.number().describe('Total number of reactions with this emoji.'),
@@ -469,6 +470,7 @@ export const CreateCommentResponse = zod.object({
   "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
   "deleted": zod.boolean().default(createCommentResponseDeletedDefault).describe('True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
+  "editedAt": zod.string().nullish().describe('ISO 8601 timestamp of the most recent edit. Null when the comment has never been edited. Used by the client to show an \"(edited)\" badge.\n'),
   "reactions": zod.array(zod.object({
   "emoji": zod.string().describe('The unicode emoji character.'),
   "count": zod.number().describe('Total number of reactions with this emoji.'),
@@ -497,6 +499,42 @@ export const ListTaskEventsResponseItem = zod.object({
   "createdAt": zod.string().describe('ISO 8601 timestamp when the event was recorded.')
 }).describe('An immutable record of a single field-level change to a task. One event is emitted per changed field on every PATCH, plus a synthetic \"created\" event when the task is first inserted.\n')
 export const ListTaskEventsResponse = zod.array(ListTaskEventsResponseItem)
+
+
+/**
+ * Updates the plain-text content of an existing comment. The caller must be the comment's author OR hold the `edit_comments` permission. API key callers with the `comments:write` scope are also allowed. Returns 404 if the comment does not exist or belongs to a different org. Returns 403 if the caller lacks permission. Sets `editedAt` to the current timestamp on success.
+ * @summary Edit a comment's content
+ */
+export const UpdateCommentParams = zod.object({
+  "id": zod.coerce.number().describe('Numeric ID of the comment to edit.')
+})
+
+
+
+
+export const UpdateCommentBody = zod.object({
+  "content": zod.string().min(1).describe('Replacement plain-text body for the comment (must be non-empty).')
+}).describe('Fields allowed when editing an existing comment.')
+
+export const updateCommentResponseDeletedDefault = false;
+export const updateCommentResponseReactionsDefault = [];
+
+export const UpdateCommentResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('ID of the task this comment belongs to.'),
+  "parentId": zod.number().nullable().describe('ID of the parent comment this is a reply to. Null for top-level comments.\n'),
+  "userId": zod.string().nullish().describe('Internal user ID of the authenticated user who posted the comment. Null for legacy comments created before user tracking was added. Used by the client to determine ownership for delete eligibility.\n'),
+  "content": zod.string().describe('Plain-text body of the comment.'),
+  "author": zod.string().nullish().describe('Display name or identifier of the comment author. Not validated against org members. Null if no author was provided at creation time.\n'),
+  "deleted": zod.boolean().default(updateCommentResponseDeletedDefault).describe('True when the comment has been soft-deleted. Content, author, and userId are masked in the response; the comment row is preserved so child replies remain anchored.\n'),
+  "createdAt": zod.string().describe('ISO 8601 timestamp when the comment was posted.'),
+  "editedAt": zod.string().nullish().describe('ISO 8601 timestamp of the most recent edit. Null when the comment has never been edited. Used by the client to show an \"(edited)\" badge.\n'),
+  "reactions": zod.array(zod.object({
+  "emoji": zod.string().describe('The unicode emoji character.'),
+  "count": zod.number().describe('Total number of reactions with this emoji.'),
+  "userIds": zod.array(zod.string()).describe('IDs of the users who reacted with this emoji.')
+}).describe('Aggregated emoji reaction counts for a single emoji on a comment.')).default(updateCommentResponseReactionsDefault).describe('Emoji reaction summaries for this comment.')
+}).describe('A comment attached to a task.')
 
 
 /**
@@ -1127,6 +1165,7 @@ export const CreateOrgResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1197,6 +1236,7 @@ export const GetMyOrgResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1290,6 +1330,7 @@ export const ListOrgMembersResponseItem = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1399,6 +1440,7 @@ export const AcceptOrgInvitationResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1478,6 +1520,7 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1916,6 +1959,7 @@ export const ListRolesResponseItem = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1952,6 +1996,7 @@ export const CreateRoleBody = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -1981,6 +2026,7 @@ export const CreateRoleResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -2020,6 +2066,7 @@ export const UpdateRoleBody = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),
@@ -2049,6 +2096,7 @@ export const UpdateRoleResponse = zod.object({
   "close_tasks": zod.boolean(),
   "delete_tasks": zod.boolean(),
   "delete_comments": zod.boolean().describe('When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag.\n'),
+  "edit_comments": zod.boolean().describe('When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag.\n'),
   "manage_projects": zod.boolean(),
   "manage_org_settings": zod.boolean(),
   "manage_members": zod.boolean(),

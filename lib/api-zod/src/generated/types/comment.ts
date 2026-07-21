@@ -36,6 +36,11 @@ export interface Comment {
   deleted: boolean;
   /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
+  /**
+     * ISO 8601 timestamp of the most recent edit. Null when the comment has never been edited. Used by the client to show an "(edited)" badge.
+     * @nullable
+     */
+  editedAt?: string | null;
   /** Emoji reaction summaries for this comment. */
   reactions: CommentReactionSummary[];
 }

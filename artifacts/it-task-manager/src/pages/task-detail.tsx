@@ -1,4 +1,4 @@
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MentionTextarea } from "@/components/ui/mention-textarea";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
@@ -10,7 +10,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
-import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, Pencil, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown } from "lucide-react";
 import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
@@ -201,6 +201,7 @@ type FeedComment = {
   userId: string | null;
   deleted: boolean;
   createdAt: string;
+  editedAt: string | null;
   reactions: ReactionSummaryType[];
 };
 
@@ -273,6 +274,7 @@ function CommentNodeRenderer({
   currentUser,
   canDeleteFn,
   onDelete,
+  canEditFn,
   replyingToId,
   setReplyingToId,
   replyText,
@@ -287,6 +289,7 @@ function CommentNodeRenderer({
   currentUser: { id?: string; firstName?: string | null; lastName?: string | null; profileImageUrl?: string | null; email?: string | null } | null;
   canDeleteFn: (comment: { userId: string | null }) => boolean;
   onDelete: (id: number) => void;
+  canEditFn: (comment: { userId: string | null }) => boolean;
   replyingToId: number | null;
   setReplyingToId: (id: number | null) => void;
   replyText: string;
@@ -297,6 +300,22 @@ function CommentNodeRenderer({
   members: import("@workspace/api-client-react").OrgMemberInfo[];
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const editMutation = useUpdateComment({
+    mutation: {
+      onSuccess: () => {
+        setIsEditing(false);
+        queryClient.invalidateQueries({ queryKey: commentsQueryKey });
+      },
+      onError: () => {
+        toast({ title: "Failed to save edit", variant: "destructive" });
+      },
+    },
+  });
 
   const currentUserId = currentUser?.id ?? null;
   const isCurrentUser = !!currentUser && (
@@ -313,6 +332,7 @@ function CommentNodeRenderer({
     .join("");
 
   const canDelete = canDeleteFn({ userId: node.userId });
+  const canEdit = canEditFn({ userId: node.userId });
   const isReplying = replyingToId === node.id;
   const hasChildren = node.children.length > 0;
   const isDeep = node.depth >= THREAD_COLLAPSE_DEPTH;
@@ -353,6 +373,7 @@ function CommentNodeRenderer({
             currentUser={currentUser}
             canDeleteFn={canDeleteFn}
             onDelete={onDelete}
+            canEditFn={canEditFn}
             replyingToId={replyingToId}
             setReplyingToId={setReplyingToId}
             replyText={replyText}
@@ -383,6 +404,14 @@ function CommentNodeRenderer({
             <span className="text-sm font-medium">{node.author || "System"}</span>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">{formatTimeAgo(node.createdAt)}</span>
+              {node.editedAt && (
+                <span
+                  className="text-xs text-muted-foreground/60 italic"
+                  title={`Edited ${new Date(node.editedAt).toLocaleString()}`}
+                >
+                  (edited)
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -400,6 +429,19 @@ function CommentNodeRenderer({
                 <CornerDownRight className="w-3 h-3" />
                 Reply
               </button>
+              {canEdit && !isEditing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditText(node.content);
+                    setIsEditing(true);
+                  }}
+                  className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
+                  title="Edit comment"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
               {canDelete && (
                 <button
                   onClick={() => onDelete(node.id)}
@@ -411,9 +453,45 @@ function CommentNodeRenderer({
               )}
             </div>
           </div>
-          <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">
-            {renderCommentContent(node.content)}
-          </p>
+          {isEditing ? (
+            <div className="flex flex-col gap-2">
+              <Textarea
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                className="min-h-[72px] text-sm resize-y bg-background"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") { setIsEditing(false); }
+                }}
+              />
+              <div className="flex items-center gap-2 justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-xs"
+                  onClick={() => setIsEditing(false)}
+                  disabled={editMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => {
+                    if (!editText.trim()) return;
+                    editMutation.mutate({ id: node.id, data: { content: editText.trim() } });
+                  }}
+                  disabled={!editText.trim() || editMutation.isPending}
+                >
+                  {editMutation.isPending ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">
+              {renderCommentContent(node.content)}
+            </p>
+          )}
           <CommentReactionBar
             commentId={node.id}
             reactions={node.reactions}
@@ -490,6 +568,7 @@ function CommentNodeRenderer({
                 currentUser={currentUser}
                 canDeleteFn={canDeleteFn}
                 onDelete={onDelete}
+                canEditFn={canEditFn}
                 replyingToId={replyingToId}
                 setReplyingToId={setReplyingToId}
                 replyText={replyText}
@@ -1254,6 +1333,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     userId: c.userId ?? null,
     deleted: c.deleted ?? false,
     createdAt: c.createdAt,
+    editedAt: c.editedAt ?? null,
     reactions: c.reactions ?? [],
   }));
 
@@ -1279,6 +1359,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     const currentUserId = user?.id ?? null;
     const isOwner = comment.userId != null && comment.userId === currentUserId;
     return isOwner || hasPermission('delete_comments');
+  };
+
+  const canEditComment = (comment: { userId: string | null }) => {
+    const currentUserId = user?.id ?? null;
+    const isOwner = comment.userId != null && comment.userId === currentUserId;
+    return isOwner || hasPermission('edit_comments');
   };
 
   const isActivityLoading = isLoadingComments || isLoadingEvents;
@@ -1430,6 +1516,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                             currentUser={user}
                             canDeleteFn={canDeleteComment}
                             onDelete={(id) => deleteCommentMutation.mutate({ id })}
+                            canEditFn={canEditComment}
                             replyingToId={replyingToId}
                             setReplyingToId={setReplyingToId}
                             replyText={replyText}

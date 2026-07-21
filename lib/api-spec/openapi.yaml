@@ -631,6 +631,60 @@ paths:
                     type: string
 
   /comments/{id}:
+    patch:
+      operationId: updateComment
+      tags: [comments]
+      summary: Edit a comment's content
+      description: >
+        Updates the plain-text content of an existing comment. The caller must
+        be the comment's author OR hold the `edit_comments` permission. API key
+        callers with the `comments:write` scope are also allowed. Returns 404 if
+        the comment does not exist or belongs to a different org. Returns 403 if
+        the caller lacks permission. Sets `editedAt` to the current timestamp on
+        success.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Numeric ID of the comment to edit.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        description: Updated comment content.
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCommentInput"
+      responses:
+        "200":
+          description: Updated comment.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "403":
+          description: >
+            The caller is not the comment author and does not have the
+            edit_comments permission.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Comment not found or belongs to a different org.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: string
     delete:
       operationId: deleteComment
       tags: [comments]
@@ -3129,6 +3183,11 @@ components:
         createdAt:
           type: string
           description: ISO 8601 timestamp when the comment was posted.
+        editedAt:
+          type: ["string", "null"]
+          description: >
+            ISO 8601 timestamp of the most recent edit. Null when the comment
+            has never been edited. Used by the client to show an "(edited)" badge.
         reactions:
           type: array
           description: Emoji reaction summaries for this comment.
@@ -3155,6 +3214,16 @@ components:
           description: >
             Optional ID of the parent comment to reply to. The parent must
             belong to the same task and org.
+
+    UpdateCommentInput:
+      description: Fields allowed when editing an existing comment.
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          minLength: 1
+          description: Replacement plain-text body for the comment (must be non-empty).
 
     NoteVisibility:
       type: string
@@ -3681,6 +3750,7 @@ components:
         - close_tasks
         - delete_tasks
         - delete_comments
+        - edit_comments
         - manage_projects
         - manage_org_settings
         - manage_members
@@ -3710,6 +3780,11 @@ components:
           description: >
             When true, the member can delete comments posted by other members.
             Members can always delete their own comments regardless of this flag.
+        edit_comments:
+          type: boolean
+          description: >
+            When true, the member can edit comments posted by other members.
+            Members can always edit their own comments regardless of this flag.
         manage_projects:
           type: boolean
         manage_org_settings:

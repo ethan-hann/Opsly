@@ -957,7 +957,7 @@ interface PermGroup {
 const PERM_GROUPS: PermGroup[] = [
   {
     label: "Tasks",
-    keys: ["view_tasks", "create_tasks", "edit_tasks", "close_tasks", "delete_tasks", "delete_comments"],
+    keys: ["view_tasks", "create_tasks", "edit_tasks", "close_tasks", "delete_tasks", "delete_comments", "edit_comments"],
   },
   {
     label: "Projects & org",
@@ -980,6 +980,7 @@ const PERM_LABELS: Record<PermKey, string> = {
   close_tasks: "Close / reopen tasks",
   delete_tasks: "Delete tasks",
   delete_comments: "Delete others' comments",
+  edit_comments: "Edit others' comments",
   manage_projects: "Manage projects",
   manage_org_settings: "Org settings",
   manage_members: "Manage members",

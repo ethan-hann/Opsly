@@ -94,6 +94,9 @@ import type {
   TaskTemplateInput,
   TaskTemplateUpdate,
   TaskUpdate,
+  UpdateComment403,
+  UpdateComment404,
+  UpdateCommentInput,
   UpdateMemberRoleInput,
   UpdateRoleInput,
   WebhookIngestPayload,
@@ -1667,6 +1670,79 @@ export function useListTaskEvents<TData = Awaited<ReturnType<typeof listTaskEven
 
 
 
+
+export const getUpdateCommentUrl = (id: number,) => {
+
+
+
+
+  return `/api/comments/${id}`
+}
+
+/**
+ * Updates the plain-text content of an existing comment. The caller must be the comment's author OR hold the `edit_comments` permission. API key callers with the `comments:write` scope are also allowed. Returns 404 if the comment does not exist or belongs to a different org. Returns 403 if the caller lacks permission. Sets `editedAt` to the current timestamp on success.
+ * @summary Edit a comment's content
+ */
+export const updateComment = async (id: number,
+    updateCommentInput: UpdateCommentInput, options?: RequestInit): Promise<Comment> => {
+
+  return customFetch<Comment>(getUpdateCommentUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateCommentInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateCommentMutationOptions = <TError = ErrorType<UpdateComment403 | UpdateComment404>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateComment>>, TError,{id: number;data: BodyType<UpdateCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateComment>>, TError,{id: number;data: BodyType<UpdateCommentInput>}, TContext> => {
+
+const mutationKey = ['updateComment'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateComment>>, {id: number;data: BodyType<UpdateCommentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateComment(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCommentMutationResult = NonNullable<Awaited<ReturnType<typeof updateComment>>>
+    export type UpdateCommentMutationBody = BodyType<UpdateCommentInput>
+    export type UpdateCommentMutationError = ErrorType<UpdateComment403 | UpdateComment404>
+
+    /**
+ * @summary Edit a comment's content
+ */
+export const useUpdateComment = <TError = ErrorType<UpdateComment403 | UpdateComment404>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateComment>>, TError,{id: number;data: BodyType<UpdateCommentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateComment>>,
+        TError,
+        {id: number;data: BodyType<UpdateCommentInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateCommentMutationOptions(options));
+    }
 
 export const getDeleteCommentUrl = (id: number,) => {
 

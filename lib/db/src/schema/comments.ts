@@ -14,6 +14,7 @@ export const commentsTable = pgTable("comments", {
   userId: text("user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
 });
 
 export const insertCommentSchema = createInsertSchema(commentsTable).omit({

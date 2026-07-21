@@ -745,6 +745,11 @@ export interface Comment {
   deleted: boolean;
   /** ISO 8601 timestamp when the comment was posted. */
   createdAt: string;
+  /**
+     * ISO 8601 timestamp of the most recent edit. Null when the comment has never been edited. Used by the client to show an "(edited)" badge.
+     * @nullable
+     */
+  editedAt?: string | null;
   /** Emoji reaction summaries for this comment. */
   reactions: CommentReactionSummary[];
 }
@@ -762,6 +767,17 @@ export interface CommentInput {
   author?: string;
   /** Optional ID of the parent comment to reply to. The parent must belong to the same task and org. */
   parentId?: number;
+}
+
+/**
+ * Fields allowed when editing an existing comment.
+ */
+export interface UpdateCommentInput {
+  /**
+     * Replacement plain-text body for the comment (must be non-empty).
+     * @minLength 1
+     */
+  content: string;
 }
 
 /**
@@ -1043,6 +1059,8 @@ export interface RolePermissions {
   delete_tasks: boolean;
   /** When true, the member can delete comments posted by other members. Members can always delete their own comments regardless of this flag. */
   delete_comments: boolean;
+  /** When true, the member can edit comments posted by other members. Members can always edit their own comments regardless of this flag. */
+  edit_comments: boolean;
   manage_projects: boolean;
   manage_org_settings: boolean;
   manage_members: boolean;
@@ -2253,6 +2271,14 @@ export const ListTasksSlaBreached = {
 } as const;
 
 export type ListTaskEvents404 = {
+  error: string;
+};
+
+export type UpdateComment403 = {
+  error: string;
+};
+
+export type UpdateComment404 = {
   error: string;
 };
 
