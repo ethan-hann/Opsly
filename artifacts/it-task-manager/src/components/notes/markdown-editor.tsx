@@ -21,6 +21,13 @@ interface MarkdownEditorProps {
   placeholder?: string;
   className?: string;
   readOnly?: boolean;
+  /**
+   * Which pane the editor opens in by default.
+   * - "edit"    — textarea only (default, good for compact modal usage)
+   * - "live"    — side-by-side editor + preview (good for full-page notes)
+   * - "preview" — rendered output only (used when readOnly=true)
+   */
+  previewMode?: "edit" | "live" | "preview";
 }
 
 /**
@@ -57,16 +64,24 @@ export function MarkdownEditor({
   placeholder,
   className,
   readOnly = false,
+  previewMode = "edit",
 }: MarkdownEditorProps) {
   const colorMode = useColorMode();
 
+  const resolvedPreview: "edit" | "live" | "preview" = readOnly
+    ? "preview"
+    : previewMode;
+
   return (
     // data-color-mode drives @uiw/react-md-editor's own light/dark theming.
-    <div data-color-mode={colorMode} className={cn("wmde-markdown-var", className)}>
+    // The app's CSS in index.css overrides the library's GitHub-style design
+    // tokens inside this attribute selector, so the editor adopts the warm
+    // stone & amber palette automatically in both light and dark modes.
+    <div data-color-mode={colorMode} className={cn(className)}>
       <MDEditor
         value={value}
         onChange={(v) => onChange(v ?? "")}
-        preview={readOnly ? "preview" : "edit"}
+        preview={resolvedPreview}
         // Fill the wrapper's height; the parent (className) controls the size.
         height="100%"
         // Hide the drag-bar resizer — layout is controlled externally.

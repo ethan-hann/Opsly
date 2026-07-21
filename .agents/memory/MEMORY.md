@@ -9,3 +9,4 @@
 - [American spellings](american-spellings.md) — always use American English in UI strings, comments, names, and tests; key pairs: organisation→organization, colour→color, behaviour→behavior, cancelled→canceled, centre→center.
 - [SMTP / email patterns](email-smtp-patterns.md) — nodemailer singleton; digest mailer multi-org aggregation rule; migration pattern; TS null-literal narrowing trap in tests.
 - [Export storage](export-storage.md) — StorageProvider abstraction (replit/s3); exportJobsTable replaces in-memory Maps; singleton mock pattern for storage in tests.
+- [Markdown editor theming](md-editor-theming.md) — override @uiw/react-md-editor GitHub tokens via [data-color-mode] in index.css; dock system replaced by MDEditor built-in preview; previewMode prop controls edit/live/preview default.

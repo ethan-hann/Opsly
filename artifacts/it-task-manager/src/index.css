@@ -259,3 +259,75 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
 }
+
+/* ── @uiw/react-md-editor theme integration ─────────────────────────────────
+   Map the library's GitHub-style design tokens to the app's warm stone & amber
+   palette.  Both [data-color-mode] values are listed together because the app's
+   own CSS vars (--card, --border, --primary …) already resolve to the correct
+   light or dark colour based on the .dark class that ThemeProvider sets on
+   <html> — no separate dark override block is needed.                         */
+
+[data-color-mode="light"],
+[data-color-mode="dark"] {
+  /* Canvas / surface */
+  --color-canvas-default:  hsl(var(--card));
+  --color-canvas-subtle:   hsl(var(--muted));
+  /* Borders */
+  --color-border-default:  hsl(var(--border));
+  --color-border-muted:    hsl(var(--border));
+  /* Text */
+  --color-fg-default:      hsl(var(--foreground));
+  --color-fg-muted:        hsl(var(--muted-foreground));
+  /* Code / neutral surfaces */
+  --color-neutral-muted:   hsl(var(--muted));
+  /* Accent — amber primary drives toolbar active states and links */
+  --color-accent-fg:       hsl(var(--primary));
+  /* Danger */
+  --color-danger-fg:       hsl(var(--destructive));
+}
+
+/* Strip the default outer box-shadow border — parent containers (modal border,
+   page layout) handle their own visual edges.                                 */
+[data-color-mode] .w-md-editor {
+  box-shadow: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+/* Give the toolbar a distinct muted background so it reads as a control bar,
+   not part of the editor surface.                                             */
+[data-color-mode] .w-md-editor-toolbar {
+  background-color: hsl(var(--muted)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+/* Toolbar icon buttons — inherit foreground so they feel native               */
+[data-color-mode] .w-md-editor-toolbar li > button {
+  color: hsl(var(--muted-foreground));
+}
+[data-color-mode] .w-md-editor-toolbar li > button:hover,
+[data-color-mode] .w-md-editor-toolbar li.active > button {
+  color: hsl(var(--foreground));
+  background-color: hsl(var(--accent));
+}
+
+/* Vertical separator between toolbar button groups                            */
+[data-color-mode] .w-md-editor-toolbar ul + ul {
+  border-left-color: hsl(var(--border));
+}
+
+/* Divider line between editor and preview panes in split mode                 */
+[data-color-mode] .w-md-editor-area {
+  border-right-color: hsl(var(--border));
+}
+
+/* Preview area background matches card surface                                */
+[data-color-mode] .w-md-editor-preview {
+  background-color: hsl(var(--card));
+}
+
+/* Full-border wrapper for modal contexts — applied via the parent .md-editor-bordered class */
+.md-editor-bordered [data-color-mode] .w-md-editor,
+.md-editor-bordered [data-color-mode] {
+  border-radius: calc(var(--radius) - 2px);
+}

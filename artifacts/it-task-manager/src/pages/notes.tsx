@@ -3,7 +3,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useSearch } from "wouter";
 import {
   Plus, StickyNote, Search, Link2Off,
-  PanelBottom, PanelRight, ExternalLink, EyeOff, Eye,
+  Eye,
   CheckCheck, Lock, Users, ArrowLeft, Edit2, X,
   ChevronsUpDown, Check,
 } from "lucide-react";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
-import { MarkdownPreview, openPreviewWindow } from "@/components/notes/markdown-preview";
+import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { NoteCard } from "@/components/notes/note-card";
 import {
   useListNotes, useCreateNote, useUpdateNote, useDeleteNote,
@@ -29,13 +29,8 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  PanelGroup, Panel, PanelResizeHandle,
-} from "react-resizable-panels";
-import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-type PreviewDock = "right" | "bottom" | "window" | "hidden";
 
 const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.ElementType; description: string }[] = [
   { value: "private",      label: "Private",       icon: Lock,  description: "Only you can see and edit" },
@@ -56,7 +51,6 @@ export default function NotesPage() {
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const isMobile = useIsMobile();
-  const [dock, setDock] = useState<PreviewDock>("bottom");
   const [localContent, setLocalContent] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -170,11 +164,6 @@ export default function NotesPage() {
     toast({ title: "Note deleted" });
   };
 
-  const handleOpenWindow = () => {
-    if (!selectedNote) return;
-    openPreviewWindow(selectedNote.title, localContent || selectedNote.content);
-  };
-
   const getProjectName = (id: number | null | undefined) =>
     id ? projects.find((p) => p.id === id)?.name ?? null : null;
   const getTaskTitle = (id: number | null | undefined) =>
@@ -216,26 +205,6 @@ export default function NotesPage() {
             Saved
           </span>
 
-          {/* Preview dock controls - hidden on mobile and for read-only notes */}
-          {canEdit && (
-            <div className="hidden md:flex items-center gap-0.5 shrink-0">
-              <DockBtn title="Hide preview"       active={dock === "hidden"} onClick={() => setDock("hidden")}><EyeOff className="w-3.5 h-3.5" /></DockBtn>
-              <DockBtn title="Preview on right"   active={dock === "right"}  onClick={() => setDock("right")} ><PanelRight className="w-3.5 h-3.5" /></DockBtn>
-              <DockBtn title="Preview below"      active={dock === "bottom"} onClick={() => setDock("bottom")}><PanelBottom className="w-3.5 h-3.5" /></DockBtn>
-              <DockBtn
-                title="Open preview in new window"
-                active={dock === "window"}
-                onClick={() => { setDock("window"); handleOpenWindow(); }}
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </DockBtn>
-              {dock === "window" && (
-                <Button size="sm" variant="outline" className="h-6 text-xs ml-1" onClick={handleOpenWindow}>
-                  <Eye className="w-3 h-3 mr-1" /> Refresh
-                </Button>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Visibility toggle (owner) or read-only badge (non-owner) */}
@@ -331,43 +300,20 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Editor + preview split (editable) - preview only (read-only) */}
+      {/* Editor (editable) or read-only rendered preview */}
       {!canEdit ? (
         <div className="flex-1 overflow-y-auto">
           <MarkdownPreview content={localContent} />
         </div>
-      ) : isMobile || dock === "hidden" || dock === "window" ? (
-        <MarkdownEditor value={localContent} onChange={handleContentChange} className="flex-1 overflow-hidden" />
-      ) : dock === "right" ? (
-        <PanelGroup direction="horizontal" className="flex-1 overflow-hidden">
-          <Panel defaultSize={55} minSize={25}>
-            <MarkdownEditor value={localContent} onChange={handleContentChange} className="h-full" />
-          </Panel>
-          <PanelResizeHandle className="w-1 bg-border hover:bg-primary/40 transition-colors cursor-col-resize" />
-          <Panel defaultSize={45} minSize={20}>
-            <div className="h-full overflow-y-auto border-l border-border">
-              <div className="px-2 py-1 border-b border-border bg-card">
-                <span className="text-xs text-muted-foreground">Preview</span>
-              </div>
-              <MarkdownPreview content={localContent} />
-            </div>
-          </Panel>
-        </PanelGroup>
       ) : (
-        <PanelGroup direction="vertical" className="flex-1 overflow-hidden">
-          <Panel defaultSize={55} minSize={20}>
-            <MarkdownEditor value={localContent} onChange={handleContentChange} className="h-full" />
-          </Panel>
-          <PanelResizeHandle className="h-1 bg-border hover:bg-primary/40 transition-colors cursor-row-resize" />
-          <Panel defaultSize={45} minSize={15}>
-            <div className="h-full overflow-y-auto border-t border-border">
-              <div className="px-3 py-1 border-b border-border bg-card">
-                <span className="text-xs text-muted-foreground">Preview</span>
-              </div>
-              <MarkdownPreview content={localContent} />
-            </div>
-          </Panel>
-        </PanelGroup>
+        // The MDEditor toolbar provides its own Edit / Split / Preview toggle,
+        // so no separate dock/panel system is needed here.
+        <MarkdownEditor
+          value={localContent}
+          onChange={handleContentChange}
+          className="flex-1 overflow-hidden"
+          previewMode="live"
+        />
       )}
     </div>
   ) : (
@@ -481,17 +427,6 @@ export default function NotesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function DockBtn({ onClick, active, title, children }: { onClick: () => void; active: boolean; title: string; children: React.ReactNode }) {
-  return (
-    <button
-      type="button" onClick={onClick} title={title}
-      className={`p-1.5 rounded transition-colors ${active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}
-    >
-      {children}
-    </button>
   );
 }
 
