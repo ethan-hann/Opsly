@@ -351,4 +351,67 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
       </div>
     );
   },
+
+  // Divs — intercept the <div class="markdown-alert markdown-alert-note"> that
+  // remark-github-blockquote-alert (pre-pended by @uiw/react-markdown-preview)
+  // emits for [!NOTE] / [!TIP] / [!WARNING] / [!CAUTION] / [!IMPORTANT].
+  // The library also adds a <p class="markdown-alert-title"> child with an SVG
+  // octicon and the type label; we filter that out and render our own header so
+  // the callout appearance is identical to the standalone MarkdownPreview path.
+  div: ({
+    children,
+    className,
+    ...props
+  }: React.HTMLAttributes<HTMLDivElement>) => {
+    const match =
+      typeof className === "string"
+        ? className.match(/\bmarkdown-alert-([a-z]+)\b/)
+        : null;
+    const alertType = match?.[1]?.toUpperCase();
+    const calloutType =
+      alertType && alertType in CALLOUT_CONFIG
+        ? (alertType as CalloutType)
+        : null;
+
+    if (!calloutType) {
+      return <div className={className} {...props}>{children}</div>;
+    }
+
+    const cfg = CALLOUT_CONFIG[calloutType];
+    return (
+      <div
+        className={cn(
+          "rounded-md border-l-4 px-4 py-3 my-4",
+          cfg.border,
+          cfg.bg,
+        )}
+      >
+        <div
+          className={cn(
+            "flex items-center gap-1.5 text-xs font-semibold mb-1.5",
+            cfg.label,
+          )}
+        >
+          <span>{cfg.icon}</span>
+          <span>{calloutType}</span>
+        </div>
+        <div className="text-sm [&>p:first-child]:mt-0 [&>p:last-child]:mb-0">
+          {React.Children.map(children, (child) => {
+            // Skip the library's own title paragraph — we rendered ours above
+            if (
+              React.isValidElement(child) &&
+              typeof (child.props as { className?: string }).className ===
+                "string" &&
+              (child.props as { className: string }).className.includes(
+                "markdown-alert-title",
+              )
+            ) {
+              return null;
+            }
+            return child;
+          })}
+        </div>
+      </div>
+    );
+  },
 };
