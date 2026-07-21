@@ -626,7 +626,12 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
-                      <StatusBadge status={task.status} />
+                      <StatusBadge
+                        status={task.status}
+                        stageName={task.stageName}
+                        stageColor={task.stageColor}
+                        stageArchived={task.stageArchived}
+                      />
                       <PriorityBadge priority={task.priority} />
                     </div>
                   </div>
