@@ -18,7 +18,7 @@ import {
   customFieldDefinitionsTable,
   exportJobsTable,
 } from "@workspace/db";
-import { eq, count, and, lt, or } from "drizzle-orm";
+import { eq, count, and, lt, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
@@ -240,6 +240,93 @@ async function countTotalRows(orgId: string, scope: ExportScope): Promise<number
   ]);
   return counts.reduce((sum, result) => sum + (result ? Number(result[0].c) : 0), 0);
 }
+
+// ── Storage audit ─────────────────────────────────────────────────────────────
+
+/**
+ * Cross-reference every object in storage against exportJobsTable.
+ *
+ * An object is a candidate for deletion when:
+ *  - It has no matching DB row at all (orphaned — storage.delete() failed
+ *    silently during a prior supersede or expiry pass), OR
+ *  - Its matching DB row is older than 24 hours (stale — the row will be
+ *    purged by the scheduled cleanup within the same window).
+ *
+ * Errors on individual deletions are logged and skipped; the next run will
+ * retry them.  A failure to list objects skips the entire pass.
+ *
+ * Exported for unit testing.
+ */
+export async function runStorageAudit(): Promise<void> {
+  try {
+    const storage = getStorageProvider();
+
+    let storageKeys: string[];
+    try {
+      storageKeys = await storage.list();
+    } catch (err) {
+      logger.warn({ err }, "Export storage audit: failed to list objects, skipping this run");
+      return;
+    }
+
+    if (storageKeys.length === 0) {
+      logger.info({ found: 0, deleted: 0, skipped: 0, errors: 0 }, "Export storage audit complete");
+      return;
+    }
+
+    // Load all known objectKeys + their ages from the DB in one query.
+    const dbRows = await db
+      .select({ objectKey: exportJobsTable.objectKey, createdAt: exportJobsTable.createdAt })
+      .from(exportJobsTable)
+      .where(inArray(exportJobsTable.objectKey, storageKeys));
+
+    const now = new Date();
+    const cutoff24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Build a lookup: objectKey → createdAt for quick cross-reference.
+    const dbMap = new Map(dbRows.map((r) => [r.objectKey, r.createdAt]));
+
+    let deleted = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const key of storageKeys) {
+      const dbCreatedAt = dbMap.get(key);
+      const orphaned = dbCreatedAt === undefined;
+      const stale = dbCreatedAt !== undefined && dbCreatedAt < cutoff24h;
+
+      if (orphaned || stale) {
+        try {
+          await storage.delete(key);
+          deleted++;
+          logger.info(
+            { objectKey: key, reason: orphaned ? "orphaned" : "stale" },
+            "Export storage audit: deleted object",
+          );
+        } catch (err) {
+          errors++;
+          logger.warn(
+            { err, objectKey: key },
+            "Export storage audit: delete failed, will retry on next run",
+          );
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    logger.info(
+      { found: storageKeys.length, deleted, skipped, errors },
+      "Export storage audit complete",
+    );
+  } catch (err) {
+    logger.warn({ err }, "Export storage audit failed");
+  }
+}
+
+// Run once an hour — longer cadence than the 10-min TTL expiry pass since
+// listing all storage objects is more expensive than a targeted DB query.
+setInterval(runStorageAudit, 60 * 60 * 1000).unref();
 
 // ── Scheduled cleanup ─────────────────────────────────────────────────────────
 

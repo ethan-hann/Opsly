@@ -76,4 +76,11 @@ export class ReplitStorageProvider implements StorageProvider {
     const [exists] = await file.exists();
     return exists;
   }
+
+  async list(): Promise<string[]> {
+    const bucket = this.client.bucket(getBucketName());
+    const [files] = await bucket.getFiles({ prefix: PREFIX });
+    // Strip the storage-level PREFIX so returned keys match the DB objectKey format.
+    return files.map((f) => f.name.slice(PREFIX.length)).filter(Boolean);
+  }
 }

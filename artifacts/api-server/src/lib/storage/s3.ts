@@ -19,6 +19,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import type { StorageProvider } from "./provider";
 
@@ -110,5 +111,23 @@ export class S3StorageProvider implements StorageProvider {
     } catch {
       return false;
     }
+  }
+
+  async list(): Promise<string[]> {
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+        }),
+      );
+      for (const obj of response.Contents ?? []) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+      continuationToken = response.IsTruncated ? response.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return keys;
   }
 }

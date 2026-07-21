@@ -27,6 +27,14 @@ export interface StorageProvider {
 
   /** Return true if the key exists in storage. */
   exists(key: string): Promise<boolean>;
+
+  /**
+   * List all object keys stored by this provider.
+   * Returns keys in the same format used by put/get/delete (i.e. without any
+   * internal storage prefix), so the result can be compared directly against
+   * the objectKey column in exportJobsTable.
+   */
+  list(): Promise<string[]>;
 }
 
 // ── Factory ───────────────────────────────────────────────────────────────────

@@ -21,7 +21,7 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import request from "supertest";
 import express from "express";
-import { toCsv } from "./export";
+import { toCsv, runStorageAudit } from "./export";
 
 // ---------------------------------------------------------------------------
 // Shared mock state (hoisted so vi.mock factories can reference it)
@@ -111,6 +111,7 @@ vi.mock("drizzle-orm", () => ({
   lt: () => ({}),
   count: () => ({}),
   sql: () => ({}),
+  inArray: () => ({}),
 }));
 
 // ---------------------------------------------------------------------------
@@ -121,6 +122,7 @@ const mockStorageProvider = vi.hoisted(() => ({
   get: vi.fn().mockImplementation(() => Promise.resolve(mockState.storageBuffer)),
   delete: vi.fn().mockResolvedValue(undefined),
   exists: vi.fn().mockResolvedValue(true),
+  list: vi.fn().mockResolvedValue([] as string[]),
 }));
 
 vi.mock("../lib/storage/provider", () => ({
@@ -760,5 +762,117 @@ describe("GET /export/download/:token — survives server restart", () => {
     expect(dlRes.body).toMatchObject({ error: expect.stringMatching(/expired/i) });
     // Storage.get must NOT have been called — the route should bail on missing DB row.
     expect(mockStorageProvider.get).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ── runStorageAudit ───────────────────────────────────────────────────────
+//
+// The audit cross-references every key returned by storage.list() against
+// exportJobsTable, then deletes objects that are orphaned (no DB row) or
+// stale (DB row older than 24 h).  Individual delete failures are logged and
+// skipped so the pass completes for all other keys.
+// ---------------------------------------------------------------------------
+describe("runStorageAudit", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockState.selectQueue = [];
+    mockStorageProvider.list.mockResolvedValue([]);
+  });
+
+  it("does nothing when storage is empty (no objects to audit)", async () => {
+    mockStorageProvider.list.mockResolvedValue([]);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes an orphaned object that has no matching DB row", async () => {
+    const orphanKey = "org-1/user-1/orphan-token";
+    mockStorageProvider.list.mockResolvedValue([orphanKey]);
+    // DB query returns no matching rows → object is orphaned.
+    queueRows([]);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).toHaveBeenCalledOnce();
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(orphanKey);
+  });
+
+  it("deletes a stale object whose DB row is older than 24 hours", async () => {
+    const staleKey = "org-1/user-1/stale-token";
+    mockStorageProvider.list.mockResolvedValue([staleKey]);
+    // DB row exists but createdAt is 25 hours ago → stale.
+    queueRows([{
+      objectKey: staleKey,
+      createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    }]);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).toHaveBeenCalledOnce();
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(staleKey);
+  });
+
+  it("skips a current object whose DB row is less than 24 hours old", async () => {
+    const freshKey = "org-1/user-1/fresh-token";
+    mockStorageProvider.list.mockResolvedValue([freshKey]);
+    // DB row is 30 minutes old → keep it.
+    queueRows([{
+      objectKey: freshKey,
+      createdAt: new Date(Date.now() - 30 * 60 * 1000),
+    }]);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).not.toHaveBeenCalled();
+  });
+
+  it("handles a mix: deletes orphaned + stale, skips fresh", async () => {
+    const orphanKey = "org-1/user-1/orphan";
+    const staleKey  = "org-1/user-1/stale";
+    const freshKey  = "org-1/user-1/fresh";
+    mockStorageProvider.list.mockResolvedValue([orphanKey, staleKey, freshKey]);
+
+    // DB returns only the stale and fresh rows (orphan has no row).
+    queueRows([
+      { objectKey: staleKey, createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000) },
+      { objectKey: freshKey, createdAt: new Date(Date.now() - 5  * 60 * 1000) },
+    ]);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).toHaveBeenCalledTimes(2);
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(orphanKey);
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(staleKey);
+    expect(mockStorageProvider.delete).not.toHaveBeenCalledWith(freshKey);
+  });
+
+  it("skips the entire pass when storage.list() throws, without calling delete", async () => {
+    mockStorageProvider.list.mockRejectedValueOnce(new Error("network timeout"));
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).not.toHaveBeenCalled();
+  });
+
+  it("continues deleting remaining keys when one delete fails", async () => {
+    const key1 = "org-1/user-1/orphan-a";
+    const key2 = "org-1/user-1/orphan-b";
+    mockStorageProvider.list.mockResolvedValue([key1, key2]);
+    // Both are orphaned.
+    queueRows([]);
+
+    // First delete fails, second should still be attempted.
+    mockStorageProvider.delete
+      .mockRejectedValueOnce(new Error("permission denied"))
+      .mockResolvedValueOnce(undefined);
+
+    await runStorageAudit();
+
+    expect(mockStorageProvider.delete).toHaveBeenCalledTimes(2);
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(key1);
+    expect(mockStorageProvider.delete).toHaveBeenCalledWith(key2);
   });
 });
