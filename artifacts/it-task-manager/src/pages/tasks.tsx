@@ -118,7 +118,7 @@ function getProjectFilterOptions(
 
 // ─── URL state hook ───────────────────────────────────────────────────────────
 
-function useTaskFilters() {
+export function useTaskFilters() {
   const urlSearch = useSearch();
   const [, setLocation] = useLocation();
 
