@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "wouter";
+import { useSearchParams } from "wouter";
 import { useGetOrgAuditLog, type AuditEvent } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Badge } from "@/components/ui/badge";
@@ -45,26 +45,30 @@ const CATEGORY_LABEL: Record<AuditCategory, string> = {
 };
 
 // ─── URL filter helpers ───────────────────────────────────────────────────────
+//
+// useLocation() from wouter only returns the pathname — it never includes the
+// query string, so reading filters from it always yields empty strings.
+// useSearchParams() is the correct reactive hook for query-string state.
 
 function useAuditFilters() {
-  const [location, setLocation] = useLocation();
-  const qs = location.includes("?") ? location.split("?")[1] : "";
-  const params = new URLSearchParams(qs);
-
-  const from = params.get("from") ?? "";
-  const to = params.get("to") ?? "";
-  const actor = params.get("actor") ?? "";
-  const category = (params.get("category") as AuditCategory | null) ?? "";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const from = searchParams.get("from") ?? "";
+  const to = searchParams.get("to") ?? "";
+  const actor = searchParams.get("actor") ?? "";
+  const category = (searchParams.get("category") as AuditCategory | null) ?? "";
 
   const setFilter = (key: string, value: string) => {
-    const p = new URLSearchParams(location.includes("?") ? location.split("?")[1] : "");
-    if (value) p.set(key, value);
-    else p.delete(key);
-    const qs2 = p.toString();
-    setLocation("/audit-log" + (qs2 ? "?" + qs2 : ""));
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev.toString());
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    });
   };
 
-  return { from, to, actor, category, setFilter };
+  const clearFilters = () => setSearchParams(new URLSearchParams());
+
+  return { from, to, actor, category, setFilter, clearFilters };
 }
 
 // ─── Access denied ────────────────────────────────────────────────────────────
@@ -93,7 +97,7 @@ export default function AuditLogPage() {
 // ─── Content ──────────────────────────────────────────────────────────────────
 
 function AuditLogContent() {
-  const { from, to, actor, category, setFilter } = useAuditFilters();
+  const { from, to, actor, category, setFilter, clearFilters } = useAuditFilters();
 
   // allEvents accumulates across Load More presses.
   const [allEvents, setAllEvents] = useState<AuditEvent[]>([]);
@@ -142,9 +146,7 @@ function AuditLogContent() {
     // Accumulation reset is handled by the filterKey effect above.
   };
 
-  const handleClearFilters = () => {
-    ["from", "to", "actor", "category"].forEach((k) => setFilter(k, ""));
-  };
+  const handleClearFilters = () => clearFilters();
 
   const handleRefresh = () => {
     setAllEvents([]);
