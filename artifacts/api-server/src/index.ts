@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { initStorageProvider } from "./lib/storage/provider";
 import { startSlaPoller } from "./lib/sla-poller";
 import { startNotificationPruner } from "./lib/notification-pruner";
 import { startDigestMailer } from "./lib/digest-mailer";
@@ -17,6 +18,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+// Validate storage config eagerly — logs FATAL and exits(1) if misconfigured.
+initStorageProvider();
 
 const server = app.listen(port, (err) => {
   if (err) {
