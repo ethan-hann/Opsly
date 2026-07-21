@@ -153,8 +153,6 @@ export function useTaskFilters() {
       } else {
         next.delete(key === "projectFilter" ? "project" : key);
       }
-      // Clear the active view when manually changing a filter
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -168,7 +166,6 @@ export function useTaskFilters() {
       } else {
         next.delete("search");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -214,7 +211,6 @@ export function useTaskFilters() {
       } else {
         next.delete("watching");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -228,7 +224,6 @@ export function useTaskFilters() {
       } else {
         next.delete("slaBreached");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -242,7 +237,6 @@ export function useTaskFilters() {
       } else {
         next.delete("stageType");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -256,7 +250,6 @@ export function useTaskFilters() {
       } else {
         next.delete("overdue");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -276,7 +269,6 @@ export function useTaskFilters() {
         next.delete("customFieldId");
         next.delete("customFieldValue");
       }
-      next.delete("viewId");
       setLocation("?" + next.toString(), { replace: true });
     },
     [urlSearch, setLocation],
@@ -421,7 +413,8 @@ function SaveViewPopover({
   const deleteView = useDeleteView();
   const queryClient = useQueryClient();
 
-  // Check if current filters match an existing view
+  // viewId stays in the URL until the user explicitly clears all filters, so
+  // activeView remains non-null throughout any in-session filter editing.
   const activeView = activeViewId
     ? views.find((v) => v.id === activeViewId)
     : null;
@@ -459,6 +452,38 @@ function SaveViewPopover({
     setName("");
     setIsOrgWide(false);
     setIsDefault(false);
+    setOpen(false);
+  };
+
+  const handleUpdateFilters = async () => {
+    if (!activeView) return;
+    const filterPayload = {
+      status: filters.status || undefined,
+      priority: filters.priority || undefined,
+      category: filters.category || undefined,
+      assignee: filters.assignee || undefined,
+      dateFrom: filters.dateFrom || undefined,
+      dateTo: filters.dateTo || undefined,
+      projectFilter:
+        filters.projectFilter !== "all" ? filters.projectFilter : undefined,
+      search: search || undefined,
+      customFieldId: filters.customFieldId
+        ? Number(filters.customFieldId)
+        : undefined,
+      customFieldValue:
+        filters.customFieldId && filters.customFieldValue
+          ? filters.customFieldValue
+          : undefined,
+      watching: filters.watching || undefined,
+      slaBreached: filters.slaBreached || undefined,
+      overdue: filters.overdue || undefined,
+      stageType: filters.stageType || undefined,
+    };
+    await updateView.mutateAsync({
+      id: activeView.id,
+      data: { filters: filterPayload },
+    });
+    await queryClient.invalidateQueries({ queryKey: getListViewsQueryKey() });
     setOpen(false);
   };
 
@@ -590,12 +615,25 @@ function SaveViewPopover({
                   <span className="ml-1 text-primary">· Default</span>
                 )}
               </div>
+              {activeView.createdBy === userId && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full h-7 text-xs mt-2"
+                  onClick={handleUpdateFilters}
+                  disabled={updateView.isPending}
+                >
+                  {updateView.isPending ? "Updating..." : "Update this view"}
+                </Button>
+              )}
             </div>
           )}
 
           {/* Save current filters as a new view */}
           <div>
-            <p className="text-xs font-semibold mb-2">Save current filters</p>
+            <p className="text-xs font-semibold mb-2">
+              {activeView ? "Save as new view" : "Save current filters"}
+            </p>
             <Input
               placeholder="View name..."
               value={name}
