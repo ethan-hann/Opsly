@@ -101,11 +101,11 @@
     "nMembers": "{{count}}位成员",
     "nMembers_one": "{{count}}位成员",
     "nMembers_other": "{{count}}位成员",
-    "youreOffline": "You're offline",
-    "changesQueued_one": "{{count}} change queued",
-    "changesQueued_other": "{{count}} changes queued",
-    "scrollToTop": "Scroll to top",
-    "scrollToBottom": "Scroll to bottom"
+    "youreOffline": "您已离线",
+    "changesQueued_one": "{{count}}项更改排队中",
+    "changesQueued_other": "{{count}}项更改排队中",
+    "scrollToTop": "滚动到顶部",
+    "scrollToBottom": "滚动到底部"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -273,9 +273,9 @@
     "slaFilter": "仅显示违反SLA的{{tasks}}",
     "bulkSelected": "已选择{{count}}个",
     "clearSelection": "清除选择",
-    "personalView": "Personal",
-    "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "personalView": "个人",
+    "defaultIndicator": "· 默认",
+    "clearCustomFieldFilter": "清除自定义字段筛选"
   },
   "taskDetail": {
     "notFound": "未找到任务",
@@ -433,9 +433,9 @@
     "statusOnHold": "暂停",
     "subtitle": "管理IT计划、部署和史诗。",
     "customSla": "自定义SLA",
-    "orgDefault": "Org default",
-    "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "orgDefault": "组织默认",
+    "warningDefault": "80%（默认）",
+    "overrideBadge": "覆盖"
   },
   "notes": {
     "title": "便签本",
@@ -461,8 +461,8 @@
     "clearFilters": "清除过滤器",
     "searchProjectsPlaceholder": "搜索项目…",
     "searchTasksPlaceholder": "搜索任务…",
-    "backToNotes": "Back to notes list",
-    "untitledNote": "Untitled Note"
+    "backToNotes": "返回笔记列表",
+    "untitledNote": "无标题笔记"
   },
   "webhooks": {
     "inboundCreated": "入站Webhook已创建",
@@ -772,9 +772,9 @@
       "badgeNew": "新建",
       "activeSidebarItem": "活跃侧边栏项目",
       "revertColor": "恢复",
-      "pickColor": "Pick a brand color",
-      "colorPreview": "Color preview",
-      "logoAlt": "Logo preview"
+      "pickColor": "选择品牌颜色",
+      "colorPreview": "颜色预览",
+      "logoAlt": "Logo预览"
     },
     "reactions": {
       "title": "反应面板",
@@ -789,7 +789,7 @@
       "emptyPalette": "面板中没有表情符号。",
       "noPermission": "只有具有权限的成员才能编辑面板。",
       "mustHaveOne": "面板至少需要一个表情符号",
-      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+      "restoreDefaultsTitle": "恢复12个默认表情 (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "术语",
@@ -847,7 +847,7 @@
       "formatJSON": "JSON",
       "formatCSV": "CSV",
       "builtIn": "内置",
-      "keyNamePlaceholder": "e.g. Prometheus exporter"
+      "keyNamePlaceholder": "例如：Prometheus导出器"
     },
     "export": {
       "title": "数据导出",
@@ -873,9 +873,9 @@
       "preparing": "准备中…",
       "inProgress": "进行中",
       "downloadExport": "下载导出",
-      "jsonDesc": "— single self-describing file, designed for future import",
-      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
-      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
+      "jsonDesc": "— 单个自描述文件，专为将来导入设计",
+      "csvDesc": "— ZIP压缩包，每种实体类型一张表",
+      "exportQueuedHint": "已有导出正在准备中 — 准备就绪后将通知您"
     },
     "orgInfo": "组织",
     "orgRenamed": "组织已重命名",
@@ -896,7 +896,7 @@
       "leaveOrgConfirmDesc": "确定要退出此组织吗？您将失去对所有资源的访问权限。",
       "leaveButton": "退出",
       "transferOwnership": "转让所有权",
-      "renameTitle": "Rename organization"
+      "renameTitle": "重命名组织"
     },
     "members": {
       "invite": "邀请成员",
@@ -929,10 +929,10 @@
       "memberRemoved": "成员已移除",
       "invitationCanceled": "邀请已取消",
       "leftOrg": "您已退出组织",
-      "youBadge": "You",
-      "copyInviteTitle": "Copy invite link",
-      "cancelInviteTitle": "Cancel invitation",
-      "emailPlaceholder": "email@example.com or user ID"
+      "youBadge": "您",
+      "copyInviteTitle": "复制邀请链接",
+      "cancelInviteTitle": "取消邀请",
+      "emailPlaceholder": "email@example.com 或用户ID"
     },
     "roles": {
       "title": "角色",
@@ -953,9 +953,9 @@
       "owner": "所有者",
       "renameRole": "重命名角色",
       "duplicateRole": "复制角色\"{{name}}\"",
-      "noRolesFound": "No roles found.",
-      "roleNamePlaceholder": "Role name",
-      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
+      "noRolesFound": "未找到角色。",
+      "roleNamePlaceholder": "角色名称",
+      "copiedPermissionsFrom": "已从{{name}}复制权限 — 在下方调整后保存。"
     },
     "sla": {
       "title": "SLA策略",
@@ -967,7 +967,7 @@
       "highDesc": "紧急运营问题",
       "mediumDesc": "标准工作项",
       "lowDesc": "低紧迫性，可推迟",
-      "noTargetPlaceholder": "No target"
+      "noTargetPlaceholder": "无目标"
     },
     "templates": {
       "title": "{{task}}模板",
@@ -985,11 +985,11 @@
       "templateCreated": "模板已创建",
       "templateUpdated": "模板已更新",
       "templateDeleted": "模板已删除",
-      "templateNamePlaceholder": "e.g. Database Outage Response",
-      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
-      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
-      "editTemplate": "Edit template",
-      "deleteTemplateButton": "Delete template"
+      "templateNamePlaceholder": "例如：数据库故障响应",
+      "defaultTitlePlaceholder": "例如：[服务] 故障 — 调查并恢复",
+      "runbookPlaceholder": "使用此模板时应遵循的清单或步骤...",
+      "editTemplate": "编辑模板",
+      "deleteTemplateButton": "删除模板"
     },
     "workflow": {
       "addStage": "添加阶段",
@@ -1395,12 +1395,12 @@
     "typeDate": "日期",
     "typeSingleSelect": "单选",
     "typeMultiSelect": "多选",
-    "enterField": "Enter {{name}}",
-    "selectField": "Select {{name}}…",
-    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
-    "dragToReorder": "Drag to reorder",
-    "clickToRename": "Click to rename",
-    "editOptions": "Edit options"
+    "enterField": "输入{{name}}",
+    "selectField": "选择{{name}}…",
+    "fieldIsActiveAgain": "「{{name}}」已重新激活。",
+    "dragToReorder": "拖动以重新排序",
+    "clickToRename": "点击重命名",
+    "editOptions": "编辑选项"
   },
   "upgradeModal": {
     "upgradeRequired": "需要升级",
@@ -1448,16 +1448,16 @@
   "search": {
     "placeholder": "搜索任务、项目、笔记…",
     "results": "搜索结果",
-    "viewAllIn": "View all results for “{{query}}” in {{term}}",
-    "globalSearch": "Global search",
-    "emptyPrompt": "Type to search across tasks, projects & notes"
+    "viewAllIn": "在{{term}}中查看「{{query}}」的所有结果",
+    "globalSearch": "全局搜索",
+    "emptyPrompt": "输入以搜索任务、项目和笔记"
   },
   "markdown": {
     "invalidMermaid": "Mermaid 语法无效",
     "fixDiagram": "修复图表代码以查看预览。",
     "renderingDiagram": "正在渲染图表…",
-    "copyLinkToSection": "Copy link to section",
-    "copiedLink": "Copied!"
+    "copyLinkToSection": "复制章节链接",
+    "copiedLink": "已复制！"
   },
   "assignee": {
     "searchPlaceholder": "搜索姓名或输入邮箱…",

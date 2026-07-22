@@ -101,11 +101,11 @@
     "nMembers": "{{count}}人のメンバー",
     "nMembers_one": "{{count}}人のメンバー",
     "nMembers_other": "{{count}}人のメンバー",
-    "youreOffline": "You're offline",
-    "changesQueued_one": "{{count}} change queued",
-    "changesQueued_other": "{{count}} changes queued",
-    "scrollToTop": "Scroll to top",
-    "scrollToBottom": "Scroll to bottom"
+    "youreOffline": "オフラインです",
+    "changesQueued_one": "{{count}}件の変更がキュー中",
+    "changesQueued_other": "{{count}}件の変更がキュー中",
+    "scrollToTop": "先頭へスクロール",
+    "scrollToBottom": "末尾へスクロール"
   },
   "nav": {
     "dashboard": "ダッシュボード",
@@ -273,9 +273,9 @@
     "slaFilter": "SLAに違反した{{tasks}}のみ表示",
     "bulkSelected": "{{count}}件選択",
     "clearSelection": "選択をクリア",
-    "personalView": "Personal",
-    "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "personalView": "個人",
+    "defaultIndicator": "· デフォルト",
+    "clearCustomFieldFilter": "カスタムフィールドフィルターをクリア"
   },
   "taskDetail": {
     "notFound": "タスクが見つかりません",
@@ -433,9 +433,9 @@
     "statusOnHold": "保留中",
     "subtitle": "ITイニシアチブ、デプロイ、エピックを管理。",
     "customSla": "カスタムSLA",
-    "orgDefault": "Org default",
-    "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "orgDefault": "組織のデフォルト",
+    "warningDefault": "80%（デフォルト）",
+    "overrideBadge": "上書き"
   },
   "notes": {
     "title": "メモ帳",
@@ -461,8 +461,8 @@
     "clearFilters": "フィルターをクリア",
     "searchProjectsPlaceholder": "プロジェクトを検索…",
     "searchTasksPlaceholder": "タスクを検索…",
-    "backToNotes": "Back to notes list",
-    "untitledNote": "Untitled Note"
+    "backToNotes": "ノート一覧に戻る",
+    "untitledNote": "無題のノート"
   },
   "webhooks": {
     "inboundCreated": "受信Webhookを作成しました",
@@ -772,9 +772,9 @@
       "badgeNew": "新規",
       "activeSidebarItem": "アクティブなサイドバー項目",
       "revertColor": "元に戻す",
-      "pickColor": "Pick a brand color",
-      "colorPreview": "Color preview",
-      "logoAlt": "Logo preview"
+      "pickColor": "ブランドカラーを選択",
+      "colorPreview": "カラープレビュー",
+      "logoAlt": "ロゴプレビュー"
     },
     "reactions": {
       "title": "リアクションパレット",
@@ -789,7 +789,7 @@
       "emptyPalette": "パレットに絵文字がありません。",
       "noPermission": "権限を持つメンバーのみパレットを編集できます。",
       "mustHaveOne": "パレットには少なくとも1つの絵文字が必要です",
-      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+      "restoreDefaultsTitle": "デフォルト12絵文字を復元 (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "用語",
@@ -847,7 +847,7 @@
       "formatJSON": "JSON",
       "formatCSV": "CSV",
       "builtIn": "組み込み",
-      "keyNamePlaceholder": "e.g. Prometheus exporter"
+      "keyNamePlaceholder": "例: Prometheusエクスポーター"
     },
     "export": {
       "title": "データエクスポート",
@@ -873,9 +873,9 @@
       "preparing": "準備中…",
       "inProgress": "処理中",
       "downloadExport": "エクスポートをダウンロード",
-      "jsonDesc": "— single self-describing file, designed for future import",
-      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
-      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
+      "jsonDesc": "— 自己記述型の単一ファイル、将来のインポート用",
+      "csvDesc": "— ZIPアーカイブ、エンティティタイプごとに1シート",
+      "exportQueuedHint": "エクスポートはすでに準備中です — 準備ができたら通知されます"
     },
     "orgInfo": "組織",
     "orgRenamed": "組織名を変更しました",
@@ -896,7 +896,7 @@
       "leaveOrgConfirmDesc": "この組織を退出してよろしいですか？すべてのリソースへのアクセスを失います。",
       "leaveButton": "退出",
       "transferOwnership": "所有権を移転",
-      "renameTitle": "Rename organization"
+      "renameTitle": "組織名を変更"
     },
     "members": {
       "invite": "メンバーを招待",
@@ -929,10 +929,10 @@
       "memberRemoved": "メンバーを削除しました",
       "invitationCanceled": "招待をキャンセルしました",
       "leftOrg": "組織を退出しました",
-      "youBadge": "You",
-      "copyInviteTitle": "Copy invite link",
-      "cancelInviteTitle": "Cancel invitation",
-      "emailPlaceholder": "email@example.com or user ID"
+      "youBadge": "あなた",
+      "copyInviteTitle": "招待リンクをコピー",
+      "cancelInviteTitle": "招待をキャンセル",
+      "emailPlaceholder": "email@example.com またはユーザーID"
     },
     "roles": {
       "title": "ロール",
@@ -953,9 +953,9 @@
       "owner": "オーナー",
       "renameRole": "ロール名を変更",
       "duplicateRole": "\"{{name}}\"ロールを複製",
-      "noRolesFound": "No roles found.",
-      "roleNamePlaceholder": "Role name",
-      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
+      "noRolesFound": "ロールが見つかりません。",
+      "roleNamePlaceholder": "ロール名",
+      "copiedPermissionsFrom": "{{name}}から権限をコピーしました — 以下で調整して保存してください。"
     },
     "sla": {
       "title": "SLAポリシー",
@@ -967,7 +967,7 @@
       "highDesc": "緊急の運用問題",
       "mediumDesc": "標準作業項目",
       "lowDesc": "緊急性が低く延期可能",
-      "noTargetPlaceholder": "No target"
+      "noTargetPlaceholder": "目標なし"
     },
     "templates": {
       "title": "{{task}}テンプレート",
@@ -985,11 +985,11 @@
       "templateCreated": "テンプレートを作成しました",
       "templateUpdated": "テンプレートを更新しました",
       "templateDeleted": "テンプレートを削除しました",
-      "templateNamePlaceholder": "e.g. Database Outage Response",
-      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
-      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
-      "editTemplate": "Edit template",
-      "deleteTemplateButton": "Delete template"
+      "templateNamePlaceholder": "例: データベース障害対応",
+      "defaultTitlePlaceholder": "例: [サービス] 障害 — 調査と復旧",
+      "runbookPlaceholder": "このテンプレートを使用する際のチェックリストまたは手順...",
+      "editTemplate": "テンプレートを編集",
+      "deleteTemplateButton": "テンプレートを削除"
     },
     "workflow": {
       "addStage": "ステージを追加",
@@ -1395,12 +1395,12 @@
     "typeDate": "日付",
     "typeSingleSelect": "単一選択",
     "typeMultiSelect": "複数選択",
-    "enterField": "Enter {{name}}",
-    "selectField": "Select {{name}}…",
-    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
-    "dragToReorder": "Drag to reorder",
-    "clickToRename": "Click to rename",
-    "editOptions": "Edit options"
+    "enterField": "{{name}}を入力",
+    "selectField": "{{name}}を選択…",
+    "fieldIsActiveAgain": "「{{name}}」が再びアクティブになりました。",
+    "dragToReorder": "ドラッグして並び替え",
+    "clickToRename": "クリックして名前変更",
+    "editOptions": "オプションを編集"
   },
   "upgradeModal": {
     "upgradeRequired": "アップグレードが必要です",
@@ -1448,16 +1448,16 @@
   "search": {
     "placeholder": "タスク、プロジェクト、ノートを検索…",
     "results": "検索結果",
-    "viewAllIn": "View all results for “{{query}}” in {{term}}",
-    "globalSearch": "Global search",
-    "emptyPrompt": "Type to search across tasks, projects & notes"
+    "viewAllIn": "{{term}}で「{{query}}」の全結果を表示",
+    "globalSearch": "グローバル検索",
+    "emptyPrompt": "タスク、プロジェクト、ノートを検索するには入力してください"
   },
   "markdown": {
     "invalidMermaid": "Mermaid構文エラー",
     "fixDiagram": "ダイアグラムコードを修正してプレビューを表示してください。",
     "renderingDiagram": "ダイアグラムをレンダリング中…",
-    "copyLinkToSection": "Copy link to section",
-    "copiedLink": "Copied!"
+    "copyLinkToSection": "セクションへのリンクをコピー",
+    "copiedLink": "コピーしました！"
   },
   "assignee": {
     "searchPlaceholder": "名前またはメールで検索…",

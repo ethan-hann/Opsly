@@ -101,11 +101,11 @@
     "nMembers": "{{count}} عضو",
     "nMembers_one": "{{count}} عضو",
     "nMembers_other": "{{count}} أعضاء",
-    "youreOffline": "You're offline",
-    "changesQueued_one": "{{count}} change queued",
-    "changesQueued_other": "{{count}} changes queued",
-    "scrollToTop": "Scroll to top",
-    "scrollToBottom": "Scroll to bottom"
+    "youreOffline": "أنت غير متصل",
+    "changesQueued_one": "{{count}} تغيير في قائمة الانتظار",
+    "changesQueued_other": "{{count}} تغييرات في قائمة الانتظار",
+    "scrollToTop": "تمرير إلى الأعلى",
+    "scrollToBottom": "تمرير إلى الأسفل"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -273,9 +273,9 @@
     "slaFilter": "عرض {{tasks}} التي انتهكت SLA فقط",
     "bulkSelected": "{{count}} محدد",
     "clearSelection": "مسح التحديد",
-    "personalView": "Personal",
-    "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "personalView": "شخصي",
+    "defaultIndicator": "· الافتراضي",
+    "clearCustomFieldFilter": "مسح فلتر الحقل المخصص"
   },
   "taskDetail": {
     "notFound": "المهمة غير موجودة",
@@ -433,9 +433,9 @@
     "statusOnHold": "معلق",
     "subtitle": "إدارة مبادرات تكنولوجيا المعلومات والنشر والملاحم.",
     "customSla": "SLA مخصص",
-    "orgDefault": "Org default",
-    "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "orgDefault": "الافتراضي للمنظمة",
+    "warningDefault": "80% (الافتراضي)",
+    "overrideBadge": "تجاوز"
   },
   "notes": {
     "title": "المفكرة",
@@ -461,8 +461,8 @@
     "clearFilters": "مسح الفلاتر",
     "searchProjectsPlaceholder": "البحث في المشاريع…",
     "searchTasksPlaceholder": "البحث في المهام…",
-    "backToNotes": "Back to notes list",
-    "untitledNote": "Untitled Note"
+    "backToNotes": "العودة إلى قائمة الملاحظات",
+    "untitledNote": "ملاحظة بدون عنوان"
   },
   "webhooks": {
     "inboundCreated": "تم إنشاء Webhook وارد",
@@ -772,9 +772,9 @@
       "badgeNew": "جديد",
       "activeSidebarItem": "عنصر الشريط الجانبي النشط",
       "revertColor": "استعادة",
-      "pickColor": "Pick a brand color",
-      "colorPreview": "Color preview",
-      "logoAlt": "Logo preview"
+      "pickColor": "اختر لون العلامة التجارية",
+      "colorPreview": "معاينة اللون",
+      "logoAlt": "معاينة الشعار"
     },
     "reactions": {
       "title": "لوحة ردود الفعل",
@@ -789,7 +789,7 @@
       "emptyPalette": "لا توجد رموز تعبيرية في اللوحة.",
       "noPermission": "فقط الأعضاء ذوو الصلاحية يمكنهم تعديل اللوحة.",
       "mustHaveOne": "يجب أن تحتوي اللوحة على رمز تعبيري واحد على الأقل",
-      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+      "restoreDefaultsTitle": "استعادة الـ 12 رمز تعبيري الافتراضي (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "المصطلحات",
@@ -847,7 +847,7 @@
       "formatJSON": "JSON",
       "formatCSV": "CSV",
       "builtIn": "مدمج",
-      "keyNamePlaceholder": "e.g. Prometheus exporter"
+      "keyNamePlaceholder": "مثال: مُصدِّر Prometheus"
     },
     "export": {
       "title": "تصدير البيانات",
@@ -873,9 +873,9 @@
       "preparing": "جار التحضير…",
       "inProgress": "قيد التنفيذ",
       "downloadExport": "تنزيل التصدير",
-      "jsonDesc": "— single self-describing file, designed for future import",
-      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
-      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
+      "jsonDesc": "— ملف واحد وصفي، مصمم للاستيراد المستقبلي",
+      "csvDesc": "— أرشيف ZIP، جدول بيانات لكل نوع كيان",
+      "exportQueuedHint": "يجري بالفعل إعداد تصدير — ستتم إعلامك عند اكتماله"
     },
     "orgInfo": "المنظمة",
     "orgRenamed": "تمت إعادة تسمية المنظمة",
@@ -896,7 +896,7 @@
       "leaveOrgConfirmDesc": "هل أنت متأكد من أنك تريد مغادرة هذه المنظمة؟ ستفقد الوصول إلى جميع الموارد.",
       "leaveButton": "مغادرة",
       "transferOwnership": "نقل الملكية",
-      "renameTitle": "Rename organization"
+      "renameTitle": "إعادة تسمية المنظمة"
     },
     "members": {
       "invite": "دعوة عضو",
@@ -929,10 +929,10 @@
       "memberRemoved": "تم إزالة العضو",
       "invitationCanceled": "تم إلغاء الدعوة",
       "leftOrg": "لقد غادرت المنظمة",
-      "youBadge": "You",
-      "copyInviteTitle": "Copy invite link",
-      "cancelInviteTitle": "Cancel invitation",
-      "emailPlaceholder": "email@example.com or user ID"
+      "youBadge": "أنت",
+      "copyInviteTitle": "نسخ رابط الدعوة",
+      "cancelInviteTitle": "إلغاء الدعوة",
+      "emailPlaceholder": "email@example.com أو معرف المستخدم"
     },
     "roles": {
       "title": "الأدوار",
@@ -953,9 +953,9 @@
       "owner": "المالك",
       "renameRole": "إعادة تسمية الدور",
       "duplicateRole": "تكرار الدور \"{{name}}\"",
-      "noRolesFound": "No roles found.",
-      "roleNamePlaceholder": "Role name",
-      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
+      "noRolesFound": "لم يتم العثور على أدوار.",
+      "roleNamePlaceholder": "اسم الدور",
+      "copiedPermissionsFrom": "تم نسخ الأذونات من {{name}} — اضبط أدناه ثم احفظ."
     },
     "sla": {
       "title": "سياسات SLA",
@@ -967,7 +967,7 @@
       "highDesc": "مشكلة تشغيلية عاجلة",
       "mediumDesc": "عنصر عمل قياسي",
       "lowDesc": "أولوية منخفضة، يمكن تأجيله",
-      "noTargetPlaceholder": "No target"
+      "noTargetPlaceholder": "لا يوجد هدف"
     },
     "templates": {
       "title": "قوالب {{task}}",
@@ -985,11 +985,11 @@
       "templateCreated": "تم إنشاء القالب",
       "templateUpdated": "تم تحديث القالب",
       "templateDeleted": "تم حذف القالب",
-      "templateNamePlaceholder": "e.g. Database Outage Response",
-      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
-      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
-      "editTemplate": "Edit template",
-      "deleteTemplateButton": "Delete template"
+      "templateNamePlaceholder": "مثال: الاستجابة لانقطاع قاعدة البيانات",
+      "defaultTitlePlaceholder": "مثال: [الخدمة] انقطاع — تحقيق واستعادة",
+      "runbookPlaceholder": "قائمة مرجعية أو خطوات للمتابعة عند استخدام هذا القالب...",
+      "editTemplate": "تعديل القالب",
+      "deleteTemplateButton": "حذف القالب"
     },
     "workflow": {
       "addStage": "إضافة مرحلة",
@@ -1395,12 +1395,12 @@
     "typeDate": "تاريخ",
     "typeSingleSelect": "اختيار واحد",
     "typeMultiSelect": "اختيار متعدد",
-    "enterField": "Enter {{name}}",
-    "selectField": "Select {{name}}…",
-    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
-    "dragToReorder": "Drag to reorder",
-    "clickToRename": "Click to rename",
-    "editOptions": "Edit options"
+    "enterField": "أدخل {{name}}",
+    "selectField": "اختر {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" نشط مرة أخرى.",
+    "dragToReorder": "اسحب لإعادة الترتيب",
+    "clickToRename": "انقر لإعادة التسمية",
+    "editOptions": "تعديل الخيارات"
   },
   "upgradeModal": {
     "upgradeRequired": "الترقية مطلوبة",
@@ -1448,16 +1448,16 @@
   "search": {
     "placeholder": "ابحث في المهام والمشاريع والملاحظات…",
     "results": "نتائج البحث",
-    "viewAllIn": "View all results for “{{query}}” in {{term}}",
-    "globalSearch": "Global search",
-    "emptyPrompt": "Type to search across tasks, projects & notes"
+    "viewAllIn": "عرض جميع نتائج «{{query}}» في {{term}}",
+    "globalSearch": "بحث شامل",
+    "emptyPrompt": "اكتب للبحث في المهام والمشاريع والملاحظات"
   },
   "markdown": {
     "invalidMermaid": "صيغة Mermaid غير صالحة",
     "fixDiagram": "أصلح كود المخطط لرؤية معاينة.",
     "renderingDiagram": "جاري تصيير المخطط…",
-    "copyLinkToSection": "Copy link to section",
-    "copiedLink": "Copied!"
+    "copyLinkToSection": "نسخ رابط القسم",
+    "copiedLink": "تم النسخ!"
   },
   "assignee": {
     "searchPlaceholder": "ابحث بالاسم أو أدخل البريد الإلكتروني…",

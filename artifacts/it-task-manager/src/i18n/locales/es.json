@@ -101,11 +101,11 @@
     "nMembers": "{{count}} miembro",
     "nMembers_one": "{{count}} miembro",
     "nMembers_other": "{{count}} miembros",
-    "youreOffline": "You're offline",
-    "changesQueued_one": "{{count}} change queued",
-    "changesQueued_other": "{{count}} changes queued",
-    "scrollToTop": "Scroll to top",
-    "scrollToBottom": "Scroll to bottom"
+    "youreOffline": "Estás sin conexión",
+    "changesQueued_one": "{{count}} cambio en cola",
+    "changesQueued_other": "{{count}} cambios en cola",
+    "scrollToTop": "Ir arriba",
+    "scrollToBottom": "Ir abajo"
   },
   "nav": {
     "dashboard": "Panel",
@@ -274,8 +274,8 @@
     "bulkSelected": "{{count}} seleccionado(s)",
     "clearSelection": "Limpiar selección",
     "personalView": "Personal",
-    "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "defaultIndicator": "· Predeterminado",
+    "clearCustomFieldFilter": "Limpiar filtro de campo personalizado"
   },
   "taskDetail": {
     "unwatchedTask": "Dejado de seguir",
@@ -433,9 +433,9 @@
     "statusOnHold": "En espera",
     "subtitle": "Gestionar iniciativas de TI, despliegues y épicas.",
     "customSla": "SLA personalizado",
-    "orgDefault": "Org default",
-    "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "orgDefault": "Predeterminado de org.",
+    "warningDefault": "80% (predeterminado)",
+    "overrideBadge": "anulación"
   },
   "notes": {
     "title": "Bloc de notas",
@@ -461,8 +461,8 @@
     "clearFilters": "Borrar filtros",
     "searchProjectsPlaceholder": "Buscar proyectos…",
     "searchTasksPlaceholder": "Buscar tareas…",
-    "backToNotes": "Back to notes list",
-    "untitledNote": "Untitled Note"
+    "backToNotes": "Volver a la lista de notas",
+    "untitledNote": "Nota sin título"
   },
   "webhooks": {
     "inboundCreated": "Webhook entrante creado",
@@ -754,7 +754,7 @@
       "leaveOrgConfirmDesc": "¿Estás seguro de que quieres abandonar esta organización? Perderás acceso a todos los recursos.",
       "leaveButton": "Abandonar",
       "transferOwnership": "Transferir propiedad",
-      "renameTitle": "Rename organization"
+      "renameTitle": "Renombrar organización"
     },
     "members": {
       "invite": "Invitar miembro",
@@ -787,10 +787,10 @@
       "memberRemoved": "Miembro eliminado",
       "invitationCanceled": "Invitación cancelada",
       "leftOrg": "Has abandonado la organización",
-      "youBadge": "You",
-      "copyInviteTitle": "Copy invite link",
-      "cancelInviteTitle": "Cancel invitation",
-      "emailPlaceholder": "email@example.com or user ID"
+      "youBadge": "Tú",
+      "copyInviteTitle": "Copiar enlace de invitación",
+      "cancelInviteTitle": "Cancelar invitación",
+      "emailPlaceholder": "email@ejemplo.com o ID de usuario"
     },
     "terminology": {
       "saveButton": "Guardar terminología",
@@ -848,7 +848,7 @@
       "formatJSON": "JSON",
       "formatCSV": "CSV",
       "builtIn": "Integrado",
-      "keyNamePlaceholder": "e.g. Prometheus exporter"
+      "keyNamePlaceholder": "ej. Exportador de Prometheus"
     },
     "export": {
       "queued": "Exportación en cola",
@@ -874,9 +874,9 @@
       "exportFailed": "Error al exportar",
       "exportQueued": "Exportación en cola",
       "noPermission": "Solo los administradores pueden exportar datos.",
-      "jsonDesc": "— single self-describing file, designed for future import",
-      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
-      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
+      "jsonDesc": "— archivo único autodescriptivo, diseñado para importación futura",
+      "csvDesc": "— archivo ZIP, una hoja de cálculo por tipo de entidad",
+      "exportQueuedHint": "Ya se está preparando una exportación — se te notificará cuando esté lista"
     },
     "roles": {
       "title": "Roles",
@@ -897,9 +897,9 @@
       "owner": "Propietario",
       "renameRole": "Renombrar rol",
       "duplicateRole": "Duplicar rol \"{{name}}\"",
-      "noRolesFound": "No roles found.",
-      "roleNamePlaceholder": "Role name",
-      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
+      "noRolesFound": "No se encontraron roles.",
+      "roleNamePlaceholder": "Nombre del rol",
+      "copiedPermissionsFrom": "Permisos copiados de {{name}} — ajusta abajo y guarda."
     },
     "sla": {
       "title": "Políticas SLA",
@@ -911,7 +911,7 @@
       "highDesc": "Problema operativo urgente",
       "mediumDesc": "Elemento de trabajo estándar",
       "lowDesc": "Baja urgencia, se puede aplazar",
-      "noTargetPlaceholder": "No target"
+      "noTargetPlaceholder": "Sin objetivo"
     },
     "templates": {
       "title": "Plantillas de {{task}}",
@@ -929,11 +929,11 @@
       "templateCreated": "Plantilla creada",
       "templateUpdated": "Plantilla actualizada",
       "templateDeleted": "Plantilla eliminada",
-      "templateNamePlaceholder": "e.g. Database Outage Response",
-      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
-      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
-      "editTemplate": "Edit template",
-      "deleteTemplateButton": "Delete template"
+      "templateNamePlaceholder": "ej. Respuesta a caída de base de datos",
+      "defaultTitlePlaceholder": "ej. [SERVICIO] caída — investigar y restaurar",
+      "runbookPlaceholder": "Lista de verificación o pasos a seguir cuando se use esta plantilla...",
+      "editTemplate": "Editar plantilla",
+      "deleteTemplateButton": "Eliminar plantilla"
     },
     "workflow": {
       "addStage": "Agregar etapa",
@@ -1009,9 +1009,9 @@
       "badgeNew": "Nuevo",
       "activeSidebarItem": "Elemento activo en barra lateral",
       "revertColor": "Revertir",
-      "pickColor": "Pick a brand color",
-      "colorPreview": "Color preview",
-      "logoAlt": "Logo preview"
+      "pickColor": "Elige un color de marca",
+      "colorPreview": "Vista previa del color",
+      "logoAlt": "Vista previa del logo"
     },
     "reactions": {
       "title": "Paleta de reacciones",
@@ -1026,7 +1026,7 @@
       "emptyPalette": "Sin emojis en la paleta.",
       "noPermission": "Solo los miembros con permiso de \"Gestionar paleta de reacciones\" pueden editar la paleta.",
       "mustHaveOne": "La paleta debe tener al menos un emoji",
-      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+      "restoreDefaultsTitle": "Restaurar los 12 emojis predeterminados (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "exportScopeTasks": "Tareas y campos personalizados",
     "exportScopeComments": "Comentarios",
@@ -1395,12 +1395,12 @@
     "typeDate": "Fecha",
     "typeSingleSelect": "Selección única",
     "typeMultiSelect": "Selección múltiple",
-    "enterField": "Enter {{name}}",
-    "selectField": "Select {{name}}…",
-    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
-    "dragToReorder": "Drag to reorder",
-    "clickToRename": "Click to rename",
-    "editOptions": "Edit options"
+    "enterField": "Introducir {{name}}",
+    "selectField": "Seleccionar {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" está activo de nuevo.",
+    "dragToReorder": "Arrastra para reordenar",
+    "clickToRename": "Haz clic para renombrar",
+    "editOptions": "Editar opciones"
   },
   "upgradeModal": {
     "upgradeRequired": "Actualización requerida",
@@ -1448,16 +1448,16 @@
   "search": {
     "placeholder": "Buscar tareas, proyectos, notas…",
     "results": "Resultados de búsqueda",
-    "viewAllIn": "View all results for “{{query}}” in {{term}}",
-    "globalSearch": "Global search",
-    "emptyPrompt": "Type to search across tasks, projects & notes"
+    "viewAllIn": "Ver todos los resultados de «{{query}}» en {{term}}",
+    "globalSearch": "Búsqueda global",
+    "emptyPrompt": "Escribe para buscar en tareas, proyectos y notas"
   },
   "markdown": {
     "invalidMermaid": "Sintaxis Mermaid inválida",
     "fixDiagram": "Corrige el código del diagrama para ver una vista previa.",
     "renderingDiagram": "Renderizando diagrama…",
-    "copyLinkToSection": "Copy link to section",
-    "copiedLink": "Copied!"
+    "copyLinkToSection": "Copiar enlace a la sección",
+    "copiedLink": "¡Copiado!"
   },
   "assignee": {
     "searchPlaceholder": "Buscar nombre o escribir correo…",

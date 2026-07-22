@@ -101,11 +101,11 @@
     "nMembers": "{{count}} membro",
     "nMembers_one": "{{count}} membro",
     "nMembers_other": "{{count}} membros",
-    "youreOffline": "You're offline",
-    "changesQueued_one": "{{count}} change queued",
-    "changesQueued_other": "{{count}} changes queued",
-    "scrollToTop": "Scroll to top",
-    "scrollToBottom": "Scroll to bottom"
+    "youreOffline": "Você está offline",
+    "changesQueued_one": "{{count}} alteração na fila",
+    "changesQueued_other": "{{count}} alterações na fila",
+    "scrollToTop": "Rolar para o topo",
+    "scrollToBottom": "Rolar para o fim"
   },
   "nav": {
     "dashboard": "Painel",
@@ -273,9 +273,9 @@
     "slaFilter": "Mostrar apenas {{tasks}} que violaram o SLA",
     "bulkSelected": "{{count}} selecionado(s)",
     "clearSelection": "Limpar seleção",
-    "personalView": "Personal",
-    "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "personalView": "Pessoal",
+    "defaultIndicator": "· Padrão",
+    "clearCustomFieldFilter": "Limpar filtro de campo personalizado"
   },
   "taskDetail": {
     "notFound": "Tarefa não encontrada",
@@ -433,9 +433,9 @@
     "statusOnHold": "Em espera",
     "subtitle": "Gerenciar iniciativas de TI, implantações e épicos.",
     "customSla": "SLA personalizado",
-    "orgDefault": "Org default",
-    "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "orgDefault": "Padrão da org.",
+    "warningDefault": "80% (padrão)",
+    "overrideBadge": "substituição"
   },
   "notes": {
     "title": "Bloco de notas",
@@ -461,8 +461,8 @@
     "clearFilters": "Limpar filtros",
     "searchProjectsPlaceholder": "Pesquisar projetos…",
     "searchTasksPlaceholder": "Pesquisar tarefas…",
-    "backToNotes": "Back to notes list",
-    "untitledNote": "Untitled Note"
+    "backToNotes": "Voltar à lista de notas",
+    "untitledNote": "Nota sem título"
   },
   "webhooks": {
     "inboundCreated": "Webhook de entrada criado",
@@ -772,9 +772,9 @@
       "badgeNew": "Novo",
       "activeSidebarItem": "Item ativo da barra lateral",
       "revertColor": "Reverter",
-      "pickColor": "Pick a brand color",
-      "colorPreview": "Color preview",
-      "logoAlt": "Logo preview"
+      "pickColor": "Escolher uma cor de marca",
+      "colorPreview": "Visualização da cor",
+      "logoAlt": "Visualização do logo"
     },
     "reactions": {
       "title": "Paleta de reações",
@@ -789,7 +789,7 @@
       "emptyPalette": "Sem emojis na paleta.",
       "noPermission": "Apenas membros com permissão podem editar a paleta.",
       "mustHaveOne": "A paleta deve ter pelo menos um emoji",
-      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+      "restoreDefaultsTitle": "Restaurar os 12 emojis padrão (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "Terminologia",
@@ -847,7 +847,7 @@
       "formatJSON": "JSON",
       "formatCSV": "CSV",
       "builtIn": "Integrado",
-      "keyNamePlaceholder": "e.g. Prometheus exporter"
+      "keyNamePlaceholder": "ex. Exportador Prometheus"
     },
     "export": {
       "title": "Exportação de dados",
@@ -873,9 +873,9 @@
       "preparing": "Preparando…",
       "inProgress": "Em andamento",
       "downloadExport": "Baixar exportação",
-      "jsonDesc": "— single self-describing file, designed for future import",
-      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
-      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
+      "jsonDesc": "— arquivo único autodescritivo, projetado para importação futura",
+      "csvDesc": "— arquivo ZIP, uma planilha por tipo de entidade",
+      "exportQueuedHint": "Uma exportação já está sendo preparada — você será notificado quando estiver pronta"
     },
     "orgInfo": "Organização",
     "orgRenamed": "Organização renomeada",
@@ -896,7 +896,7 @@
       "leaveOrgConfirmDesc": "Tem certeza que deseja sair desta organização? Você perderá acesso a todos os recursos.",
       "leaveButton": "Sair",
       "transferOwnership": "Transferir propriedade",
-      "renameTitle": "Rename organization"
+      "renameTitle": "Renomear organização"
     },
     "members": {
       "invite": "Convidar membro",
@@ -929,10 +929,10 @@
       "memberRemoved": "Membro removido",
       "invitationCanceled": "Convite cancelado",
       "leftOrg": "Você saiu da organização",
-      "youBadge": "You",
-      "copyInviteTitle": "Copy invite link",
-      "cancelInviteTitle": "Cancel invitation",
-      "emailPlaceholder": "email@example.com or user ID"
+      "youBadge": "Você",
+      "copyInviteTitle": "Copiar link de convite",
+      "cancelInviteTitle": "Cancelar convite",
+      "emailPlaceholder": "email@exemplo.com ou ID de usuário"
     },
     "roles": {
       "title": "Funções",
@@ -953,9 +953,9 @@
       "owner": "Proprietário",
       "renameRole": "Renomear função",
       "duplicateRole": "Duplicar função \"{{name}}\"",
-      "noRolesFound": "No roles found.",
-      "roleNamePlaceholder": "Role name",
-      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
+      "noRolesFound": "Nenhum papel encontrado.",
+      "roleNamePlaceholder": "Nome do papel",
+      "copiedPermissionsFrom": "Permissões copiadas de {{name}} — ajuste abaixo e salve."
     },
     "sla": {
       "title": "Políticas SLA",
@@ -967,7 +967,7 @@
       "highDesc": "Problema operacional urgente",
       "mediumDesc": "Item de trabalho padrão",
       "lowDesc": "Baixa urgência, pode ser adiado",
-      "noTargetPlaceholder": "No target"
+      "noTargetPlaceholder": "Sem meta"
     },
     "templates": {
       "title": "Modelos de {{task}}",
@@ -985,11 +985,11 @@
       "templateCreated": "Modelo criado",
       "templateUpdated": "Modelo atualizado",
       "templateDeleted": "Modelo excluído",
-      "templateNamePlaceholder": "e.g. Database Outage Response",
-      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
-      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
-      "editTemplate": "Edit template",
-      "deleteTemplateButton": "Delete template"
+      "templateNamePlaceholder": "ex. Resposta a falha de banco de dados",
+      "defaultTitlePlaceholder": "ex. [SERVIÇO] falha — investigar e restaurar",
+      "runbookPlaceholder": "Lista de verificação ou passos a seguir quando este modelo for usado...",
+      "editTemplate": "Editar modelo",
+      "deleteTemplateButton": "Excluir modelo"
     },
     "workflow": {
       "addStage": "Adicionar etapa",
@@ -1395,12 +1395,12 @@
     "typeDate": "Data",
     "typeSingleSelect": "Seleção única",
     "typeMultiSelect": "Seleção múltipla",
-    "enterField": "Enter {{name}}",
-    "selectField": "Select {{name}}…",
-    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
-    "dragToReorder": "Drag to reorder",
-    "clickToRename": "Click to rename",
-    "editOptions": "Edit options"
+    "enterField": "Inserir {{name}}",
+    "selectField": "Selecionar {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" está ativo novamente.",
+    "dragToReorder": "Arrastar para reordenar",
+    "clickToRename": "Clique para renomear",
+    "editOptions": "Editar opções"
   },
   "upgradeModal": {
     "upgradeRequired": "Upgrade necessário",
@@ -1448,16 +1448,16 @@
   "search": {
     "placeholder": "Pesquisar tarefas, projetos, notas…",
     "results": "Resultados da pesquisa",
-    "viewAllIn": "View all results for “{{query}}” in {{term}}",
-    "globalSearch": "Global search",
-    "emptyPrompt": "Type to search across tasks, projects & notes"
+    "viewAllIn": "Ver todos os resultados de «{{query}}» em {{term}}",
+    "globalSearch": "Pesquisa global",
+    "emptyPrompt": "Digite para pesquisar em tarefas, projetos e notas"
   },
   "markdown": {
     "invalidMermaid": "Sintaxe Mermaid inválida",
     "fixDiagram": "Corrija o código do diagrama para ver uma prévia.",
     "renderingDiagram": "Renderizando diagrama…",
-    "copyLinkToSection": "Copy link to section",
-    "copiedLink": "Copied!"
+    "copyLinkToSection": "Copiar link para a seção",
+    "copiedLink": "Copiado!"
   },
   "assignee": {
     "searchPlaceholder": "Pesquisar nome ou inserir e-mail…",
