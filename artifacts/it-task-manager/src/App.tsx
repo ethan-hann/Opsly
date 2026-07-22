@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/query-client';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
@@ -39,34 +40,6 @@ import { useOrgContext } from '@/hooks/use-org-context';
 import type { OrgFeatureKey } from '@/hooks/use-org-context';
 import { UpgradeBanner } from '@/components/ui/upgrade-modal';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: true,
-      staleTime: 0,
-      // Keep unused cache entries for 30 min so data survives offline sessions.
-      gcTime: 30 * 60 * 1000,
-      refetchInterval: 8_000, // poll every 8 s so all sessions stay in sync
-      refetchIntervalInBackground: false, // pause when tab is hidden
-      // 'online' pauses queries when offline and returns cached data instead of
-      // firing and erroring (which was wiping dropdown/form data offline).
-      networkMode: 'online',
-    },
-    mutations: {
-      // 'offlineFirst' lets mutations fire when offline so customFetch can
-      // intercept the TypeError and queue them in IndexedDB.
-      networkMode: 'offlineFirst',
-    },
-  },
-});
-
-// Resume paused mutations and re-fetch stale data when connectivity returns.
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    queryClient.resumePausedMutations();
-    queryClient.invalidateQueries();
-  });
-}
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
