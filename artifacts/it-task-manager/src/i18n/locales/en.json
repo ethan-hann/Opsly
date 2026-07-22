@@ -435,7 +435,8 @@
     "customSla": "Custom SLA",
     "orgDefault": "Org default",
     "warningDefault": "80% (default)",
-    "overrideBadge": "override"
+    "overrideBadge": "override",
+    "properties": "Properties"
   },
   "notes": {
     "title": "Scratch Pad",
