@@ -96,4 +96,56 @@ describe("preprocessMentions", () => {
   it("returns an empty string unchanged", () => {
     expect(preprocessMentions("")).toBe("");
   });
+
+  // ── XSS / HTML injection prevention ─────────────────────────────────────────
+  // Display names come from user-supplied data.  They must be HTML-escaped
+  // before interpolation so they cannot inject markup into the span string.
+
+  it("escapes < and > in a display name containing a <script> tag", () => {
+    const result = preprocessMentions("@[u1:<script>alert(1)</script>]");
+    // Must not contain a literal opening tag
+    expect(result).not.toContain("<script>");
+    expect(result).not.toContain("</script>");
+    // The escaped form must be present so the text is still visible
+    expect(result).toContain("&lt;script&gt;");
+  });
+
+  it("escapes < and > in a display name containing a <b> tag", () => {
+    const result = preprocessMentions("@[u2:<b>Bold</b>]");
+    expect(result).not.toMatch(/<b>/);
+    expect(result).toContain("&lt;b&gt;");
+    // Text content still visible
+    expect(result).toContain("Bold");
+  });
+
+  it("escapes & in a display name", () => {
+    const result = preprocessMentions("@[u3:Alice & Bob]");
+    expect(result).not.toContain(" & ");
+    expect(result).toContain("Alice &amp; Bob");
+  });
+
+  it("escapes double-quotes in a display name", () => {
+    const result = preprocessMentions('@[u4:Say "hi"]');
+    expect(result).not.toContain('"hi"');
+    expect(result).toContain("&quot;hi&quot;");
+  });
+
+  it("escapes single-quotes in a display name", () => {
+    const result = preprocessMentions("@[u5:O'Brien]");
+    expect(result).not.toContain("O'Brien");
+    expect(result).toContain("O&#39;Brien");
+  });
+
+  it("does not escape @[everyone] — it is a fixed literal, not user-supplied", () => {
+    const result = preprocessMentions("@[everyone]");
+    // @everyone chip should render cleanly without any entity encoding
+    expect(result).toContain("@everyone");
+    expect(result).not.toContain("&");
+  });
+
+  it("escapes a display name that is entirely angle brackets", () => {
+    const result = preprocessMentions("@[u6:<><>]");
+    expect(result).not.toMatch(/<>/);
+    expect(result).toContain("&lt;&gt;");
+  });
 });
