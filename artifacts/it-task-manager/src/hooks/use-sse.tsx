@@ -82,10 +82,23 @@ export function SseProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    function handleOnline() {
+      // Immediately reconnect when network comes back, bypassing the 5 s retry.
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+      es?.close();
+      es = null;
+      connect();
+    }
+
     connect();
+    window.addEventListener("online", handleOnline);
 
     return () => {
       active = false;
+      window.removeEventListener("online", handleOnline);
       if (retryTimeout) clearTimeout(retryTimeout);
       es?.close();
     };

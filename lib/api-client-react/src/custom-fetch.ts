@@ -18,6 +18,34 @@ const DEFAULT_JSON_ACCEPT = "application/json, application/problem+json";
 let _baseUrl: string | null = null;
 let _authTokenGetter: AuthTokenGetter | null = null;
 
+// ---------------------------------------------------------------------------
+// Offline mutation queue handler
+// ---------------------------------------------------------------------------
+
+export type OfflineQueueEntry = {
+  method: string;
+  url: string;
+  body: string | null;
+  headers: Record<string, string>;
+  timestamp: number;
+};
+
+type OfflineQueueHandler = (entry: OfflineQueueEntry) => Promise<void>;
+
+let _offlineQueueHandler: OfflineQueueHandler | null = null;
+
+/**
+ * Register a handler that receives failed network requests (TypeError) for
+ * non-GET/HEAD methods.  When registered, customFetch swallows the error and
+ * calls this handler instead of rethrowing, so callers (React Query mutations)
+ * do not see a failure while the device is offline.
+ *
+ * Pass `null` to remove the handler.
+ */
+export function setOfflineQueueHandler(fn: OfflineQueueHandler | null): void {
+  _offlineQueueHandler = fn;
+}
+
 /**
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
@@ -360,7 +388,32 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url: resolveUrl(input) };
 
-  const response = await fetch(input, { ...init, method, headers });
+  let response: Response;
+  try {
+    response = await fetch(input, { ...init, method, headers });
+  } catch (err) {
+    // On a network-level failure (TypeError: Failed to fetch) for a mutating
+    // request, enqueue the request via the offline handler instead of throwing.
+    if (
+      err instanceof TypeError &&
+      method !== "GET" &&
+      method !== "HEAD" &&
+      _offlineQueueHandler
+    ) {
+      const headersRecord: Record<string, string> = {};
+      headers.forEach((v, k) => { headersRecord[k] = v; });
+      const body = typeof init.body === "string" ? init.body : null;
+      await _offlineQueueHandler({
+        method,
+        url: requestInfo.url,
+        body,
+        headers: headersRecord,
+        timestamp: Date.now(),
+      });
+      return undefined as unknown as T;
+    }
+    throw err;
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

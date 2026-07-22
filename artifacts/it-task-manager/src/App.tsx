@@ -16,6 +16,7 @@ import { SseProvider } from '@/hooks/use-sse';
 import { GlobalSearchPalette } from '@/components/global-search-palette';
 import { TerminologyProvider } from '@/context/terminology-context';
 import { BrandingProvider } from '@/context/branding-context';
+import { OfflineBanner } from '@/components/offline-banner';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
@@ -46,9 +47,21 @@ const queryClient = new QueryClient({
       staleTime: 0,
       refetchInterval: 8_000, // poll every 8 s so all sessions stay in sync
       refetchIntervalInBackground: false, // pause when tab is hidden
+      networkMode: 'offlineFirst',
+    },
+    mutations: {
+      networkMode: 'offlineFirst',
     },
   },
 });
+
+// Resume paused mutations and re-fetch stale data when connectivity returns.
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    queryClient.resumePausedMutations();
+    queryClient.invalidateQueries();
+  });
+}
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
@@ -165,6 +178,7 @@ function App() {
         <TooltipProvider>
           <GlobalSearchProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+              <OfflineBanner />
               <Switch>
                 {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
                     users can see the invite details before being asked to log in */}
