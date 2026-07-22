@@ -151,10 +151,19 @@ export function MermaidBlock({ code }: { code: string }) {
           </div>
         </div>
       )}
-      {/* Always mounted — mermaid.run() writes SVG into this element in-place. */}
+      {/* Always mounted — mermaid.run() writes SVG into this element in-place.
+          Must NOT use display:none (Tailwind "hidden") while rendering: D3 cannot
+          measure elements that are removed from layout, producing translate(NaN).
+          Instead we position it off-screen so it has real computed dimensions. */}
       <div
         ref={elRef}
-        className={`mermaid my-4 overflow-x-auto flex justify-center${status !== "done" ? " hidden" : ""}`}
+        className="mermaid my-4 overflow-x-auto flex justify-center"
+        style={status !== "done" ? {
+          position: "absolute",
+          visibility: "hidden",
+          pointerEvents: "none",
+          width: "100%",
+        } : undefined}
       />
     </>
   );
