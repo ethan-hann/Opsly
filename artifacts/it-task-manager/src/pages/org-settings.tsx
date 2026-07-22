@@ -37,28 +37,81 @@ import {
 } from "@workspace/api-client-react";
 import { useTerminology, TERM_DEFAULTS } from "@/context/terminology-context";
 import { useBranding, derivePalette } from "@/context/branding-context";
-import { useReactionPalette, usePatchReactionPalette, DEFAULT_REACTION_PALETTE } from "@/hooks/use-reactions";
+import {
+  useReactionPalette,
+  usePatchReactionPalette,
+  DEFAULT_REACTION_PALETTE,
+} from "@/hooks/use-reactions";
 import type { TermKey } from "@/context/terminology-context";
-import type { OrgMemberInfo, Role, RolePermissions, SlaPolicy, TaskTemplate, WorkflowStage, ApiKey, ApiKeyScope } from "@workspace/api-client-react";
+import type {
+  OrgMemberInfo,
+  Role,
+  RolePermissions,
+  SlaPolicy,
+  TaskTemplate,
+  WorkflowStage,
+  ApiKey,
+  ApiKeyScope,
+} from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import {
-  AlertTriangle, Building2, Clock, Copy, Crown, Download, ExternalLink, FileText, GripVertical, Key, Link2, Loader2, LogOut,
-  Mail, Palette, Pencil, Plus, Settings2, Shield, Sliders, Timer, Trash2, UserPlus, X,
-  Workflow, Check, Eye,
+  AlertTriangle,
+  Building2,
+  Clock,
+  Copy,
+  Crown,
+  Download,
+  ExternalLink,
+  FileText,
+  GripVertical,
+  Key,
+  Link2,
+  Loader2,
+  LogOut,
+  Mail,
+  Palette,
+  Pencil,
+  Plus,
+  Settings2,
+  Shield,
+  Sliders,
+  Timer,
+  Trash2,
+  UserPlus,
+  X,
+  Workflow,
+  Check,
+  Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@workspace/replit-auth-web";
@@ -108,7 +161,7 @@ function BrandingPreview({ colorHex }: { colorHex: string }) {
   return (
     <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        {t('orgSettings.branding.livePreview')}
+        {t("orgSettings.branding.livePreview")}
       </p>
 
       {/* Row 1: primary button + outline button */}
@@ -117,7 +170,7 @@ function BrandingPreview({ colorHex }: { colorHex: string }) {
           className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium shadow-sm select-none"
           style={{ background: c(p.primary), color: c(p.primaryForeground) }}
         >
-          {t('orgSettings.branding.saveButton')}
+          {t("orgSettings.branding.saveButton")}
         </span>
         <span
           className="inline-flex items-center justify-center rounded-md border px-3 py-1.5 text-sm font-medium select-none"
@@ -127,7 +180,7 @@ function BrandingPreview({ colorHex }: { colorHex: string }) {
             background: "transparent",
           }}
         >
-          {t('orgSettings.branding.cancelButton')}
+          {t("orgSettings.branding.cancelButton")}
         </span>
       </div>
 
@@ -137,32 +190,35 @@ function BrandingPreview({ colorHex }: { colorHex: string }) {
           className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold select-none"
           style={{ background: c(p.primary), color: c(p.primaryForeground) }}
         >
-          {t('orgSettings.branding.badgeNew')}
+          {t("orgSettings.branding.badgeNew")}
         </span>
         <span
           className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold select-none"
           style={{ background: c(p.accent), color: c(p.accentForeground) }}
         >
-          {t('orgSettings.branding.badgeInProgress')}
+          {t("orgSettings.branding.badgeInProgress")}
         </span>
         <span
           className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold select-none"
           style={{ borderColor: c(p.primary), color: c(p.primary) }}
         >
-          {t('orgSettings.branding.badgeOpen')}
+          {t("orgSettings.branding.badgeOpen")}
         </span>
       </div>
 
       {/* Row 3: active sidebar item */}
       <div
         className="flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium w-fit select-none"
-        style={{ background: c(p.sidebarAccent), color: c(p.sidebarAccentForeground) }}
+        style={{
+          background: c(p.sidebarAccent),
+          color: c(p.sidebarAccentForeground),
+        }}
       >
         <span
           className="w-2 h-2 rounded-full shrink-0"
           style={{ background: c(p.sidebarPrimary) }}
         />
-        {t('orgSettings.branding.activeSidebarItem')}
+        {t("orgSettings.branding.activeSidebarItem")}
       </div>
     </div>
   );
@@ -175,9 +231,12 @@ function BrandingCard() {
   const { hasPermission } = useOrgContext();
   const canManage = hasPermission("manage_org_settings");
 
-  const { primaryColor: currentPrimaryColor, logoUrl: currentLogoUrl } = useBranding();
+  const { primaryColor: currentPrimaryColor, logoUrl: currentLogoUrl } =
+    useBranding();
 
-  const [colorDraft, setColorDraft] = useState(currentPrimaryColor ?? "#f59e0b");
+  const [colorDraft, setColorDraft] = useState(
+    currentPrimaryColor ?? "#f59e0b",
+  );
   const [logoUrlDraft, setLogoUrlDraft] = useState(currentLogoUrl ?? "");
 
   // Sync drafts when branding loads/changes from server
@@ -193,7 +252,11 @@ function BrandingCard() {
         queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
       },
       onError: (err: Error) => {
-        toast({ title: t("orgSettings.branding.saveFailed"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("orgSettings.branding.saveFailed"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -241,14 +304,14 @@ function BrandingCard() {
           <Palette className="w-4 h-4" />
           {t("orgSettings.branding.title")}
         </CardTitle>
-        <CardDescription>
-          {t("orgSettings.branding.desc")}
-        </CardDescription>
+        <CardDescription>{t("orgSettings.branding.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Primary color */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t("orgSettings.branding.primaryColor")}</Label>
+          <Label className="text-sm font-medium">
+            {t("orgSettings.branding.primaryColor")}
+          </Label>
           <div className="flex items-center gap-3">
             <input
               type="color"
@@ -258,7 +321,9 @@ function BrandingCard() {
               className="w-10 h-10 rounded cursor-pointer border border-border bg-transparent p-0.5 disabled:cursor-not-allowed"
               title={t("orgSettings.branding.pickColor")}
             />
-            <code className="text-sm font-mono text-muted-foreground">{colorDraft}</code>
+            <code className="text-sm font-mono text-muted-foreground">
+              {colorDraft}
+            </code>
             {/* Live swatch preview */}
             <div
               className="w-6 h-6 rounded-full border border-border shrink-0"
@@ -285,7 +350,9 @@ function BrandingCard() {
 
         {/* Logo URL */}
         <div className="space-y-2">
-          <Label className="text-sm font-medium">{t("orgSettings.branding.logoUrl")}</Label>
+          <Label className="text-sm font-medium">
+            {t("orgSettings.branding.logoUrl")}
+          </Label>
           <Input
             value={logoUrlDraft}
             onChange={(e) => setLogoUrlDraft(e.target.value)}
@@ -301,8 +368,12 @@ function BrandingCard() {
               src={logoUrlDraft}
               alt={t("orgSettings.branding.logoAlt")}
               className="h-8 w-auto object-contain rounded border border-border"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              onLoad={(e) => { (e.target as HTMLImageElement).style.display = ""; }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+              onLoad={(e) => {
+                (e.target as HTMLImageElement).style.display = "";
+              }}
             />
           )}
         </div>
@@ -310,15 +381,27 @@ function BrandingCard() {
         {canManage && (
           <div className="flex gap-2 pt-1 flex-wrap">
             <Button size="sm" onClick={handleSave} disabled={isPending}>
-              {isPending ? t("orgSettings.branding.saving") : t("orgSettings.branding.saveButton")}
+              {isPending
+                ? t("orgSettings.branding.saving")
+                : t("orgSettings.branding.saveButton")}
             </Button>
             {currentPrimaryColor && (
-              <Button size="sm" variant="ghost" onClick={handleResetColor} disabled={isPending}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleResetColor}
+                disabled={isPending}
+              >
                 {t("orgSettings.branding.resetColor")}
               </Button>
             )}
             {currentLogoUrl && (
-              <Button size="sm" variant="ghost" onClick={handleRemoveLogo} disabled={isPending}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleRemoveLogo}
+                disabled={isPending}
+              >
                 {t("orgSettings.branding.removeLogo")}
               </Button>
             )}
@@ -343,7 +426,8 @@ function ReactionPaletteCard() {
   const canManage = hasPermission("manage_reactions");
 
   const { data: paletteData, isLoading } = useReactionPalette();
-  const { mutate: savePalette, isPending: isSaving } = usePatchReactionPalette();
+  const { mutate: savePalette, isPending: isSaving } =
+    usePatchReactionPalette();
 
   const [input, setInput] = useState("");
   const [localPalette, setLocalPalette] = useState<string[]>([]);
@@ -359,7 +443,10 @@ function ReactionPaletteCard() {
     const emoji = input.trim();
     if (!emoji) return;
     if (localPalette.includes(emoji)) {
-      toast({ title: t("orgSettings.reactions.emojiAlreadyExists"), variant: "destructive" });
+      toast({
+        title: t("orgSettings.reactions.emojiAlreadyExists"),
+        variant: "destructive",
+      });
       return;
     }
     setLocalPalette((prev) => [...prev, emoji]);
@@ -372,21 +459,32 @@ function ReactionPaletteCard() {
 
   function handleSave() {
     if (localPalette.length === 0) {
-      toast({ title: t("orgSettings.reactions.mustHaveOne"), variant: "destructive" });
+      toast({
+        title: t("orgSettings.reactions.mustHaveOne"),
+        variant: "destructive",
+      });
       return;
     }
     savePalette(
       { palette: localPalette },
       {
-        onSuccess: () => toast({ title: t("orgSettings.reactions.paletteSaved") }),
-        onError: (err: Error) => toast({ title: t("common.error"), description: err.message, variant: "destructive" }),
+        onSuccess: () =>
+          toast({ title: t("orgSettings.reactions.paletteSaved") }),
+        onError: (err: Error) =>
+          toast({
+            title: t("common.error"),
+            description: err.message,
+            variant: "destructive",
+          }),
       },
     );
   }
 
   const isDefault =
     localPalette.length === DEFAULT_REACTION_PALETTE.length &&
-    DEFAULT_REACTION_PALETTE.every((e: string, i: number) => localPalette[i] === e);
+    DEFAULT_REACTION_PALETTE.every(
+      (e: string, i: number) => localPalette[i] === e,
+    );
 
   function handleReset() {
     savePalette(
@@ -396,7 +494,12 @@ function ReactionPaletteCard() {
           setLocalPalette(DEFAULT_REACTION_PALETTE);
           toast({ title: t("orgSettings.reactions.paletteReset") });
         },
-        onError: (err: Error) => toast({ title: t("common.error"), description: err.message, variant: "destructive" }),
+        onError: (err: Error) =>
+          toast({
+            title: t("common.error"),
+            description: err.message,
+            variant: "destructive",
+          }),
       },
     );
   }
@@ -405,18 +508,21 @@ function ReactionPaletteCard() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
-          <span role="img" aria-label="reactions">😊</span>
+          <span role="img" aria-label="reactions">
+            😊
+          </span>
           {t("orgSettings.reactions.title")}
         </CardTitle>
-        <CardDescription>
-          {t("orgSettings.reactions.desc")}
-        </CardDescription>
+        <CardDescription>{t("orgSettings.reactions.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {isLoading ? (
           <div className="flex gap-2 flex-wrap">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="w-8 h-8 rounded-full bg-muted animate-pulse" />
+              <div
+                key={i}
+                className="w-8 h-8 rounded-full bg-muted animate-pulse"
+              />
             ))}
           </div>
         ) : (
@@ -441,7 +547,9 @@ function ReactionPaletteCard() {
               </div>
             ))}
             {localPalette.length === 0 && (
-              <p className="text-sm text-muted-foreground italic">{t("orgSettings.reactions.emptyPalette")}</p>
+              <p className="text-sm text-muted-foreground italic">
+                {t("orgSettings.reactions.emptyPalette")}
+              </p>
             )}
           </div>
         )}
@@ -452,7 +560,12 @@ function ReactionPaletteCard() {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAdd();
+                  }
+                }}
                 placeholder={t("orgSettings.reactions.emojiPlaceholder")}
                 className="h-8 text-sm w-40"
                 maxLength={16}
@@ -475,7 +588,9 @@ function ReactionPaletteCard() {
                 onClick={handleSave}
                 disabled={isSaving || localPalette.length === 0}
               >
-                {isSaving ? t("common.saving") : t("orgSettings.reactions.savePalette")}
+                {isSaving
+                  ? t("common.saving")
+                  : t("orgSettings.reactions.savePalette")}
               </Button>
               {!isDefault && (
                 <Button
@@ -503,8 +618,14 @@ function ReactionPaletteCard() {
 
 // ─── Terminology ──────────────────────────────────────────────────────────────
 
-const TERMINOLOGY_KEY_LABELS: Record<TermKey, { label: string; description: string }> = {
-  projects: { label: "Projects", description: "E.g. Services, Initiatives, Epics" },
+const TERMINOLOGY_KEY_LABELS: Record<
+  TermKey,
+  { label: string; description: string }
+> = {
+  projects: {
+    label: "Projects",
+    description: "E.g. Services, Initiatives, Epics",
+  },
   tasks: { label: "Tasks", description: "E.g. Tickets, Issues, Requests" },
   members: { label: "Members", description: "E.g. Agents, Users, Staff" },
   workflows: { label: "Workflows", description: "E.g. Pipelines, Processes" },
@@ -541,7 +662,9 @@ function TerminologyCard() {
   }));
 
   // Singular override drafts — empty string means "let the app auto-derive"
-  const [draftSingular, setDraftSingular] = useState<Record<SingularDraftKey, string>>(() => ({
+  const [draftSingular, setDraftSingular] = useState<
+    Record<SingularDraftKey, string>
+  >(() => ({
     projectsSingular: rawTerminology?.projectsSingular ?? "",
     tasksSingular: rawTerminology?.tasksSingular ?? "",
     membersSingular: rawTerminology?.membersSingular ?? "",
@@ -558,7 +681,13 @@ function TerminologyCard() {
       workflows: terminology.workflows,
       stages: terminology.stages,
     });
-  }, [terminology.projects, terminology.tasks, terminology.members, terminology.workflows, terminology.stages]);
+  }, [
+    terminology.projects,
+    terminology.tasks,
+    terminology.members,
+    terminology.workflows,
+    terminology.stages,
+  ]);
 
   useEffect(() => {
     setDraftSingular({
@@ -568,7 +697,7 @@ function TerminologyCard() {
       workflowsSingular: rawTerminology?.workflowsSingular ?? "",
       stagesSingular: rawTerminology?.stagesSingular ?? "",
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     rawTerminology?.projectsSingular,
     rawTerminology?.tasksSingular,
@@ -585,14 +714,20 @@ function TerminologyCard() {
         queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
 
   function handleSave() {
     // Build plural payload — always send all five so the backend can persist resets
-    const payload: Record<string, string | null> = (Object.keys(draft) as TermKey[]).reduce(
+    const payload: Record<string, string | null> = (
+      Object.keys(draft) as TermKey[]
+    ).reduce(
       (acc, key) => {
         acc[key] = draft[key].trim() || TERM_DEFAULTS[key];
         return acc;
@@ -623,9 +758,7 @@ function TerminologyCard() {
           <Settings2 className="w-4 h-4" />
           {t("orgSettings.terminology.title")}
         </CardTitle>
-        <CardDescription>
-          {t("orgSettings.terminology.desc")}
-        </CardDescription>
+        <CardDescription>{t("orgSettings.terminology.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-3">
@@ -636,14 +769,21 @@ function TerminologyCard() {
               <div key={key} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">
-                    {meta.label} <span className="text-muted-foreground font-normal">{t("orgSettings.terminology.pluralLabel")}</span>
+                    {meta.label}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      {t("orgSettings.terminology.pluralLabel")}
+                    </span>
                     <span className="ml-1.5 text-muted-foreground font-normal">
-                      {t('orgSettings.terminology.defaultLabel', { value: TERM_DEFAULTS[key] })}
+                      {t("orgSettings.terminology.defaultLabel", {
+                        value: TERM_DEFAULTS[key],
+                      })}
                     </span>
                   </Label>
                   <Input
                     value={draft[key]}
-                    onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+                    onChange={(e) =>
+                      setDraft((prev) => ({ ...prev, [key]: e.target.value }))
+                    }
                     placeholder={meta.description}
                     disabled={!canManageTerminology || isPending}
                     maxLength={50}
@@ -657,7 +797,10 @@ function TerminologyCard() {
                   <Input
                     value={draftSingular[singularKey]}
                     onChange={(e) =>
-                      setDraftSingular((prev) => ({ ...prev, [singularKey]: e.target.value }))
+                      setDraftSingular((prev) => ({
+                        ...prev,
+                        [singularKey]: e.target.value,
+                      }))
                     }
                     placeholder={`e.g. "${autoSingular(key)}"`}
                     disabled={!canManageTerminology || isPending}
@@ -672,7 +815,9 @@ function TerminologyCard() {
         {canManageTerminology && (
           <div className="flex gap-2 pt-1">
             <Button size="sm" onClick={handleSave} disabled={isPending}>
-              {isPending ? t("common.saving") : t("orgSettings.terminology.saveButton")}
+              {isPending
+                ? t("common.saving")
+                : t("orgSettings.terminology.saveButton")}
             </Button>
             <Button
               size="sm"
@@ -712,10 +857,14 @@ function TerminologyCard() {
 // ─── API Keys ─────────────────────────────────────────────────────────────────
 
 const ALL_SCOPES: ApiKeyScope[] = [
-  "tasks:read", "tasks:write",
-  "projects:read", "projects:write",
-  "comments:read", "comments:write",
-  "webhooks:read", "webhooks:write",
+  "tasks:read",
+  "tasks:write",
+  "projects:read",
+  "projects:write",
+  "comments:read",
+  "comments:write",
+  "webhooks:read",
+  "webhooks:write",
 ];
 
 const SCOPE_LABELS: Record<ApiKeyScope, string> = {
@@ -729,14 +878,26 @@ const SCOPE_LABELS: Record<ApiKeyScope, string> = {
   "webhooks:write": "Webhooks — write",
 };
 
-function formatKeyExpiry(t: (k: string, opts?: Record<string, unknown>) => string, key: ApiKey, locale?: string): string {
-  if (key.revokedAt) return t('orgSettings.apiKeys.revoked');
-  if (key.isExpired) return t('orgSettings.apiKeys.expired');
-  if (!key.expiresAt) return t('orgSettings.apiKeys.neverExpires');
-  return t('orgSettings.apiKeys.expiresOn', { date: new Date(key.expiresAt).toLocaleDateString(locale || undefined) });
+function formatKeyExpiry(
+  t: (k: string, opts?: Record<string, unknown>) => string,
+  key: ApiKey,
+  locale?: string,
+): string {
+  if (key.revokedAt) return t("orgSettings.apiKeys.revoked");
+  if (key.isExpired) return t("orgSettings.apiKeys.expired");
+  if (!key.expiresAt) return t("orgSettings.apiKeys.neverExpires");
+  return t("orgSettings.apiKeys.expiresOn", {
+    date: new Date(key.expiresAt).toLocaleDateString(locale || undefined),
+  });
 }
 
-function ApiKeyRow({ apiKey, onRevoked }: { apiKey: ApiKey; onRevoked: () => void }) {
+function ApiKeyRow({
+  apiKey,
+  onRevoked,
+}: {
+  apiKey: ApiKey;
+  onRevoked: () => void;
+}) {
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
   const { mutate: revoke, isPending: isRevoking } = useRevokeApiKey({
@@ -746,49 +907,89 @@ function ApiKeyRow({ apiKey, onRevoked }: { apiKey: ApiKey; onRevoked: () => voi
         onRevoked();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
 
   const isActive = !apiKey.revokedAt && !apiKey.isExpired;
   const creatorName = apiKey.createdBy
-    ? [apiKey.createdBy.firstName, apiKey.createdBy.lastName].filter(Boolean).join(" ") || apiKey.createdBy.email || t('common.unknown')
-    : t('common.unknown');
+    ? [apiKey.createdBy.firstName, apiKey.createdBy.lastName]
+        .filter(Boolean)
+        .join(" ") ||
+      apiKey.createdBy.email ||
+      t("common.unknown")
+    : t("common.unknown");
 
   return (
-    <div className={`flex items-start gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-card" : "border-border/50 bg-muted/30"}`}>
+    <div
+      className={`flex items-start gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-card" : "border-border/50 bg-muted/30"}`}
+    >
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`font-medium text-sm ${!isActive ? "text-muted-foreground" : ""}`}>{apiKey.name}</span>
-          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">{apiKey.keyPrefix}…</code>
+          <span
+            className={`font-medium text-sm ${!isActive ? "text-muted-foreground" : ""}`}
+          >
+            {apiKey.name}
+          </span>
+          <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
+            {apiKey.keyPrefix}…
+          </code>
           {apiKey.revokedAt ? (
-            <Badge variant="destructive" className="text-xs py-0">{t('orgSettings.apiKeys.revoked')}</Badge>
+            <Badge variant="destructive" className="text-xs py-0">
+              {t("orgSettings.apiKeys.revoked")}
+            </Badge>
           ) : apiKey.isExpired ? (
-            <Badge variant="outline" className="text-xs py-0 text-muted-foreground">{t('orgSettings.apiKeys.expired')}</Badge>
+            <Badge
+              variant="outline"
+              className="text-xs py-0 text-muted-foreground"
+            >
+              {t("orgSettings.apiKeys.expired")}
+            </Badge>
           ) : (
-            <Badge variant="secondary" className="text-xs py-0">{t('common.active')}</Badge>
+            <Badge variant="secondary" className="text-xs py-0">
+              {t("common.active")}
+            </Badge>
           )}
         </div>
         <div className="flex flex-wrap gap-1">
           {apiKey.scopes.map((s) => (
-            <Badge key={s} variant="outline" className="text-xs py-0 font-mono">{s}</Badge>
+            <Badge key={s} variant="outline" className="text-xs py-0 font-mono">
+              {s}
+            </Badge>
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          {formatKeyExpiry(t, apiKey, i18n.language)} · {t('orgSettings.apiKeys.createdBy', { name: creatorName, date: new Date(apiKey.createdAt).toLocaleDateString(i18n.language || undefined) })}
+          {formatKeyExpiry(t, apiKey, i18n.language)} ·{" "}
+          {t("orgSettings.apiKeys.createdBy", {
+            name: creatorName,
+            date: new Date(apiKey.createdAt).toLocaleDateString(
+              i18n.language || undefined,
+            ),
+          })}
         </p>
       </div>
       {isActive && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground hover:text-destructive" disabled={isRevoking}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-muted-foreground hover:text-destructive"
+              disabled={isRevoking}
+            >
               <Trash2 className="w-3.5 h-3.5" />
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{t("orgSettings.apiKeys.revokeKey")} "{apiKey.name}"?</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("orgSettings.apiKeys.revokeKey")} "{apiKey.name}"?
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 {t("orgSettings.apiKeys.revokeKeyDesc")}
               </AlertDialogDescription>
@@ -822,7 +1023,11 @@ function ApiKeysCard() {
   const [isCreating, setIsCreating] = useState(false);
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [form, setForm] = useState<CreateKeyFormState>({ name: "", scopes: [], expiresAt: "" });
+  const [form, setForm] = useState<CreateKeyFormState>({
+    name: "",
+    scopes: [],
+    expiresAt: "",
+  });
 
   const { data: keys = [], refetch: refetchKeys } = useListApiKeys();
 
@@ -835,7 +1040,11 @@ function ApiKeysCard() {
         queryClient.invalidateQueries({ queryKey: getListApiKeysQueryKey() });
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -843,7 +1052,9 @@ function ApiKeysCard() {
   function toggleScope(scope: ApiKeyScope) {
     setForm((f) => ({
       ...f,
-      scopes: f.scopes.includes(scope) ? f.scopes.filter((s) => s !== scope) : [...f.scopes, scope],
+      scopes: f.scopes.includes(scope)
+        ? f.scopes.filter((s) => s !== scope)
+        : [...f.scopes, scope],
     }));
   }
 
@@ -854,7 +1065,9 @@ function ApiKeysCard() {
       data: {
         name: form.name.trim(),
         scopes: form.scopes,
-        ...(form.expiresAt ? { expiresAt: new Date(form.expiresAt).toISOString() } : {}),
+        ...(form.expiresAt
+          ? { expiresAt: new Date(form.expiresAt).toISOString() }
+          : {}),
       },
     });
   }
@@ -884,7 +1097,12 @@ function ApiKeysCard() {
             </CardDescription>
           </div>
           {!isCreating && !revealedKey && (
-            <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => setIsCreating(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5 shrink-0"
+              onClick={() => setIsCreating(true)}
+            >
               <Plus className="w-3.5 h-3.5" />
               {t("orgSettings.apiKeys.newKey")}
             </Button>
@@ -892,31 +1110,49 @@ function ApiKeysCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-
         {/* One-time reveal modal */}
         {revealedKey && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
             <div className="flex items-start gap-2">
               <Eye className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
               <div>
-                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">{t("orgSettings.apiKeys.copyKeyNow")}</p>
+                <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
+                  {t("orgSettings.apiKeys.copyKeyNow")}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {t("orgSettings.apiKeys.copyKeyDesc")}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-muted px-3 py-2 rounded font-mono break-all select-all">{revealedKey}</code>
-              <Button size="sm" variant="outline" className="h-8 gap-1.5 shrink-0" onClick={handleCopy}>
-                {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? t("orgSettings.apiKeys.copied") : t("orgSettings.apiKeys.copy")}
+              <code className="flex-1 text-xs bg-muted px-3 py-2 rounded font-mono break-all select-all">
+                {revealedKey}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 shrink-0"
+                onClick={handleCopy}
+              >
+                {copied ? (
+                  <Check className="w-3.5 h-3.5 text-green-500" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                {copied
+                  ? t("orgSettings.apiKeys.copied")
+                  : t("orgSettings.apiKeys.copy")}
               </Button>
             </div>
             <Button
               size="sm"
               variant="default"
               className="w-full"
-              onClick={() => { setRevealedKey(null); setCopied(false); refetchKeys(); }}
+              onClick={() => {
+                setRevealedKey(null);
+                setCopied(false);
+                refetchKeys();
+              }}
             >
               {t("orgSettings.apiKeys.savedKey")}
             </Button>
@@ -925,12 +1161,20 @@ function ApiKeysCard() {
 
         {/* Create form */}
         {isCreating && (
-          <form onSubmit={handleCreate} className="space-y-4 p-4 rounded-lg border border-primary/30 bg-primary/5">
+          <form
+            onSubmit={handleCreate}
+            className="space-y-4 p-4 rounded-lg border border-primary/30 bg-primary/5"
+          >
             <div className="space-y-1">
-              <Label className="text-xs">{t("orgSettings.apiKeys.keyName")} <span className="text-destructive">*</span></Label>
+              <Label className="text-xs">
+                {t("orgSettings.apiKeys.keyName")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
                 placeholder={t("orgSettings.apiKeys.keyNamePlaceholder")}
                 maxLength={200}
                 autoFocus
@@ -939,7 +1183,10 @@ function ApiKeysCard() {
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">{t("orgSettings.apiKeys.scopes")} <span className="text-destructive">*</span></Label>
+              <Label className="text-xs">
+                {t("orgSettings.apiKeys.scopes")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {ALL_SCOPES.map((scope) => (
                   <div key={scope} className="flex items-center gap-2">
@@ -950,7 +1197,10 @@ function ApiKeysCard() {
                       disabled={isSubmitting}
                       className="h-4 w-7 data-[state=checked]:bg-primary"
                     />
-                    <Label htmlFor={`scope-${scope}`} className="text-xs text-muted-foreground cursor-pointer font-mono">
+                    <Label
+                      htmlFor={`scope-${scope}`}
+                      className="text-xs text-muted-foreground cursor-pointer font-mono"
+                    >
                       {scope}
                     </Label>
                   </div>
@@ -958,11 +1208,15 @@ function ApiKeysCard() {
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">{t("orgSettings.apiKeys.expiryDate")}</Label>
+              <Label className="text-xs">
+                {t("orgSettings.apiKeys.expiryDate")}
+              </Label>
               <Input
                 type="date"
                 value={form.expiresAt}
-                onChange={(e) => setForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, expiresAt: e.target.value }))
+                }
                 className="h-8 text-sm"
                 disabled={isSubmitting}
                 min={new Date().toISOString().slice(0, 10)}
@@ -972,16 +1226,23 @@ function ApiKeysCard() {
               <Button
                 type="submit"
                 size="sm"
-                disabled={isSubmitting || !form.name.trim() || form.scopes.length === 0}
+                disabled={
+                  isSubmitting || !form.name.trim() || form.scopes.length === 0
+                }
               >
-                {isSubmitting ? t("common.saving") : t("orgSettings.apiKeys.createKey")}
+                {isSubmitting
+                  ? t("common.saving")
+                  : t("orgSettings.apiKeys.createKey")}
               </Button>
               <Button
                 type="button"
                 size="sm"
                 variant="ghost"
                 disabled={isSubmitting}
-                onClick={() => { setIsCreating(false); setForm({ name: "", scopes: [], expiresAt: "" }); }}
+                onClick={() => {
+                  setIsCreating(false);
+                  setForm({ name: "", scopes: [], expiresAt: "" });
+                }}
               >
                 {t("common.cancel")}
               </Button>
@@ -1005,11 +1266,16 @@ function ApiKeysCard() {
             <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground list-none flex items-center gap-1 select-none">
               <span className="group-open:hidden">▶</span>
               <span className="hidden group-open:inline">▼</span>
-              Show {inactiveKeys.length} inactive key{inactiveKeys.length !== 1 ? "s" : ""}
+              Show {inactiveKeys.length} inactive key
+              {inactiveKeys.length !== 1 ? "s" : ""}
             </summary>
             <div className="mt-2 space-y-2">
               {inactiveKeys.map((k) => (
-                <ApiKeyRow key={k.id} apiKey={k} onRevoked={() => refetchKeys()} />
+                <ApiKeyRow
+                  key={k.id}
+                  apiKey={k}
+                  onRevoked={() => refetchKeys()}
+                />
               ))}
             </div>
           </details>
@@ -1043,11 +1309,18 @@ export function ExportCard() {
   const { toast } = useToast();
   const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
-  const [scope, setScope] = useState<ExportScopeValue[]>(["tasks", "comments", "projects", "notes"]);
+  const [scope, setScope] = useState<ExportScopeValue[]>([
+    "tasks",
+    "comments",
+    "projects",
+    "notes",
+  ]);
   const [format, setFormat] = useState<"json" | "csv">("json");
   const [isExporting, setIsExporting] = useState(false);
   const [jobQueued, setJobQueued] = useState(false);
-  const [pendingExport, setPendingExport] = useState<PendingExport | null>(null);
+  const [pendingExport, setPendingExport] = useState<PendingExport | null>(
+    null,
+  );
   const [exportExpired, setExportExpired] = useState(false);
 
   // Check for a completed or in-progress background export on mount.
@@ -1058,33 +1331,63 @@ export function ExportCard() {
   useEffect(() => {
     fetch(`${BASE}/api/export/pending`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data: { pending: boolean; jobInProgress?: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
-        if (data?.jobInProgress) {
-          setJobQueued(true);
-          return;
-        }
-        if (data?.pending && data.token && data.filename && data.expiresAt) {
-          setPendingExport({ token: data.token, filename: data.filename, expiresAt: data.expiresAt });
-        }
-      })
+      .then(
+        (
+          data: {
+            pending: boolean;
+            jobInProgress?: boolean;
+            token?: string;
+            filename?: string;
+            expiresAt?: string;
+          } | null,
+        ) => {
+          if (data?.jobInProgress) {
+            setJobQueued(true);
+            return;
+          }
+          if (data?.pending && data.token && data.filename && data.expiresAt) {
+            setPendingExport({
+              token: data.token,
+              filename: data.filename,
+              expiresAt: data.expiresAt,
+            });
+          }
+        },
+      )
       .catch(() => {});
   }, [BASE]);
 
   // Listen for export_ready notifications on the shared SSE stream so the
   // download banner appears automatically without a full page refresh.
-  const handleExportReadyNotification = useCallback((raw: unknown) => {
-    const data = raw as { type?: string };
-    if (data.type !== "export_ready") return;
-    fetch(`${BASE}/api/export/pending`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((res: { pending: boolean; token?: string; filename?: string; expiresAt?: string } | null) => {
-        if (res?.pending && res.token && res.filename && res.expiresAt) {
-          setPendingExport({ token: res.token, filename: res.filename, expiresAt: res.expiresAt });
-          setJobQueued(false);
-        }
-      })
-      .catch(() => {});
-  }, [BASE]);
+  const handleExportReadyNotification = useCallback(
+    (raw: unknown) => {
+      const data = raw as { type?: string };
+      if (data.type !== "export_ready") return;
+      fetch(`${BASE}/api/export/pending`, { credentials: "include" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then(
+          (
+            res: {
+              pending: boolean;
+              token?: string;
+              filename?: string;
+              expiresAt?: string;
+            } | null,
+          ) => {
+            if (res?.pending && res.token && res.filename && res.expiresAt) {
+              setPendingExport({
+                token: res.token,
+                filename: res.filename,
+                expiresAt: res.expiresAt,
+              });
+              setJobQueued(false);
+            }
+          },
+        )
+        .catch(() => {});
+    },
+    [BASE],
+  );
   useSseEvent("notification", handleExportReadyNotification);
 
   function toggleScope(value: ExportScopeValue) {
@@ -1140,7 +1443,8 @@ export function ExportCard() {
         const blob = await res.blob();
         const cd = res.headers.get("Content-Disposition") ?? "";
         const match = cd.match(/filename="([^"]+)"/);
-        const filename = match?.[1] ?? `export.${format === "csv" ? "zip" : "json"}`;
+        const filename =
+          match?.[1] ?? `export.${format === "csv" ? "zip" : "json"}`;
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
@@ -1159,7 +1463,11 @@ export function ExportCard() {
         });
       }
     } catch (err) {
-      toast({ title: t("orgSettings.export.failed"), description: String(err), variant: "destructive" });
+      toast({
+        title: t("orgSettings.export.failed"),
+        description: String(err),
+        variant: "destructive",
+      });
     } finally {
       setIsExporting(false);
     }
@@ -1172,12 +1480,9 @@ export function ExportCard() {
           <Download className="w-4 h-4" />
           {t("orgSettings.export.title")}
         </CardTitle>
-        <CardDescription>
-          {t("orgSettings.export.desc")}
-        </CardDescription>
+        <CardDescription>{t("orgSettings.export.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-
         {/* Export expired banner */}
         {exportExpired && !pendingExport && (
           <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
@@ -1190,7 +1495,10 @@ export function ExportCard() {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                onClick={() => { setExportExpired(false); handleExport(); }}
+                onClick={() => {
+                  setExportExpired(false);
+                  handleExport();
+                }}
                 disabled={isExporting || scope.length === 0}
               >
                 <Download className="w-3.5 h-3.5" />
@@ -1217,7 +1525,10 @@ export function ExportCard() {
                   {t("orgSettings.export.ready")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {t("orgSettings.export.availableUntil")} {new Date(pendingExport.expiresAt).toLocaleString(i18n.language || undefined)}
+                  {t("orgSettings.export.availableUntil")}{" "}
+                  {new Date(pendingExport.expiresAt).toLocaleString(
+                    i18n.language || undefined,
+                  )}
                 </p>
               </div>
               <Button
@@ -1272,7 +1583,10 @@ export function ExportCard() {
           </Label>
           <div className="flex flex-col gap-2">
             {(["json", "csv"] as const).map((fmt) => (
-              <label key={fmt} className="flex items-start gap-2.5 cursor-pointer">
+              <label
+                key={fmt}
+                className="flex items-start gap-2.5 cursor-pointer"
+              >
                 <input
                   type="radio"
                   name="export-format"
@@ -1286,12 +1600,18 @@ export function ExportCard() {
                   {fmt === "json" ? (
                     <>
                       <span className="font-medium">JSON</span>
-                      <span className="text-muted-foreground"> {t("orgSettings.export.jsonDesc")}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        {t("orgSettings.export.jsonDesc")}
+                      </span>
                     </>
                   ) : (
                     <>
                       <span className="font-medium">CSV</span>
-                      <span className="text-muted-foreground"> {t("orgSettings.export.csvDesc")}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        {t("orgSettings.export.csvDesc")}
+                      </span>
                     </>
                   )}
                 </span>
@@ -1312,14 +1632,20 @@ export function ExportCard() {
           onClick={handleExport}
           disabled={isExporting || jobQueued || scope.length === 0}
           className="gap-2"
-          title={jobQueued ? t("orgSettings.export.exportQueuedHint") : undefined}
+          title={
+            jobQueued ? t("orgSettings.export.exportQueuedHint") : undefined
+          }
         >
           {isExporting || jobQueued ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <Download className="w-4 h-4" />
           )}
-          {isExporting ? t("orgSettings.export.preparing") : jobQueued ? t("orgSettings.export.inProgress") : t("orgSettings.export.downloadExport")}
+          {isExporting
+            ? t("orgSettings.export.preparing")
+            : jobQueued
+              ? t("orgSettings.export.inProgress")
+              : t("orgSettings.export.downloadExport")}
         </Button>
       </CardContent>
     </Card>
@@ -1338,7 +1664,15 @@ interface PermGroup {
 const PERM_GROUPS: PermGroup[] = [
   {
     labelKey: "orgSettings.permissions.tasks",
-    keys: ["view_tasks", "create_tasks", "edit_tasks", "close_tasks", "delete_tasks", "delete_comments", "edit_comments"],
+    keys: [
+      "view_tasks",
+      "create_tasks",
+      "edit_tasks",
+      "close_tasks",
+      "delete_tasks",
+      "delete_comments",
+      "edit_comments",
+    ],
   },
   {
     labelKey: "orgSettings.permissions.projectsOrg",
@@ -1347,9 +1681,16 @@ const PERM_GROUPS: PermGroup[] = [
   {
     labelKey: "orgSettings.permissions.features",
     keys: [
-      "manage_webhooks", "manage_api_keys", "manage_custom_fields",
-      "manage_workflow_stages", "manage_sla_policies", "manage_task_templates",
-      "manage_saved_views", "view_audit_log", "manage_terminology", "manage_reactions",
+      "manage_webhooks",
+      "manage_api_keys",
+      "manage_custom_fields",
+      "manage_workflow_stages",
+      "manage_sla_policies",
+      "manage_task_templates",
+      "manage_saved_views",
+      "view_audit_log",
+      "manage_terminology",
+      "manage_reactions",
     ],
   },
 ];
@@ -1395,7 +1736,9 @@ function buildInviteLink(token: string): string {
   return `${window.location.origin}${import.meta.env.BASE_URL}invite/${token}`;
 }
 
-function roleBadgeVariant(roleName: string): "default" | "secondary" | "outline" {
+function roleBadgeVariant(
+  roleName: string,
+): "default" | "secondary" | "outline" {
   if (roleName === "Owner") return "default";
   if (roleName === "Admin") return "secondary";
   return "outline";
@@ -1411,7 +1754,13 @@ interface LeaveOrgSectionProps {
   onLeave: () => void;
 }
 
-function LeaveOrgSection({ orgName, isOwner, isOnlyMember, isLeaving, onLeave }: LeaveOrgSectionProps) {
+function LeaveOrgSection({
+  orgName,
+  isOwner,
+  isOnlyMember,
+  isLeaving,
+  onLeave,
+}: LeaveOrgSectionProps) {
   const { t } = useTranslation();
   if (isOnlyMember) {
     return (
@@ -1419,24 +1768,37 @@ function LeaveOrgSection({ orgName, isOwner, isOnlyMember, isLeaving, onLeave }:
         <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3">
           <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
           <div className="text-sm">
-            <p className="font-medium text-destructive">{t("orgSettings.leaveOrg.willDeleteOrg")}</p>
+            <p className="font-medium text-destructive">
+              {t("orgSettings.leaveOrg.willDeleteOrg")}
+            </p>
             <p className="text-muted-foreground mt-0.5">
-              {t("orgSettings.leaveOrg.onlyMemberDesc")} <strong>{orgName}</strong>.
+              {t("orgSettings.leaveOrg.onlyMemberDesc")}{" "}
+              <strong>{orgName}</strong>.
             </p>
           </div>
         </div>
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="destructive" size="sm" disabled={isLeaving} className="gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isLeaving}
+              className="gap-2"
+            >
               <LogOut className="w-4 h-4" />
-              {isLeaving ? t("common.saving") : t("orgSettings.leaveOrg.deleteAndLeave")}
+              {isLeaving
+                ? t("common.saving")
+                : t("orgSettings.leaveOrg.deleteAndLeave")}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{t("orgSettings.leaveOrg.deleteOrg")}</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("orgSettings.leaveOrg.deleteOrg")}
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                {t("orgSettings.leaveOrg.deleteOrgDesc")} <strong>{orgName}</strong>.
+                {t("orgSettings.leaveOrg.deleteOrgDesc")}{" "}
+                <strong>{orgName}</strong>.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1460,7 +1822,9 @@ function LeaveOrgSection({ orgName, isOwner, isOnlyMember, isLeaving, onLeave }:
         <div className="flex items-start gap-3 rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
           <Shield className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
           <div className="text-sm">
-            <p className="font-medium text-amber-600 dark:text-amber-400">{t("orgSettings.leaveOrg.transferFirst")}</p>
+            <p className="font-medium text-amber-600 dark:text-amber-400">
+              {t("orgSettings.leaveOrg.transferFirst")}
+            </p>
             <p className="text-muted-foreground mt-0.5">
               {t("orgSettings.leaveOrg.transferFirstDesc")}
             </p>
@@ -1477,14 +1841,21 @@ function LeaveOrgSection({ orgName, isOwner, isOnlyMember, isLeaving, onLeave }:
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" disabled={isLeaving} className="gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isLeaving}
+          className="gap-2"
+        >
           <LogOut className="w-4 h-4" />
           {isLeaving ? t("common.saving") : t("orgSettings.leaveOrg.leaveOrg")}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("orgSettings.leaveOrg.leaveOrg")} {orgName}?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {t("orgSettings.leaveOrg.leaveOrg")} {orgName}?
+          </AlertDialogTitle>
           <AlertDialogDescription>
             {t("orgSettings.leaveOrg.leaveOrgDesc")}
           </AlertDialogDescription>
@@ -1519,7 +1890,14 @@ function memberDisplayName(m: OrgMemberInfo): string {
   return name || m.email || m.userId;
 }
 
-function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }: RoleCardProps) {
+function RoleCard({
+  role,
+  canEdit,
+  members,
+  onUpdated,
+  onDeleted,
+  onDuplicate,
+}: RoleCardProps) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const [isEditingName, setIsEditingName] = useState(false);
@@ -1533,7 +1911,11 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
         onUpdated();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -1541,11 +1923,18 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
   const { mutate: deleteRole, isPending: isDeleting } = useDeleteRole({
     mutation: {
       onSuccess: () => {
-        toast({ title: t("orgSettings.roles.roleDeleted"), description: t("orgSettings.roles.roleDeletedDesc") });
+        toast({
+          title: t("orgSettings.roles.roleDeleted"),
+          description: t("orgSettings.roles.roleDeletedDesc"),
+        });
         onDeleted();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -1560,7 +1949,10 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
   function handleRenameSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = nameValue.trim();
-    if (!trimmed || trimmed === role.name) { setIsEditingName(false); return; }
+    if (!trimmed || trimmed === role.name) {
+      setIsEditingName(false);
+      return;
+    }
     updateRole({ id: role.id, data: { name: trimmed } });
   }
 
@@ -1578,30 +1970,49 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
       {role.isBuiltIn && (
         <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-3 py-2 text-xs text-blue-800 dark:text-blue-300">
           <Shield className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span>
-            {t('orgSettings.roles.builtInNotice')}
-          </span>
+          <span>{t("orgSettings.roles.builtInNotice")}</span>
         </div>
       )}
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
           {canEdit && isEditingName ? (
-            <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
+            <form
+              onSubmit={handleRenameSubmit}
+              className="flex items-center gap-2"
+            >
               <Input
                 value={nameValue}
                 onChange={(e) => setNameValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") { setNameValue(role.name); setIsEditingName(false); } }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setNameValue(role.name);
+                    setIsEditingName(false);
+                  }
+                }}
                 autoFocus
                 maxLength={100}
                 className="h-7 text-sm font-semibold"
                 disabled={isUpdating}
               />
-              <Button type="submit" size="sm" className="h-7 px-2 text-xs" disabled={isUpdating || !nameValue.trim()}>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={isUpdating || !nameValue.trim()}
+              >
                 {t("common.save")}
               </Button>
-              <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs"
-                onClick={() => { setNameValue(role.name); setIsEditingName(false); }}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 px-2 text-xs"
+                onClick={() => {
+                  setNameValue(role.name);
+                  setIsEditingName(false);
+                }}
+              >
                 {t("common.cancel")}
               </Button>
             </form>
@@ -1609,25 +2020,33 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-semibold text-sm">{role.name}</span>
               {role.isBuiltIn && (
-                <Badge variant="outline" className="text-xs py-0">{t('orgSettings.roles.builtIn')}</Badge>
+                <Badge variant="outline" className="text-xs py-0">
+                  {t("orgSettings.roles.builtIn")}
+                </Badge>
               )}
               {role.isOwner && (
                 <Badge className="text-xs py-0 gap-1">
                   <Crown className="w-3 h-3" />
-                  {t('orgSettings.roles.owner')}
+                  {t("orgSettings.roles.owner")}
                 </Badge>
               )}
               <Badge
                 variant="outline"
                 className={`text-xs py-0 ${affectedMembers.length === 0 ? "text-muted-foreground/50 border-border/50" : "text-muted-foreground"}`}
               >
-                {affectedMembers.length} {affectedMembers.length === 1 ? t('common.member') : t('common.members')}
+                {affectedMembers.length}{" "}
+                {affectedMembers.length === 1
+                  ? t("common.member")
+                  : t("common.members")}
               </Badge>
               {canEdit && !role.isBuiltIn && (
                 <button
                   className="text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => { setNameValue(role.name); setIsEditingName(true); }}
-                  title={t('orgSettings.roles.renameRole')}
+                  onClick={() => {
+                    setNameValue(role.name);
+                    setIsEditingName(true);
+                  }}
+                  title={t("orgSettings.roles.renameRole")}
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
@@ -1640,7 +2059,7 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
           <button
             className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded"
             onClick={() => onDuplicate(role)}
-            title={t('orgSettings.roles.duplicateRole', { name: role.name })}
+            title={t("orgSettings.roles.duplicateRole", { name: role.name })}
           >
             <Copy className="w-3.5 h-3.5" />
           </button>
@@ -1650,7 +2069,8 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
-                variant="ghost" size="icon"
+                variant="ghost"
+                size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 disabled={isDeleting}
                 title={t("orgSettings.roles.deleteRole")}
@@ -1660,28 +2080,39 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("orgSettings.roles.deleteRole")} "{role.name}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("orgSettings.roles.deleteRole")} "{role.name}"?
+                </AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-3">
                     {affectedMembers.length === 0 ? (
-                      <p>
-                        {t("orgSettings.roles.noMembersAssigned")}
-                      </p>
+                      <p>{t("orgSettings.roles.noMembersAssigned")}</p>
                     ) : (
                       <>
                         <p>
-                          <strong>{affectedMembers.length} {affectedMembers.length === 1 ? t('common.member') : t('common.members')}</strong>{" "}
+                          <strong>
+                            {affectedMembers.length}{" "}
+                            {affectedMembers.length === 1
+                              ? t("common.member")
+                              : t("common.members")}
+                          </strong>{" "}
                           {t("orgSettings.roles.membersReassigned")}
                         </p>
                         <ul className="text-xs rounded-md border border-border bg-muted/40 px-3 py-2 space-y-1 max-h-36 overflow-y-auto">
                           {affectedMembers.slice(0, 8).map((m) => (
-                            <li key={m.userId} className="truncate text-foreground">
+                            <li
+                              key={m.userId}
+                              className="truncate text-foreground"
+                            >
                               {memberDisplayName(m)}
                             </li>
                           ))}
                           {affectedMembers.length > 8 && (
                             <li className="text-muted-foreground">
-                              …{t("orgSettings.roles.andMore", { count: affectedMembers.length - 8 })}
+                              …
+                              {t("orgSettings.roles.andMore", {
+                                count: affectedMembers.length - 8,
+                              })}
                             </li>
                           )}
                         </ul>
@@ -1708,7 +2139,9 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
       <div className="space-y-3">
         {PERM_GROUPS.map((group) => (
           <div key={group.labelKey}>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">{t(group.labelKey as any)}</p>
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">
+              {t(group.labelKey as any)}
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {group.keys.map((key) => {
                 const enabled = role.permissions[key];
@@ -1743,21 +2176,21 @@ function RoleCard({ role, canEdit, members, onUpdated, onDeleted, onDuplicate }:
 
 function getTemplatePriorityOptions(t: (k: string) => string) {
   return [
-    { value: "low", label: t('tasks.priorityLow') },
-    { value: "medium", label: t('tasks.priorityMedium') },
-    { value: "high", label: t('tasks.priorityHigh') },
-    { value: "critical", label: t('tasks.priorityCritical') },
+    { value: "low", label: t("tasks.priorityLow") },
+    { value: "medium", label: t("tasks.priorityMedium") },
+    { value: "high", label: t("tasks.priorityHigh") },
+    { value: "critical", label: t("tasks.priorityCritical") },
   ];
 }
 
 function getTemplateCategoryOptions(t: (k: string) => string) {
   return [
-    { value: "incident", label: t('tasks.categoryIncident') },
-    { value: "change", label: t('tasks.categoryChange') },
-    { value: "maintenance", label: t('tasks.categoryMaintenance') },
-    { value: "deployment", label: t('tasks.categoryDeployment') },
-    { value: "support", label: t('tasks.categorySupport') },
-    { value: "other", label: t('tasks.categoryOther') },
+    { value: "incident", label: t("tasks.categoryIncident") },
+    { value: "change", label: t("tasks.categoryChange") },
+    { value: "maintenance", label: t("tasks.categoryMaintenance") },
+    { value: "deployment", label: t("tasks.categoryDeployment") },
+    { value: "support", label: t("tasks.categorySupport") },
+    { value: "other", label: t("tasks.categoryOther") },
   ];
 }
 
@@ -1799,30 +2232,40 @@ function TemplateRow({
     defaultDescription: template.defaultDescription ?? "",
   });
 
-  const { mutate: updateTemplate, isPending: isUpdating } = useUpdateTaskTemplate({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: t("orgSettings.templates.templateUpdated") });
-        setIsEditing(false);
-        onUpdated();
+  const { mutate: updateTemplate, isPending: isUpdating } =
+    useUpdateTaskTemplate({
+      mutation: {
+        onSuccess: () => {
+          toast({ title: t("orgSettings.templates.templateUpdated") });
+          setIsEditing(false);
+          onUpdated();
+        },
+        onError: (err: Error) => {
+          toast({
+            title: t("common.error"),
+            description: err.message,
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
-      },
-    },
-  });
+    });
 
-  const { mutate: deleteTemplate, isPending: isDeleting } = useDeleteTaskTemplate({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: t("orgSettings.templates.templateDeleted") });
-        onDeleted();
+  const { mutate: deleteTemplate, isPending: isDeleting } =
+    useDeleteTaskTemplate({
+      mutation: {
+        onSuccess: () => {
+          toast({ title: t("orgSettings.templates.templateDeleted") });
+          onDeleted();
+        },
+        onError: (err: Error) => {
+          toast({
+            title: t("common.error"),
+            description: err.message,
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
-      },
-    },
-  });
+    });
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -1832,8 +2275,18 @@ function TemplateRow({
       data: {
         name: form.name.trim(),
         defaultTitle: form.defaultTitle.trim(),
-        defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
-        defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
+        defaultPriority: form.defaultPriority as
+          | "low"
+          | "medium"
+          | "high"
+          | "critical",
+        defaultCategory: form.defaultCategory as
+          | "incident"
+          | "change"
+          | "maintenance"
+          | "deployment"
+          | "support"
+          | "other",
         defaultDescription: form.defaultDescription.trim() || null,
       },
     });
@@ -1841,9 +2294,15 @@ function TemplateRow({
 
   if (isEditing) {
     return (
-      <form onSubmit={handleSave} className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+      <form
+        onSubmit={handleSave}
+        className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5"
+      >
         <div className="space-y-1">
-          <Label className="text-xs">{t("orgSettings.templates.templateName")} <span className="text-destructive">*</span></Label>
+          <Label className="text-xs">
+            {t("orgSettings.templates.templateName")}{" "}
+            <span className="text-destructive">*</span>
+          </Label>
           <Input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -1855,10 +2314,14 @@ function TemplateRow({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">{t("orgSettings.templates.defaultTitle")}</Label>
+          <Label className="text-xs">
+            {t("orgSettings.templates.defaultTitle")}
+          </Label>
           <Input
             value={form.defaultTitle}
-            onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, defaultTitle: e.target.value }))
+            }
             placeholder={t("orgSettings.templates.defaultTitlePlaceholder")}
             maxLength={500}
             className="h-8 text-sm"
@@ -1867,10 +2330,14 @@ function TemplateRow({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <Label className="text-xs">{t("orgSettings.templates.defaultPriority")}</Label>
+            <Label className="text-xs">
+              {t("orgSettings.templates.defaultPriority")}
+            </Label>
             <Select
               value={form.defaultPriority}
-              onValueChange={(v) => setForm((f) => ({ ...f, defaultPriority: v }))}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, defaultPriority: v }))
+              }
               disabled={isUpdating}
             >
               <SelectTrigger className="h-8 text-sm">
@@ -1878,16 +2345,22 @@ function TemplateRow({
               </SelectTrigger>
               <SelectContent>
                 {getTemplatePriorityOptions(t).map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">{t("orgSettings.templates.defaultCategory")}</Label>
+            <Label className="text-xs">
+              {t("orgSettings.templates.defaultCategory")}
+            </Label>
             <Select
               value={form.defaultCategory}
-              onValueChange={(v) => setForm((f) => ({ ...f, defaultCategory: v }))}
+              onValueChange={(v) =>
+                setForm((f) => ({ ...f, defaultCategory: v }))
+              }
               disabled={isUpdating}
             >
               <SelectTrigger className="h-8 text-sm">
@@ -1895,28 +2368,43 @@ function TemplateRow({
               </SelectTrigger>
               <SelectContent>
                 {getTemplateCategoryOptions(t).map((o) => (
-                  <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value} className="text-sm">
+                    {o.label}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">{t("orgSettings.templates.defaultDescription")}</Label>
+          <Label className="text-xs">
+            {t("orgSettings.templates.defaultDescription")}
+          </Label>
           <MarkdownEditor
             value={form.defaultDescription}
-            onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
+            onChange={(md) =>
+              setForm((f) => ({ ...f, defaultDescription: md }))
+            }
             placeholder={t("orgSettings.templates.runbookPlaceholder")}
             readOnly={isUpdating}
             className="h-48 border border-input rounded-md overflow-hidden"
           />
         </div>
         <div className="flex gap-2">
-          <Button type="submit" size="sm" disabled={isUpdating || !form.name.trim()}>
+          <Button
+            type="submit"
+            size="sm"
+            disabled={isUpdating || !form.name.trim()}
+          >
             {isUpdating ? t("common.saving") : t("common.save")}
           </Button>
-          <Button type="button" size="sm" variant="ghost" disabled={isUpdating}
-            onClick={() => setIsEditing(false)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={isUpdating}
+            onClick={() => setIsEditing(false)}
+          >
             {t("common.cancel")}
           </Button>
         </div>
@@ -1929,17 +2417,24 @@ function TemplateRow({
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{template.name}</p>
         {template.defaultTitle && (
-          <p className="text-xs text-muted-foreground mt-0.5">Title: {template.defaultTitle}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Title: {template.defaultTitle}
+          </p>
         )}
         <div className="flex items-center gap-2 mt-1">
-          <Badge variant="outline" className="text-[10px] py-0 capitalize">{template.defaultPriority}</Badge>
-          <Badge variant="outline" className="text-[10px] py-0 capitalize">{template.defaultCategory}</Badge>
+          <Badge variant="outline" className="text-[10px] py-0 capitalize">
+            {template.defaultPriority}
+          </Badge>
+          <Badge variant="outline" className="text-[10px] py-0 capitalize">
+            {template.defaultCategory}
+          </Badge>
         </div>
       </div>
       {canEdit && (
         <div className="flex items-center gap-1 shrink-0">
           <Button
-            variant="ghost" size="icon"
+            variant="ghost"
+            size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={() => setIsEditing(true)}
             title={t("orgSettings.templates.editTemplate")}
@@ -1949,7 +2444,8 @@ function TemplateRow({
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
-                variant="ghost" size="icon"
+                variant="ghost"
+                size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 disabled={isDeleting}
                 title={t("orgSettings.templates.deleteTemplateButton")}
@@ -1959,7 +2455,9 @@ function TemplateRow({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("orgSettings.templates.deleteTemplate")} "{template.name}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("orgSettings.templates.deleteTemplate")} "{template.name}"?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   {t("orgSettings.templates.deleteTemplateDesc")}
                 </AlertDialogDescription>
@@ -2001,39 +2499,64 @@ function WorkflowStagesCard() {
   const [deleteTarget, setDeleteTarget] = useState<WorkflowStage | null>(null);
   const [reassignTarget, setReassignTarget] = useState<string>("");
 
-  const { mutate: createStage, isPending: isCreatingStage } = useCreateWorkflowStage({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: t("orgSettings.workflow.stageCreated") });
-        setIsCreating(false);
-        setNewName("");
-        setNewColor("#6b7280");
-        setNewType("open");
-        queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+  const { mutate: createStage, isPending: isCreatingStage } =
+    useCreateWorkflowStage({
+      mutation: {
+        onSuccess: () => {
+          toast({ title: t("orgSettings.workflow.stageCreated") });
+          setIsCreating(false);
+          setNewName("");
+          setNewColor("#6b7280");
+          setNewType("open");
+          queryClient.invalidateQueries({
+            queryKey: getListWorkflowStagesQueryKey(),
+          });
+        },
+        onError: (e: unknown) =>
+          toast({
+            title: t("common.error"),
+            description: String((e as { message?: string })?.message ?? e),
+            variant: "destructive",
+          }),
       },
-      onError: (e: unknown) => toast({ title: t("common.error"), description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
-    },
-  });
+    });
 
-  const { mutate: updateStage, isPending: isUpdatingStage } = useUpdateWorkflowStage({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: t("orgSettings.workflow.stageUpdated") });
-        setEditingId(null);
-        queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+  const { mutate: updateStage, isPending: isUpdatingStage } =
+    useUpdateWorkflowStage({
+      mutation: {
+        onSuccess: () => {
+          toast({ title: t("orgSettings.workflow.stageUpdated") });
+          setEditingId(null);
+          queryClient.invalidateQueries({
+            queryKey: getListWorkflowStagesQueryKey(),
+          });
+        },
+        onError: (e: unknown) =>
+          toast({
+            title: t("common.error"),
+            description: String((e as { message?: string })?.message ?? e),
+            variant: "destructive",
+          }),
       },
-      onError: (e: unknown) => toast({ title: t("common.error"), description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
-    },
-  });
+    });
 
   const { mutate: performDelete, isPending: isDeletingStage } = useMutation({
-    mutationFn: async ({ id, reassignTo }: { id: number; reassignTo?: number }) => {
+    mutationFn: async ({
+      id,
+      reassignTo,
+    }: {
+      id: number;
+      reassignTo?: number;
+    }) => {
       const url = reassignTo
         ? `/api/workflow-stages/${id}?reassignTo=${reassignTo}`
         : `/api/workflow-stages/${id}`;
-      const res = await fetch(url, { method: "DELETE", credentials: "include" });
+      const res = await fetch(url, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as { error?: string };
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? res.statusText);
       }
     },
@@ -2041,15 +2564,30 @@ function WorkflowStagesCard() {
       toast({ title: t("orgSettings.workflow.stageDeleted") });
       setDeleteTarget(null);
       setReassignTarget("");
-      queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() });
+      queryClient.invalidateQueries({
+        queryKey: getListWorkflowStagesQueryKey(),
+      });
     },
-    onError: (e: unknown) => toast({ title: t("common.error"), description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+    onError: (e: unknown) =>
+      toast({
+        title: t("common.error"),
+        description: String((e as { message?: string })?.message ?? e),
+        variant: "destructive",
+      }),
   });
 
   const { mutate: reorderStages } = useReorderWorkflowStages({
     mutation: {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getListWorkflowStagesQueryKey() }),
-      onError: (e: unknown) => toast({ title: t("common.error"), description: String((e as { message?: string })?.message ?? e), variant: "destructive" }),
+      onSuccess: () =>
+        queryClient.invalidateQueries({
+          queryKey: getListWorkflowStagesQueryKey(),
+        }),
+      onError: (e: unknown) =>
+        toast({
+          title: t("common.error"),
+          description: String((e as { message?: string })?.message ?? e),
+          variant: "destructive",
+        }),
     },
   });
 
@@ -2081,20 +2619,29 @@ function WorkflowStagesCard() {
           {tSingular("workflows")} {term("stages")}
         </CardTitle>
         <CardDescription>
-          Define the stages tasks move through in your organization. Each stage has a name, color,
-          and type (open or closed). Closed stages count as resolved for SLA and dashboard metrics.
+          Define the stages tasks move through in your organization. Each stage
+          has a name, color, and type (open or closed). Closed stages count as
+          resolved for SLA and dashboard metrics.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+        {isLoading && (
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
+        )}
 
         {sorted.map((stage, index) => {
           const isEditing = editingId === stage.id;
           const isActive = !stage.archivedAt;
           return (
-            <div key={stage.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-background" : "border-dashed border-border/50 bg-muted/30"}`}>
+            <div
+              key={stage.id}
+              className={`flex items-center gap-3 p-3 rounded-lg border ${isActive ? "border-border bg-background" : "border-dashed border-border/50 bg-muted/30"}`}
+            >
               {/* Color dot */}
-              <div className="w-4 h-4 rounded-full shrink-0 border border-border/50" style={{ backgroundColor: isEditing ? editColor : stage.color }} />
+              <div
+                className="w-4 h-4 rounded-full shrink-0 border border-border/50"
+                style={{ backgroundColor: isEditing ? editColor : stage.color }}
+              />
 
               {isEditing ? (
                 /* ── Edit mode ── */
@@ -2103,11 +2650,13 @@ function WorkflowStagesCard() {
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     className="h-7 w-36 text-sm"
-                    placeholder={t('orgSettings.workflow.stageName')}
+                    placeholder={t("orgSettings.workflow.stageName")}
                     maxLength={50}
                   />
                   <div className="flex items-center gap-1">
-                    <label className="text-xs text-muted-foreground">{t('orgSettings.workflow.color')}</label>
+                    <label className="text-xs text-muted-foreground">
+                      {t("orgSettings.workflow.color")}
+                    </label>
                     <input
                       type="color"
                       value={editColor}
@@ -2115,43 +2664,152 @@ function WorkflowStagesCard() {
                       className="w-7 h-7 rounded cursor-pointer border border-border"
                     />
                   </div>
-                  <Select value={editType} onValueChange={(v) => setEditType(v as "open" | "closed")}>
-                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                  <Select
+                    value={editType}
+                    onValueChange={(v) => setEditType(v as "open" | "closed")}
+                  >
+                    <SelectTrigger className="h-7 w-24 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="open">{t('orgSettings.workflow.open')}</SelectItem>
-                      <SelectItem value="closed">{t('orgSettings.workflow.closed')}</SelectItem>
+                      <SelectItem value="open">
+                        {t("orgSettings.workflow.open")}
+                      </SelectItem>
+                      <SelectItem value="closed">
+                        {t("orgSettings.workflow.closed")}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
-                  <Button size="sm" className="h-7 text-xs" disabled={isUpdatingStage || !editName.trim()} onClick={() => updateStage({ id: stage.id, data: { name: editName.trim(), color: editColor, type: editType } })}>{t("common.save")}</Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingId(null)}>{t("common.cancel")}</Button>
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={isUpdatingStage || !editName.trim()}
+                    onClick={() =>
+                      updateStage({
+                        id: stage.id,
+                        data: {
+                          name: editName.trim(),
+                          color: editColor,
+                          type: editType,
+                        },
+                      })
+                    }
+                  >
+                    {t("common.save")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs"
+                    onClick={() => setEditingId(null)}
+                  >
+                    {t("common.cancel")}
+                  </Button>
                 </div>
               ) : (
                 /* ── View mode ── */
                 <div className="flex-1 flex items-center gap-2 min-w-0">
-                  <span className={`text-sm font-medium truncate ${!isActive ? "text-muted-foreground line-through" : ""}`}>{stage.name}</span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${stage.type === "closed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}>
-                    {stage.type === 'open' ? t('orgSettings.workflow.open') : t('orgSettings.workflow.closed')}
+                  <span
+                    className={`text-sm font-medium truncate ${!isActive ? "text-muted-foreground line-through" : ""}`}
+                  >
+                    {stage.name}
                   </span>
-                  {!isActive && <span className="text-xs text-muted-foreground">{t('orgSettings.workflow.archived')}</span>}
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${stage.type === "closed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"}`}
+                  >
+                    {stage.type === "open"
+                      ? t("orgSettings.workflow.open")
+                      : t("orgSettings.workflow.closed")}
+                  </span>
+                  {!isActive && (
+                    <span className="text-xs text-muted-foreground">
+                      {t("orgSettings.workflow.archived")}
+                    </span>
+                  )}
                 </div>
               )}
 
               {/* Actions */}
               {!isEditing && (
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title={t('orgSettings.workflow.moveUp')} disabled={index === 0} onClick={() => moveStage(index, "up")}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title={t("orgSettings.workflow.moveUp")}
+                    disabled={index === 0}
+                    onClick={() => moveStage(index, "up")}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      className="w-3.5 h-3.5"
+                    >
+                      <path d="M12 19V5M5 12l7-7 7 7" />
+                    </svg>
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title={t('orgSettings.workflow.moveDown')} disabled={index === sorted.length - 1} onClick={() => moveStage(index, "down")}>
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="w-3.5 h-3.5"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title={t("orgSettings.workflow.moveDown")}
+                    disabled={index === sorted.length - 1}
+                    onClick={() => moveStage(index, "down")}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      className="w-3.5 h-3.5"
+                    >
+                      <path d="M12 5v14M5 12l7 7 7-7" />
+                    </svg>
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title={t('orgSettings.workflow.editStage')} onClick={() => startEdit(stage)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title={t("orgSettings.workflow.editStage")}
+                    onClick={() => startEdit(stage)}
+                  >
                     <Pencil className="w-3.5 h-3.5" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" title={isActive ? t('orgSettings.workflow.archive') : t('orgSettings.workflow.unarchive')} onClick={() => updateStage({ id: stage.id, data: { archived: isActive } })}>
-                    {isActive ? <X className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title={
+                      isActive
+                        ? t("orgSettings.workflow.archive")
+                        : t("orgSettings.workflow.unarchive")
+                    }
+                    onClick={() =>
+                      updateStage({
+                        id: stage.id,
+                        data: { archived: isActive },
+                      })
+                    }
+                  >
+                    {isActive ? (
+                      <X className="w-3.5 h-3.5" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10" title={t('orgSettings.workflow.deleteStage')} onClick={() => { setDeleteTarget(stage); setReassignTarget(""); }} disabled={!isActive}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title={t("orgSettings.workflow.deleteStage")}
+                    onClick={() => {
+                      setDeleteTarget(stage);
+                      setReassignTarget("");
+                    }}
+                    disabled={!isActive}
+                  >
                     <Trash2 className="w-3.5 h-3.5" />
                   </Button>
                 </div>
@@ -2166,13 +2824,15 @@ function WorkflowStagesCard() {
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={t('orgSettings.workflow.stageName')}
+              placeholder={t("orgSettings.workflow.stageName")}
               className="h-7 w-36 text-sm"
               maxLength={50}
               autoFocus
             />
             <div className="flex items-center gap-1">
-              <label className="text-xs text-muted-foreground">{t('orgSettings.workflow.color')}</label>
+              <label className="text-xs text-muted-foreground">
+                {t("orgSettings.workflow.color")}
+              </label>
               <input
                 type="color"
                 value={newColor}
@@ -2180,42 +2840,104 @@ function WorkflowStagesCard() {
                 className="w-7 h-7 rounded cursor-pointer border border-border"
               />
             </div>
-            <Select value={newType} onValueChange={(v) => setNewType(v as "open" | "closed")}>
-              <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+            <Select
+              value={newType}
+              onValueChange={(v) => setNewType(v as "open" | "closed")}
+            >
+              <SelectTrigger className="h-7 w-24 text-xs">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
-                <SelectItem value="open">{t('orgSettings.workflow.open')}</SelectItem>
-                <SelectItem value="closed">{t('orgSettings.workflow.closed')}</SelectItem>
+                <SelectItem value="open">
+                  {t("orgSettings.workflow.open")}
+                </SelectItem>
+                <SelectItem value="closed">
+                  {t("orgSettings.workflow.closed")}
+                </SelectItem>
               </SelectContent>
             </Select>
-            <Button size="sm" className="h-7 text-xs" disabled={isCreatingStage || !newName.trim()} onClick={() => createStage({ data: { name: newName.trim(), color: newColor, type: newType } })}>
+            <Button
+              size="sm"
+              className="h-7 text-xs"
+              disabled={isCreatingStage || !newName.trim()}
+              onClick={() =>
+                createStage({
+                  data: {
+                    name: newName.trim(),
+                    color: newColor,
+                    type: newType,
+                  },
+                })
+              }
+            >
               {t("common.add")}
             </Button>
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setIsCreating(false); setNewName(""); }}>{t("common.cancel")}</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => {
+                setIsCreating(false);
+                setNewName("");
+              }}
+            >
+              {t("common.cancel")}
+            </Button>
           </div>
         ) : (
-          <Button variant="outline" size="sm" className="gap-1.5 text-xs mt-1" onClick={() => setIsCreating(true)}>
-            <Plus className="w-3.5 h-3.5" /> {t("orgSettings.workflow.addStage")}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-xs mt-1"
+            onClick={() => setIsCreating(true)}
+          >
+            <Plus className="w-3.5 h-3.5" />{" "}
+            {t("orgSettings.workflow.addStage")}
           </Button>
         )}
 
         {/* Delete confirmation dialog */}
         {deleteTarget && (
-          <AlertDialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setReassignTarget(""); } }}>
+          <AlertDialog
+            open={!!deleteTarget}
+            onOpenChange={(o) => {
+              if (!o) {
+                setDeleteTarget(null);
+                setReassignTarget("");
+              }
+            }}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("orgSettings.workflow.deleteStage")} "{deleteTarget.name}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("orgSettings.workflow.deleteStage")} "{deleteTarget.name}"?
+                </AlertDialogTitle>
                 <AlertDialogDescription className="space-y-2">
                   <span>{t("orgSettings.workflow.deleteStageDesc")}</span>
-                  {activeStages.filter((s) => s.id !== deleteTarget.id).length > 0 && (
+                  {activeStages.filter((s) => s.id !== deleteTarget.id).length >
+                    0 && (
                     <span className="block mt-2">
                       {t("orgSettings.workflow.reassignDesc")}
-                      <Select value={reassignTarget} onValueChange={setReassignTarget}>
-                        <SelectTrigger className="h-8 mt-2"><SelectValue placeholder={t("orgSettings.workflow.reassignTo")} /></SelectTrigger>
+                      <Select
+                        value={reassignTarget}
+                        onValueChange={setReassignTarget}
+                      >
+                        <SelectTrigger className="h-8 mt-2">
+                          <SelectValue
+                            placeholder={t("orgSettings.workflow.reassignTo")}
+                          />
+                        </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">{t("orgSettings.workflow.noReassign")}</SelectItem>
-                          {activeStages.filter((s) => s.id !== deleteTarget.id).map((s) => (
-                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                          ))}
+                          <SelectItem value="">
+                            {t("orgSettings.workflow.noReassign")}
+                          </SelectItem>
+                          {activeStages
+                            .filter((s) => s.id !== deleteTarget.id)
+                            .map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                     </span>
@@ -2227,7 +2949,14 @@ function WorkflowStagesCard() {
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   disabled={isDeletingStage}
-                  onClick={() => performDelete({ id: deleteTarget.id, reassignTo: reassignTarget ? Number(reassignTarget) : undefined })}
+                  onClick={() =>
+                    performDelete({
+                      id: deleteTarget.id,
+                      reassignTo: reassignTarget
+                        ? Number(reassignTarget)
+                        : undefined,
+                    })
+                  }
                 >
                   {isDeletingStage ? t("common.saving") : t("common.delete")}
                 </AlertDialogAction>
@@ -2248,19 +2977,24 @@ function TaskTemplatesCard() {
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<TemplateFormState>(EMPTY_TEMPLATE_FORM);
 
-  const { mutate: createTemplate, isPending: isCreatingReq } = useCreateTaskTemplate({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: t("orgSettings.templates.templateCreated") });
-        setIsCreating(false);
-        setForm(EMPTY_TEMPLATE_FORM);
-        refetch();
+  const { mutate: createTemplate, isPending: isCreatingReq } =
+    useCreateTaskTemplate({
+      mutation: {
+        onSuccess: () => {
+          toast({ title: t("orgSettings.templates.templateCreated") });
+          setIsCreating(false);
+          setForm(EMPTY_TEMPLATE_FORM);
+          refetch();
+        },
+        onError: (err: Error) => {
+          toast({
+            title: t("common.error"),
+            description: err.message,
+            variant: "destructive",
+          });
+        },
       },
-      onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
-      },
-    },
-  });
+    });
 
   function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -2269,8 +3003,18 @@ function TaskTemplatesCard() {
       data: {
         name: form.name.trim(),
         defaultTitle: form.defaultTitle.trim() || undefined,
-        defaultPriority: form.defaultPriority as "low" | "medium" | "high" | "critical",
-        defaultCategory: form.defaultCategory as "incident" | "change" | "maintenance" | "deployment" | "support" | "other",
+        defaultPriority: form.defaultPriority as
+          | "low"
+          | "medium"
+          | "high"
+          | "critical",
+        defaultCategory: form.defaultCategory as
+          | "incident"
+          | "change"
+          | "maintenance"
+          | "deployment"
+          | "support"
+          | "other",
         defaultDescription: form.defaultDescription.trim() || undefined,
       },
     });
@@ -2290,7 +3034,12 @@ function TaskTemplatesCard() {
             </CardDescription>
           </div>
           {!isCreating && (
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => setIsCreating(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 shrink-0"
+              onClick={() => setIsCreating(true)}
+            >
               <Plus className="w-3.5 h-3.5" />
               {t("orgSettings.templates.newTemplate")}
             </Button>
@@ -2299,13 +3048,23 @@ function TaskTemplatesCard() {
       </CardHeader>
       <CardContent>
         {isCreating && (
-          <form onSubmit={handleCreate} className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5 mb-4">
-            <p className="text-sm font-medium">{t("orgSettings.templates.newTemplate")}</p>
+          <form
+            onSubmit={handleCreate}
+            className="space-y-3 p-3 rounded-lg border border-primary/30 bg-primary/5 mb-4"
+          >
+            <p className="text-sm font-medium">
+              {t("orgSettings.templates.newTemplate")}
+            </p>
             <div className="space-y-1">
-              <Label className="text-xs">{t("orgSettings.templates.templateName")} <span className="text-destructive">*</span></Label>
+              <Label className="text-xs">
+                {t("orgSettings.templates.templateName")}{" "}
+                <span className="text-destructive">*</span>
+              </Label>
               <Input
                 value={form.name}
-                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
                 placeholder={t("orgSettings.templates.templateNamePlaceholder")}
                 maxLength={200}
                 autoFocus
@@ -2314,10 +3073,14 @@ function TaskTemplatesCard() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">{t("orgSettings.templates.defaultTitle")}</Label>
+              <Label className="text-xs">
+                {t("orgSettings.templates.defaultTitle")}
+              </Label>
               <Input
                 value={form.defaultTitle}
-                onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, defaultTitle: e.target.value }))
+                }
                 placeholder={t("orgSettings.templates.defaultTitlePlaceholder")}
                 maxLength={500}
                 className="h-8 text-sm"
@@ -2326,10 +3089,14 @@ function TaskTemplatesCard() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">{t("orgSettings.templates.defaultPriority")}</Label>
+                <Label className="text-xs">
+                  {t("orgSettings.templates.defaultPriority")}
+                </Label>
                 <Select
                   value={form.defaultPriority}
-                  onValueChange={(v) => setForm((f) => ({ ...f, defaultPriority: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, defaultPriority: v }))
+                  }
                   disabled={isCreatingReq}
                 >
                   <SelectTrigger className="h-8 text-sm">
@@ -2337,16 +3104,26 @@ function TaskTemplatesCard() {
                   </SelectTrigger>
                   <SelectContent>
                     {getTemplatePriorityOptions(t).map((o) => (
-                      <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                      <SelectItem
+                        key={o.value}
+                        value={o.value}
+                        className="text-sm"
+                      >
+                        {o.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{t("orgSettings.templates.defaultCategory")}</Label>
+                <Label className="text-xs">
+                  {t("orgSettings.templates.defaultCategory")}
+                </Label>
                 <Select
                   value={form.defaultCategory}
-                  onValueChange={(v) => setForm((f) => ({ ...f, defaultCategory: v }))}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, defaultCategory: v }))
+                  }
                   disabled={isCreatingReq}
                 >
                   <SelectTrigger className="h-8 text-sm">
@@ -2354,28 +3131,52 @@ function TaskTemplatesCard() {
                   </SelectTrigger>
                   <SelectContent>
                     {getTemplateCategoryOptions(t).map((o) => (
-                      <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                      <SelectItem
+                        key={o.value}
+                        value={o.value}
+                        className="text-sm"
+                      >
+                        {o.label}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-1">
-              <Label className="text-xs">{t("orgSettings.templates.defaultDescription")}</Label>
+              <Label className="text-xs">
+                {t("orgSettings.templates.defaultDescription")}
+              </Label>
               <MarkdownEditor
                 value={form.defaultDescription}
-                onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
+                onChange={(md) =>
+                  setForm((f) => ({ ...f, defaultDescription: md }))
+                }
                 placeholder={t("orgSettings.templates.runbookPlaceholder")}
                 readOnly={isCreatingReq}
                 className="h-48 border border-input rounded-md overflow-hidden"
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={isCreatingReq || !form.name.trim()}>
-                {isCreatingReq ? t("common.saving") : t("orgSettings.templates.createTemplate")}
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isCreatingReq || !form.name.trim()}
+              >
+                {isCreatingReq
+                  ? t("common.saving")
+                  : t("orgSettings.templates.createTemplate")}
               </Button>
-              <Button type="button" size="sm" variant="ghost" disabled={isCreatingReq}
-                onClick={() => { setIsCreating(false); setForm(EMPTY_TEMPLATE_FORM); }}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                disabled={isCreatingReq}
+                onClick={() => {
+                  setIsCreating(false);
+                  setForm(EMPTY_TEMPLATE_FORM);
+                }}
+              >
                 {t("common.cancel")}
               </Button>
             </div>
@@ -2413,19 +3214,35 @@ function TaskTemplatesCard() {
 // ─── SlaPoliciesCard ──────────────────────────────────────────────────────────
 
 const PRIORITY_LEVEL_VALUES = ["critical", "high", "medium", "low"] as const;
-type PriorityLevel = typeof PRIORITY_LEVEL_VALUES[number];
+type PriorityLevel = (typeof PRIORITY_LEVEL_VALUES)[number];
 
 function getPriorityLevels(t: (k: string) => string) {
   return [
-    { value: "critical" as PriorityLevel, label: t('tasks.priorityCritical'), description: t('orgSettings.sla.criticalDesc') },
-    { value: "high"     as PriorityLevel, label: t('tasks.priorityHigh'),     description: t('orgSettings.sla.highDesc') },
-    { value: "medium"   as PriorityLevel, label: t('tasks.priorityMedium'),   description: t('orgSettings.sla.mediumDesc') },
-    { value: "low"      as PriorityLevel, label: t('tasks.priorityLow'),      description: t('orgSettings.sla.lowDesc') },
+    {
+      value: "critical" as PriorityLevel,
+      label: t("tasks.priorityCritical"),
+      description: t("orgSettings.sla.criticalDesc"),
+    },
+    {
+      value: "high" as PriorityLevel,
+      label: t("tasks.priorityHigh"),
+      description: t("orgSettings.sla.highDesc"),
+    },
+    {
+      value: "medium" as PriorityLevel,
+      label: t("tasks.priorityMedium"),
+      description: t("orgSettings.sla.mediumDesc"),
+    },
+    {
+      value: "low" as PriorityLevel,
+      label: t("tasks.priorityLow"),
+      description: t("orgSettings.sla.lowDesc"),
+    },
   ];
 }
 
 interface PolicyDraft {
-  responseMinutes: string;   // empty string means "no target"
+  responseMinutes: string; // empty string means "no target"
   resolutionMinutes: string;
   warningThresholdPercent: string; // 1–99, empty means use server default (80)
 }
@@ -2447,20 +3264,32 @@ function SlaPoliciesCard() {
   const { data: policies, isLoading, refetch } = useGetSLAPolicies();
 
   // Build draft state, initialized from server data once loaded
-  const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(null);
+  const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(
+    null,
+  );
   const [editing, setEditing] = useState(false);
 
   // Sync draft when policies load
-  const buildDraft = (serverPolicies: SlaPolicy[]): Record<PriorityLevel, PolicyDraft> => {
-    const map = new Map(serverPolicies.map((p) => [p.priority as PriorityLevel, p]));
+  const buildDraft = (
+    serverPolicies: SlaPolicy[],
+  ): Record<PriorityLevel, PolicyDraft> => {
+    const map = new Map(
+      serverPolicies.map((p) => [p.priority as PriorityLevel, p]),
+    );
     return Object.fromEntries(
       priorityLevels.map(({ value }) => {
         const p = map.get(value);
-        return [value, {
-          responseMinutes:         minutesToDisplay(p?.responseMinutes),
-          resolutionMinutes:       minutesToDisplay(p?.resolutionMinutes),
-          warningThresholdPercent: p?.warningThresholdPercent != null ? String(p.warningThresholdPercent) : "",
-        }];
+        return [
+          value,
+          {
+            responseMinutes: minutesToDisplay(p?.responseMinutes),
+            resolutionMinutes: minutesToDisplay(p?.resolutionMinutes),
+            warningThresholdPercent:
+              p?.warningThresholdPercent != null
+                ? String(p.warningThresholdPercent)
+                : "",
+          },
+        ];
       }),
     ) as Record<PriorityLevel, PolicyDraft>;
   };
@@ -2473,7 +3302,11 @@ function SlaPoliciesCard() {
         setEditing(false);
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2490,21 +3323,31 @@ function SlaPoliciesCard() {
 
   function handleSave() {
     if (!draft) return;
-    const entries = priorityLevels.map(({ value }) => {
-      const w = parseInt(draft[value].warningThresholdPercent, 10);
-      return {
-        priority: value as "low" | "medium" | "high" | "critical",
-        responseMinutes:   displayToMinutes(draft[value].responseMinutes),
-        resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
-        ...(w >= 1 && w <= 99 ? { warningThresholdPercent: w } : {}),
-      };
-    }).filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
+    const entries = priorityLevels
+      .map(({ value }) => {
+        const w = parseInt(draft[value].warningThresholdPercent, 10);
+        return {
+          priority: value as "low" | "medium" | "high" | "critical",
+          responseMinutes: displayToMinutes(draft[value].responseMinutes),
+          resolutionMinutes: displayToMinutes(draft[value].resolutionMinutes),
+          ...(w >= 1 && w <= 99 ? { warningThresholdPercent: w } : {}),
+        };
+      })
+      .filter((e) => e.responseMinutes != null || e.resolutionMinutes != null);
 
     upsertPolicies({ data: { policies: entries } });
   }
 
-  function updateDraft(priority: PriorityLevel, field: keyof PolicyDraft, value: string) {
-    setDraft((prev) => prev ? { ...prev, [priority]: { ...prev[priority], [field]: value } } : prev);
+  function updateDraft(
+    priority: PriorityLevel,
+    field: keyof PolicyDraft,
+    value: string,
+  ) {
+    setDraft((prev) =>
+      prev
+        ? { ...prev, [priority]: { ...prev[priority], [field]: value } }
+        : prev,
+    );
   }
 
   return (
@@ -2521,7 +3364,12 @@ function SlaPoliciesCard() {
             </CardDescription>
           </div>
           {!editing && (
-            <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={startEditing}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 shrink-0"
+              onClick={startEditing}
+            >
               <Pencil className="w-3.5 h-3.5" />
               {t("common.edit")}
             </Button>
@@ -2532,26 +3380,34 @@ function SlaPoliciesCard() {
         {isLoading ? (
           <div className="space-y-2">
             {priorityLevels.map(({ value }) => (
-              <div key={value} className="h-12 rounded-md bg-muted animate-pulse" />
+              <div
+                key={value}
+                className="h-12 rounded-md bg-muted animate-pulse"
+              />
             ))}
           </div>
         ) : editing && draft ? (
           <div className="space-y-3">
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
-              <span>{t('common.priority')}</span>
-              <span>{t('projects.responseMin', 'Response (min)')}</span>
-              <span>{t('projects.resolutionMin', 'Resolution (min)')}</span>
-              <span>{t('projects.warningAt', 'Warning at (%)')}</span>
+              <span>{t("common.priority")}</span>
+              <span>{t("projects.responseMin", "Response (min)")}</span>
+              <span>{t("projects.resolutionMin", "Resolution (min)")}</span>
+              <span>{t("projects.warningAt", "Warning at (%)")}</span>
             </div>
             {priorityLevels.map(({ value, label }) => (
-              <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center">
+              <div
+                key={value}
+                className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center"
+              >
                 <span className="text-sm font-medium">{label}</span>
                 <Input
                   type="number"
                   min={1}
                   placeholder={t("orgSettings.sla.noTargetPlaceholder")}
                   value={draft[value].responseMinutes}
-                  onChange={(e) => updateDraft(value, "responseMinutes", e.target.value)}
+                  onChange={(e) =>
+                    updateDraft(value, "responseMinutes", e.target.value)
+                  }
                   className="h-8 text-sm"
                 />
                 <Input
@@ -2559,7 +3415,9 @@ function SlaPoliciesCard() {
                   min={1}
                   placeholder={t("orgSettings.sla.noTargetPlaceholder")}
                   value={draft[value].resolutionMinutes}
-                  onChange={(e) => updateDraft(value, "resolutionMinutes", e.target.value)}
+                  onChange={(e) =>
+                    updateDraft(value, "resolutionMinutes", e.target.value)
+                  }
                   className="h-8 text-sm"
                 />
                 <Input
@@ -2568,16 +3426,29 @@ function SlaPoliciesCard() {
                   max={99}
                   placeholder="80"
                   value={draft[value].warningThresholdPercent}
-                  onChange={(e) => updateDraft(value, "warningThresholdPercent", e.target.value)}
+                  onChange={(e) =>
+                    updateDraft(
+                      value,
+                      "warningThresholdPercent",
+                      e.target.value,
+                    )
+                  }
                   className="h-8 text-sm"
                 />
               </div>
             ))}
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? t("common.saving") : t("orgSettings.sla.savePolicies")}
+                {isSaving
+                  ? t("common.saving")
+                  : t("orgSettings.sla.savePolicies")}
               </Button>
-              <Button size="sm" variant="ghost" onClick={cancelEditing} disabled={isSaving}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={cancelEditing}
+                disabled={isSaving}
+              >
                 {t("common.cancel")}
               </Button>
             </div>
@@ -2586,31 +3457,48 @@ function SlaPoliciesCard() {
           <div className="space-y-2">
             {priorityLevels.map(({ value, label, description }) => {
               const p = policies?.find((pol) => pol.priority === value);
-              const hasPolicy = p && (p.responseMinutes != null || p.resolutionMinutes != null);
+              const hasPolicy =
+                p && (p.responseMinutes != null || p.resolutionMinutes != null);
               return (
-                <div key={value} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                <div
+                  key={value}
+                  className="flex items-center gap-3 py-2 border-b border-border last:border-0"
+                >
                   <div className="w-24 shrink-0">
                     <span className="text-sm font-medium">{label}</span>
-                    <p className="text-[10px] text-muted-foreground">{description}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {description}
+                    </p>
                   </div>
                   {hasPolicy ? (
                     <div className="flex gap-4 text-sm flex-1">
                       {p.responseMinutes != null && (
                         <span className="text-muted-foreground">
-                          Response: <strong className="text-foreground">{p.responseMinutes}m</strong>
+                          Response:{" "}
+                          <strong className="text-foreground">
+                            {p.responseMinutes}m
+                          </strong>
                         </span>
                       )}
                       {p.resolutionMinutes != null && (
                         <span className="text-muted-foreground">
-                          Resolution: <strong className="text-foreground">{p.resolutionMinutes}m</strong>
+                          Resolution:{" "}
+                          <strong className="text-foreground">
+                            {p.resolutionMinutes}m
+                          </strong>
                         </span>
                       )}
                       <span className="text-muted-foreground">
-                        Warning at: <strong className="text-foreground">{p.warningThresholdPercent ?? 80}%</strong>
+                        Warning at:{" "}
+                        <strong className="text-foreground">
+                          {p.warningThresholdPercent ?? 80}%
+                        </strong>
                       </span>
                     </div>
                   ) : (
-                    <span className="text-sm text-muted-foreground flex-1">{t("orgSettings.sla.noTarget")}</span>
+                    <span className="text-sm text-muted-foreground flex-1">
+                      {t("orgSettings.sla.noTarget")}
+                    </span>
                   )}
                 </div>
               );
@@ -2627,7 +3515,8 @@ function SlaPoliciesCard() {
 export default function OrgSettings() {
   const { t: term, tSingular } = useTerminology();
   const { t } = useTranslation();
-  const { org, isAdmin, isOwner, hasPermission, refetchOrg, isFeatureEnabled } = useOrgContext();
+  const { org, isAdmin, isOwner, hasPermission, refetchOrg, isFeatureEnabled } =
+    useOrgContext();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -2637,7 +3526,9 @@ export default function OrgSettings() {
   const [isInstanceAdmin, setIsInstanceAdmin] = useState(false);
   useEffect(() => {
     fetch(`${BASE}/api/admin/me`, { credentials: "include" })
-      .then((r) => { if (r.ok) setIsInstanceAdmin(true); })
+      .then((r) => {
+        if (r.ok) setIsInstanceAdmin(true);
+      })
       .catch(() => {});
   }, []);
 
@@ -2645,28 +3536,30 @@ export default function OrgSettings() {
   const searchString = useSearch();
   const [, setLocation] = useLocation();
 
-  const showBrandingTab    = isFeatureEnabled("branding")       && hasPermission("manage_org_settings");
-  const showStagesTab      = isFeatureEnabled("custom_statuses") && isAdmin;
-  const showTemplatesTab   = isAdmin;
-  const showSlaTab         = isFeatureEnabled("sla_tracking")   && isAdmin;
-  const showCustomFieldsTab = isFeatureEnabled("custom_fields")  && isAdmin;
-  const showApiKeysTab     = isFeatureEnabled("api_keys")       && isOwner;
-  const showExportTab      = isFeatureEnabled("data_export")    && isAdmin;
+  const showBrandingTab =
+    isFeatureEnabled("branding") && hasPermission("manage_org_settings");
+  const showStagesTab = isFeatureEnabled("custom_statuses") && isAdmin;
+  const showTemplatesTab = isAdmin;
+  const showSlaTab = isFeatureEnabled("sla_tracking") && isAdmin;
+  const showCustomFieldsTab = isFeatureEnabled("custom_fields") && isAdmin;
+  const showApiKeysTab = isFeatureEnabled("api_keys") && isOwner;
+  const showExportTab = isFeatureEnabled("data_export") && isAdmin;
 
   const tabVisible: Record<string, boolean> = {
-    general:      true,
-    members:      true,
-    roles:        true,
-    branding:     showBrandingTab,
-    stages:       showStagesTab,
-    templates:    showTemplatesTab,
-    sla:          showSlaTab,
+    general: true,
+    members: true,
+    roles: true,
+    branding: showBrandingTab,
+    stages: showStagesTab,
+    templates: showTemplatesTab,
+    sla: showSlaTab,
     customFields: showCustomFieldsTab,
-    apiKeys:      showApiKeysTab,
-    export:       showExportTab,
+    apiKeys: showApiKeysTab,
+    export: showExportTab,
   };
 
-  const requestedTab = new URLSearchParams(searchString).get("tab") ?? "general";
+  const requestedTab =
+    new URLSearchParams(searchString).get("tab") ?? "general";
   const activeTab = tabVisible[requestedTab] ? requestedTab : "general";
 
   function handleTabChange(tab: string) {
@@ -2676,7 +3569,8 @@ export default function OrgSettings() {
   const [inviteValue, setInviteValue] = useState("");
   const [isCreatingRole, setIsCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
-  const [newRolePermissions, setNewRolePermissions] = useState<RolePermissions | null>(null);
+  const [newRolePermissions, setNewRolePermissions] =
+    useState<RolePermissions | null>(null);
   const [duplicateSourceName, setDuplicateSourceName] = useState("");
 
   // ── Rename state ────────────────────────────────────────────────────────────
@@ -2691,7 +3585,11 @@ export default function OrgSettings() {
         setIsEditingName(false);
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2699,19 +3597,27 @@ export default function OrgSettings() {
   function handleRenameSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = nameValue.trim();
-    if (!trimmed || trimmed === org?.name) { setIsEditingName(false); return; }
+    if (!trimmed || trimmed === org?.name) {
+      setIsEditingName(false);
+      return;
+    }
     renameOrg({ data: { name: trimmed } });
   }
 
   // ── Members ─────────────────────────────────────────────────────────────────
   const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
-  const { data: invitations = [], refetch: refetchInvitations } = useListOrgInvitations();
+  const { data: invitations = [], refetch: refetchInvitations } =
+    useListOrgInvitations();
   const { data: roles = [], refetch: refetchRoles } = useListRoles();
 
   const canManageMembers = hasPermission("manage_members");
 
   // Pending ownership transfer awaiting confirmation: { userId, roleId, name }
-  const [pendingTransfer, setPendingTransfer] = useState<{ userId: string; roleId: string; name: string } | null>(null);
+  const [pendingTransfer, setPendingTransfer] = useState<{
+    userId: string;
+    roleId: string;
+    name: string;
+  } | null>(null);
 
   const { mutate: updateMemberRole } = useUpdateOrgMemberRole({
     mutation: {
@@ -2721,7 +3627,11 @@ export default function OrgSettings() {
         refetchOrg();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2733,7 +3643,11 @@ export default function OrgSettings() {
         refetchMembers();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2745,7 +3659,11 @@ export default function OrgSettings() {
         refetchInvitations();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2757,7 +3675,9 @@ export default function OrgSettings() {
         const isEmail = inviteValue.trim().includes("@");
         navigator.clipboard.writeText(link).catch(() => {});
         toast({
-          title: isEmail ? t("orgSettings.members.invitationSent") : t("orgSettings.members.inviteLinkCopied"),
+          title: isEmail
+            ? t("orgSettings.members.invitationSent")
+            : t("orgSettings.members.inviteLinkCopied"),
           description: isEmail
             ? t("orgSettings.members.invitationSentDesc")
             : t("orgSettings.members.inviteLinkDesc"),
@@ -2766,7 +3686,11 @@ export default function OrgSettings() {
         refetchInvitations();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2778,7 +3702,11 @@ export default function OrgSettings() {
         refetchOrg();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2795,7 +3723,11 @@ export default function OrgSettings() {
         refetchRoles();
       },
       onError: (err: Error) => {
-        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
+        toast({
+          title: t("common.error"),
+          description: err.message,
+          variant: "destructive",
+        });
       },
     },
   });
@@ -2817,12 +3749,18 @@ export default function OrgSettings() {
     // newRolePermissions is always set when the form is open (BLANK_PERMISSIONS
     // for a fresh role, cloned permissions for a duplicate).
     createRole({
-      data: { name: trimmed, permissions: newRolePermissions ?? BLANK_PERMISSIONS },
+      data: {
+        name: trimmed,
+        permissions: newRolePermissions ?? BLANK_PERMISSIONS,
+      },
     });
   }
 
   function handleNewRolePermToggle(key: PermKey, value: boolean) {
-    setNewRolePermissions((prev) => ({ ...(prev ?? BLANK_PERMISSIONS), [key]: value }));
+    setNewRolePermissions((prev) => ({
+      ...(prev ?? BLANK_PERMISSIONS),
+      [key]: value,
+    }));
   }
 
   function handleDuplicate(source: Role) {
@@ -2840,7 +3778,8 @@ export default function OrgSettings() {
   }
 
   function getDisplayName(m: OrgMemberInfo) {
-    if (m.firstName || m.lastName) return [m.firstName, m.lastName].filter(Boolean).join(" ");
+    if (m.firstName || m.lastName)
+      return [m.firstName, m.lastName].filter(Boolean).join(" ");
     return m.email ?? m.userId;
   }
 
@@ -2856,24 +3795,54 @@ export default function OrgSettings() {
           {isOwner
             ? t("orgSettings.descOwner")
             : isAdmin
-            ? t("orgSettings.descAdmin")
-            : t("orgSettings.descMember")}
+              ? t("orgSettings.descAdmin")
+              : t("orgSettings.descMember")}
         </p>
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {/* Tab bar — scrolls horizontally on small screens */}
         <TabsList className="flex h-auto flex-wrap gap-1 overflow-x-auto">
-          <TabsTrigger value="general">{t("orgSettings.tabs.general")}</TabsTrigger>
-          <TabsTrigger value="members">{t("orgSettings.tabs.members")}</TabsTrigger>
+          <TabsTrigger value="general">
+            {t("orgSettings.tabs.general")}
+          </TabsTrigger>
+          <TabsTrigger value="members">
+            {t("orgSettings.tabs.members")}
+          </TabsTrigger>
           <TabsTrigger value="roles">{t("orgSettings.tabs.roles")}</TabsTrigger>
-          {showBrandingTab    && <TabsTrigger value="branding">{t("orgSettings.tabs.branding")}</TabsTrigger>}
-          {showStagesTab      && <TabsTrigger value="stages">{t("orgSettings.tabs.stages")}</TabsTrigger>}
-          {showTemplatesTab   && <TabsTrigger value="templates">{t("orgSettings.tabs.templates")}</TabsTrigger>}
-          {showSlaTab         && <TabsTrigger value="sla">{t("orgSettings.tabs.sla")}</TabsTrigger>}
-          {showCustomFieldsTab && <TabsTrigger value="customFields">{t("orgSettings.tabs.customFields")}</TabsTrigger>}
-          {showApiKeysTab     && <TabsTrigger value="apiKeys">{t("orgSettings.tabs.apiKeys")}</TabsTrigger>}
-          {showExportTab      && <TabsTrigger value="export">{t("orgSettings.tabs.export")}</TabsTrigger>}
+          {showBrandingTab && (
+            <TabsTrigger value="branding">
+              {t("orgSettings.tabs.branding")}
+            </TabsTrigger>
+          )}
+          {showStagesTab && (
+            <TabsTrigger value="stages">
+              {t("orgSettings.tabs.stages")}
+            </TabsTrigger>
+          )}
+          {showTemplatesTab && (
+            <TabsTrigger value="templates">
+              {t("orgSettings.tabs.templates")}
+            </TabsTrigger>
+          )}
+          {showSlaTab && (
+            <TabsTrigger value="sla">{t("orgSettings.tabs.sla")}</TabsTrigger>
+          )}
+          {showCustomFieldsTab && (
+            <TabsTrigger value="customFields">
+              {t("orgSettings.tabs.customFields")}
+            </TabsTrigger>
+          )}
+          {showApiKeysTab && (
+            <TabsTrigger value="apiKeys">
+              {t("orgSettings.tabs.apiKeys")}
+            </TabsTrigger>
+          )}
+          {showExportTab && (
+            <TabsTrigger value="export">
+              {t("orgSettings.tabs.export")}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* ── General ──────────────────────────────────────────────────────── */}
@@ -2881,7 +3850,9 @@ export default function OrgSettings() {
           {/* Org Info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">{t("orgSettings.orgInfo")}</CardTitle>
+              <CardTitle className="text-base">
+                {t("orgSettings.orgInfo")}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-3">
@@ -2890,21 +3861,41 @@ export default function OrgSettings() {
                 </div>
                 <div className="flex-1 min-w-0">
                   {isOwner && isEditingName ? (
-                    <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
+                    <form
+                      onSubmit={handleRenameSubmit}
+                      className="flex items-center gap-2"
+                    >
                       <Input
                         value={nameValue}
                         onChange={(e) => setNameValue(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Escape") { setNameValue(org?.name ?? ""); setIsEditingName(false); } }}
-                        autoFocus maxLength={200}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") {
+                            setNameValue(org?.name ?? "");
+                            setIsEditingName(false);
+                          }
+                        }}
+                        autoFocus
+                        maxLength={200}
                         className="h-8 text-sm font-semibold"
                         disabled={isRenaming}
                       />
-                      <Button type="submit" size="sm" disabled={isRenaming || !nameValue.trim()}>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        disabled={isRenaming || !nameValue.trim()}
+                      >
                         {isRenaming ? t("common.saving") : t("common.save")}
                       </Button>
-                      <Button type="button" size="sm" variant="ghost"
-                        onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(false); }}
-                        disabled={isRenaming}>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setNameValue(org?.name ?? "");
+                          setIsEditingName(false);
+                        }}
+                        disabled={isRenaming}
+                      >
                         {t("common.cancel")}
                       </Button>
                     </form>
@@ -2912,26 +3903,28 @@ export default function OrgSettings() {
                     <div className="flex items-center gap-2">
                       <p className="font-semibold truncate">{org?.name}</p>
                       {isOwner && (
-                        <Button variant="ghost" size="icon"
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
-                          onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}
-                          title={t("orgSettings.general.renameTitle")}>
+                          onClick={() => {
+                            setNameValue(org?.name ?? "");
+                            setIsEditingName(true);
+                          }}
+                          title={t("orgSettings.general.renameTitle")}
+                        >
                           <Pencil className="w-3.5 h-3.5" />
                         </Button>
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{org?.id}</p>
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                    {org?.id}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Terminology */}
-          <TerminologyCard />
-
-          {/* Reaction Palette */}
-          <ReactionPaletteCard />
 
           {/* Instance Admin Console */}
           {isInstanceAdmin && (
@@ -2948,7 +3941,11 @@ export default function OrgSettings() {
                     </CardDescription>
                   </div>
                   <a href={`${BASE}/admin`} target="_blank" rel="noreferrer">
-                    <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 shrink-0"
+                    >
                       <ExternalLink className="w-3.5 h-3.5" />
                       {t("orgSettings.adminConsole.openConsole")}
                     </Button>
@@ -2961,7 +3958,9 @@ export default function OrgSettings() {
           {/* Danger Zone */}
           <Card className="border-destructive/30">
             <CardHeader>
-              <CardTitle className="text-base text-destructive">{t("orgSettings.dangerZone")}</CardTitle>
+              <CardTitle className="text-base text-destructive">
+                {t("orgSettings.dangerZone")}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <LeaveOrgSection
@@ -2979,12 +3978,20 @@ export default function OrgSettings() {
         <TabsContent value="members" className="space-y-6 mt-6">
           {/* Ownership transfer confirmation dialog (overlay — rendered here so it's
               available whenever the Members tab is mounted) */}
-          <AlertDialog open={pendingTransfer !== null} onOpenChange={(open) => { if (!open) setPendingTransfer(null); }}>
+          <AlertDialog
+            open={pendingTransfer !== null}
+            onOpenChange={(open) => {
+              if (!open) setPendingTransfer(null);
+            }}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>{t("orgSettings.members.transferOwnership")}</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {t("orgSettings.members.transferOwnership")}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  {pendingTransfer?.name} {t("orgSettings.members.transferOwnershipDesc")}
+                  {pendingTransfer?.name}{" "}
+                  {t("orgSettings.members.transferOwnershipDesc")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -2993,7 +4000,10 @@ export default function OrgSettings() {
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => {
                     if (pendingTransfer) {
-                      updateMemberRole({ userId: pendingTransfer.userId, data: { roleId: pendingTransfer.roleId } });
+                      updateMemberRole({
+                        userId: pendingTransfer.userId,
+                        data: { roleId: pendingTransfer.roleId },
+                      });
                     }
                     setPendingTransfer(null);
                   }}
@@ -3008,13 +4018,21 @@ export default function OrgSettings() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{term("members")}</CardTitle>
-              <CardDescription>{members.length} {members.length !== 1 ? term("members").toLowerCase() : tSingular("members").toLowerCase()}</CardDescription>
+              <CardDescription>
+                {members.length}{" "}
+                {members.length !== 1
+                  ? term("members").toLowerCase()
+                  : tSingular("members").toLowerCase()}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               {members.map((m) => {
                 const isMe = m.userId === user?.id;
                 return (
-                  <div key={m.userId} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                  <div
+                    key={m.userId}
+                    className="flex items-center gap-3 py-2 border-b border-border last:border-0"
+                  >
                     {/* Avatar */}
                     <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-primary">
                       {m.firstName?.[0] ?? m.email?.[0] ?? "?"}
@@ -3022,21 +4040,40 @@ export default function OrgSettings() {
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm truncate">{getDisplayName(m)}</span>
-                        {isMe && <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.youBadge")}</Badge>}
+                        <span className="font-medium text-sm truncate">
+                          {getDisplayName(m)}
+                        </span>
+                        {isMe && (
+                          <Badge variant="outline" className="text-xs shrink-0">
+                            {t("orgSettings.members.youBadge")}
+                          </Badge>
+                        )}
                       </div>
-                      {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
+                      {m.email && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {m.email}
+                        </p>
+                      )}
                     </div>
                     {/* Role badge or selector */}
-                    {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") ? (
+                    {canManageMembers &&
+                    !isMe &&
+                    (isOwner || m.roleName !== "Owner") ? (
                       <Select
                         value={m.roleId}
                         onValueChange={(roleId) => {
                           const selected = roles.find((r) => r.id === roleId);
                           if (selected?.isOwner) {
-                            setPendingTransfer({ userId: m.userId, roleId, name: getDisplayName(m) });
+                            setPendingTransfer({
+                              userId: m.userId,
+                              roleId,
+                              name: getDisplayName(m),
+                            });
                           } else {
-                            updateMemberRole({ userId: m.userId, data: { roleId } });
+                            updateMemberRole({
+                              userId: m.userId,
+                              data: { roleId },
+                            });
                           }
                         }}
                       >
@@ -3047,45 +4084,68 @@ export default function OrgSettings() {
                           {roles
                             .filter((r) => isOwner || !r.isOwner)
                             .map((r) => (
-                              <SelectItem key={r.id} value={r.id} className="text-xs">
+                              <SelectItem
+                                key={r.id}
+                                value={r.id}
+                                className="text-xs"
+                              >
                                 {r.name}
                               </SelectItem>
                             ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge variant={roleBadgeVariant(m.roleName)} className="text-xs shrink-0 gap-1">
-                        {m.roleName === "Owner" && <Crown className="w-3 h-3" />}
+                      <Badge
+                        variant={roleBadgeVariant(m.roleName)}
+                        className="text-xs shrink-0 gap-1"
+                      >
+                        {m.roleName === "Owner" && (
+                          <Crown className="w-3 h-3" />
+                        )}
                         {m.roleName}
                       </Badge>
                     )}
                     {/* Remove */}
-                    {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") && (
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title={t("orgSettings.members.removeMember")}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>{t("orgSettings.members.removeMember")}</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              {getDisplayName(m)} {t("orgSettings.members.removeMemberDesc")}
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                            <AlertDialogAction
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              onClick={() => removeMember({ userId: m.userId })}
+                    {canManageMembers &&
+                      !isMe &&
+                      (isOwner || m.roleName !== "Owner") && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title={t("orgSettings.members.removeMember")}
                             >
-                              {t("orgSettings.members.removeMember")}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    )}
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                {t("orgSettings.members.removeMember")}
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                {getDisplayName(m)}{" "}
+                                {t("orgSettings.members.removeMemberDesc")}
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>
+                                {t("common.cancel")}
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() =>
+                                  removeMember({ userId: m.userId })
+                                }
+                              >
+                                {t("orgSettings.members.removeMember")}
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
                   </div>
                 );
               })}
@@ -3100,46 +4160,81 @@ export default function OrgSettings() {
                   <Clock className="w-4 h-4" />
                   {t("orgSettings.members.pendingInvitations")}
                 </CardTitle>
-                <CardDescription>{invitations.length} {t("orgSettings.members.awaitingResponse")}</CardDescription>
+                <CardDescription>
+                  {invitations.length}{" "}
+                  {t("orgSettings.members.awaitingResponse")}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-2">
                 {invitations.map((inv) => {
-                  const recipient = inv.invitedEmail ?? inv.invitedUserId ?? "Unknown";
+                  const recipient =
+                    inv.invitedEmail ?? inv.invitedUserId ?? "Unknown";
                   const expiresAt = new Date(inv.expiresAt);
-                  const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000));
+                  const daysLeft = Math.max(
+                    0,
+                    Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000),
+                  );
                   return (
-                    <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                    <div
+                      key={inv.id}
+                      className="flex items-center gap-3 py-2 border-b border-border last:border-0"
+                    >
                       <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-muted-foreground">
                         <Mail className="w-4 h-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{recipient}</p>
-                        <p className="text-xs text-muted-foreground">{t("orgSettings.members.expiresIn")} {daysLeft} {t("common.days")}</p>
+                        <p className="text-sm font-medium truncate">
+                          {recipient}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t("orgSettings.members.expiresIn")} {daysLeft}{" "}
+                          {t("common.days")}
+                        </p>
                       </div>
-                      <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.invitePending")}</Badge>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {t("orgSettings.members.invitePending")}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
                         title={t("orgSettings.members.copyInviteTitle")}
                         onClick={() => {
-                          navigator.clipboard.writeText(buildInviteLink(inv.token)).catch(() => {});
-                          toast({ title: t("orgSettings.members.inviteLinkCopied") });
-                        }}>
+                          navigator.clipboard
+                            .writeText(buildInviteLink(inv.token))
+                            .catch(() => {});
+                          toast({
+                            title: t("orgSettings.members.inviteLinkCopied"),
+                          });
+                        }}
+                      >
                         <Link2 className="w-4 h-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" title={t("orgSettings.members.cancelInviteTitle")}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                            title={t("orgSettings.members.cancelInviteTitle")}
+                          >
                             <X className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>{t("orgSettings.members.cancelInvitation")}</AlertDialogTitle>
+                            <AlertDialogTitle>
+                              {t("orgSettings.members.cancelInvitation")}
+                            </AlertDialogTitle>
                             <AlertDialogDescription>
-                              {t("orgSettings.members.cancelInvitationDesc")} <strong>{recipient}</strong>.
+                              {t("orgSettings.members.cancelInvitationDesc")}{" "}
+                              <strong>{recipient}</strong>.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
-                            <AlertDialogCancel>{t("orgSettings.members.keepInvitation")}</AlertDialogCancel>
+                            <AlertDialogCancel>
+                              {t("orgSettings.members.keepInvitation")}
+                            </AlertDialogCancel>
                             <AlertDialogAction
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               onClick={() => cancelInvitation({ id: inv.id })}
@@ -3162,7 +4257,9 @@ export default function OrgSettings() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <UserPlus className="w-4 h-4" />
-                  {t("orgSettings.members.inviteMember", { member: tSingular("members") })}
+                  {t("orgSettings.members.inviteMember", {
+                    member: tSingular("members"),
+                  })}
                 </CardTitle>
                 <CardDescription>
                   {t("orgSettings.members.inviteMemberDesc")}
@@ -3178,9 +4275,15 @@ export default function OrgSettings() {
                       disabled={isInviting}
                     />
                   </div>
-                  <Button type="submit" disabled={isInviting || !inviteValue.trim()} className="gap-2">
+                  <Button
+                    type="submit"
+                    disabled={isInviting || !inviteValue.trim()}
+                    className="gap-2"
+                  >
                     <Mail className="w-4 h-4" />
-                    {isInviting ? t("common.saving") : t("orgSettings.members.sendInvite")}
+                    {isInviting
+                      ? t("common.saving")
+                      : t("orgSettings.members.sendInvite")}
                   </Button>
                 </form>
               </CardContent>
@@ -3196,7 +4299,9 @@ export default function OrgSettings() {
                 <div>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Settings2 className="w-4 h-4" />
-                    {t("orgSettings.roles.title", { member: tSingular("members") })}
+                    {t("orgSettings.roles.title", {
+                      member: tSingular("members"),
+                    })}
                   </CardTitle>
                   <CardDescription className="mt-1">
                     {isOwner
@@ -3205,18 +4310,32 @@ export default function OrgSettings() {
                   </CardDescription>
                 </div>
                 {isOwner && !isCreatingRole && (
-                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(BLANK_PERMISSIONS); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 shrink-0"
+                    onClick={() => {
+                      setNewRolePermissions(BLANK_PERMISSIONS);
+                      setDuplicateSourceName("");
+                      setIsCreatingRole(true);
+                    }}
+                  >
                     <Plus className="w-3.5 h-3.5" />
                     {t("orgSettings.roles.newRole")}
                   </Button>
                 )}
               </div>
               {isOwner && isCreatingRole && (
-                <form onSubmit={handleCreateRole} className="mt-4 rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+                <form
+                  onSubmit={handleCreateRole}
+                  className="mt-4 rounded-lg border border-border bg-muted/30 p-4 space-y-4"
+                >
                   {duplicateSourceName && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                       <Copy className="w-3 h-3 shrink-0" />
-                      {t("orgSettings.roles.copiedPermissionsFrom", { name: duplicateSourceName })}
+                      {t("orgSettings.roles.copiedPermissionsFrom", {
+                        name: duplicateSourceName,
+                      })}
                     </p>
                   )}
                   <div className="flex gap-2">
@@ -3229,24 +4348,39 @@ export default function OrgSettings() {
                       disabled={isCreatingRoleReq}
                       className="h-8 text-sm flex-1"
                     />
-                    <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
-                      {isCreatingRoleReq ? t("common.saving") : t("orgSettings.roles.createRole")}
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={isCreatingRoleReq || !newRoleName.trim()}
+                    >
+                      {isCreatingRoleReq
+                        ? t("common.saving")
+                        : t("orgSettings.roles.createRole")}
                     </Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={cancelCreateRole}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={cancelCreateRole}
+                    >
                       {t("common.cancel")}
                     </Button>
                   </div>
                   <div className="space-y-3">
                     {PERM_GROUPS.map((group) => (
                       <div key={group.labelKey}>
-                        <p className="text-xs font-medium text-muted-foreground mb-1.5">{t(group.labelKey as any)}</p>
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+                          {t(group.labelKey as any)}
+                        </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                           {group.keys.map((key) => (
                             <div key={key} className="flex items-center gap-2">
                               <Switch
                                 id={`new-role-${key}`}
                                 checked={newRolePermissions?.[key] ?? false}
-                                onCheckedChange={(v) => handleNewRolePermToggle(key, v)}
+                                onCheckedChange={(v) =>
+                                  handleNewRolePermToggle(key, v)
+                                }
                                 disabled={isCreatingRoleReq}
                                 className="h-4 w-7 data-[state=checked]:bg-primary"
                               />
@@ -3273,12 +4407,17 @@ export default function OrgSettings() {
                   canEdit={isOwner}
                   members={members}
                   onUpdated={refetchRoles}
-                  onDeleted={() => { refetchRoles(); refetchMembers(); }}
+                  onDeleted={() => {
+                    refetchRoles();
+                    refetchMembers();
+                  }}
                   onDuplicate={handleDuplicate}
                 />
               ))}
               {roles.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">{t("orgSettings.roles.noRolesFound")}</p>
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {t("orgSettings.roles.noRolesFound")}
+                </p>
               )}
             </CardContent>
           </Card>
@@ -3288,6 +4427,11 @@ export default function OrgSettings() {
         {showBrandingTab && (
           <TabsContent value="branding" className="space-y-6 mt-6">
             <BrandingCard />
+            {/* Terminology */}
+            <TerminologyCard />
+
+            {/* Reaction Palette */}
+            <ReactionPaletteCard />
           </TabsContent>
         )}
 
@@ -3326,9 +4470,7 @@ export default function OrgSettings() {
                     <Sliders className="w-4 h-4" />
                     {t("customFields.title")}
                   </CardTitle>
-                  <CardDescription>
-                    {t("customFields.desc")}
-                  </CardDescription>
+                  <CardDescription>{t("customFields.desc")}</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <CustomFieldsManager />
