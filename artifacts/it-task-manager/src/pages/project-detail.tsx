@@ -3,6 +3,7 @@ import { useTerminology } from "@/context/terminology-context";
 import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
+  useListWorkflowStages,
 } from "@workspace/api-client-react";
 import type { SlaPolicy } from "@workspace/api-client-react";
 import { EditProjectModal } from "@/components/ui/edit-project-modal";
@@ -14,9 +15,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp, LayoutList, Columns } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
-import { useState } from "react";
+import { KanbanBoard } from "@/components/ui/kanban-board";
+import { useState, useEffect } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgContext } from "@/hooks/use-org-context";
@@ -428,6 +430,13 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
   const [editOpen, setEditOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "board">(
+    () => (localStorage.getItem("project-detail-view-mode") as "list" | "board") ?? "list",
+  );
+
+  useEffect(() => {
+    localStorage.setItem("project-detail-view-mode", viewMode);
+  }, [viewMode]);
 
   const { data: project, isLoading: isLoadingProject } = useGetProject(projectId, {
     query: { enabled: !!projectId, queryKey: ["getProject", projectId] }
@@ -436,6 +445,8 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { data: tasks, isLoading: isLoadingTasks } = useListTasks({ projectId }, {
     query: { enabled: !!projectId, queryKey: ["listTasks", { projectId }] }
   });
+
+  const { data: stages = [] } = useListWorkflowStages();
 
   const deleteMutation = useDeleteProject({
     mutation: {
@@ -587,64 +598,93 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {t("tasks")}</h2>
-          <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
-            <Plus className="w-4 h-4" /> Add {tSingular("tasks")}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* List / Board toggle — identical styling to tasks.tsx */}
+            <Button
+              data-testid="view-toggle-list"
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewMode("list")}
+              title="List view"
+            >
+              <LayoutList className="w-4 h-4" />
+            </Button>
+            <Button
+              data-testid="view-toggle-board"
+              variant={viewMode === "board" ? "secondary" : "ghost"}
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setViewMode("board")}
+              title="Board view"
+            >
+              <Columns className="w-4 h-4" />
+            </Button>
+            <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
+              <Plus className="w-4 h-4" /> Add {tSingular("tasks")}
+            </Button>
+          </div>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            {isLoadingTasks ? (
-              <div className="p-4 space-y-3">
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ) : tasks && tasks.length > 0 ? (
-              <div className="divide-y divide-border">
-                {tasks.map(task => (
-                  <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="mt-1 text-muted-foreground">
-                        <CheckSquare className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <Link href={`/tasks/${task.id}`}>
-                          <span className="font-medium hover:text-primary transition-colors cursor-pointer text-sm">
-                            {task.title}
-                          </span>
-                        </Link>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                          <span className="uppercase">{task.category}</span>
-                          {task.assignee && (
-                            <>
-                              <span>•</span>
-                              <span>{task.assignee}</span>
-                            </>
-                          )}
+        {isLoadingTasks ? (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </CardContent>
+          </Card>
+        ) : viewMode === "board" ? (
+          <KanbanBoard tasks={tasks ?? []} stages={stages} />
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              {tasks && tasks.length > 0 ? (
+                <div className="divide-y divide-border">
+                  {tasks.map(task => (
+                    <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-1 text-muted-foreground">
+                          <CheckSquare className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <Link href={`/tasks/${task.id}`}>
+                            <span className="font-medium hover:text-primary transition-colors cursor-pointer text-sm">
+                              {task.title}
+                            </span>
+                          </Link>
+                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                            <span className="uppercase">{task.category}</span>
+                            {task.assignee && (
+                              <>
+                                <span>•</span>
+                                <span>{task.assignee}</span>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
+                        <StatusBadge
+                          status={task.status}
+                          stageName={task.stageName}
+                          stageColor={task.stageColor}
+                          stageArchived={task.stageArchived}
+                        />
+                        <PriorityBadge priority={task.priority} />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
-                      <StatusBadge
-                        status={task.status}
-                        stageName={task.stageName}
-                        stageColor={task.stageColor}
-                        stageArchived={task.stageArchived}
-                      />
-                      <PriorityBadge priority={task.priority} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                <p>No {t("tasks").toLowerCase()} found for this {tSingular("projects").toLowerCase()}.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                  <p>No {t("tasks").toLowerCase()} found for this {tSingular("projects").toLowerCase()}.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );
