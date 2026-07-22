@@ -595,30 +595,35 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         </CardContent>
       </Card>
 
-      {/* ── Two-column section: main content + properties panel ──────────────── */}
+      {/* ── Progress bar + Properties panel (side-by-side on lg+) ────────────── */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
-
-        {/* ── Main content (left / stacked on mobile) ── */}
-        <div className="flex-1 min-w-0 space-y-6">
-
-          {/* Progress bar */}
-          <div className="bg-card border border-border/50 rounded-lg p-4">
-            <div className="flex justify-between items-end mb-2">
-              <div className="space-y-1">
-                <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
-                <div className="text-2xl font-bold">{progress}%</div>
-              </div>
-              <div className="text-sm text-muted-foreground mb-1">
-                {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
-              </div>
+        {/* Progress bar */}
+        <div className="flex-1 min-w-0 bg-card border border-border/50 rounded-lg p-4">
+          <div className="flex justify-between items-end mb-2">
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
+              <div className="text-2xl font-bold">{progress}%</div>
             </div>
-            <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
-                style={{ width: `${progress}%` }}
-              />
+            <div className="text-sm text-muted-foreground mb-1">
+              {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
             </div>
           </div>
+          <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* ── Properties panel (right of progress bar on lg+, stacked on mobile) ── */}
+        <aside className="w-full lg:w-72 shrink-0">
+          <ProjectPropertiesPanel project={project} />
+        </aside>
+      </div>
+
+      {/* ── Full-width content area ───────────────────────────────────────────── */}
+      <div className="space-y-6">
 
           {/* ── Tabbed layout ─────────────────────────────────────────────────── */}
           {layoutMode === "tabbed" ? (
@@ -846,13 +851,6 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               </div>
             </>
           )}
-        </div>
-
-        {/* ── Properties panel (right / bottom on mobile) ── */}
-        <aside className="w-full lg:w-72 shrink-0">
-          <ProjectPropertiesPanel project={project} />
-        </aside>
-
       </div>
     </div>
   );
