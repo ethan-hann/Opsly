@@ -597,22 +597,56 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
       {/* ── Progress bar + Properties panel (side-by-side on lg+) ────────────── */}
       <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-        {/* Progress bar */}
-        <div className="flex-1 min-w-0 bg-card border border-border/50 rounded-lg p-4 flex flex-col justify-center">
-          <div className="flex justify-between items-end mb-2">
-            <div className="space-y-1">
-              <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
-              <div className="text-2xl font-bold">{progress}%</div>
+        {/* Progress card */}
+        <div className="flex-1 min-w-0 bg-card border border-border/50 rounded-lg p-6 flex flex-col justify-between gap-6">
+          {/* Title */}
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+            {t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}
+          </p>
+
+          {/* Ring + stats */}
+          <div className="flex items-center gap-6">
+            {/* Circular ring */}
+            <div className="relative shrink-0 w-[88px] h-[88px]">
+              <svg width="88" height="88" viewBox="0 0 88 88" className="-rotate-90">
+                <circle cx="44" cy="44" r="36" fill="none" className="stroke-secondary" strokeWidth="8" />
+                <circle
+                  cx="44" cy="44" r="36" fill="none"
+                  className="stroke-primary transition-all duration-1000 ease-out"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 36}`}
+                  strokeDashoffset={`${2 * Math.PI * 36 * (1 - progress / 100)}`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-lg font-bold tabular-nums">{progress}%</span>
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground mb-1">
-              {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
+
+            {/* Completed / total */}
+            <div className="space-y-1">
+              <div className="text-4xl font-bold tabular-nums leading-none">
+                {project.completedTaskCount || 0}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
+              </div>
             </div>
           </div>
-          <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${progress}%` }}
-            />
+
+          {/* Bar + labels */}
+          <div className="space-y-2">
+            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{project.completedTaskCount || 0} {t('projects.completedLabel', 'Completed').toLowerCase()}</span>
+              <span>{Math.max(0, (project.taskCount || 0) - (project.completedTaskCount || 0))} {t('projects.remaining', 'remaining')}</span>
+            </div>
           </div>
         </div>
 
