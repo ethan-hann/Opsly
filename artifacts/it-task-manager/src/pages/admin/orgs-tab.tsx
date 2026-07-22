@@ -56,7 +56,13 @@ export function AdminOrgsTab() {
   const qc = useQueryClient();
   const { data: orgs, isLoading, refetch } = useQuery({ queryKey: ["admin-orgs"], queryFn: fetchOrgs });
   const [confirmDelete, setConfirmDelete] = useState<AdminOrg | null>(null);
-  const [confirmSuspend, setConfirmSuspend] = useState<AdminOrg | null>(null);
+  // Store only the org ID so the dialog always reflects the latest query data
+  // if the list refreshes while the dialog is open.  If the org disappears from
+  // the list the derived value becomes null and the dialog closes automatically.
+  const [confirmSuspendId, setConfirmSuspendId] = useState<string | null>(null);
+  const confirmSuspend = confirmSuspendId
+    ? (orgs?.find((o) => o.id === confirmSuspendId) ?? null)
+    : null;
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isDisabled }: { id: string; isDisabled: boolean }) => patchOrg(id, isDisabled),
@@ -142,7 +148,7 @@ export function AdminOrgsTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => org.isDisabled ? handleToggle(org) : setConfirmSuspend(org)}
+                      onClick={() => org.isDisabled ? handleToggle(org) : setConfirmSuspendId(org.id)}
                       disabled={toggleMutation.isPending}
                     >
                       {org.isDisabled ? (
@@ -167,7 +173,7 @@ export function AdminOrgsTab() {
       </div>
 
       {/* Suspend confirmation */}
-      <AlertDialog open={!!confirmSuspend} onOpenChange={(open) => !open && setConfirmSuspend(null)}>
+      <AlertDialog open={!!confirmSuspend} onOpenChange={(open) => !open && setConfirmSuspendId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('admin.orgs.suspendOrgTitle', { name: confirmSuspend?.name ?? "" })}</AlertDialogTitle>
@@ -189,7 +195,7 @@ export function AdminOrgsTab() {
               onClick={() => {
                 if (confirmSuspend) {
                   handleToggle(confirmSuspend);
-                  setConfirmSuspend(null);
+                  setConfirmSuspendId(null);
                 }
               }}
               disabled={toggleMutation.isPending}
