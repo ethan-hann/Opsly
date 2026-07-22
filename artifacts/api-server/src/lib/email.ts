@@ -28,6 +28,22 @@ import { encrypt, decrypt } from "./encryption";
 import { db, instanceSmtpConfigTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+// ─── HTML escaping ────────────────────────────────────────────────────────────
+
+/**
+ * Escape user-supplied strings before interpolating them into HTML email
+ * templates.  Prevents display names, task titles, org names, and notification
+ * messages from injecting markup into the email body.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ─── Env-var defaults (immutable after startup) ───────────────────────────────
 
 const ENV_CONFIG = {
@@ -322,6 +338,9 @@ export function buildInviteEmail(opts: {
   const expires = opts.expiresAt.toLocaleDateString("en-US", {
     year: "numeric", month: "long", day: "numeric",
   });
+  const orgName = escapeHtml(opts.orgName);
+  const inviterName = escapeHtml(opts.inviterName);
+  const inviteLink = escapeHtml(opts.inviteLink);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><style>${STYLES}</style></head>
@@ -329,9 +348,9 @@ export function buildInviteEmail(opts: {
 <div class="wrapper">
   <div class="header"><h1>Opsly</h1></div>
   <div class="body">
-    <h2>You've been invited to join ${opts.orgName}</h2>
-    <p>${opts.inviterName} has invited you to join their organization on Opsly.</p>
-    <a class="cta" href="${opts.inviteLink}">Accept invitation</a>
+    <h2>You've been invited to join ${orgName}</h2>
+    <p>${inviterName} has invited you to join their organization on Opsly.</p>
+    <a class="cta" href="${inviteLink}">Accept invitation</a>
     <p style="color:#6b7280;font-size:13px;">This invitation expires on ${expires}. If you did not expect this email, you can safely ignore it.</p>
   </div>
   <div class="footer">Opsly · This is an automated message.</div>
@@ -353,6 +372,10 @@ export function buildSlaBreachEmail(opts: {
   const breachedStr = opts.breachedAt.toLocaleString("en-US", {
     dateStyle: "medium", timeStyle: "short",
   });
+  const orgName = escapeHtml(opts.orgName);
+  const taskTitle = escapeHtml(opts.taskTitle);
+  const taskUrl = escapeHtml(opts.taskUrl);
+  const priority = escapeHtml(opts.priority);
   return `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><style>${STYLES}</style></head>
@@ -360,14 +383,14 @@ export function buildSlaBreachEmail(opts: {
 <div class="wrapper">
   <div class="header"><h1>Opsly — SLA Breach Alert</h1></div>
   <div class="body">
-    <h2>SLA breach: ${opts.taskTitle}</h2>
-    <p>A task you are watching in <strong>${opts.orgName}</strong> has exceeded its SLA deadline.</p>
+    <h2>SLA breach: ${taskTitle}</h2>
+    <p>A task you are watching in <strong>${orgName}</strong> has exceeded its SLA deadline.</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;font-size:14px">
-      <tr><td style="padding:6px 0;color:#6b7280;width:120px">Task</td><td><strong>${opts.taskTitle}</strong></td></tr>
-      <tr><td style="padding:6px 0;color:#6b7280">Priority</td><td style="text-transform:capitalize">${opts.priority}</td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280;width:120px">Task</td><td><strong>${taskTitle}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#6b7280">Priority</td><td style="text-transform:capitalize">${priority}</td></tr>
       <tr><td style="padding:6px 0;color:#6b7280">Breached at</td><td>${breachedStr}</td></tr>
     </table>
-    <a class="cta" href="${opts.taskUrl}">View task</a>
+    <a class="cta" href="${taskUrl}">View task</a>
   </div>
   <div class="footer">Opsly · This is an automated SLA alert.</div>
 </div>
@@ -387,12 +410,18 @@ export function buildDigestEmail(opts: {
   unsubscribeUrl: string;
 }): string {
   const period = opts.frequency === "daily" ? "daily" : "weekly";
+  const userName = escapeHtml(opts.userName);
+  const orgName = escapeHtml(opts.orgName);
+  const appUrl = escapeHtml(opts.appUrl);
+  const unsubscribeUrl = escapeHtml(opts.unsubscribeUrl);
   const items = opts.notifications
     .map((n) => {
       const time = n.createdAt.toLocaleString("en-US", { dateStyle: "short", timeStyle: "short" });
-      const url = `${opts.appUrl}/tasks/${n.entityId}`;
+      // entityId is a number (integer), safe to interpolate directly.
+      const url = `${appUrl}/tasks/${n.entityId}`;
+      const message = escapeHtml(n.message);
       return `<div class="notification-item">
-        <p><a href="${url}" style="color:#2563eb;text-decoration:none">${n.message}</a></p>
+        <p><a href="${url}" style="color:#2563eb;text-decoration:none">${message}</a></p>
         <p class="time">${time}</p>
       </div>`;
     })
@@ -405,18 +434,18 @@ export function buildDigestEmail(opts: {
 <div class="wrapper">
   <div class="header"><h1>Opsly — ${period.charAt(0).toUpperCase() + period.slice(1)} digest</h1></div>
   <div class="body">
-    <h2>Hi ${opts.userName},</h2>
-    <p>Here's your ${period} notification digest for <strong>${opts.orgName}</strong>. You have ${opts.notifications.length} unread notification${opts.notifications.length !== 1 ? "s" : ""}.</p>
+    <h2>Hi ${userName},</h2>
+    <p>Here's your ${period} notification digest for <strong>${orgName}</strong>. You have ${opts.notifications.length} unread notification${opts.notifications.length !== 1 ? "s" : ""}.</p>
     <div style="margin:24px 0">${items}</div>
-    <a class="cta" href="${opts.appUrl}">Open Opsly</a>
+    <a class="cta" href="${appUrl}">Open Opsly</a>
     <p style="color:#6b7280;font-size:13px;margin-top:24px">
       You're receiving this because you opted into ${period} email digests.
-      <a href="${opts.appUrl}/settings/notifications" style="color:#2563eb">Manage preferences</a>
+      <a href="${appUrl}/settings/notifications" style="color:#2563eb">Manage preferences</a>
       &nbsp;·&nbsp;
-      <a href="${opts.unsubscribeUrl}" style="color:#2563eb">Unsubscribe</a>
+      <a href="${unsubscribeUrl}" style="color:#2563eb">Unsubscribe</a>
     </p>
   </div>
-  <div class="footer">Opsly · This is an automated digest. <a href="${opts.unsubscribeUrl}" style="color:#6b7280">Unsubscribe from digest emails</a></div>
+  <div class="footer">Opsly · This is an automated digest. <a href="${unsubscribeUrl}" style="color:#6b7280">Unsubscribe from digest emails</a></div>
 </div>
 </body>
 </html>`;
