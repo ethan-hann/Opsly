@@ -309,6 +309,20 @@ export const rehypePlugins: any[] = [rehypeRaw, [rehypeSanitize, sanitizeSchema]
 // MDEditor's previewOptions.components) so both rendering surfaces are identical.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
+// Recursively extract plain text from a React node tree.
+// String() on an array of React elements produces "[object Object],..." so we
+// walk children ourselves to collect only the string leaves.
+function extractNodeText(node: React.ReactNode): string {
+  if (typeof node === "string") return node;
+  if (typeof node === "number" || typeof node === "boolean") return String(node);
+  if (Array.isArray(node)) return node.map(extractNodeText).join("");
+  if (React.isValidElement(node)) {
+    const el = node as React.ReactElement<{ children?: React.ReactNode }>;
+    return extractNodeText(el.props.children);
+  }
+  return "";
+}
+
 export const previewComponents: Record<string, React.ComponentType<any>> = {
   // GFM checkboxes
   input: ({ checked, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
@@ -334,7 +348,10 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
       React.isValidElement(child) &&
       child.props.className?.includes("language-mermaid")
     ) {
-      const code = String(child.props.children ?? "").replace(/\n$/, "");
+      // child.props.children may be a React node tree, not a plain string.
+      // String() on an array of React elements produces "[object Object],..."
+      // so we walk the tree to collect text leaves instead.
+      const code = extractNodeText(child.props.children).replace(/\n$/, "");
       return <MermaidBlock code={code} />;
     }
     return (
