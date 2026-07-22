@@ -305,7 +305,7 @@ export default function NotesPage() {
       {/* Editor (editable) or read-only rendered preview */}
       {!canEdit ? (
         <div className="flex-1 overflow-y-auto">
-          <MarkdownPreview content={localContent} />
+          <MarkdownPreview content={localContent} noteId={selectedId} />
         </div>
       ) : (
         // The MDEditor toolbar provides its own Edit / Split / Preview toggle,

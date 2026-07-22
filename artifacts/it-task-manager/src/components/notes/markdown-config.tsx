@@ -6,7 +6,7 @@
  * identical output.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import React from "react";
 import { Link2, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -26,6 +26,12 @@ import { cn } from "@/lib/utils";
 // hProperties survive the sanitize pass.
 export const sanitizeSchema = {
   ...defaultSchema,
+  // Disable the "user-content-" prefix that rehype-sanitize adds to all id
+  // attributes by default. That prefix breaks anchor navigation because
+  // rehype-slug sets id="my-heading" but the sanitized DOM has
+  // id="user-content-my-heading", so hash links never match. We render
+  // inside a scoped div, so there is no meaningful DOM-clobbering risk.
+  clobberPrefix: "",
   tagNames: [
     ...(defaultSchema.tagNames ?? []),
     "kbd",
@@ -344,6 +350,27 @@ function extractNodeText(node: React.ReactNode): string {
   return "";
 }
 
+// ── Anchor URL context ────────────────────────────────────────────────────────
+// Consumers (e.g. the notes page) can wrap MarkdownPreview in this provider to
+// supply a URL builder that knows the current note ID. The heading components
+// call buildUrl(headingId) to produce the correct deep-link URL.
+// Without a provider the headings fall back to the current page URL + hash.
+const AnchorUrlContext = React.createContext<((id: string) => string) | null>(null);
+
+export function AnchorUrlProvider({
+  buildUrl,
+  children,
+}: {
+  buildUrl: (id: string) => string;
+  children: React.ReactNode;
+}) {
+  return (
+    <AnchorUrlContext.Provider value={buildUrl}>
+      {children}
+    </AnchorUrlContext.Provider>
+  );
+}
+
 // ── Heading with anchor link ───────────────────────────────────────────────────
 // Factory that creates h1–h6 renderers. Each heading shows a subtle link icon
 // on hover; clicking it sets window.location.hash and copies the URL to the
@@ -356,12 +383,19 @@ function makeHeading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
     ...props
   }: React.HTMLAttributes<HTMLHeadingElement>) {
     const [copied, setCopied] = useState(false);
+    const buildUrl = useContext(AnchorUrlContext);
 
     const handleClick = (e: React.MouseEvent) => {
       e.preventDefault();
       if (!id) return;
       window.location.hash = id;
-      const url = `${window.location.origin}${window.location.pathname}#${id}`;
+      // Build the full copyable URL. If a provider supplied a builder (e.g.
+      // the notes page passing ?note=<id>), use it; otherwise fall back to
+      // the current page's origin + path + search (which preserves existing
+      // query params such as ?note=123 when the URL is already correct).
+      const url = buildUrl
+        ? buildUrl(id)
+        : `${window.location.origin}${window.location.pathname}${window.location.search}#${id}`;
       navigator.clipboard?.writeText(url).then(() => {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
