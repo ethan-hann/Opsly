@@ -596,9 +596,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       </Card>
 
       {/* ── Progress bar + Properties panel (side-by-side on lg+) ────────────── */}
-      <div className="flex flex-col lg:flex-row gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-6 items-stretch">
         {/* Progress bar */}
-        <div className="flex-1 min-w-0 bg-card border border-border/50 rounded-lg p-4">
+        <div className="flex-1 min-w-0 bg-card border border-border/50 rounded-lg p-4 flex flex-col justify-center">
           <div className="flex justify-between items-end mb-2">
             <div className="space-y-1">
               <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
