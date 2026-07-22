@@ -75,11 +75,11 @@ pnpm run dev
 
 \`\`\`mermaid
 flowchart LR
-  A[User] -->|creates| B(Task)
-  B --> C{Assigned?}
-  C -->|Yes| D[Assignee notified]
-  C -->|No| E[Sits in backlog]
-  D --> F[Work begins]
+  A[User] --> B[Task Created]
+  B --> C{Assigned}
+  C -- Yes --> D[Assignee Notified]
+  C -- No --> E[Sits in Backlog]
+  D --> F[Work Begins]
 \`\`\`
 
 ---
