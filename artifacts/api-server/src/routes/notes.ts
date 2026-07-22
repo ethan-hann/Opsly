@@ -56,6 +56,25 @@ async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
   return !!row;
 }
 
+async function validateTaskBelongsToProject(
+  taskId: number,
+  projectId: number,
+  orgId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: tasksTable.id })
+    .from(tasksTable)
+    .where(
+      and(
+        eq(tasksTable.id, taskId),
+        eq(tasksTable.projectId, projectId),
+        eq(tasksTable.orgId, orgId),
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
 /**
  * Returns the effective project ID for webhook dispatch.
  * Uses note.projectId when set; falls back to the linked task's projectId so
@@ -152,6 +171,11 @@ router.post("/notes", requireOrg, async (req, res) => {
       return res.status(400).json({ error: "Invalid taskId" });
     }
   }
+  if (body.data.projectId != null && body.data.taskId != null) {
+    if (!(await validateTaskBelongsToProject(body.data.taskId, body.data.projectId, orgId))) {
+      return res.status(400).json({ error: "Task does not belong to the specified project" });
+    }
+  }
 
   const [note] = await db
     .insert(notesTable)
@@ -231,6 +255,19 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   if (body.data.taskId != null) {
     if (!(await validateTaskId(body.data.taskId, orgId))) {
       return res.status(400).json({ error: "Invalid taskId" });
+    }
+  }
+
+  // Determine the effective resulting projectId and taskId after the patch is
+  // applied, then cross-check them if both are non-null.
+  const effectiveProjectId =
+    "projectId" in body.data ? (body.data.projectId ?? null) : existing.projectId;
+  const effectiveTaskId =
+    "taskId" in body.data ? (body.data.taskId ?? null) : existing.taskId;
+
+  if (effectiveProjectId != null && effectiveTaskId != null) {
+    if (!(await validateTaskBelongsToProject(effectiveTaskId, effectiveProjectId, orgId))) {
+      return res.status(400).json({ error: "Task does not belong to the specified project" });
     }
   }
 

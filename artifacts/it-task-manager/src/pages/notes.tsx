@@ -87,6 +87,16 @@ export default function NotesPage() {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset the task filter when the project filter changes and the current task
+  // is no longer in the new project's task set.
+  useEffect(() => {
+    if (filterProjectId === "all" || filterTaskId === "all") return;
+    const stillInProject = tasks.some(
+      (tk) => tk.id === filterTaskId && tk.projectId === filterProjectId,
+    );
+    if (!stillInProject) setFilterTaskId("all");
+  }, [filterProjectId, tasks, filterTaskId]);
+
   // ── preselect note from URL ──────────────────────────────────────────────
   const didSyncPreselect = useRef(false);
   useEffect(() => {
@@ -126,6 +136,29 @@ export default function NotesPage() {
 
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
   const filtersActive = filterProjectId !== "all" || filterTaskId !== "all";
+
+  // ── scoped task lists ─────────────────────────────────────────────────────
+
+  /** Tasks shown in the sidebar filter — narrowed to the selected project. */
+  const filteredTasksForSidebar =
+    filterProjectId === "all"
+      ? tasks
+      : tasks.filter((tk) => tk.projectId === filterProjectId);
+
+  /** Tasks shown in the note-editor task selector — narrowed to the note's linked project. */
+  const tasksForEditor = !selectedNote?.projectId
+    ? tasks
+    : tasks.filter((tk) => tk.projectId === selectedNote.projectId);
+
+  /** Projects shown in the note-editor project selector — narrowed to the linked task's project. */
+  const projectsForEditor = !selectedNote?.taskId
+    ? projects
+    : (() => {
+        const linkedTask = tasks.find((tk) => tk.id === selectedNote.taskId);
+        if (!linkedTask?.projectId) return [];
+        const proj = projects.find((p) => p.id === linkedTask.projectId);
+        return proj ? [proj] : [];
+      })();
 
   const filteredNotes = [...notes]
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -246,6 +279,19 @@ export default function NotesPage() {
     if (!selectedNote) return;
     const numVal = value === "none" ? null : Number(value);
     await updateNote.mutateAsync({ id: selectedNote.id, data: { [field]: numVal } });
+    refetch();
+  };
+
+  /** Task selector handler — also auto-links the task's project when the note has none. */
+  const handleTaskLinkChange = async (value: string) => {
+    if (!selectedNote) return;
+    const numVal = value === "none" ? null : Number(value);
+    const linkedTask = numVal ? tasks.find((tk) => tk.id === numVal) : null;
+    const patch: { taskId: number | null; projectId?: number } = { taskId: numVal };
+    if (linkedTask?.projectId && !selectedNote.projectId) {
+      patch.projectId = linkedTask.projectId;
+    }
+    await updateNote.mutateAsync({ id: selectedNote.id, data: patch });
     refetch();
   };
 
@@ -410,7 +456,7 @@ export default function NotesPage() {
                   placeholder={t('common.none')}
                   noneLabel={t('common.none')}
                   noneIcon={<Link2Off className="w-3 h-3" />}
-                  options={projects.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                  options={projectsForEditor.map((p) => ({ value: p.id.toString(), label: p.name }))}
                   searchPlaceholder={t('notes.searchProjectsPlaceholder')}
                   triggerClassName="h-6 text-xs w-36"
                   contentWidth="w-48"
@@ -420,11 +466,11 @@ export default function NotesPage() {
                 <span className="text-xs text-muted-foreground">{t('notes.taskLabel')}</span>
                 <SearchableSelect
                   value={selectedNote.taskId?.toString() ?? "none"}
-                  onValueChange={(v) => handleLinkChange("taskId", v)}
+                  onValueChange={handleTaskLinkChange}
                   placeholder={t('common.none')}
                   noneLabel={t('common.none')}
                   noneIcon={<Link2Off className="w-3 h-3" />}
-                  options={tasks.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
+                  options={tasksForEditor.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
                   searchPlaceholder={t('notes.searchTasksPlaceholder')}
                   triggerClassName="h-6 text-xs w-44"
                   contentWidth="w-64"
@@ -518,7 +564,7 @@ export default function NotesPage() {
               placeholder={t('notes.allTasks')}
               noneLabel={t('notes.allTasks')}
               noneValue="all"
-              options={tasks.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
+              options={filteredTasksForSidebar.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
               searchPlaceholder={t('notes.searchTasksPlaceholder')}
               triggerClassName="h-7 text-xs bg-background flex-1"
               contentWidth="w-[220px]"

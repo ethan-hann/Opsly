@@ -501,6 +501,142 @@ describe("PATCH /api/notes/:id", () => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/notes — cross-project validation
+// ---------------------------------------------------------------------------
+
+describe("POST /api/notes — task/project cross-validation", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+  });
+
+  it("returns 400 when the task belongs to a different project (wrong-project)", async () => {
+    // validateProjectId → found
+    mockState.selectQueue.push([{ id: 5 }]);
+    // validateTaskId → found (task is in this org)
+    mockState.selectQueue.push([{ id: 11 }]);
+    // validateTaskBelongsToProject → not found (wrong project)
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp())
+      .post("/api/notes")
+      .send({ title: "Note", content: "Body", projectId: 5, taskId: 11 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/project/i) });
+  });
+
+  it("returns 400 when the task belongs to another org (rejected by individual task-org check)", async () => {
+    // validateProjectId → found
+    mockState.selectQueue.push([{ id: 5 }]);
+    // validateTaskId → not found (task is in a different org)
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp())
+      .post("/api/notes")
+      .send({ title: "Note", content: "Body", projectId: 5, taskId: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/taskId/i) });
+  });
+
+  it("returns 201 when both projectId and taskId match the same project", async () => {
+    // validateProjectId → found
+    mockState.selectQueue.push([{ id: 5 }]);
+    // validateTaskId → found
+    mockState.selectQueue.push([{ id: 11 }]);
+    // validateTaskBelongsToProject → found
+    mockState.selectQueue.push([{ id: 11 }]);
+    // insert + resolveEffectiveProjectId (note has directprojectId so no extra select)
+    mockState.insertResult = [{ ...OWNER_NOTE, projectId: 5, taskId: 11 }];
+
+    const res = await request(buildApp())
+      .post("/api/notes")
+      .send({ title: "Note", content: "Body", projectId: 5, taskId: 11 });
+
+    expect(res.status).toBe(201);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/notes/:id — cross-project validation
+// ---------------------------------------------------------------------------
+
+describe("PATCH /api/notes/:id — task/project cross-validation", () => {
+  beforeEach(() => {
+    mockState.selectQueue.length = 0;
+    mockState.insertResult = [];
+    mockState.updateResult = [];
+    vi.clearAllMocks();
+  });
+
+  it("returns 400 when adding a projectId that doesn't match the note's existing taskId", async () => {
+    // Existing note has taskId:7, no direct project
+    mockState.selectQueue.push([TASK_LINKED_NOTE]);
+    // validateProjectId(99) → found
+    mockState.selectQueue.push([{ id: 99 }]);
+    // validateTaskBelongsToProject(taskId=7, projectId=99) → not found
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp())
+      .patch("/api/notes/5")
+      .send({ projectId: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/project/i) });
+  });
+
+  it("returns 400 when patching a taskId that belongs to another org", async () => {
+    // Existing note has no task/project
+    mockState.selectQueue.push([OWNER_NOTE]);
+    // validateTaskId → not found (wrong org)
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp())
+      .patch("/api/notes/1")
+      .send({ taskId: 999 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/taskId/i) });
+  });
+
+  it("returns 400 when patch's effective values (existing projectId + new taskId) mismatch", async () => {
+    const noteWithProject = { ...OWNER_NOTE, id: 10, projectId: 1, taskId: null };
+    // Existing note has projectId:1, no taskId
+    mockState.selectQueue.push([noteWithProject]);
+    // validateTaskId(99) → found
+    mockState.selectQueue.push([{ id: 99 }]);
+    // validateTaskBelongsToProject(taskId=99, projectId=1) → not found
+    mockState.selectQueue.push([]);
+
+    const res = await request(buildApp())
+      .patch("/api/notes/10")
+      .send({ taskId: 99 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/project/i) });
+  });
+
+  it("succeeds (200) when patching taskId to null — clears constraint, no cross-check needed", async () => {
+    const noteWithBoth = { ...OWNER_NOTE, id: 11, projectId: 1, taskId: 7 };
+    // Existing note has projectId:1, taskId:7
+    mockState.selectQueue.push([noteWithBoth]);
+    // taskId is null in body → validateTaskId skipped
+    // effective taskId is null → cross-check skipped
+    // resolveEffectiveProjectId: projectId set directly, no extra select
+    mockState.updateResult = [{ ...noteWithBoth, taskId: null }];
+
+    const res = await request(buildApp())
+      .patch("/api/notes/11")
+      .send({ taskId: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ taskId: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /api/notes/:id
 // ---------------------------------------------------------------------------
 
