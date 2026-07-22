@@ -46,6 +46,29 @@ export function setOfflineQueueHandler(fn: OfflineQueueHandler | null): void {
   _offlineQueueHandler = fn;
 }
 
+// ---------------------------------------------------------------------------
+// Org-suspension signal
+// ---------------------------------------------------------------------------
+
+type SuspensionListener = () => void;
+const _suspensionListeners = new Set<SuspensionListener>();
+
+/**
+ * Subscribe to org-suspension events.  The callback fires whenever any API
+ * response returns `403 { error: 'org_suspended' }`, indicating that the
+ * organization was suspended mid-session.
+ *
+ * Returns an unsubscribe function.
+ */
+export function onOrgSuspended(fn: SuspensionListener): () => void {
+  _suspensionListeners.add(fn);
+  return () => { _suspensionListeners.delete(fn); };
+}
+
+function emitOrgSuspended(): void {
+  for (const fn of _suspensionListeners) fn();
+}
+
 /**
  * Set a base URL that is prepended to every relative request URL
  * (i.e. paths that start with `/`).
@@ -417,6 +440,16 @@ export async function customFetch<T = unknown>(
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);
+    // Notify subscribers when the org is suspended so the UI can react
+    // immediately without waiting for the next org refetch cycle.
+    if (
+      response.status === 403 &&
+      typeof errorData === "object" &&
+      errorData !== null &&
+      (errorData as Record<string, unknown>).error === "org_suspended"
+    ) {
+      emitOrgSuspended();
+    }
     throw new ApiError(response, errorData, requestInfo);
   }
 

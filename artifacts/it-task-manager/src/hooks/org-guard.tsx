@@ -5,12 +5,13 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { useGetMyOrg } from "@workspace/api-client-react";
+import { useGetMyOrg, onOrgSuspended } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { useSseEvent } from "@/hooks/use-sse";
 import type { PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 import { OrgContext, type OrgContextValue, type OrgFeatureKey, type OrgFeatureState } from "@/hooks/use-org-context";
 import { OwnershipCelebration } from "@/components/ui/ownership-celebration";
-import { OrgSuspendedPage } from "@/pages/org-suspended";
+import { OrgSuspendedModal } from "@/components/ui/org-suspended-modal";
 
 // ─── Guard ────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ interface OrgGuardProps {
 }
 
 export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
+  const { logout } = useAuth();
   const {
     data,
     isLoading,
@@ -33,6 +35,14 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
   const refetchOrg = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  // ── Mid-session suspension detection ───────────────────────────────────────
+  // Fires when any API response returns 403 { error: 'org_suspended' }, even
+  // before the org query has had a chance to refetch.
+  const [isSuspendedMidSession, setIsSuspendedMidSession] = useState(false);
+  useEffect(() => {
+    return onOrgSuspended(() => setIsSuspendedMidSession(true));
+  }, []);
 
   // Long-interval poll as a fallback for missed SSE events (e.g. reconnects).
   // The SSE connection provides near-instant delivery for the common path.
@@ -91,9 +101,12 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
     return <>{onboarding(refetch)}</>;
   }
 
-  // Org is suspended by instance admin
-  if ((data.org as { isDisabled?: boolean }).isDisabled) {
-    return <OrgSuspendedPage />;
+  // Org is suspended at login time (isDisabled flag on the org object).
+  // Show the non-closable modal over a blank background — no children are
+  // rendered yet since the OrgContext hasn't been provided.
+  const isLoginTimeSuspended = (data.org as { isDisabled?: boolean }).isDisabled === true;
+  if (isLoginTimeSuspended) {
+    return <OrgSuspendedModal open onSignOut={logout} />;
   }
 
   function hasPermission(key: keyof RolePermissions): boolean {
@@ -134,6 +147,8 @@ export function OrgGuard({ children, onboarding, invitation }: OrgGuardProps) {
   return (
     <OrgContext.Provider value={value}>
       {children}
+      {/* Mid-session suspension: modal overlays the current page */}
+      <OrgSuspendedModal open={isSuspendedMidSession} onSignOut={logout} />
       <OwnershipCelebration
         open={showCelebration}
         onClose={() => setShowCelebration(false)}
