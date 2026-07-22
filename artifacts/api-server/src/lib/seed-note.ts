@@ -88,12 +88,12 @@ flowchart LR
 
 | Feature | Syntax | Renders as |
 |---|---|---|
-| Highlight | \`==text==\` | ==highlighted== |
-| Superscript | \`^text^\` | x^2^ |
-| Subscript | \`~text~\` | H~2~O |
-| Bold | \`**text**\` | **bold** |
-| Italic | \`*text*\` | *italic* |
-| Strikethrough | \`~~text~~\` | ~~struck~~ |
+| Highlight | <code>==text==</code> | ==highlighted== |
+| Superscript | <code>^text^</code> | x^2^ |
+| Subscript | <code>~text~</code> | H~2~O |
+| Bold | <code>**text**</code> | **bold** |
+| Italic | <code>*text*</code> | *italic* |
+| Strikethrough | <code>~~text~~</code> | ~~struck~~ |
 | Inline code | <code>&#96;code&#96;</code> | \`code\` |
 
 ---
