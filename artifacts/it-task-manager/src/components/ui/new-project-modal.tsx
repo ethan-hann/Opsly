@@ -18,7 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import {
   Select,
   SelectContent,
@@ -111,7 +111,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>New {tSingular("projects")}</DialogTitle>
         </DialogHeader>
@@ -128,13 +128,13 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="proj-desc">Description</Label>
-            <Textarea
-              id="proj-desc"
-              placeholder="Optional project description..."
+            <Label>Description</Label>
+            <MarkdownEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={3}
+              onChange={setDescription}
+              placeholder="Optional project description..."
+              className="h-48 border border-input rounded-md overflow-hidden"
+              previewMode="edit"
             />
           </div>
 

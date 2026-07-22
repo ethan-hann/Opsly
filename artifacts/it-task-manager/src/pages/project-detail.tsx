@@ -17,6 +17,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp, LayoutList, Columns } from "lucide-react";
 import { InlineNotes } from "@/components/notes/inline-notes";
+import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { KanbanBoard } from "@/components/ui/kanban-board";
 import { useState, useEffect } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -556,9 +557,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
         </CardHeader>
         <CardContent className="space-y-6">
           {project.description && (
-            <div className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground leading-relaxed">
-              {project.description}
-            </div>
+            <MarkdownPreview content={project.description} className="px-0 py-0" />
           )}
 
           <div className="bg-card border border-border/50 rounded-lg p-4 mt-6">

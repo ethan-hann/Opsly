@@ -151,6 +151,11 @@ vi.mock("../lib/webhook-dispatcher", () => ({
   dispatchMemberRemoved: vi.fn(),
 }));
 
+// seedDefaultNote calls the DB and encryption helpers not available in tests.
+vi.mock("../lib/seed-note", () => ({
+  seedDefaultNote: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock the email module so no real SMTP connection is attempted.
 // isEmailConfiguredMock defaults to false; individual tests flip it to true.
 vi.mock("../lib/email", () => ({
