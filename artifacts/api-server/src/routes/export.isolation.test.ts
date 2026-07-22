@@ -710,6 +710,60 @@ describe("GET /export/download/:token — org isolation", () => {
     expect(res.header["content-disposition"]).toBeUndefined();
   });
 
+  it("returns 404 when the token exists but the job is still pending — callers cannot stream a partial export", async () => {
+    // The DB row exists (correct org, correct token) but status is "pending"
+    // because the background job has not finished yet.  The route must reject
+    // the request rather than streaming whatever bytes storage has so far.
+    mockState.selectQueue.push([
+      {
+        id: 20,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "pending-token",
+        objectKey: "org-a/user-a1/pending-token",
+        status: "pending",
+        filename: "export-org-a.json",
+        contentType: "application/json",
+        expiresAt: futureDate,
+        createdAt: new Date(),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/download/pending-token");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBeDefined();
+    expect(res.header["content-disposition"]).toBeUndefined();
+  });
+
+  it("returns 404 when the token is complete but expiresAt is in the past — expired exports cannot be re-downloaded", async () => {
+    // The DB row exists with status "complete" but its TTL has passed.
+    // The route checks expiresAt before streaming so the file is never served
+    // once the window closes, even if the object is still in storage.
+    const pastDate = new Date(Date.now() - 1_000);
+
+    mockState.selectQueue.push([
+      {
+        id: 30,
+        userId: "user-a1",
+        orgId: "org-a",
+        token: "expired-token",
+        objectKey: "org-a/user-a1/expired-token",
+        status: "complete",
+        filename: "export-org-a.json",
+        contentType: "application/json",
+        expiresAt: pastDate,
+        createdAt: new Date(Date.now() - 7_200_000),
+      },
+    ]);
+
+    const res = await request(buildApp()).get("/export/download/expired-token");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBeDefined();
+    expect(res.header["content-disposition"]).toBeUndefined();
+  });
+
   it("returns 403 when a non-admin org-a member requests the download endpoint — manage_org_settings is required", async () => {
     // Simulate a regular org-a member (no manage_org_settings permission).
     // No selectQueue entry is needed because requirePermission short-circuits
