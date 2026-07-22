@@ -710,6 +710,20 @@ describe("GET /export/download/:token — org isolation", () => {
     expect(res.header["content-disposition"]).toBeUndefined();
   });
 
+  it("returns 403 when a non-admin org-a member requests the download endpoint — manage_org_settings is required", async () => {
+    // Simulate a regular org-a member (no manage_org_settings permission).
+    // No selectQueue entry is needed because requirePermission short-circuits
+    // before the route handler touches the database.
+    mockState.adminAccess = false;
+
+    const res = await request(buildApp()).get("/export/download/any-token");
+
+    expect(res.status).toBe(403);
+    // No file data must leak through the error response.
+    expect(res.header["content-disposition"]).toBeUndefined();
+    expect(res.body.error).toBeDefined();
+  });
+
   it("returns 200 and streams the file when org-a caller uses their own valid token", async () => {
     // Control test: confirms the above 404 is caused by org isolation, not a
     // misconfigured mock.  With org-a's own complete, non-expired job row in
