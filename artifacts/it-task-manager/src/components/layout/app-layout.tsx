@@ -40,7 +40,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useListViews, useUpdateView, useDeleteView, getListViewsQueryKey } from "@workspace/api-client-react";
 import type { SavedView } from "@workspace/api-client-react";
@@ -49,6 +49,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { useGlobalSearch } from "@/hooks/use-global-search";
 import { useTerminology } from "@/context/terminology-context";
 import { useBranding } from "@/context/branding-context";
+import { ScrollNavigationButtons } from "@/components/ui/scroll-navigation-buttons";
 
 const externalNavItems = [
   { href: "/api/docs", label: "API Docs", icon: BookOpen },
@@ -282,6 +283,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { open: openSearch } = useGlobalSearch();
   const { t } = useTerminology();
   const { logoUrl } = useBranding();
+
+  const mainRef = useRef<HTMLElement>(null);
 
   // Mobile: drawer open/closed
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -734,7 +737,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
         {/* On desktop: takes remaining width, scrolls independently of sidebar */}
-        <main className="flex-1 min-w-0 overflow-y-auto">
+        <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
           <div className="p-4 md:p-8 min-h-full">{children}</div>
         </main>
 
@@ -745,6 +748,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             onClick={() => setMobileOpen(false)}
           />
         )}
+
+        <ScrollNavigationButtons scrollContainerRef={mainRef} />
       </div>
     </TooltipProvider>
   );
