@@ -145,6 +145,65 @@ export function MermaidBlock({ code }: { code: string }) {
   );
 }
 
+// ── Highlight remark plugin (==text== → <mark>) ───────────────────────────────
+// remark-gfm and remark-supersub do not understand ==...== syntax.  This plugin
+// walks every text node and splits it on ==...== pairs, replacing each pair with
+// a <mark> HAST node so the sanitize pass (which already allows <mark>) lets it
+// through to the browser.
+
+type MdastNode = {
+  type: string;
+  children?: MdastNode[];
+  value?: string;
+  data?: Record<string, unknown>;
+};
+
+function processHighlight(parent: MdastNode): void {
+  if (!parent.children) return;
+
+  // Recurse depth-first so nested structures are already settled before we
+  // inspect this level's text nodes.
+  for (const child of parent.children) {
+    processHighlight(child);
+  }
+
+  const next: MdastNode[] = [];
+  for (const child of parent.children) {
+    if (child.type !== "text" || !child.value || !child.value.includes("==")) {
+      next.push(child);
+      continue;
+    }
+
+    // Split on ==...== with a capturing group so alternating parts are
+    // [plain, marked, plain, marked, …].
+    const parts = child.value.split(/(==.+?==)/s);
+    if (parts.length === 1) {
+      next.push(child);
+      continue;
+    }
+
+    parts.forEach((part, idx) => {
+      if (idx % 2 === 0) {
+        // Plain text segment — only push if non-empty.
+        if (part) next.push({ type: "text", value: part });
+      } else {
+        // Matched ==...== segment — strip the delimiters and wrap in <mark>.
+        next.push({
+          type: "mark",
+          data: { hName: "mark" },
+          children: [{ type: "text", value: part.slice(2, -2) }],
+        });
+      }
+    });
+  }
+
+  parent.children = next;
+}
+
+export function remarkHighlight() {
+  return (tree: MdastNode) => processHighlight(tree);
+}
+
 // ── Callout remark plugin ─────────────────────────────────────────────────────
 // Walks the MDAST looking for blockquotes whose first text node starts with
 // [!NOTE], [!TIP], [!WARNING], or [!CAUTION].  When found it stamps
@@ -222,7 +281,10 @@ export type CalloutType = keyof typeof CALLOUT_CONFIG;
 // ── Shared plugin arrays ──────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const remarkPlugins: any[] = [remarkGfm, remarkSupersub, remarkCallouts];
+// remarkGfm is configured with singleTilde:false so that ~text~ is NOT consumed
+// as GFM strikethrough — leaving it for remark-supersub to render as <sub>.
+// GFM strikethrough still works with ~~text~~ (double tilde).
+export const remarkPlugins: any[] = [[remarkGfm, { singleTilde: false }], remarkSupersub, remarkHighlight, remarkCallouts];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const rehypePlugins: any[] = [rehypeRaw, [rehypeSanitize, sanitizeSchema]];
@@ -289,6 +351,13 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
       </code>
     );
   },
+
+  // ==text== highlight — yellow background that works in both light and dark mode
+  mark: ({ children }: React.HTMLAttributes<HTMLElement>) => (
+    <mark className="bg-yellow-200 dark:bg-yellow-500/30 text-yellow-900 dark:text-yellow-200 rounded px-0.5">
+      {children}
+    </mark>
+  ),
 
   kbd: ({ children }: React.HTMLAttributes<HTMLElement>) => (
     <kbd className="px-1.5 py-0.5 text-xs font-mono bg-muted border border-border/80 rounded shadow-[0_1px_1px_rgba(0,0,0,0.15)] not-italic">
