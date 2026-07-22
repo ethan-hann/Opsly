@@ -124,6 +124,32 @@ describe("MarkdownPreview — toolbar format rendering", () => {
     });
   });
 
+  // ── Backtick code spans preserve syntax characters in GFM table cells ────────
+  // Using `...` (inlineCode MDAST nodes) keeps the content verbatim — none of
+  // the remark plugins (remarkHighlight, remarkSupersub, remark-gfm inline)
+  // process inlineCode nodes, so the syntax markers survive literally.
+  const syntaxCases: [string, string][] = [
+    ["`==text==`",  "==text=="],
+    ["`^text^`",    "^text^"],
+    ["`~text~`",    "~text~"],
+    ["`**text**`",  "**text**"],
+    ["`*text*`",    "*text*"],
+    ["`~~text~~`",  "~~text~~"],
+  ];
+
+  for (const [mdSyntax, expected] of syntaxCases) {
+    it(`backtick code span preserves literal "${expected}"`, async () => {
+      const md = `| Feature | Syntax |\n|---|---|\n| test | ${mdSyntax} |`;
+      const { container } = render(<MarkdownPreview content={md} />);
+      await waitFor(() => {
+        // The td should contain a <code> element with the exact literal text.
+        const code = container.querySelector("td code");
+        expect(code).not.toBeNull();
+        expect(code?.textContent).toBe(expected);
+      });
+    });
+  }
+
   it("strips on* event-handler attributes from user content", async () => {
     render(
       <MarkdownPreview content='<img src="x" onerror="window.__onerr=1" />' />,
