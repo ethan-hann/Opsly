@@ -20,6 +20,7 @@ import {
 } from '@workspace/db';
 import type { RolePermissions, TerminologyKey, SingularTerminologyKey } from '@workspace/db';
 import { PatchOrgTerminologyBody, DEFAULT_REACTION_PALETTE } from '@workspace/api-zod';
+import { seedDefaultNote } from '../lib/seed-note';
 import {
   requireAuth,
   requireOrg,
@@ -233,6 +234,9 @@ router.post('/orgs', requireAuth, async (req, res): Promise<void> => {
 
   // Seed default workflow stages for this new org
   await seedDefaultStages(org.id);
+
+  // Seed the markdown showcase scratchpad note (Shared / read-only)
+  await seedDefaultNote(org.id, req.user!.id);
 
   await db.insert(orgMembersTable).values({
     orgId: org.id,
