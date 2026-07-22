@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useDateLocale } from "@/hooks/use-date-locale";
 import i18n from '@/i18n';
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
-import { MentionTextarea } from "@/components/ui/mention-textarea";
+import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
@@ -19,9 +19,8 @@ import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } fr
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect, useRef, type ReactNode, Fragment } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { EditTaskModal } from "@/components/ui/edit-task-modal";
 import {
   AlertDialog,
@@ -50,6 +49,8 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MarkdownPreview } from "@/components/notes/markdown-preview";
+import ReactMarkdown from "react-markdown";
+import { remarkPlugins, rehypePlugins, previewComponents } from "@/components/notes/markdown-config";
 import { useReactionPalette, useAddReaction, useRemoveReaction } from "@/hooks/use-reactions";
 import type { ReactionSummaryType } from "@/hooks/use-reactions";
 
@@ -163,41 +164,26 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
   return i18n.t('taskDetail.fieldChanged', { field: label, old: oldStr, new: newStr });
 }
 
-// ─── Mention token rendering ──────────────────────────────────────────────────
+// ─── Mention token preprocessing ─────────────────────────────────────────────
 
 /**
- * Parse @[userId:Display Name] and @[everyone] tokens in comment content and
- * return an array of React nodes: plain text segments interspersed with styled
- * mention chips.
- *
- * Token format (canonical):
- *   Individual:  @[<userId>:<Display Name>]
- *   Broadcast:   @[everyone]
+ * Convert @[userId:Display Name] and @[everyone] mention tokens to inline HTML
+ * spans before the text is passed to ReactMarkdown.  rehype-raw in the shared
+ * plugin pipeline will parse the raw HTML, and rehype-sanitize allows <span>
+ * with className, so the chips survive the full remark→rehype→sanitize pass.
  */
-function renderCommentContent(text: string): ReactNode {
-  const TOKEN_RE = /(@\[[^\]]+\])/g;
-  const parts = text.split(TOKEN_RE);
-  return parts.map((part, i) => {
-    if (part === "@[everyone]") {
-      return (
-        <Fragment key={i}>
-          <span className="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">
-            @everyone
-          </span>
-        </Fragment>
-      );
+function preprocessMentions(text: string): string {
+  return text.replace(/@\[([^\]]+)\]/g, (_, inner: string) => {
+    if (inner === "everyone") {
+      return `<span class="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">@everyone</span>`;
     }
-    const m = part.match(/^@\[([^:]+):([^\]]+)\]$/);
-    if (m) {
-      return (
-        <Fragment key={i}>
-          <span className="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">
-            @{m[2]}
-          </span>
-        </Fragment>
-      );
+    const colonIdx = inner.indexOf(":");
+    if (colonIdx !== -1) {
+      const displayName = inner.slice(colonIdx + 1);
+      return `<span class="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium">@${displayName}</span>`;
     }
-    return <Fragment key={i}>{part}</Fragment>;
+    // Unrecognised token — leave as-is so it is visible in the rendered output
+    return `@[${inner}]`;
   });
 }
 
@@ -470,14 +456,12 @@ function CommentNodeRenderer({
           </div>
           {isEditing ? (
             <div className="flex flex-col gap-2">
-              <Textarea
+              <MarkdownEditor
                 value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                className="min-h-[72px] text-sm resize-y bg-background"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") { setIsEditing(false); }
-                }}
+                onChange={setEditText}
+                className="h-36 rounded-md overflow-hidden border border-border"
+                previewMode="edit"
+                members={members}
               />
               <div className="flex items-center gap-2 justify-end">
                 <Button
@@ -503,9 +487,15 @@ function CommentNodeRenderer({
               </div>
             </div>
           ) : (
-            <p className="text-sm text-foreground/80 whitespace-pre-wrap break-words">
-              {renderCommentContent(node.content)}
-            </p>
+            <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/80 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <ReactMarkdown
+                remarkPlugins={remarkPlugins}
+                rehypePlugins={rehypePlugins}
+                components={previewComponents}
+              >
+                {preprocessMentions(node.content)}
+              </ReactMarkdown>
+            </div>
           )}
           <CommentReactionBar
             commentId={node.id}
@@ -517,13 +507,13 @@ function CommentNodeRenderer({
           {/* Inline reply composer — hidden when the root thread is collapsed */}
           {isReplying && !(node.depth === 0 && rootCollapsed) && (
             <div className="mt-3 flex flex-col gap-2">
-              <MentionTextarea
-                placeholder={tComment('taskDetail.replyTo', { author: node.author || tComment('taskDetail.addComment') })}
-                className="min-h-[64px] bg-background font-sans text-sm resize-y"
+              <MarkdownEditor
                 value={replyText}
                 onChange={setReplyText}
+                placeholder={tComment('taskDetail.replyTo', { author: node.author || tComment('taskDetail.addComment') })}
+                className="h-32 rounded-md overflow-hidden border border-border"
+                previewMode="edit"
                 members={members}
-                autoFocus
               />
               <div className="flex items-center gap-2 justify-end">
                 <Button
@@ -1557,6 +1547,29 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
               {/* ── Discussion tab ── */}
               <TabsContent value="discussion">
+                <CardFooter className="bg-muted/10 border-b border-border p-4 flex-col items-stretch gap-3">
+                  <MarkdownEditor
+                    value={commentText}
+                    onChange={setCommentText}
+                    placeholder={t('taskDetail.addComment')}
+                    className="h-40 rounded-md overflow-hidden border border-border"
+                    previewMode="edit"
+                    members={members}
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {t('taskDetail.mentionHint')}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={handlePostComment}
+                      disabled={!commentText.trim() || commentMutation.isPending}
+                      className="text-xs"
+                    >
+                      {commentMutation.isPending ? t('taskDetail.posting') : t('taskDetail.postComment')}
+                    </Button>
+                  </div>
+                </CardFooter>
                 <CardContent className="space-y-1">
                   {isLoadingComments ? (
                     <div className="space-y-4">
@@ -1591,25 +1604,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="bg-muted/10 border-t border-border p-4 flex-col items-stretch gap-3">
-                  <MentionTextarea
-                    placeholder={t('taskDetail.addComment')}
-                    className="min-h-[80px] bg-background font-sans text-sm resize-y"
-                    value={commentText}
-                    onChange={setCommentText}
-                    members={members}
-                  />
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      onClick={handlePostComment}
-                      disabled={!commentText.trim() || commentMutation.isPending}
-                      className="text-xs"
-                    >
-                      {commentMutation.isPending ? t('taskDetail.posting') : t('taskDetail.postComment')}
-                    </Button>
-                  </div>
-                </CardFooter>
               </TabsContent>
 
               {/* ── History tab ── */}

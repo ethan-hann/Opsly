@@ -289,6 +289,7 @@
     "history": "السجل",
     "addComment": "أضف تعليقاً…",
     "postComment": "نشر التعليق",
+    "mentionHint": "اكتب @ لذكر أحد زملاء الفريق",
     "deleteComment": "حذف التعليق",
     "deleteCommentConfirm": "حذف هذا التعليق؟",
     "commentDeleted": "تم حذف هذا التعليق.",

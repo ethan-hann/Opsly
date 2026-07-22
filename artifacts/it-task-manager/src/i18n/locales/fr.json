@@ -310,6 +310,7 @@
     "history": "Historique",
     "addComment": "Ajouter un commentaire…",
     "postComment": "Publier le commentaire",
+    "mentionHint": "Tapez @ pour mentionner un coéquipier",
     "deleteComment": "Supprimer le commentaire",
     "deleteCommentConfirm": "Supprimer ce commentaire ?",
     "commentDeleted": "Ce commentaire a été supprimé.",

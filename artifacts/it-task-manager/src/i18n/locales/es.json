@@ -310,6 +310,7 @@
     "history": "Historial",
     "addComment": "Añade un comentario…",
     "postComment": "Publicar comentario",
+    "mentionHint": "Escribe @ para mencionar a un compañero",
     "deleteComment": "Eliminar comentario",
     "deleteCommentConfirm": "¿Eliminar este comentario?",
     "commentDeleted": "Este comentario fue eliminado.",

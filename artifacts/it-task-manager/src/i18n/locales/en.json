@@ -310,6 +310,7 @@
     "history": "History",
     "addComment": "Add a comment…",
     "postComment": "Post comment",
+    "mentionHint": "Type @ to mention a teammate",
     "deleteComment": "Delete comment",
     "deleteCommentConfirm": "Delete this comment? This cannot be undone.",
     "commentDeleted": "This comment was deleted.",

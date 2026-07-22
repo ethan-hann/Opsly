@@ -289,6 +289,7 @@
     "history": "历史",
     "addComment": "添加评论…",
     "postComment": "发布评论",
+    "mentionHint": "输入 @ 提及队友",
     "deleteComment": "删除评论",
     "deleteCommentConfirm": "删除此评论？",
     "commentDeleted": "此评论已被删除。",
