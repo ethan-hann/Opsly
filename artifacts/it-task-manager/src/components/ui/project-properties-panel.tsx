@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/property-panel";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
-import { Tag, AlertTriangle, CalendarIcon, Clock } from "lucide-react";
+import { Tag, AlertTriangle, CalendarIcon, Clock, User } from "lucide-react";
 
 // ─── ProjectPropertiesPanel ───────────────────────────────────────────────────
 
@@ -167,6 +167,16 @@ export function ProjectPropertiesPanel({ project }: ProjectPropertiesPanelProps)
               {formatDate(project.createdAt.split("T")[0], i18n.language)}
             </span>
           </PropertyRow>
+
+          {/* Owner — read-only, shown only when available */}
+          {project.createdByName && (
+            <PropertyRow
+              icon={<User className="w-3.5 h-3.5" />}
+              label={t("projects.owner")}
+            >
+              <span className="text-sm px-2">{project.createdByName}</span>
+            </PropertyRow>
+          )}
         </div>
       </CardContent>
     </Card>

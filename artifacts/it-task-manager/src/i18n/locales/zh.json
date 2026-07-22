@@ -435,7 +435,8 @@
     "customSla": "自定义SLA",
     "orgDefault": "组织默认",
     "warningDefault": "80%（默认）",
-    "overrideBadge": "覆盖"
+    "overrideBadge": "覆盖",
+    "owner": "所有者"
   },
   "notes": {
     "title": "便签本",

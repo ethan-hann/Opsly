@@ -128,6 +128,7 @@ export const ListProjectsResponseItem = zod.object({
   "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
   "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
   "hasSlaOverrides": zod.boolean().optional().describe('True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.'),
+  "createdByName": zod.string().nullish().describe('Display name of the user who created the project. Null when created via API key or before this field was tracked.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
 }).describe('An IT project grouping related tasks within an organization.')
@@ -159,6 +160,7 @@ export const CreateProjectResponse = zod.object({
   "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
   "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
   "hasSlaOverrides": zod.boolean().optional().describe('True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.'),
+  "createdByName": zod.string().nullish().describe('Display name of the user who created the project. Null when created via API key or before this field was tracked.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
 }).describe('An IT project grouping related tasks within an organization.')
@@ -182,6 +184,7 @@ export const GetProjectResponse = zod.object({
   "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
   "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
   "hasSlaOverrides": zod.boolean().optional().describe('True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.'),
+  "createdByName": zod.string().nullish().describe('Display name of the user who created the project. Null when created via API key or before this field was tracked.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
 }).describe('An IT project grouping related tasks within an organization.')
@@ -216,6 +219,7 @@ export const UpdateProjectResponse = zod.object({
   "taskCount": zod.number().optional().describe('Total number of tasks linked to this project within the org.'),
   "completedTaskCount": zod.number().optional().describe('Number of tasks linked to this project with status `done`.'),
   "hasSlaOverrides": zod.boolean().optional().describe('True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.'),
+  "createdByName": zod.string().nullish().describe('Display name of the user who created the project. Null when created via API key or before this field was tracked.'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the project was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the project was last updated.')
 }).describe('An IT project grouping related tasks within an organization.')

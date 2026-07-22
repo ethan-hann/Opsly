@@ -436,7 +436,8 @@
     "orgDefault": "Org default",
     "warningDefault": "80% (default)",
     "overrideBadge": "override",
-    "properties": "Properties"
+    "properties": "Properties",
+    "owner": "Owner"
   },
   "notes": {
     "title": "Scratch Pad",

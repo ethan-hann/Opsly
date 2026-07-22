@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, sql, and, isNotNull, desc } from "drizzle-orm";
-import { db, projectsTable, tasksTable, slaPoliciesTable, projectSlaPolicyAuditTable } from "@workspace/db";
+import { db, projectsTable, tasksTable, slaPoliciesTable, projectSlaPolicyAuditTable, usersTable } from "@workspace/db";
 import { z } from "zod";
 import {
   CreateProjectBody,
@@ -50,7 +50,7 @@ function resolveActor(req: {
   return { actorId: null, actorName: null };
 }
 
-function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, completedTaskCount = 0, hasSlaOverrides = false) {
+function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, completedTaskCount = 0, hasSlaOverrides = false, createdByName: string | null = null) {
   return {
     ...p,
     dueDate: p.dueDate ?? null,
@@ -58,6 +58,7 @@ function serializeProject(p: typeof projectsTable.$inferSelect, taskCount = 0, c
     taskCount,
     completedTaskCount,
     hasSlaOverrides,
+    createdByName,
     createdAt: p.createdAt instanceof Date ? p.createdAt.toISOString() : p.createdAt,
     updatedAt: p.updatedAt instanceof Date ? p.updatedAt.toISOString() : p.updatedAt,
   };
@@ -109,12 +110,14 @@ router.post("/projects", requireOrgOrApiKey, requireScope("projects:write"), asy
     return;
   }
 
+  const creatorId = req.user?.id ?? null;
   const [project] = await db
     .insert(projectsTable)
-    .values({ ...parsed.data, orgId: req.orgId! })
+    .values({ ...parsed.data, orgId: req.orgId!, createdBy: creatorId })
     .returning();
 
-  const serialized = serializeProject(project, 0, 0);
+  const creatorName = req.user ? displayName(req.user) : null;
+  const serialized = serializeProject(project, 0, 0, false, creatorName);
   dispatchProjectCreated(req.orgId!, serialized);
 
   const { actorId: pActorId, actorName: pActorName } = resolveActor(req);
@@ -139,15 +142,21 @@ router.get("/projects/:id", requireOrgOrApiKey, requireScope("projects:read"), a
     return;
   }
 
-  const [project] = await db
-    .select()
+  const [row] = await db
+    .select({ project: projectsTable, creatorFirstName: usersTable.firstName, creatorLastName: usersTable.lastName, creatorEmail: usersTable.email })
     .from(projectsTable)
+    .leftJoin(usersTable, eq(projectsTable.createdBy, usersTable.id))
     .where(and(eq(projectsTable.id, params.data.id), eq(projectsTable.orgId, req.orgId!)));
 
-  if (!project) {
+  if (!row) {
     res.status(404).json({ error: "Project not found" });
     return;
   }
+
+  const { project, creatorFirstName, creatorLastName, creatorEmail } = row;
+  const createdByName = creatorFirstName || creatorLastName || creatorEmail
+    ? displayName({ firstName: creatorFirstName, lastName: creatorLastName, email: creatorEmail })
+    : null;
 
   const getOrgId = req.orgId!;
   const [counts] = await db
@@ -158,7 +167,7 @@ router.get("/projects/:id", requireOrgOrApiKey, requireScope("projects:read"), a
     .from(tasksTable)
     .where(and(eq(tasksTable.projectId, project.id), eq(tasksTable.orgId, getOrgId)));
 
-  res.json(GetProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0)));
+  res.json(GetProjectResponse.parse(serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0, false, createdByName)));
 });
 
 router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {

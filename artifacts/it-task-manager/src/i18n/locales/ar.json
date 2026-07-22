@@ -435,7 +435,8 @@
     "customSla": "SLA مخصص",
     "orgDefault": "الافتراضي للمنظمة",
     "warningDefault": "80% (الافتراضي)",
-    "overrideBadge": "تجاوز"
+    "overrideBadge": "تجاوز",
+    "owner": "المالك"
   },
   "notes": {
     "title": "المفكرة",

@@ -435,7 +435,8 @@
     "customSla": "SLA personalizado",
     "orgDefault": "Predeterminado de org.",
     "warningDefault": "80% (predeterminado)",
-    "overrideBadge": "anulación"
+    "overrideBadge": "anulación",
+    "owner": "Propietario"
   },
   "notes": {
     "title": "Bloc de notas",

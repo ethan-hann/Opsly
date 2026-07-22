@@ -833,7 +833,7 @@ describe("Project isolation — GET /api/projects/:id", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    mockState.selectQueue.push([orgAProject]); // project found
+    mockState.selectQueue.push([{ project: orgAProject, creatorFirstName: null, creatorLastName: null, creatorEmail: null }]); // project + creator join
     mockState.selectQueue.push([{ total: 0, completed: 0 }]); // task counts
 
     const res = await request(buildApp()).get("/api/projects/1");

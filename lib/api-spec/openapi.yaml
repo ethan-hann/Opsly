@@ -2757,6 +2757,9 @@ components:
         hasSlaOverrides:
           type: boolean
           description: True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults.
+        createdByName:
+          type: ["string", "null"]
+          description: Display name of the user who created the project. Null when created via API key or before this field was tracked.
         createdAt:
           type: string
           description: ISO 8601 timestamp when the project was created.

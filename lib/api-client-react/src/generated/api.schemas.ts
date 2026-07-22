@@ -158,6 +158,11 @@ export interface Project {
   completedTaskCount?: number;
   /** True when the project has at least one project-level SLA policy override active. False or absent means the project uses org defaults. */
   hasSlaOverrides?: boolean;
+  /**
+     * Display name of the user who created the project. Null when created via API key or before this field was tracked.
+     * @nullable
+     */
+  createdByName?: string | null;
   /** ISO 8601 timestamp when the project was created. */
   createdAt: string;
   /** ISO 8601 timestamp when the project was last updated. */

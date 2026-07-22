@@ -435,7 +435,8 @@
     "customSla": "カスタムSLA",
     "orgDefault": "組織のデフォルト",
     "warningDefault": "80%（デフォルト）",
-    "overrideBadge": "上書き"
+    "overrideBadge": "上書き",
+    "owner": "オーナー"
   },
   "notes": {
     "title": "メモ帳",

@@ -435,7 +435,8 @@
     "customSla": "Benutzerdefiniertes SLA",
     "orgDefault": "Org-Standard",
     "warningDefault": "80% (Standard)",
-    "overrideBadge": "Überschreibung"
+    "overrideBadge": "Überschreibung",
+    "owner": "Eigentümer"
   },
   "notes": {
     "title": "Notizblock",

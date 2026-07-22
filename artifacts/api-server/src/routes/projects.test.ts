@@ -167,8 +167,17 @@ const MOCK_PROJECT = {
   status: "active",
   priority: "medium",
   dueDate: null,
+  createdBy: null,
   createdAt: new Date("2024-01-01T00:00:00.000Z"),
   updatedAt: new Date("2024-01-01T00:00:00.000Z"),
+};
+
+/** Row shape returned by the left-join query in GET /projects/:id */
+const MOCK_PROJECT_ROW = {
+  project: MOCK_PROJECT,
+  creatorFirstName: null,
+  creatorLastName: null,
+  creatorEmail: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -272,7 +281,7 @@ describe("GET /api/projects/:id", () => {
   });
 
   it("returns 200 with the project and task counts", async () => {
-    mockState.selectQueue.push([MOCK_PROJECT]); // project lookup
+    mockState.selectQueue.push([MOCK_PROJECT_ROW]); // project + creator join
     mockState.selectQueue.push([{ total: 3, completed: 1 }]); // task counts
 
     const res = await request(buildApp()).get("/api/projects/1");
@@ -301,13 +310,38 @@ describe("GET /api/projects/:id", () => {
   });
 
   it("returns taskCount 0 when the project has no tasks", async () => {
-    mockState.selectQueue.push([MOCK_PROJECT]);
+    mockState.selectQueue.push([MOCK_PROJECT_ROW]); // project + creator join
     mockState.selectQueue.push([]); // no counts row
 
     const res = await request(buildApp()).get("/api/projects/1");
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ taskCount: 0, completedTaskCount: 0 });
+  });
+
+  it("returns createdByName when the creator user exists", async () => {
+    mockState.selectQueue.push([{
+      project: MOCK_PROJECT,
+      creatorFirstName: "Ada",
+      creatorLastName: "Lovelace",
+      creatorEmail: "ada@example.com",
+    }]);
+    mockState.selectQueue.push([{ total: 0, completed: 0 }]);
+
+    const res = await request(buildApp()).get("/api/projects/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ createdByName: "Ada Lovelace" });
+  });
+
+  it("returns createdByName null when no creator is linked", async () => {
+    mockState.selectQueue.push([MOCK_PROJECT_ROW]);
+    mockState.selectQueue.push([{ total: 0, completed: 0 }]);
+
+    const res = await request(buildApp()).get("/api/projects/1");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ createdByName: null });
   });
 });
 
