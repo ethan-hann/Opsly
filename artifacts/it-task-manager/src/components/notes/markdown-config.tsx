@@ -208,9 +208,30 @@ function processHighlight(parent: MdastNode): void {
     processHighlight(child);
   }
 
+  // Track inline-HTML depth so text nodes that sit between an opening and
+  // closing raw-HTML tag (e.g. <code>==text==</code> in a GFM table cell)
+  // are left untouched.  remark-gfm emits those as three sibling nodes:
+  //   html("<code>")  text("==text==")  html("</code>")
+  // Without depth tracking the text node would be processed and the ==
+  // delimiters would be stripped, leaving just "text" inside the <code>.
+  let htmlDepth = 0;
+
   const next: MdastNode[] = [];
   for (const child of parent.children) {
-    if (child.type !== "text" || !child.value || !child.value.includes("==")) {
+    // Maintain depth for raw HTML nodes.
+    if (child.type === "html") {
+      const val = child.value ?? "";
+      if (/^<\//.test(val)) {
+        htmlDepth = Math.max(0, htmlDepth - 1);
+      } else if (/^<[^/!?]/.test(val) && !/\/>$/.test(val)) {
+        htmlDepth++;
+      }
+      next.push(child);
+      continue;
+    }
+
+    // Skip text nodes that are inside a raw HTML element.
+    if (htmlDepth > 0 || child.type !== "text" || !child.value || !child.value.includes("==")) {
       next.push(child);
       continue;
     }

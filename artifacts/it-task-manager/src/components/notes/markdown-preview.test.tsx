@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MarkdownPreview } from "./markdown-preview";
 
 // ---------------------------------------------------------------------------
@@ -94,6 +94,34 @@ describe("MarkdownPreview — toolbar format rendering", () => {
     expect(document.querySelector("script")).toBeNull();
     // Verify the injected side-effect did not run.
     expect((window as unknown as Record<string, unknown>).__xss).toBeUndefined();
+  });
+
+  it("does not process ==...== inside a raw HTML <code> element", async () => {
+    // remark-gfm parses <code>==text==</code> as three sibling MDAST nodes:
+    //   html("<code>")  text("==text==")  html("</code>")
+    // The remarkHighlight plugin must NOT process the text node when htmlDepth > 0.
+    // A two-column header is required so remark-gfm recognises the table.
+    const { container } = render(
+      <MarkdownPreview
+        content={"| Feature | Syntax |\n|---|---|\n| Highlight | <code>==text==</code> |"}
+      />,
+    );
+    // <code> element must contain literal "==text==" — no <mark> wrapping.
+    await waitFor(() => {
+      const code = container.querySelector("td code");
+      expect(code).not.toBeNull();
+      expect(code?.textContent).toBe("==text==");
+      expect(container.querySelector("td mark")).toBeNull();
+    });
+  });
+
+  it("still processes ==...== outside HTML elements after fixing the depth tracker", async () => {
+    const { container } = render(<MarkdownPreview content="before ==marked== after" />);
+    await waitFor(() => {
+      const mark = container.querySelector("mark");
+      expect(mark).not.toBeNull();
+      expect(mark?.textContent).toBe("marked");
+    });
   });
 
   it("strips on* event-handler attributes from user content", async () => {
