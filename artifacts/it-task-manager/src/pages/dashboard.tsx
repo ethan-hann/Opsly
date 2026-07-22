@@ -38,7 +38,7 @@ const SLA_PERIOD_KEYS: { value: SlaPeriod; labelKey: string; headingKey: string 
 
 export default function Dashboard() {
   const { t: term } = useTerminology();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [slaPeriod, setSlaPeriod] = useState<SlaPeriod>("30d");
 
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
@@ -414,7 +414,7 @@ export default function Dashboard() {
                           {task.dueDate ? (
                             <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
                               <Clock className="w-3 h-3" />
-                              {t('dashboard.dueOn', { date: formatDate(task.dueDate) })}
+                              {t('dashboard.dueOn', { date: formatDate(task.dueDate, i18n.language) })}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
@@ -542,7 +542,7 @@ export default function Dashboard() {
                           </Link>
                         </p>
                         <span className="text-xs text-stone-400 dark:text-stone-500 font-medium">
-                          {formatTimeAgo(item.createdAt)}
+                          {formatTimeAgo(item.createdAt, i18n.language)}
                         </span>
                       </div>
                     </div>

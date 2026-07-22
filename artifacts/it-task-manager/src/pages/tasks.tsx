@@ -921,7 +921,7 @@ function BulkActionBar({
 
 export default function TasksList() {
   const { t: term, ts } = useTerminology();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // Build translated option arrays
   const PRIORITY_OPTIONS = [
@@ -1705,7 +1705,7 @@ export default function TasksList() {
                               {({ incident: t('tasks.categoryIncident' as any), change: t('tasks.categoryChange' as any), maintenance: t('tasks.categoryMaintenance' as any), deployment: t('tasks.categoryDeployment' as any), support: t('tasks.categorySupport' as any), other: t('tasks.categoryOther' as any) } as Record<string, string>)[task.category] ?? task.category}
                             </span>
                             {task.dueDate && (
-                              <span>Due: {formatDate(task.dueDate)}</span>
+                              <span>Due: {formatDate(task.dueDate, i18n.language)}</span>
                             )}
                             {task.assignee && (
                               <span className="flex items-center gap-1">

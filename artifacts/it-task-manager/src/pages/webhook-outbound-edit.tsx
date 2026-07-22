@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from 'react-i18next';
 import { formatDistanceToNow } from 'date-fns';
-import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from 'date-fns/locale';
-
-const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+import { useDateLocale } from "@/hooks/use-date-locale";
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -119,7 +117,7 @@ function formatDuration(ms: number): string {
 
 function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
   const { t, i18n } = useTranslation();
-  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? enUS;
+  const dateFnsLocale = useDateLocale();
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="text-xs border-b border-border/30 last:border-0">

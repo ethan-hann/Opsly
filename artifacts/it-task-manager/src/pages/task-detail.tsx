@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from 'date-fns/locale';
+import { useDateLocale } from "@/hooks/use-date-locale";
 import i18n from '@/i18n';
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MentionTextarea } from "@/components/ui/mention-textarea";
@@ -318,8 +318,7 @@ function CommentNodeRenderer({
   const { toast } = useToast();
 
   const { t: tComment, i18n: i18nComment } = useTranslation();
-  const dateFnsLocaleMapComment: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
-  const dateFnsLocaleComment = dateFnsLocaleMapComment[i18nComment.language] ?? dateFnsLocaleMapComment[i18nComment.language?.split('-')[0]] ?? enUS;
+  const dateFnsLocaleComment = useDateLocale();
 
   const editMutation = useUpdateComment({
     mutation: {
@@ -423,7 +422,7 @@ function CommentNodeRenderer({
               {node.editedAt && (
                 <span
                   className="text-xs text-muted-foreground/60 italic"
-                  title={tComment('taskDetail.editedAt', { date: new Date(node.editedAt).toLocaleString() })}
+                  title={tComment('taskDetail.editedAt', { date: new Date(node.editedAt).toLocaleString(i18nComment.language || undefined) })}
                 >
                   ({tComment('common.edited')})
                 </span>
@@ -731,7 +730,7 @@ function InlineDueDatePicker({
   onOpenChange: (v: boolean) => void;
   onChange: (date: string | null) => void;
 }) {
-  const { t: tDue } = useTranslation();
+  const { t: tDue, i18n: i18nDue } = useTranslation();
   // Parse YYYY-MM-DD as local date to avoid UTC-offset day shifts
   const selected = value
     ? (() => {
@@ -746,7 +745,7 @@ function InlineDueDatePicker({
         <button type="button" className={GHOST_TRIGGER}>
           <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <span className={cn(!value && "text-muted-foreground italic")}>
-            {value ? formatDate(value) : tDue('taskDetail.noDueDate')}
+            {value ? formatDate(value, i18nDue.language) : tDue('taskDetail.noDueDate')}
           </span>
         </button>
       </PopoverTrigger>
@@ -1188,8 +1187,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { hasPermission } = useOrgContext();
   const { t: term, tSingular } = useTerminology();
   const { t, i18n } = useTranslation();
-  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
-  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
+  const dateFnsLocale = useDateLocale();
 
   const [commentText, setCommentText] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -1808,7 +1806,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       onChange={handleDueDateChange}
                     />
                   ) : (
-                    <span className="font-medium">{task.dueDate ? formatDate(task.dueDate) : <span className="text-muted-foreground italic">{t('taskDetail.noDueDate')}</span>}</span>
+                    <span className="font-medium">{task.dueDate ? formatDate(task.dueDate, i18n.language) : <span className="text-muted-foreground italic">{t('taskDetail.noDueDate')}</span>}</span>
                   )}
                 </PropertyRow>
 
@@ -1838,7 +1836,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   <span className="text-muted-foreground flex items-center gap-2 text-xs">
                     <Clock className="w-4 h-4" /> {t('common.created')}
                   </span>
-                  <span className="text-xs">{formatDate(task.createdAt)}</span>
+                  <span className="text-xs">{formatDate(task.createdAt, i18n.language)}</span>
                 </div>
               </div>
             </CardContent>

@@ -52,7 +52,7 @@ async function deleteOrg(id: string): Promise<void> {
 }
 
 export function AdminOrgsTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: orgs, isLoading, refetch } = useQuery({ queryKey: ["admin-orgs"], queryFn: fetchOrgs });
   const [confirmDelete, setConfirmDelete] = useState<AdminOrg | null>(null);
@@ -127,7 +127,7 @@ export function AdminOrgsTab() {
                 <td className="px-4 py-3 text-right text-muted-foreground">{org.memberCount}</td>
                 <td className="px-4 py-3 text-right text-muted-foreground">{org.taskCount}</td>
                 <td className="px-4 py-3 text-muted-foreground">
-                  {new Date(org.createdAt).toLocaleDateString()}
+                  {new Date(org.createdAt).toLocaleDateString(i18n.language || undefined)}
                 </td>
                 <td className="px-4 py-3">
                   {org.isDisabled ? (

@@ -19,8 +19,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
-import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
+import { useDateLocale } from "@/hooks/use-date-locale";
 
 type NotificationType =
   | "task_assigned"
@@ -324,9 +324,8 @@ function NotificationItem({
   onDismiss,
   onNavigate,
 }: NotificationItemProps) {
-  const { t, i18n } = useTranslation();
-  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
-  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
+  const { t } = useTranslation();
+  const dateFnsLocale = useDateLocale();
   const href = entityLink(n.entityType, n.entityId);
 
   return (

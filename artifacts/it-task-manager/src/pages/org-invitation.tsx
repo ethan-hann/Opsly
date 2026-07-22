@@ -14,7 +14,7 @@ interface OrgInvitationProps {
 
 export default function OrgInvitation({ invitation, onAccepted, onDeclined }: OrgInvitationProps) {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const { mutate: accept, isPending: isAccepting } = useAcceptOrgInvitation({
     mutation: {
@@ -94,7 +94,7 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              {t('orgInvitation.expires', { date: new Date(invitation.expiresAt).toLocaleDateString() })}
+              {t('orgInvitation.expires', { date: new Date(invitation.expiresAt).toLocaleDateString(i18n.language || undefined) })}
             </p>
           </CardContent>
         </Card>

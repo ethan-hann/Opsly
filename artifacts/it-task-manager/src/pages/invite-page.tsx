@@ -88,7 +88,7 @@ function DeclinedScreen() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function InvitePage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -129,7 +129,7 @@ export default function InvitePage() {
   if (result === "accepted") return <AcceptedScreen orgName={preview.orgName} />;
   if (result === "declined") return <DeclinedScreen />;
 
-  const expiresDate = new Date(preview.expiresAt).toLocaleDateString(undefined, {
+  const expiresDate = new Date(preview.expiresAt).toLocaleDateString(i18n.language || undefined, {
     year: "numeric",
     month: "long",
     day: "numeric",

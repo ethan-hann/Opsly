@@ -42,6 +42,7 @@ interface TaskCardProps {
 }
 
 function TaskCard({ task, overlay }: TaskCardProps) {
+  const { i18n } = useTranslation();
   const {
     attributes,
     listeners,
@@ -81,7 +82,7 @@ function TaskCard({ task, overlay }: TaskCardProps) {
         {task.projectName && (
           <span className="text-foreground/70 truncate max-w-[120px]">{task.projectName}</span>
         )}
-        {task.dueDate && <span>Due {formatDate(task.dueDate)}</span>}
+        {task.dueDate && <span>Due {formatDate(task.dueDate, i18n.language)}</span>}
       </div>
       {task.stageArchived && (
         <div className="flex items-center gap-1 text-[10px] text-muted-foreground">

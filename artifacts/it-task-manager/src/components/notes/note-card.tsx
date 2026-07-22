@@ -1,6 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
-import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
+import { useDateLocale } from "@/hooks/use-date-locale";
 import { FileText, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -27,9 +27,8 @@ function stripHtml(html: string): string {
 }
 
 export function NoteCard({ note, isSelected, projectName, taskTitle, onClick, onDelete }: NoteCardProps) {
-  const { t, i18n } = useTranslation();
-  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
-  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
+  const { t } = useTranslation();
+  const dateFnsLocale = useDateLocale();
   const canDelete = note.isOwner;
   const preview = stripHtml(note.content).slice(0, 120) || t('notes.noContentYet');
   const linkedTo = taskTitle ?? projectName;

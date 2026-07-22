@@ -35,7 +35,7 @@ function formatAction(action: string): string {
 }
 
 export function AdminAuditTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: entries, isLoading, refetch } = useQuery({
     queryKey: ["admin-audit-log"],
     queryFn: () => fetchAuditLog(100),
@@ -82,7 +82,7 @@ export function AdminAuditTab() {
               {entries?.map((entry) => (
                 <tr key={entry.id} className="font-mono text-xs">
                   <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">
-                    {new Date(entry.createdAt).toLocaleString()}
+                    {new Date(entry.createdAt).toLocaleString(i18n.language || undefined)}
                   </td>
                   <td className="px-4 py-2.5 font-sans">
                     <span className="text-xs bg-muted px-1.5 py-0.5 rounded">{entry.actor}</span>

@@ -46,7 +46,7 @@ async function removeMember(orgId: string, userId: string): Promise<void> {
 }
 
 export function AdminUsersTab() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
@@ -151,7 +151,7 @@ export function AdminUsersTab() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">
-                    {new Date(user.createdAt).toLocaleDateString()}
+                    {new Date(user.createdAt).toLocaleDateString(i18n.language || undefined)}
                   </td>
                 </tr>
               ))}

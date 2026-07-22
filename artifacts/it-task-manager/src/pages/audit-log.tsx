@@ -336,14 +336,14 @@ function AuditLogContent() {
 // ─── Event row ────────────────────────────────────────────────────────────────
 
 function EventRow({ event }: { event: AuditEvent }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const cat = event.category as AuditCategory;
   const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
   return (
     <tr className="hover:bg-muted/30 transition-colors">
       <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">
-        {new Date(event.createdAt).toLocaleString()}
+        {new Date(event.createdAt).toLocaleString(i18n.language || undefined)}
       </td>
       <td className="px-4 py-2.5 whitespace-nowrap">
         <Badge variant={CATEGORY_VARIANT[cat] ?? "outline"} className="text-xs">

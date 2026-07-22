@@ -18,7 +18,7 @@ export default function ProjectsList() {
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
   const { t: term, ts } = useTerminology();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // URL-driven status filter (e.g. ?status=active from the dashboard KPI card)
   const urlSearch = useSearch();
@@ -100,7 +100,7 @@ export default function ProjectsList() {
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {project.dueDate ? formatDate(project.dueDate) : t('projects.noDate')}
+                        {project.dueDate ? formatDate(project.dueDate, i18n.language) : t('projects.noDate')}
                       </div>
                       <PriorityBadge priority={project.priority} />
                     </div>

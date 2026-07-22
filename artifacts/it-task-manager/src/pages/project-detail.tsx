@@ -116,7 +116,7 @@ function displayToMinutes(v: string): number | null {
 
 function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { hasPermission } = useOrgContext();
   const canManagePolicies = hasPermission("manage_sla_policies");
   const canViewHistory = hasPermission("view_audit_log") || canManagePolicies;
@@ -379,7 +379,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                         return (
                           <tr key={entry.id} className="text-xs align-top">
                             <td className="px-3 py-2.5 text-muted-foreground whitespace-nowrap font-mono">
-                              {new Date(entry.createdAt).toLocaleString()}
+                              {new Date(entry.createdAt).toLocaleString(i18n.language || undefined)}
                             </td>
                             <td className="px-3 py-2.5">
                               <span className="bg-muted px-1.5 py-0.5 rounded text-xs">
@@ -432,7 +432,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
   const { t: term, tSingular } = useTerminology();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [editOpen, setEditOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -523,11 +523,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1 bg-secondary/50 px-2 py-1 rounded-md">
                   <Calendar className="w-3.5 h-3.5" />
-                  {t('common.dueDate')}: {project.dueDate ? formatDate(project.dueDate) : t('projects.noDate', 'No date')}
+                  {t('common.dueDate')}: {project.dueDate ? formatDate(project.dueDate, i18n.language) : t('projects.noDate', 'No date')}
                 </div>
                 <div className="flex items-center gap-1 bg-secondary/50 px-2 py-1 rounded-md">
                   <Clock className="w-3.5 h-3.5" />
-                  {t('common.updated')}: {formatTimeAgo(project.updatedAt)}
+                  {t('common.updated')}: {formatTimeAgo(project.updatedAt, i18n.language)}
                 </div>
               </div>
             </div>

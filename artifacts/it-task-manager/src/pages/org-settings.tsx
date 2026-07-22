@@ -727,16 +727,16 @@ const SCOPE_LABELS: Record<ApiKeyScope, string> = {
   "webhooks:write": "Webhooks — write",
 };
 
-function formatKeyExpiry(t: (k: string, opts?: Record<string, unknown>) => string, key: ApiKey): string {
+function formatKeyExpiry(t: (k: string, opts?: Record<string, unknown>) => string, key: ApiKey, locale?: string): string {
   if (key.revokedAt) return t('orgSettings.apiKeys.revoked');
   if (key.isExpired) return t('orgSettings.apiKeys.expired');
   if (!key.expiresAt) return t('orgSettings.apiKeys.neverExpires');
-  return t('orgSettings.apiKeys.expiresOn', { date: new Date(key.expiresAt).toLocaleDateString() });
+  return t('orgSettings.apiKeys.expiresOn', { date: new Date(key.expiresAt).toLocaleDateString(locale || undefined) });
 }
 
 function ApiKeyRow({ apiKey, onRevoked }: { apiKey: ApiKey; onRevoked: () => void }) {
   const { toast } = useToast();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { mutate: revoke, isPending: isRevoking } = useRevokeApiKey({
     mutation: {
       onSuccess: () => {
@@ -774,7 +774,7 @@ function ApiKeyRow({ apiKey, onRevoked }: { apiKey: ApiKey; onRevoked: () => voi
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          {formatKeyExpiry(t, apiKey)} · {t('orgSettings.apiKeys.createdBy', { name: creatorName, date: new Date(apiKey.createdAt).toLocaleDateString() })}
+          {formatKeyExpiry(t, apiKey, i18n.language)} · {t('orgSettings.apiKeys.createdBy', { name: creatorName, date: new Date(apiKey.createdAt).toLocaleDateString(i18n.language || undefined) })}
         </p>
       </div>
       {isActive && (
@@ -1037,7 +1037,7 @@ interface PendingExport {
 }
 
 export function ExportCard() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -1215,7 +1215,7 @@ export function ExportCard() {
                   {t("orgSettings.export.ready")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {t("orgSettings.export.availableUntil")} {new Date(pendingExport.expiresAt).toLocaleString()}
+                  {t("orgSettings.export.availableUntil")} {new Date(pendingExport.expiresAt).toLocaleString(i18n.language || undefined)}
                 </p>
               </div>
               <Button
