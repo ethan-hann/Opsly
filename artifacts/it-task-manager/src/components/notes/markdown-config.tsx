@@ -90,9 +90,13 @@ export function MermaidBlock({ code }: { code: string }) {
     import("mermaid")
       .then(async (mod) => {
         const mermaid = mod.default;
+        // securityLevel "antiscript" was removed in Mermaid 11 — it calls
+        // DOMPurify.addHook() which no longer exists, causing every diagram to
+        // throw. "loose" allows HTML labels without the broken DOMPurify hook.
+        // SVG output is still sanitized by sanitizeSvg() before DOM insertion.
         mermaid.initialize({
           startOnLoad: false,
-          securityLevel: "antiscript",
+          securityLevel: "loose",
           suppressErrorRendering: true,
         });
         try {
