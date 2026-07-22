@@ -25,7 +25,7 @@ import { sendMail, getEmailConfig, applySmtpOverride, clearSmtpOverride } from '
 const router: IRouter = Router();
 
 // Apply instance admin guard to every route in this file.
-router.use(requireInstanceAdmin);
+router.use('/admin', requireInstanceAdmin);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
