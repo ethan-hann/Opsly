@@ -44,11 +44,17 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: true,
       staleTime: 0,
+      // Keep unused cache entries for 30 min so data survives offline sessions.
+      gcTime: 30 * 60 * 1000,
       refetchInterval: 8_000, // poll every 8 s so all sessions stay in sync
       refetchIntervalInBackground: false, // pause when tab is hidden
-      networkMode: 'offlineFirst',
+      // 'online' pauses queries when offline and returns cached data instead of
+      // firing and erroring (which was wiping dropdown/form data offline).
+      networkMode: 'online',
     },
     mutations: {
+      // 'offlineFirst' lets mutations fire when offline so customFetch can
+      // intercept the TypeError and queue them in IndexedDB.
       networkMode: 'offlineFirst',
     },
   },

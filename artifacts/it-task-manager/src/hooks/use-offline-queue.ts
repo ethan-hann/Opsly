@@ -124,7 +124,7 @@ export function useOfflineQueue() {
       for (const entry of entries) {
         try {
           const headers: HeadersInit = { ...entry.headers };
-          const init: RequestInit = { method: entry.method, headers };
+          const init: RequestInit = { method: entry.method, headers, credentials: "include" };
           if (entry.body !== null) init.body = entry.body;
 
           const response = await _fetchImpl(entry.url, init);

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { WifiOff } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
 
@@ -9,29 +10,32 @@ import { useOfflineQueue } from "@/hooks/use-offline-queue";
  *
  * On mount it flushes any mutations that were queued during a previous offline
  * session (i.e. the user closed the app while offline and reopened online).
- * When connectivity is restored it also flushes the queue; the flush itself
- * shows a sonner toast confirming how many changes were synced.
+ * When connectivity is restored it also flushes the queue; after a successful
+ * flush it invalidates all React Query caches so the UI re-fetches and
+ * reflects the newly-synced server state.
  */
 export function OfflineBanner() {
   const { isOnline, isOffline } = useNetworkStatus();
   const { queueLength, flushQueue } = useOfflineQueue();
+  const queryClient = useQueryClient();
   const wasOffline = useRef(isOffline);
 
   // Flush any mutations queued in a previous session on startup.
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.onLine) {
-      flushQueue();
+      flushQueue().then(() => queryClient.invalidateQueries());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Flush when connectivity is restored after being offline.
+  // Flush when connectivity is restored after being offline, then refresh
+  // all cached query data so the UI reflects the replayed mutations.
   useEffect(() => {
     if (wasOffline.current && isOnline) {
-      flushQueue();
+      flushQueue().then(() => queryClient.invalidateQueries());
     }
     wasOffline.current = isOffline;
-  }, [isOnline, isOffline, flushQueue]);
+  }, [isOnline, isOffline, flushQueue, queryClient]);
 
   if (!isOffline) return null;
 

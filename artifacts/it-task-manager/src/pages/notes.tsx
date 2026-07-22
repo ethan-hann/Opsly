@@ -144,6 +144,15 @@ export default function NotesPage() {
         ...(filterTaskId !== "all" ? { taskId: filterTaskId as number } : {}),
       },
     });
+    // When offline, customFetch queues the mutation and returns undefined.
+    // We can't navigate to a note that has no server-assigned ID yet.
+    if (!result) {
+      toast({
+        title: t("notes.queuedOffline", "Note queued"),
+        description: t("notes.queuedOfflineDesc", "It will be created when you reconnect."),
+      });
+      return;
+    }
     setSelectedId(result.id);
     setLocalContent("");
     navigate(`/notes?note=${result.id}`);
