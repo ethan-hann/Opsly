@@ -57,6 +57,15 @@ vi.mock("@/hooks/use-toast", () => ({
   toast: vi.fn(),
 }));
 
+vi.mock("@/context/terminology-context", () => ({
+  useTerminology: () => ({
+    t: (key: string) => key,
+    ts: (key: string) => key,
+    tSingular: (key: string) => key,
+  }),
+  TerminologyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock("@/lib/validate-assignee", () => ({
   validateAssignee: () => null,
 }));

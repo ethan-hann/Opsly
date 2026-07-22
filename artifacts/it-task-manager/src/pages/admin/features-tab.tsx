@@ -4,20 +4,11 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Building2, RefreshCw, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
 type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding";
-
-const FEATURES: Array<{ key: OrgFeature; label: string; description: string }> = [
-  { key: "webhooks", label: "Webhooks", description: "Inbound and outbound webhook management" },
-  { key: "api_keys", label: "API Keys", description: "Programmatic API access via API keys" },
-  { key: "data_export", label: "Data Export", description: "Export tasks, projects, and comments as ZIP/CSV" },
-  { key: "custom_fields", label: "Custom Fields", description: "Custom field definitions on tasks" },
-  { key: "custom_statuses", label: "Custom Statuses", description: "Custom workflow stage definitions" },
-  { key: "sla_tracking", label: "SLA Tracking", description: "SLA policies and breach detection" },
-  { key: "branding", label: "Branding", description: "Custom primary color and logo for white-label deployments" },
-];
 
 interface AdminOrg {
   id: string;
@@ -48,11 +39,22 @@ async function patchFeature(orgId: string, feature: OrgFeature, enabled: boolean
 }
 
 function OrgFeaturePanel({ org }: { org: AdminOrg }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: features, isLoading } = useQuery({
     queryKey: ["admin-features", org.id],
     queryFn: () => fetchFeatures(org.id),
   });
+
+  const FEATURES: Array<{ key: OrgFeature; label: string; description: string }> = [
+    { key: "webhooks", label: t('admin.features.featureWebhooks'), description: t('admin.features.featureWebhooksDesc') },
+    { key: "api_keys", label: t('admin.features.featureApiKeys'), description: t('admin.features.featureApiKeysDesc') },
+    { key: "data_export", label: t('admin.features.featureDataExport'), description: t('admin.features.featureDataExportDesc') },
+    { key: "custom_fields", label: t('admin.features.featureCustomFields'), description: t('admin.features.featureCustomFieldsDesc') },
+    { key: "custom_statuses", label: t('admin.features.featureCustomStatuses'), description: t('admin.features.featureCustomStatusesDesc') },
+    { key: "sla_tracking", label: t('admin.features.featureSlaTracking'), description: t('admin.features.featureSlaTrackingDesc') },
+    { key: "branding", label: t('admin.features.featureBranding'), description: t('admin.features.featureBrandingDesc') },
+  ];
 
   const mutation = useMutation({
     mutationFn: ({ feature, enabled }: { feature: OrgFeature; enabled: boolean }) =>
@@ -65,7 +67,7 @@ function OrgFeaturePanel({ org }: { org: AdminOrg }) {
       <div className="bg-muted/50 px-4 py-3 flex items-center gap-2">
         <Building2 className="w-4 h-4 text-muted-foreground" />
         <span className="font-medium">{org.name}</span>
-        {org.isDisabled && <Badge variant="destructive" className="ml-auto">Suspended</Badge>}
+        {org.isDisabled && <Badge variant="destructive" className="ml-auto">{t('admin.orgs.statusSuspended')}</Badge>}
       </div>
       <div className="divide-y divide-border">
         {FEATURES.map((feat) => {
@@ -96,6 +98,7 @@ function OrgFeaturePanel({ org }: { org: AdminOrg }) {
 }
 
 export function AdminFeaturesTab() {
+  const { t } = useTranslation();
   const { data: orgs, isLoading, refetch } = useQuery({
     queryKey: ["admin-orgs"],
     queryFn: fetchOrgs,
@@ -113,19 +116,18 @@ export function AdminFeaturesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Toggle features per organization. Disabled features return 403 to all org members.
-          All features are enabled by default.
+          {t('admin.features.featureDesc')}
         </p>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+          {t('admin.features.refresh')}
         </Button>
       </div>
 
       {orgs?.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Building2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          No organizations found
+          {t('admin.features.noOrgs')}
         </div>
       )}
 

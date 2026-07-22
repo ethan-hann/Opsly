@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { useParams } from "wouter";
 import {
   useGetInvitationPreview,
@@ -21,27 +22,29 @@ import { useToast } from "@/hooks/use-toast";
 // ─── Sub-screens ──────────────────────────────────────────────────────────────
 
 function LoadingScreen() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-muted-foreground">Loading invitation…</p>
+        <p className="text-sm text-muted-foreground">{t('invite.loading')}</p>
       </div>
     </div>
   );
 }
 
 function ErrorScreen() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md text-center space-y-4">
         <AlertTriangle className="w-12 h-12 text-destructive mx-auto" />
-        <h2 className="text-xl font-bold">Invitation not found</h2>
+        <h2 className="text-xl font-bold">{t('invite.notFoundTitle')}</h2>
         <p className="text-muted-foreground">
-          This invitation link is invalid or has already expired.
+          {t('invite.notFoundDesc')}
         </p>
         <a href={import.meta.env.BASE_URL}>
-          <Button variant="outline">Go to home</Button>
+          <Button variant="outline">{t('invite.goHome')}</Button>
         </a>
       </div>
     </div>
@@ -49,31 +52,33 @@ function ErrorScreen() {
 }
 
 function AcceptedScreen({ orgName }: { orgName: string }) {
+  const { t } = useTranslation();
   useEffect(() => {
-    const t = setTimeout(() => window.location.replace(import.meta.env.BASE_URL), 1800);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => window.location.replace(import.meta.env.BASE_URL), 1800);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md text-center space-y-4">
         <CheckCircle className="w-12 h-12 text-primary mx-auto" />
-        <h2 className="text-xl font-bold">Welcome to {orgName}!</h2>
-        <p className="text-muted-foreground">Taking you to your dashboard…</p>
+        <h2 className="text-xl font-bold">{t('invite.welcomeTitle', { orgName })}</h2>
+        <p className="text-muted-foreground">{t('invite.takingYouToDashboard')}</p>
       </div>
     </div>
   );
 }
 
 function DeclinedScreen() {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md text-center space-y-4">
         <XCircle className="w-12 h-12 text-muted-foreground mx-auto" />
-        <h2 className="text-xl font-bold">Invitation declined</h2>
-        <p className="text-muted-foreground">You have declined this invitation.</p>
+        <h2 className="text-xl font-bold">{t('invite.declinedTitle')}</h2>
+        <p className="text-muted-foreground">{t('invite.declinedDesc')}</p>
         <a href={import.meta.env.BASE_URL}>
-          <Button variant="outline">Go to home</Button>
+          <Button variant="outline">{t('invite.goHome')}</Button>
         </a>
       </div>
     </div>
@@ -83,6 +88,7 @@ function DeclinedScreen() {
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function InvitePage() {
+  const { t } = useTranslation();
   const { token } = useParams<{ token: string }>();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -99,7 +105,7 @@ export default function InvitePage() {
       onSuccess: () => setResult("accepted"),
       onError: (err: Error) =>
         toast({
-          title: "Couldn't accept invitation",
+          title: t('invite.acceptError'),
           description: err.message,
           variant: "destructive",
         }),
@@ -111,7 +117,7 @@ export default function InvitePage() {
       onSuccess: () => setResult("declined"),
       onError: (err: Error) =>
         toast({
-          title: "Couldn't decline invitation",
+          title: t('invite.declineError'),
           description: err.message,
           variant: "destructive",
         }),
@@ -145,14 +151,14 @@ export default function InvitePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>You've been invited</CardTitle>
-            <CardDescription>You have a pending invitation to join an organization.</CardDescription>
+            <CardTitle>{t('invite.title')}</CardTitle>
+            <CardDescription>{t('invite.desc')}</CardDescription>
           </CardHeader>
 
           <CardContent>
             <div className="rounded-md bg-primary/10 border border-primary/20 p-4 text-center">
               <p className="font-semibold text-lg text-foreground">{preview.orgName}</p>
-              <p className="text-xs text-muted-foreground mt-1">Expires {expiresDate}</p>
+              <p className="text-xs text-muted-foreground mt-1">{t('invite.expires', { date: expiresDate })}</p>
             </div>
           </CardContent>
 
@@ -163,10 +169,10 @@ export default function InvitePage() {
                   href={`/api/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
                   className="w-full"
                 >
-                  <Button className="w-full">Log in to accept invitation</Button>
+                  <Button className="w-full">{t('auth.logIn')}</Button>
                 </a>
                 <p className="text-xs text-center text-muted-foreground">
-                  You'll be redirected back here after signing in.
+                  {t('invite.redirectAfterSignIn')}
                 </p>
               </>
             ) : (
@@ -180,7 +186,7 @@ export default function InvitePage() {
                   {isDeclining ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Decline"
+                    t('invite.decline')
                   )}
                 </Button>
                 <Button
@@ -191,7 +197,7 @@ export default function InvitePage() {
                   {isAccepting ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    "Accept invitation"
+                    t('invite.accept')
                   )}
                 </Button>
               </div>

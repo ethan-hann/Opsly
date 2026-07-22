@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { getSlaStatus, formatSlaMinutes } from "@/lib/sla";
 import type { SlaResult } from "@/lib/sla";
 import type { SlaPolicy } from "@workspace/api-client-react";
@@ -42,6 +43,7 @@ function useSlaResult(
 }
 
 export function SlaBadge({ createdAt, updatedAt, status, priority, policies, className, stageType }: SlaBadgeProps) {
+  const { t } = useTranslation();
   const policy = policies?.find((p) => p.priority === priority) ?? null;
   const result = useSlaResult(createdAt, updatedAt, status, priority, policy, stageType);
 
@@ -63,14 +65,13 @@ export function SlaBadge({ createdAt, updatedAt, status, priority, policies, cla
   // For resolved tasks, show how long it took instead of how much time is left.
   let label: string;
   if (result.resolutionMinutesTaken != null) {
-    // Task is done — show resolution time
-    label = `Resolved in ${formatSlaMinutes(result.resolutionMinutesTaken)}`;
+    label = t('sla.resolvedIn', { time: formatSlaMinutes(result.resolutionMinutesTaken) });
   } else {
     const labelMap: Record<string, string> = {
-      on_track: minutes != null ? `SLA: ${formatSlaMinutes(minutes)} left` : "SLA: on track",
-      warning:  minutes != null ? `SLA at risk: ${formatSlaMinutes(minutes)} left` : "SLA: at risk",
-      breached: minutes != null ? `SLA: breached ${formatSlaMinutes(Math.abs(minutes))} ago` : "SLA: breached",
-      none:     "No SLA",
+      on_track: minutes != null ? t('sla.xLeft', { time: formatSlaMinutes(minutes) }) : t('sla.onTrackFull'),
+      warning:  minutes != null ? t('sla.atRisk', { time: formatSlaMinutes(minutes) }) : t('sla.atRiskShort'),
+      breached: minutes != null ? t('sla.breachedXAgo', { time: formatSlaMinutes(Math.abs(minutes)) }) : t('sla.breachedShort'),
+      none:     t('sla.noSla'),
     };
     label = labelMap[dominant];
   }
@@ -78,7 +79,7 @@ export function SlaBadge({ createdAt, updatedAt, status, priority, policies, cla
   return (
     <span
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border whitespace-nowrap ${styles[dominant]} ${className ?? ""}`}
-      title={`SLA status: ${dominant}`}
+      title={t('sla.statusTitle', { status: dominant })}
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
         dominant === "on_track" ? "bg-emerald-500"

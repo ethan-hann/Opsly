@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSearch } from "wouter";
+import { useTranslation } from "react-i18next";
 import {
   Plus, StickyNote, Search, Link2Off,
   Eye,
@@ -39,6 +40,7 @@ const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.El
 ];
 
 export default function NotesPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   // Pre-select a note when navigated here via ?note=<id> (e.g. from "Edit in Scratch Pad")
   const urlSearch = useSearch();
@@ -161,7 +163,7 @@ export default function NotesPage() {
     if (selectedId === deleteTarget) { setSelectedId(null); setLocalContent(""); }
     setDeleteTarget(null);
     refetch();
-    toast({ title: "Note deleted" });
+    toast({ title: t("notes.deleteNote") });
   };
 
   const getProjectName = (id: number | null | undefined) =>
@@ -202,7 +204,7 @@ export default function NotesPage() {
             }`}
           >
             <CheckCheck className="w-3.5 h-3.5" />
-            Saved
+            {t("notes.saved")}
           </span>
 
         </div>
@@ -243,8 +245,8 @@ export default function NotesPage() {
                 : "border-border bg-muted/30 text-muted-foreground"
             }`}>
               {selectedNote.visibility === "public_write"
-                ? <><Edit2 className="w-3 h-3" /> Shared - you can edit</>
-                : <><Eye className="w-3 h-3" /> Shared - read only</>
+                ? <><Edit2 className="w-3 h-3" /> {t('notes.sharedCanEdit')}</>
+                : <><Eye className="w-3 h-3" /> {t('notes.sharedReadOnly')}</>
               }
             </span>
           )}
@@ -253,29 +255,29 @@ export default function NotesPage() {
           {canEdit ? (
             <div className="flex flex-wrap items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Project:</span>
+                <span className="text-xs text-muted-foreground">{t('notes.projectLabel')}</span>
                 <SearchableSelect
                   value={selectedNote.projectId?.toString() ?? "none"}
                   onValueChange={(v) => handleLinkChange("projectId", v)}
-                  placeholder="None"
-                  noneLabel="None"
+                  placeholder={t('common.none')}
+                  noneLabel={t('common.none')}
                   noneIcon={<Link2Off className="w-3 h-3" />}
                   options={projects.map((p) => ({ value: p.id.toString(), label: p.name }))}
-                  searchPlaceholder="Search projects…"
+                  searchPlaceholder={t('notes.searchProjectsPlaceholder')}
                   triggerClassName="h-6 text-xs w-36"
                   contentWidth="w-48"
                 />
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Task:</span>
+                <span className="text-xs text-muted-foreground">{t('notes.taskLabel')}</span>
                 <SearchableSelect
                   value={selectedNote.taskId?.toString() ?? "none"}
                   onValueChange={(v) => handleLinkChange("taskId", v)}
-                  placeholder="None"
-                  noneLabel="None"
+                  placeholder={t('common.none')}
+                  noneLabel={t('common.none')}
                   noneIcon={<Link2Off className="w-3 h-3" />}
-                  options={tasks.map((t) => ({ value: t.id.toString(), label: t.title }))}
-                  searchPlaceholder="Search tasks…"
+                  options={tasks.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
+                  searchPlaceholder={t('notes.searchTasksPlaceholder')}
                   triggerClassName="h-6 text-xs w-44"
                   contentWidth="w-64"
                 />
@@ -284,15 +286,15 @@ export default function NotesPage() {
           ) : (
             <div className="flex flex-wrap items-center gap-3 ml-auto text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <span className="opacity-60">Project:</span>
+                <span className="opacity-60">{t('notes.projectLabel')}</span>
                 <span className={selectedNote.projectId ? "text-foreground font-medium" : "opacity-50"}>
-                  {getProjectName(selectedNote.projectId) ?? "None"}
+                  {getProjectName(selectedNote.projectId) ?? t('common.none')}
                 </span>
               </span>
               <span className="flex items-center gap-1">
-                <span className="opacity-60">Task:</span>
+                <span className="opacity-60">{t('notes.taskLabel')}</span>
                 <span className={selectedNote.taskId ? "text-foreground font-medium" : "opacity-50"}>
-                  {getTaskTitle(selectedNote.taskId) ?? "None"}
+                  {getTaskTitle(selectedNote.taskId) ?? t('common.none')}
                 </span>
               </span>
             </div>
@@ -319,9 +321,9 @@ export default function NotesPage() {
   ) : (
     <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
       <StickyNote className="w-12 h-12 opacity-20" />
-      <p className="text-sm">Select a note or create one</p>
+      <p className="text-sm">{t("notes.noNotesDesc")}</p>
       <Button variant="outline" size="sm" onClick={handleNew}>
-        <Plus className="w-4 h-4 mr-1" /> New note
+        <Plus className="w-4 h-4 mr-1" /> {t("notes.newNote")}
       </Button>
     </div>
   );
@@ -332,11 +334,11 @@ export default function NotesPage() {
       <div className={`${selectedId !== null ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 flex-col border-r border-border bg-card`}>
         <div className="p-3 border-b border-border flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-primary" />
-          <span className="font-semibold text-sm flex-1">Scratch Pad</span>
+          <span className="font-semibold text-sm flex-1">{t("notes.title")}</span>
           <Button
             size="icon" variant="ghost"
             className="h-7 w-7 text-muted-foreground hover:text-primary"
-            onClick={handleNew} disabled={createNote.isPending} title="New note"
+            onClick={handleNew} disabled={createNote.isPending} title={t('notes.newNote')}
           >
             <Plus className="w-4 h-4" />
           </Button>
@@ -345,16 +347,16 @@ export default function NotesPage() {
         <div className="p-2 border-b border-border flex flex-col gap-1.5">
           <div className="relative">
             <Search className="absolute left-2.5 top-2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input placeholder="Search notes…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-7 text-xs bg-background" />
+            <Input placeholder={t("notes.searchNotes")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-7 text-xs bg-background" />
           </div>
           <SearchableSelect
             value={filterProjectId === "all" ? "all" : filterProjectId.toString()}
             onValueChange={(v) => setFilterProjectId(v === "all" ? "all" : Number(v))}
-            placeholder="All projects"
-            noneLabel="All projects"
+            placeholder={t('notes.allProjects')}
+            noneLabel={t('notes.allProjects')}
             noneValue="all"
             options={projects.map((p) => ({ value: p.id.toString(), label: p.name }))}
-            searchPlaceholder="Search projects…"
+            searchPlaceholder={t('notes.searchProjectsPlaceholder')}
             triggerClassName="h-7 text-xs bg-background w-full"
             contentWidth="w-full"
           />
@@ -362,11 +364,11 @@ export default function NotesPage() {
             <SearchableSelect
               value={filterTaskId === "all" ? "all" : filterTaskId.toString()}
               onValueChange={(v) => setFilterTaskId(v === "all" ? "all" : Number(v))}
-              placeholder="All tasks"
-              noneLabel="All tasks"
+              placeholder={t('notes.allTasks')}
+              noneLabel={t('notes.allTasks')}
               noneValue="all"
-              options={tasks.map((t) => ({ value: t.id.toString(), label: t.title }))}
-              searchPlaceholder="Search tasks…"
+              options={tasks.map((tk) => ({ value: tk.id.toString(), label: tk.title }))}
+              searchPlaceholder={t('notes.searchTasksPlaceholder')}
               triggerClassName="h-7 text-xs bg-background flex-1"
               contentWidth="w-[220px]"
             />
@@ -374,7 +376,7 @@ export default function NotesPage() {
               <button
                 onClick={() => { setFilterProjectId("all"); setFilterTaskId("all"); }}
                 className="shrink-0 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                title="Clear filters"
+                title={t('notes.clearFilters')}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -386,10 +388,10 @@ export default function NotesPage() {
           {filteredNotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
               <StickyNote className="w-8 h-8 opacity-30" />
-              <p className="text-xs">{search ? "No matches" : "No notes yet"}</p>
+              <p className="text-xs">{search ? t("common.noResults") : t("notes.noNotes")}</p>
               {!search && (
                 <Button size="sm" variant="outline" className="text-xs h-7" onClick={handleNew}>
-                  <Plus className="w-3 h-3 mr-1" /> New note
+                  <Plus className="w-3 h-3 mr-1" /> {t("notes.newNote")}
                 </Button>
               )}
             </div>
@@ -415,13 +417,13 @@ export default function NotesPage() {
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete note?</AlertDialogTitle>
-            <AlertDialogDescription>This note will be permanently deleted.</AlertDialogDescription>
+            <AlertDialogTitle>{t("notes.deleteNote")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("notes.deleteNoteDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDelete}>
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

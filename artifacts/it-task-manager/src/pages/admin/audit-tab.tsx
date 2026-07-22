@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollText, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -34,6 +35,7 @@ function formatAction(action: string): string {
 }
 
 export function AdminAuditTab() {
+  const { t } = useTranslation();
   const { data: entries, isLoading, refetch } = useQuery({
     queryKey: ["admin-audit-log"],
     queryFn: () => fetchAuditLog(100),
@@ -44,11 +46,11 @@ export function AdminAuditTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Recent instance admin actions. Automatically refreshes every 15 seconds.
+          {t('admin.audit.desc')}
         </p>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+          {t('admin.audit.refresh')}
         </Button>
       </div>
 
@@ -61,11 +63,11 @@ export function AdminAuditTab() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Time</th>
-                <th className="px-4 py-3 text-left font-medium">Actor</th>
-                <th className="px-4 py-3 text-left font-medium">Action</th>
-                <th className="px-4 py-3 text-left font-medium">Target</th>
-                <th className="px-4 py-3 text-left font-medium">Details</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.audit.colTime')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.audit.colActor')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.audit.colAction')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.audit.colTarget')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.audit.colDetails')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -73,7 +75,7 @@ export function AdminAuditTab() {
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
                     <ScrollText className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    No admin actions recorded yet
+                    {t('admin.audit.noEntries')}
                   </td>
                 </tr>
               )}

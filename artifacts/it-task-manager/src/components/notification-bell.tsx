@@ -19,6 +19,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 type NotificationType =
   | "task_assigned"
@@ -128,6 +130,7 @@ interface NotificationBellProps {
 }
 
 export function NotificationBell({ collapsed = false }: NotificationBellProps) {
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -216,7 +219,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
             ? "h-9 w-9 relative text-sidebar-foreground/60 hover:text-sidebar-foreground"
             : "h-8 w-8 relative text-sidebar-foreground/60 hover:text-sidebar-foreground shrink-0"
         }
-        title="Notifications"
+        title={t('notifications.title')}
       >
         <Bell className="w-4 h-4" />
         {badgeCount > 0 && (
@@ -240,7 +243,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h3 className="font-semibold text-sm">Notifications</h3>
+          <h3 className="font-semibold text-sm">{t('notifications.title')}</h3>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
@@ -249,7 +252,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
               onClick={handleMarkAllRead}
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              Mark all read
+              {t('notifications.markAllRead')}
             </Button>
           )}
         </div>
@@ -271,7 +274,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full py-12 text-muted-foreground">
               <Bell className="w-8 h-8 mb-2 opacity-30" />
-              <p className="text-sm">No notifications yet</p>
+              <p className="text-sm">{t('notifications.noNotificationsYet')}</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -297,7 +300,7 @@ export function NotificationBell({ collapsed = false }: NotificationBellProps) {
               className="h-7 text-xs text-muted-foreground hover:text-foreground"
               onClick={() => setOpen(false)}
             >
-              Notification preferences
+              {t('notifications.preferences')}
             </Button>
           </Link>
         </div>
@@ -321,6 +324,9 @@ function NotificationItem({
   onDismiss,
   onNavigate,
 }: NotificationItemProps) {
+  const { t, i18n } = useTranslation();
+  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
   const href = entityLink(n.entityType, n.entityId);
 
   return (
@@ -341,7 +347,7 @@ function NotificationItem({
           {n.message}
         </p>
         <p className="text-[10px] text-muted-foreground mt-0.5">
-          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true })}
+          {formatDistanceToNow(new Date(n.createdAt), { addSuffix: true, locale: dateFnsLocale })}
         </p>
       </Link>
 
@@ -352,7 +358,7 @@ function NotificationItem({
             variant="ghost"
             size="icon"
             className="h-5 w-5"
-            title="Mark as read"
+            title={t('notifications.markAsRead')}
             onClick={(e) => {
               e.stopPropagation();
               onMarkRead(n.id);
@@ -365,7 +371,7 @@ function NotificationItem({
           variant="ghost"
           size="icon"
           className="h-5 w-5 text-destructive/70 hover:text-destructive"
-          title="Dismiss"
+          title={t('notifications.dismiss')}
           onClick={(e) => {
             e.stopPropagation();
             onDismiss(n.id, !n.read);

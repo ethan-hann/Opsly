@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -111,7 +112,8 @@ interface KanbanColumnProps {
 }
 
 function KanbanColumn({ stageId, label, color, tasks, isOver, archived }: KanbanColumnProps) {
-  const { t } = useTerminology();
+  const { t: term } = useTerminology();
+  const { t } = useTranslation();
   const { setNodeRef } = useDroppable({ id: `${COL_PREFIX}${stageId}` });
 
   const r = parseInt(color.replace("#", "").slice(0, 2), 16);
@@ -163,7 +165,7 @@ function KanbanColumn({ stageId, label, color, tasks, isOver, archived }: Kanban
         </SortableContext>
         {tasks.length === 0 && (
           <p className="text-xs text-center text-muted-foreground/50 py-6">
-            No {t("tasks").toLowerCase()}
+            {t("tasks.noTasks", { tasks: term("tasks").toLowerCase() })}
           </p>
         )}
       </div>

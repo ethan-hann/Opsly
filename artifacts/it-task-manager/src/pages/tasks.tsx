@@ -12,6 +12,7 @@ import {
   useListWorkflowStages,
   useListCustomFieldDefinitions,
 } from "@workspace/api-client-react";
+import { useTranslation } from 'react-i18next';
 import { useTerminology } from "@/context/terminology-context";
 import type { TaskTemplate } from "@workspace/api-client-react";
 import { Link, useSearch, useLocation } from "wouter";
@@ -89,30 +90,18 @@ interface ActiveFilters {
 
 // Status options are now dynamic - fetched from the org's workflow stages
 
-const PRIORITY_OPTIONS = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "critical", label: "Critical" },
-];
-
-const CATEGORY_OPTIONS = [
-  { value: "incident", label: "Incident" },
-  { value: "change", label: "Change" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "deployment", label: "Deployment" },
-  { value: "support", label: "Support" },
-  { value: "other", label: "Other" },
-];
+// Priority and category option labels are built inside the component using t()
+// to support i18n. The value is the raw API value.
 
 function getProjectFilterOptions(
   tLabel: (key: string) => string,
   tSingular: (key: string) => string,
+  tI18n: (key: string, opts?: Record<string, unknown>) => string,
 ): { value: ProjectFilter; label: string }[] {
   return [
-    { value: "all", label: `All ${tLabel("tasks")}` },
-    { value: "with_project", label: `With ${tSingular("projects")}` },
-    { value: "no_project", label: `No ${tSingular("projects")}` },
+    { value: "all", label: tI18n('tasks.allTasks', { tasks: tLabel("tasks") }) },
+    { value: "with_project", label: tI18n('tasks.withProject', { project: tSingular("projects") }) },
+    { value: "no_project", label: tI18n('tasks.noProject', { project: tSingular("projects") }) },
   ];
 }
 
@@ -402,6 +391,7 @@ function SaveViewPopover({
   views,
   userId,
 }: SaveViewPopoverProps) {
+  const { t } = useTranslation();
   const search = filters.search;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -523,7 +513,7 @@ function SaveViewPopover({
           <Bookmark
             className={`w-3.5 h-3.5 ${activeView ? "fill-current" : ""}`}
           />
-          {activeView ? activeView.name : "Save view"}
+          {activeView ? activeView.name : t('tasks.saveView')}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3" align="end">
@@ -623,7 +613,7 @@ function SaveViewPopover({
                   onClick={handleUpdateFilters}
                   disabled={updateView.isPending}
                 >
-                  {updateView.isPending ? "Updating..." : "Update this view"}
+                  {updateView.isPending ? t('common.saving') : t('tasks.updateView')}
                 </Button>
               )}
             </div>
@@ -632,10 +622,10 @@ function SaveViewPopover({
           {/* Save current filters as a new view */}
           <div>
             <p className="text-xs font-semibold mb-2">
-              {activeView ? "Save as new view" : "Save current filters"}
+              {activeView ? t('tasks.saveAsNew') : t('tasks.saveView')}
             </p>
             <Input
-              placeholder="View name..."
+              placeholder={t('tasks.viewName') + "..."}
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="h-8 text-xs mb-2"
@@ -653,7 +643,7 @@ function SaveViewPopover({
                   className="rounded"
                 />
                 <Globe className="w-3 h-3" />
-                Org-wide
+                {t('tasks.orgWide')}
               </label>
               <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                 <input
@@ -663,7 +653,7 @@ function SaveViewPopover({
                   className="rounded"
                 />
                 <Star className="w-3 h-3" />
-                Default
+                {t('tasks.defaultView')}
               </label>
             </div>
             <Button
@@ -672,7 +662,7 @@ function SaveViewPopover({
               onClick={handleSave}
               disabled={!name.trim() || createView.isPending}
             >
-              {createView.isPending ? "Saving..." : "Save view"}
+              {createView.isPending ? t('common.saving') : t('tasks.saveView')}
             </Button>
           </div>
         </div>
@@ -708,6 +698,21 @@ function BulkActionBar({
   isPending,
   stageOptions,
 }: BulkActionBarProps & { stageOptions: { value: string; label: string }[] }) {
+  const { t } = useTranslation();
+  const PRIORITY_OPTIONS = [
+    { value: "low", label: t('tasks.priorityLow') },
+    { value: "medium", label: t('tasks.priorityMedium') },
+    { value: "high", label: t('tasks.priorityHigh') },
+    { value: "critical", label: t('tasks.priorityCritical') },
+  ];
+  const CATEGORY_OPTIONS = [
+    { value: "incident", label: t('tasks.categoryIncident') },
+    { value: "change", label: t('tasks.categoryChange') },
+    { value: "maintenance", label: t('tasks.categoryMaintenance') },
+    { value: "deployment", label: t('tasks.categoryDeployment') },
+    { value: "support", label: t('tasks.categorySupport') },
+    { value: "other", label: t('tasks.categoryOther') },
+  ];
   const count = selectedIds.size;
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -724,11 +729,11 @@ function BulkActionBar({
       {/* Count + clear */}
       <div className="flex items-center gap-2 pr-3 border-r border-border">
         <CheckSquare className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium">{count} selected</span>
+        <span className="text-sm font-medium">{t('tasks.bulkSelected', { count })}</span>
         <button
           onClick={onClear}
           className="p-0.5 rounded text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Clear selection"
+          aria-label={t('tasks.clearSelection')}
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -915,7 +920,25 @@ function BulkActionBar({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function TasksList() {
-  const { t: tLabel, ts } = useTerminology();
+  const { t: term, ts } = useTerminology();
+  const { t } = useTranslation();
+
+  // Build translated option arrays
+  const PRIORITY_OPTIONS = [
+    { value: "low", label: t('tasks.priorityLow') },
+    { value: "medium", label: t('tasks.priorityMedium') },
+    { value: "high", label: t('tasks.priorityHigh') },
+    { value: "critical", label: t('tasks.priorityCritical') },
+  ];
+
+  const CATEGORY_OPTIONS = [
+    { value: "incident", label: t('tasks.categoryIncident') },
+    { value: "change", label: t('tasks.categoryChange') },
+    { value: "maintenance", label: t('tasks.categoryMaintenance') },
+    { value: "deployment", label: t('tasks.categoryDeployment') },
+    { value: "support", label: t('tasks.categorySupport') },
+    { value: "other", label: t('tasks.categoryOther') },
+  ];
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
   const [showNewTask, setShowNewTask] = useState(false);
   const [templateForModal, setTemplateForModal] = useState<
@@ -1180,10 +1203,10 @@ export default function TasksList() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">
-            {tLabel("tasks")}
+            {term("tasks")}
           </h1>
           <p className="text-muted-foreground mt-1">
-            Manage incidents, changes, and operational work.
+            {t('tasks.subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1195,24 +1218,24 @@ export default function TasksList() {
               <PopoverTrigger asChild>
                 <Button variant="outline" className="gap-2">
                   <FileText className="w-4 h-4" />
-                  From {ts("tasks")} template
+                  {t('tasks.applyTemplate')}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-64 p-1" align="end">
                 <div className="flex flex-col gap-0.5">
-                  {templates.map((t) => (
+                  {templates.map((tmpl) => (
                     <button
-                      key={t.id}
+                      key={tmpl.id}
                       onClick={() => {
-                        setTemplateForModal(t);
+                        setTemplateForModal(tmpl);
                         setShowTemplatePicker(false);
                         setShowNewTask(true);
                       }}
                       className="w-full text-left px-3 py-2 text-xs rounded-sm hover:bg-muted transition-colors"
                     >
-                      <p className="font-medium">{t.name}</p>
+                      <p className="font-medium">{tmpl.name}</p>
                       <p className="text-muted-foreground mt-0.5 capitalize">
-                        {t.defaultPriority} · {t.defaultCategory}
+                        {tmpl.defaultPriority} · {tmpl.defaultCategory}
                       </p>
                     </button>
                   ))}
@@ -1229,7 +1252,7 @@ export default function TasksList() {
             }}
           >
             <Plus className="w-4 h-4" />
-            New {ts("tasks")}
+            {t('tasks.newTask', { task: ts("tasks") })}
           </Button>
         </div>
       </div>
@@ -1241,7 +1264,7 @@ export default function TasksList() {
           <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder={`Search ${tLabel("tasks").toLowerCase()}, ${tLabel("projects").toLowerCase()}...`}
+              placeholder={t('tasks.searchTasks', { tasks: term("tasks").toLowerCase() })}
               className="pl-9 bg-background/50 border-transparent focus-visible:border-primary"
               value={filters.search}
               onChange={(e) => setSearch(e.target.value)}
@@ -1282,7 +1305,7 @@ export default function TasksList() {
         <div className="flex flex-wrap gap-2 items-center">
           {/* Project segment filter */}
           <div className="bg-background/50 flex p-1 rounded-md border border-border">
-            {getProjectFilterOptions(tLabel, ts).map((opt) => (
+            {getProjectFilterOptions(term, ts, t).map((opt) => (
               <button
                 key={opt.value}
                 onClick={() =>
@@ -1307,7 +1330,7 @@ export default function TasksList() {
 
           {/* Status chip */}
           <FilterChip
-            label="Status"
+            label={t('tasks.filterByStatus')}
             value={filters.status}
             activeLabel={statusLabel ?? filters.status}
             onClear={() => setFilter("status", "")}
@@ -1321,7 +1344,7 @@ export default function TasksList() {
 
           {/* Priority chip */}
           <FilterChip
-            label="Priority"
+            label={t('tasks.filterByPriority')}
             value={filters.priority}
             activeLabel={priorityLabel ?? filters.priority}
             onClear={() => setFilter("priority", "")}
@@ -1335,7 +1358,7 @@ export default function TasksList() {
 
           {/* Category chip */}
           <FilterChip
-            label="Category"
+            label={t('tasks.filterByCategory')}
             value={filters.category}
             activeLabel={categoryLabel ?? filters.category}
             onClear={() => setFilter("category", "")}
@@ -1349,7 +1372,7 @@ export default function TasksList() {
 
           {/* Assignee chip */}
           <FilterChip
-            label="Assignee"
+            label={t('tasks.filterByAssignee')}
             value={filters.assignee}
             activeLabel={assigneeLabel}
             onClear={() => setFilter("assignee", "")}
@@ -1369,9 +1392,9 @@ export default function TasksList() {
 
           {/* Due date range chip */}
           <FilterChip
-            label="Due date"
+            label={t('tasks.filterByDate')}
             value={filters.dateFrom || filters.dateTo}
-            activeLabel={dueDateLabel ?? "Due date"}
+            activeLabel={dueDateLabel ?? t('tasks.filterByDate')}
             onClear={() => {
               setFilter("dateFrom", "");
               setFilter("dateTo", "");
@@ -1420,11 +1443,11 @@ export default function TasksList() {
                 }`}
                 title={
                   filters.stageType === type
-                    ? `Showing ${type} ${tLabel("tasks").toLowerCase()} - click to clear`
-                    : `Show only ${type} ${tLabel("tasks").toLowerCase()}`
+                    ? t('tasks.stageFilterActive', { type: type === 'open' ? t('common.open') : t('common.closed'), tasks: term("tasks").toLowerCase() })
+                    : t('tasks.stageFilter', { type: type === 'open' ? t('common.open') : t('common.closed'), tasks: term("tasks").toLowerCase() })
                 }
               >
-                {type}
+                {type === 'open' ? t('common.open') : t('common.closed')}
               </button>
             ))}
           </div>
@@ -1439,12 +1462,12 @@ export default function TasksList() {
             }`}
             title={
               filters.overdue
-                ? `Showing overdue / critical ${tLabel("tasks").toLowerCase()} - click to clear`
-                : `Show overdue or critical priority ${tLabel("tasks").toLowerCase()}`
+                ? `Showing overdue / critical ${term("tasks").toLowerCase()} - click to clear`
+                : `Show overdue or critical priority ${term("tasks").toLowerCase()}`
             }
           >
             <Clock className="w-3.5 h-3.5" />
-            Overdue
+            {t('tasks.overdue')}
           </button>
 
           {/* SLA Breached toggle - hidden when sla_tracking is off */}
@@ -1458,12 +1481,12 @@ export default function TasksList() {
               }`}
               title={
                 filters.slaBreached
-                  ? `Showing SLA-breached ${tLabel("tasks").toLowerCase()} only - click to clear`
-                  : `Show only ${tLabel("tasks").toLowerCase()} that have breached their SLA`
+                  ? t('tasks.slaFilterActive', { tasks: term("tasks").toLowerCase() })
+                  : t('tasks.slaFilter', { tasks: term("tasks").toLowerCase() })
               }
             >
               <ShieldAlert className="w-3.5 h-3.5" />
-              SLA Breached
+              {t('tasks.slaBreached')}
             </button>
           </FeatureGate>
 
@@ -1477,12 +1500,12 @@ export default function TasksList() {
             }`}
             title={
               filters.watching
-                ? `Showing only watched ${tLabel("tasks").toLowerCase()} - click to clear`
-                : `Show only ${tLabel("tasks").toLowerCase()} you're watching`
+                ? `Showing only watched ${term("tasks").toLowerCase()} - click to clear`
+                : `Show only ${term("tasks").toLowerCase()} you're watching`
             }
           >
             <Eye className="w-3.5 h-3.5" />
-            Watching
+            {t('tasks.watching')}
           </button>
 
           {/* Custom field filter chip - only rendered when org has custom fields */}
@@ -1566,7 +1589,7 @@ export default function TasksList() {
                       ))
                     ) : (
                       <p className="px-3 py-1.5 text-xs text-muted-foreground">
-                        Showing ${tLabel("tasks")} with any value
+                        {t('tasks.noTasks', { tasks: term("tasks") })}
                       </p>
                     )}
                   </div>
@@ -1582,7 +1605,7 @@ export default function TasksList() {
               className="flex items-center gap-1 px-3 h-8 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="w-3 h-3" />
-              Clear filters
+              {t('tasks.clearFilters')}
             </button>
           )}
         </div>
@@ -1629,12 +1652,12 @@ export default function TasksList() {
                       if (el) el.indeterminate = someSelected && !allSelected;
                     }}
                     onChange={toggleAll}
-                    aria-label={`Select all ${tLabel("tasks")}`}
+                    aria-label={t('tasks.bulkSelect')}
                   />
                   <span className="text-xs text-muted-foreground font-medium">
                     {someSelected
-                      ? `${selectedIds.size} of ${filteredTasks.length} selected`
-                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? ts("tasks") : tLabel("tasks")}`}
+                      ? t('tasks.selectedCount', { count: selectedIds.size })
+                      : `${filteredTasks.length} ${filteredTasks.length === 1 ? ts("tasks") : term("tasks")}`}
                   </span>
                 </div>
               )}
@@ -1659,6 +1682,7 @@ export default function TasksList() {
                           onChange={() => toggleTask(task.id)}
                           onClick={(e) => e.stopPropagation()}
                           aria-label={`Select ${ts("tasks")} ${task.title}`}
+
                         />
                         <div className="space-y-1">
                           <div className="flex items-center gap-2">
@@ -1678,7 +1702,7 @@ export default function TasksList() {
                               </span>
                             )}
                             <span className="px-1.5 py-0.5 rounded border border-border">
-                              {task.category}
+                              {({ incident: t('tasks.categoryIncident' as any), change: t('tasks.categoryChange' as any), maintenance: t('tasks.categoryMaintenance' as any), deployment: t('tasks.categoryDeployment' as any), support: t('tasks.categorySupport' as any), other: t('tasks.categoryOther' as any) } as Record<string, string>)[task.category] ?? task.category}
                             </span>
                             {task.dueDate && (
                               <span>Due: {formatDate(task.dueDate)}</span>
@@ -1720,7 +1744,7 @@ export default function TasksList() {
                 })
               ) : (
                 <div className="p-12 text-center text-muted-foreground">
-                  No ${tLabel("tasks")} found matching your criteria.
+                  {t('tasks.noTasks', { tasks: term("tasks") })}
                 </div>
               )}
             </div>

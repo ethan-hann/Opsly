@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Building2, Trash2, Power, PowerOff, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -51,6 +52,7 @@ async function deleteOrg(id: string): Promise<void> {
 }
 
 export function AdminOrgsTab() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: orgs, isLoading, refetch } = useQuery({ queryKey: ["admin-orgs"], queryFn: fetchOrgs });
   const [confirmDelete, setConfirmDelete] = useState<AdminOrg | null>(null);
@@ -85,11 +87,11 @@ export function AdminOrgsTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {orgs?.length ?? 0} organization{orgs?.length !== 1 ? "s" : ""} on this instance
+          {t('admin.orgs.orgCount', { count: orgs?.length ?? 0 })}
         </p>
         <Button variant="ghost" size="sm" onClick={() => refetch()}>
           <RefreshCw className="w-4 h-4 mr-2" />
-          Refresh
+          {t('admin.orgs.refresh')}
         </Button>
       </div>
 
@@ -97,12 +99,12 @@ export function AdminOrgsTab() {
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr>
-              <th className="px-4 py-3 text-left font-medium">Organization</th>
-              <th className="px-4 py-3 text-right font-medium">Members</th>
-              <th className="px-4 py-3 text-right font-medium">Tasks</th>
-              <th className="px-4 py-3 text-left font-medium">Created</th>
-              <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="px-4 py-3 text-left font-medium">{t('admin.orgs.colOrganization')}</th>
+              <th className="px-4 py-3 text-right font-medium">{t('admin.orgs.colMembers')}</th>
+              <th className="px-4 py-3 text-right font-medium">{t('admin.orgs.colTasks')}</th>
+              <th className="px-4 py-3 text-left font-medium">{t('admin.orgs.colCreated')}</th>
+              <th className="px-4 py-3 text-left font-medium">{t('admin.orgs.colStatus')}</th>
+              <th className="px-4 py-3 text-right font-medium">{t('admin.orgs.colActions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -110,7 +112,7 @@ export function AdminOrgsTab() {
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                   <Building2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                  No organizations found
+                  {t('admin.orgs.noOrgs')}
                 </td>
               </tr>
             )}
@@ -129,9 +131,9 @@ export function AdminOrgsTab() {
                 </td>
                 <td className="px-4 py-3">
                   {org.isDisabled ? (
-                    <Badge variant="destructive">Suspended</Badge>
+                    <Badge variant="destructive">{t('admin.orgs.statusSuspended')}</Badge>
                   ) : (
-                    <Badge variant="outline" className="text-green-600 border-green-600">Active</Badge>
+                    <Badge variant="outline" className="text-green-600 border-green-600">{t('admin.orgs.statusActive')}</Badge>
                   )}
                 </td>
                 <td className="px-4 py-3">
@@ -143,9 +145,9 @@ export function AdminOrgsTab() {
                       disabled={toggleMutation.isPending}
                     >
                       {org.isDisabled ? (
-                        <><Power className="w-3.5 h-3.5 mr-1" />Enable</>
+                        <><Power className="w-3.5 h-3.5 mr-1" />{t('admin.orgs.enable')}</>
                       ) : (
-                        <><PowerOff className="w-3.5 h-3.5 mr-1" />Suspend</>
+                        <><PowerOff className="w-3.5 h-3.5 mr-1" />{t('admin.orgs.suspend')}</>
                       )}
                     </Button>
                     <Button
@@ -167,20 +169,19 @@ export function AdminOrgsTab() {
       <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete organization permanently?</AlertDialogTitle>
+            <AlertDialogTitle>{t('admin.orgs.deleteOrg')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete <strong>{confirmDelete?.name}</strong> and all its data —
-              tasks, projects, comments, members, and settings. This cannot be undone.
+              {t('admin.orgs.deleteOrgDesc', { name: confirmDelete?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => confirmDelete && deleteMutation.mutate(confirmDelete.id)}
               disabled={deleteMutation.isPending}
             >
-              Delete permanently
+              {t('admin.orgs.deleteButton')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

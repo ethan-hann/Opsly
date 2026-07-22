@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -42,21 +43,26 @@ interface EditProjectModalProps {
   project: Project;
 }
 
-const STATUS_OPTIONS: { value: ProjectInputStatus; label: string }[] = [
-  { value: "planning", label: "Planning" },
-  { value: "active", label: "Active" },
-  { value: "on_hold", label: "On Hold" },
-  { value: "completed", label: "Completed" },
-];
+function getStatusOptions(t: (k: string) => string): { value: ProjectInputStatus; label: string }[] {
+  return [
+    { value: "planning", label: t("projects.statusPlanning") },
+    { value: "active", label: t("projects.statusActive") },
+    { value: "on_hold", label: t("projects.statusOnHold") },
+    { value: "completed", label: t("projects.statusCompleted") },
+  ];
+}
 
-const PRIORITY_OPTIONS: { value: ProjectInputPriority; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "critical", label: "Critical" },
-];
+function getPriorityOptions(t: (k: string) => string): { value: ProjectInputPriority; label: string }[] {
+  return [
+    { value: "low", label: t("tasks.priorityLow") },
+    { value: "medium", label: t("tasks.priorityMedium") },
+    { value: "high", label: t("tasks.priorityHigh") },
+    { value: "critical", label: t("tasks.priorityCritical") },
+  ];
+}
 
 export function EditProjectModal({ open, onOpenChange, project }: EditProjectModalProps) {
+  const { t } = useTranslation();
   const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: updateProject, isPending } = useUpdateProject();
@@ -83,7 +89,7 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const errs: Record<string, string> = {};
-    if (!name.trim()) errs.name = "Project name is required.";
+    if (!name.trim()) errs.name = t("projects.nameRequired");
     if (Object.keys(errs).length > 0) { setErrors(errs); return; }
 
     updateProject(
@@ -101,11 +107,11 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
         onSuccess: (data) => {
           queryClient.setQueryData(["getProject", project.id], data);
           queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
-          toast({ title: "Project updated" });
+          toast({ title: t("projects.updated") });
           onOpenChange(false);
         },
         onError: () => {
-          toast({ title: "Error", description: "Failed to update project.", variant: "destructive" });
+          toast({ title: t("common.error"), description: t("projects.failedToUpdate"), variant: "destructive" });
         },
       }
     );
@@ -115,11 +121,11 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Edit {tSingular("projects")}</DialogTitle>
+          <DialogTitle>{t("common.edit")} {tSingular("projects")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label htmlFor="edit-proj-name">Name <span className="text-destructive">*</span></Label>
+            <Label htmlFor="edit-proj-name">{t("common.name")} <span className="text-destructive">*</span></Label>
             <Input
               id="edit-proj-name"
               value={name}
@@ -129,11 +135,11 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
           </div>
 
           <div className="space-y-1">
-            <Label>Description</Label>
+            <Label>{t("common.description")}</Label>
             <MarkdownEditor
               value={description}
               onChange={setDescription}
-              placeholder="Optional project description..."
+              placeholder={t("projects.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
               previewMode="edit"
             />
@@ -141,22 +147,22 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Status</Label>
+              <Label>{t("common.status")}</Label>
               <Select value={status} onValueChange={(v) => setStatus(v as ProjectInputStatus)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map(o => (
+                  {getStatusOptions(t).map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Priority</Label>
+              <Label>{t("common.priority")}</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as ProjectInputPriority)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PRIORITY_OPTIONS.map(o => (
+                  {getPriorityOptions(t).map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -165,7 +171,7 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
           </div>
 
           <div className="space-y-1">
-            <Label htmlFor="edit-proj-due">Due Date</Label>
+            <Label htmlFor="edit-proj-due">{t("common.dueDate")}</Label>
             <Input
               id="edit-proj-due"
               type="date"
@@ -176,10 +182,10 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : "Save Changes"}
+              {isPending ? t("common.saving") : t("projects.saveChanges")}
             </Button>
           </DialogFooter>
         </form>

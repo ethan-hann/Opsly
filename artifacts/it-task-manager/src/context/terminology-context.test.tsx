@@ -63,6 +63,7 @@ import {
   TerminologyProvider,
   useTerminology,
   TERM_DEFAULTS,
+  singularize,
 } from "./terminology-context.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -240,5 +241,64 @@ describe("TerminologyProvider — invalidation updates nav labels without page r
 
     expect(screen.getByTestId("projects-label").textContent).toBe(TERM_DEFAULTS.projects);
     expect(screen.getByTestId("tasks-label").textContent).toBe("Requests");
+  });
+});
+
+// ── singularize() helper — English rules ──────────────────────────────────────
+
+describe("singularize() — English singular derivation helper", () => {
+  // The i18n instance initialises with English, so singularize() applies its
+  // English rules (i18n.language starts with 'en' in the jsdom test environment).
+
+  it("strips trailing 's' from a regular plural", () => {
+    expect(singularize("Tasks")).toBe("Task");
+    expect(singularize("Projects")).toBe("Project");
+    expect(singularize("Members")).toBe("Member");
+    expect(singularize("Stages")).toBe("Stage");
+  });
+
+  it("converts '…ies' plurals to '…y'", () => {
+    expect(singularize("Factories")).toBe("Factory");
+    expect(singularize("Categories")).toBe("Category");
+    expect(singularize("Deliveries")).toBe("Delivery");
+  });
+
+  it("strips 'es' from '…ses' endings", () => {
+    expect(singularize("Statuses")).toBe("Status");
+    expect(singularize("Processes")).toBe("Process");
+  });
+
+  it("strips 'es' from '…ches' endings", () => {
+    expect(singularize("Batches")).toBe("Batch");
+    expect(singularize("Patches")).toBe("Patch");
+  });
+
+  it("strips 'es' from '…shes' endings", () => {
+    expect(singularize("Flashes")).toBe("Flash");
+    expect(singularize("Refreshes")).toBe("Refresh");
+  });
+
+  it("returns the label unchanged when it does not end in 's' (non-plural forms)", () => {
+    // e.g. "Staff" or "Work Item" — no trailing 's', return as-is
+    expect(singularize("Staff")).toBe("Staff");
+    expect(singularize("Work Item")).toBe("Work Item");
+  });
+
+  it("handles Tickets → Ticket correctly", () => {
+    expect(singularize("Tickets")).toBe("Ticket");
+  });
+
+  it("handles Issues → Issue correctly", () => {
+    expect(singularize("Issues")).toBe("Issue");
+  });
+
+  it("handles Workflows → Workflow correctly", () => {
+    expect(singularize("Workflows")).toBe("Workflow");
+  });
+
+  it("handles Initiatives → Initiative correctly (strip trailing s, not -ies rule)", () => {
+    // "Initiatives" ends in "es" but not "ies", "ses", "zes", "ches", or "shes",
+    // so the plain '…s' → strip-s rule applies → "Initiative"
+    expect(singularize("Initiatives")).toBe("Initiative");
   });
 });

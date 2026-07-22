@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/context/terminology-context";
 import { useLocation } from "wouter";
 import { CheckSquare, FolderGit2, StickyNote, Search, ArrowRight, Loader2 } from "lucide-react";
@@ -84,6 +85,7 @@ interface FlatResult {
 
 export function GlobalSearchPalette() {
   const { t } = useTerminology();
+  const { t: i18nT } = useTranslation();
   const { isOpen, close } = useGlobalSearch();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
@@ -210,7 +212,7 @@ export function GlobalSearchPalette() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search tasks, projects, notes…"
+            placeholder={i18nT('search.placeholder')}
             className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground"
           />
           <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-border bg-muted px-1.5 text-[10px] font-medium text-muted-foreground">

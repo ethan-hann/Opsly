@@ -4,6 +4,7 @@ import { Activity, Building2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 interface OrgInvitationProps {
   invitation: PendingInvitation;
@@ -13,15 +14,16 @@ interface OrgInvitationProps {
 
 export default function OrgInvitation({ invitation, onAccepted, onDeclined }: OrgInvitationProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { mutate: accept, isPending: isAccepting } = useAcceptOrgInvitation({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Invitation accepted", description: `Welcome to ${invitation.orgName}!` });
+        toast({ title: t('orgInvitation.acceptedTitle'), description: t('orgInvitation.acceptedDesc', { org: invitation.orgName }) });
         onAccepted();
       },
       onError: (err: Error) => {
-        toast({ title: "Failed to accept invitation", description: err.message, variant: "destructive" });
+        toast({ title: t('orgInvitation.acceptFailedTitle'), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -29,11 +31,11 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
   const { mutate: decline, isPending: isDeclining } = useDeclineOrgInvitation({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Invitation declined" });
+        toast({ title: t('orgInvitation.declinedTitle') });
         onDeclined();
       },
       onError: (err: Error) => {
-        toast({ title: "Failed to decline invitation", description: err.message, variant: "destructive" });
+        toast({ title: t('orgInvitation.declineFailedTitle'), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -49,7 +51,7 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
             <Activity className="w-8 h-8" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Mission Control</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{t('orgInvitation.appTitle')}</h1>
             <p className="text-muted-foreground text-sm mt-1">Opsly</p>
           </div>
         </div>
@@ -61,9 +63,9 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
                 <Building2 className="w-6 h-6 text-primary" />
               </div>
             </div>
-            <CardTitle>You've been invited</CardTitle>
+            <CardTitle>{t('orgInvitation.invitedTitle')}</CardTitle>
             <CardDescription>
-              You have a pending invitation to join
+              {t('orgInvitation.invitedDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -79,7 +81,7 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
                 onClick={() => decline({ token: invitation.token })}
               >
                 <X className="w-4 h-4" />
-                Decline
+                {t('orgInvitation.decline')}
               </Button>
               <Button
                 className="flex-1 gap-2"
@@ -87,12 +89,12 @@ export default function OrgInvitation({ invitation, onAccepted, onDeclined }: Or
                 onClick={() => accept({ token: invitation.token })}
               >
                 <Check className="w-4 h-4" />
-                {isAccepting ? "Joining…" : "Accept & join"}
+                {isAccepting ? t('orgInvitation.joining') : t('orgInvitation.acceptJoin')}
               </Button>
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+              {t('orgInvitation.expires', { date: new Date(invitation.expiresAt).toLocaleDateString() })}
             </p>
           </CardContent>
         </Card>

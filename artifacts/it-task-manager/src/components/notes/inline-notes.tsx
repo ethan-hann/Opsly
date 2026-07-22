@@ -3,6 +3,8 @@ import { Plus, StickyNote, Trash2, ChevronDown, ChevronUp, ExternalLink } from "
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDistanceToNow } from "date-fns";
+import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { MarkdownPreview } from "./markdown-preview";
@@ -28,6 +30,7 @@ interface InlineNotesProps {
 }
 
 export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
@@ -47,7 +50,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
 
   const handleCreate = async () => {
     if (!newContent.trim()) {
-      toast({ title: "Note is empty", variant: "destructive" });
+      toast({ title: t('inlineNotes.noteEmpty'), variant: "destructive" });
       return;
     }
     await createNote.mutateAsync({
@@ -69,8 +72,11 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
     if (expandedId === deleteTarget) setExpandedId(null);
     setDeleteTarget(null);
     refetch();
-    toast({ title: "Note deleted" });
+    toast({ title: t('inlineNotes.noteDeleted') });
   };
+
+  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
 
   return (
     <div className="space-y-2">
@@ -78,7 +84,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2 text-sm font-medium">
           <StickyNote className="w-4 h-4 text-primary" />
-          Notes
+          {t('inlineNotes.title')}
           {notes.length > 0 && (
             <span className="text-xs text-muted-foreground bg-accent px-1.5 py-0.5 rounded">
               {notes.length}
@@ -92,7 +98,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
           onClick={() => { setIsCreating(true); setExpandedId(null); }}
         >
           <Plus className="w-3.5 h-3.5 mr-1" />
-          Add note
+          {t('inlineNotes.addNote')}
         </Button>
       </div>
 
@@ -101,7 +107,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
         <div className="border border-primary/40 rounded-md p-3 bg-card space-y-3">
           <Textarea
             autoFocus
-            placeholder="Write a note using Markdown…"
+            placeholder={t('inlineNotes.writePlaceholder')}
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
             className="min-h-[100px] text-sm resize-none"
@@ -113,7 +119,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
               className="h-7 text-xs"
               onClick={() => { setIsCreating(false); setNewContent(""); }}
             >
-              Cancel
+              {t('inlineNotes.cancel')}
             </Button>
             <Button
               size="sm"
@@ -121,7 +127,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
               onClick={handleCreate}
               disabled={createNote.isPending}
             >
-              Save
+              {t('inlineNotes.save')}
             </Button>
           </div>
         </div>
@@ -129,7 +135,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
 
       {/* Empty state */}
       {notes.length === 0 && !isCreating && (
-        <p className="text-xs text-muted-foreground py-2">No notes yet.</p>
+        <p className="text-xs text-muted-foreground py-2">{t('inlineNotes.noNotes')}</p>
       )}
 
       {/* Note list */}
@@ -138,10 +144,10 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
         .map((note) => {
           const isExpanded = expandedId === note.id;
           const canEdit = note.isOwner || note.visibility === "public_write";
-          const scratchPadLabel = canEdit ? "Edit in Scratch Pad" : "View in Scratch Pad";
+          const scratchPadLabel = canEdit ? t('inlineNotes.editInScratchPad') : t('inlineNotes.viewInScratchPad');
           const footerLabel = canEdit
-            ? "Edit full note in Scratch Pad"
-            : "View full note in Scratch Pad";
+            ? t('inlineNotes.editFullNote')
+            : t('inlineNotes.viewFullNote');
 
           return (
             <div key={note.id} className="border border-border rounded-md overflow-hidden bg-card">
@@ -153,7 +159,7 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
                 <div className="flex items-center gap-2 min-w-0">
                   <StickyNote className="w-3.5 h-3.5 text-primary/70 shrink-0" />
                   <span className="text-xs text-muted-foreground truncate">
-                    {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
+                    {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true, locale: dateFnsLocale })}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
@@ -213,18 +219,18 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete note?</AlertDialogTitle>
+            <AlertDialogTitle>{t('inlineNotes.deleteTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This note will be permanently deleted.
+              {t('inlineNotes.deleteDesc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={handleDelete}
             >
-              Delete
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

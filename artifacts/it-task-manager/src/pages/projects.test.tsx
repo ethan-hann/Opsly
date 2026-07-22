@@ -46,6 +46,16 @@ vi.mock("wouter", () => ({
   ),
 }));
 
+// Terminology — mock the context so no provider is needed in the tree
+vi.mock("@/context/terminology-context", () => ({
+  useTerminology: () => ({
+    t: (key: string) => key,
+    ts: (key: string) => key,
+    tSingular: (key: string) => key,
+  }),
+  TerminologyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 // Modal is irrelevant to permission gating — render as null
 vi.mock("@/components/ui/new-project-modal", () => ({
   NewProjectModal: () => null,

@@ -6,6 +6,7 @@ import AdminConsolePage from '@/pages/admin/index';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { ThemeProvider } from '@/components/theme-provider';
 import { AppLayout } from '@/components/layout/app-layout';
@@ -51,13 +52,14 @@ const queryClient = new QueryClient({
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Authenticating...</p>
+          <p className="text-sm text-muted-foreground">{t('auth.authenticating')}</p>
         </div>
       </div>
     );

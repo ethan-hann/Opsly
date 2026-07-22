@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Search, Users, UserX, Shield } from "lucide-react";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -45,6 +46,7 @@ async function removeMember(orgId: string, userId: string): Promise<void> {
 }
 
 export function AdminUsersTab() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
@@ -71,7 +73,7 @@ export function AdminUsersTab() {
         <Input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by email…"
+          placeholder={t('admin.users.searchPlaceholder')}
           className="pl-9"
         />
       </div>
@@ -85,9 +87,9 @@ export function AdminUsersTab() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">User</th>
-                <th className="px-4 py-3 text-left font-medium">Organizations</th>
-                <th className="px-4 py-3 text-left font-medium">Joined</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.users.colUser')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.users.colOrgs')}</th>
+                <th className="px-4 py-3 text-left font-medium">{t('admin.users.colJoined')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -95,7 +97,7 @@ export function AdminUsersTab() {
                 <tr>
                   <td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">
                     <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    {debouncedSearch ? "No users match your search" : "No users found"}
+                    {debouncedSearch ? t('admin.users.noUsersSearch') : t('admin.users.noUsers')}
                   </td>
                 </tr>
               )}
@@ -109,12 +111,12 @@ export function AdminUsersTab() {
                       <div>
                         <div className="flex items-center gap-1.5">
                           <span className="font-medium">
-                            {user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email ?? "Unknown"}
+                            {user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : user.email ?? t('common.unknown')}
                           </span>
                           {user.isInstanceAdmin && (
                             <Badge variant="secondary" className="text-xs gap-1">
                               <Shield className="w-3 h-3" />
-                              Admin
+                              {t('admin.users.adminBadge')}
                             </Badge>
                           )}
                         </div>
@@ -128,7 +130,7 @@ export function AdminUsersTab() {
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
                       {user.orgs.length === 0 ? (
-                        <span className="text-muted-foreground text-xs">No orgs</span>
+                        <span className="text-muted-foreground text-xs">{t('admin.users.noOrgs')}</span>
                       ) : (
                         user.orgs.map((org) => (
                           <div key={org.orgId} className="flex items-center gap-1 text-xs bg-muted rounded px-2 py-0.5">
@@ -139,7 +141,7 @@ export function AdminUsersTab() {
                                 setConfirmRemove({ user, orgId: org.orgId, orgName: org.orgName })
                               }
                               className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
-                              title={`Remove from ${org.orgName}`}
+                              title={t('admin.users.removeFromOrg')}
                             >
                               <UserX className="w-3 h-3" />
                             </button>
@@ -162,15 +164,16 @@ export function AdminUsersTab() {
       <AlertDialog open={!!confirmRemove} onOpenChange={(open) => !open && setConfirmRemove(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove user from organization?</AlertDialogTitle>
+            <AlertDialogTitle>{t('admin.users.removeFromOrgTitle')}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will remove{" "}
-              <strong>{confirmRemove?.user.email ?? confirmRemove?.user.firstName}</strong> from{" "}
-              <strong>{confirmRemove?.orgName}</strong>. Their tasks and comments will remain.
+              {t('admin.users.removeFromOrgDesc', {
+                user: confirmRemove?.user.email ?? confirmRemove?.user.firstName ?? "",
+                org: confirmRemove?.orgName ?? "",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() =>
@@ -179,7 +182,7 @@ export function AdminUsersTab() {
               }
               disabled={removeMutation.isPending}
             >
-              Remove from org
+              {t('admin.users.removeButton')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

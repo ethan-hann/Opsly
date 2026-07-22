@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useTerminology } from "@/context/terminology-context";
+import { useTranslation } from "react-i18next";
 import { useListOrgMembers } from "@workspace/api-client-react";
 import { Check, ChevronsUpDown, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ export function AssigneeCombobox({
   onErrorChange,
 }: AssigneeComboboxProps) {
   const { t } = useTerminology();
+  const { t: i18nT } = useTranslation();
   const [open, setOpen] = useState(false);
   const { data: members = [] } = useListOrgMembers();
 
@@ -89,7 +91,7 @@ export function AssigneeCombobox({
                 <User className="h-4 w-4 shrink-0 text-muted-foreground" />
               )}
               <span className="truncate">
-                {displayName ?? "Unassigned"}
+                {displayName ?? i18nT('common.unassigned')}
               </span>
             </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -98,7 +100,7 @@ export function AssigneeCombobox({
         <PopoverContent className="w-[320px] p-0" align="start">
           <Command>
             <CommandInput
-              placeholder="Search name or type email…"
+              placeholder={i18nT('assignee.searchPlaceholder')}
               value={value}
               onValueChange={handleInputChange}
             />
@@ -106,9 +108,9 @@ export function AssigneeCombobox({
               <CommandEmpty>
                 {value.trim() ? (
                   <div className="px-4 py-3 text-sm text-left space-y-1">
-                    <p className="font-medium">Use "{value.trim()}" as assignee</p>
+                    <p className="font-medium">{i18nT('assignee.useAs', { email: value.trim() })}</p>
                     <p className="text-muted-foreground text-xs">
-                      Must be an org member's email to submit.
+                      {i18nT('assignee.mustBeOrgMember')}
                     </p>
                     <Button
                       type="button"
@@ -120,7 +122,7 @@ export function AssigneeCombobox({
                         setOpen(false);
                       }}
                     >
-                      Use this email
+                      {i18nT('assignee.useThisEmail')}
                     </Button>
                   </div>
                 ) : (
@@ -140,7 +142,7 @@ export function AssigneeCombobox({
                       )}
                     />
                     <span className="text-muted-foreground italic">
-                      Unassigned
+                      {i18nT('common.unassigned')}
                     </span>
                   </CommandItem>
                   {members.map((member) => {

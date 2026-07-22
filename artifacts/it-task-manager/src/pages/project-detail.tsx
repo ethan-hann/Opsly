@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation, useSearch } from "wouter";
 import { useTerminology } from "@/context/terminology-context";
 import {
@@ -77,21 +78,24 @@ function formatPolicyLine(p: AuditPolicy): string {
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
-const PRIORITY_LABEL: Record<string, string> = {
-  critical: "Critical",
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
-
 const PRIORITY_LEVELS = [
-  { value: "critical" as const, label: "Critical" },
-  { value: "high"     as const, label: "High"     },
-  { value: "medium"   as const, label: "Medium"   },
-  { value: "low"      as const, label: "Low"      },
+  { value: "critical" as const },
+  { value: "high"     as const },
+  { value: "medium"   as const },
+  { value: "low"      as const },
 ];
 
 type PriorityLevel = typeof PRIORITY_LEVELS[number]["value"];
+
+function getPriorityLabel(t: (k: string) => string, value: string): string {
+  const map: Record<string, string> = {
+    critical: t('tasks.priorityCritical'),
+    high: t('tasks.priorityHigh'),
+    medium: t('tasks.priorityMedium'),
+    low: t('tasks.priorityLow'),
+  };
+  return map[value] ?? value;
+}
 
 interface PolicyDraft {
   responseMinutes: string;
@@ -111,6 +115,7 @@ function displayToMinutes(v: string): number | null {
 
 function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const { hasPermission } = useOrgContext();
   const canManagePolicies = hasPermission("manage_sla_policies");
   const canViewHistory = hasPermission("view_audit_log") || canManagePolicies;
@@ -145,14 +150,14 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { mutate: upsertPolicies, isPending: isSaving } = useUpsertProjectSLAPolicies({
     mutation: {
       onSuccess: () => {
-        toast({ title: isReverting ? "Reverted to org defaults" : "Project SLA overrides saved" });
+        toast({ title: isReverting ? t('projects.revertedToOrgDefaults', 'Reverted to org defaults') : t('projects.slaOverridesSaved', 'Project SLA overrides saved') });
         refetchProject();
         setEditing(false);
         setDraft(null);
         setIsReverting(false);
       },
       onError: (err: Error) => {
-        toast({ title: "Failed to save overrides", description: err.message, variant: "destructive" });
+        toast({ title: t('projects.slaOverridesFailed', 'Failed to save overrides'), description: err.message, variant: "destructive" });
         setIsReverting(false);
       },
     },
@@ -199,11 +204,10 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
           <div>
             <CardTitle className="text-base flex items-center gap-2">
               <Timer className="w-4 h-4" />
-              SLA Overrides
+              {t('projects.slaOverrides', 'SLA Overrides')}
             </CardTitle>
             <CardDescription className="mt-1">
-              Override the org-level SLA targets for tasks in this project.
-              Unset priorities fall back to the org default.
+              {t('projects.slaOverridesDesc', 'Override the org-level SLA targets for tasks in this project. Unset priorities fall back to the org default.')}
             </CardDescription>
           </div>
           {canManagePolicies && !editing && (
@@ -213,21 +217,20 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                   <AlertDialogTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-1.5 text-muted-foreground hover:text-destructive hover:border-destructive/50" disabled={isSaving}>
                       <RotateCcw className="w-3.5 h-3.5" />
-                      Revert to org defaults
+                      {t('projects.revertToOrgDefaults', 'Revert to org defaults')}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Revert to org defaults?</AlertDialogTitle>
+                      <AlertDialogTitle>{t('projects.revertToOrgDefaultsConfirm', 'Revert to org defaults?')}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        This will clear all project-level SLA overrides. Tasks in this project
-                        will fall back to the org-wide SLA targets. This cannot be undone automatically.
+                        {t('projects.revertToOrgDefaultsDesc', 'This will clear all project-level SLA overrides. Tasks in this project will fall back to the org-wide SLA targets. This cannot be undone automatically.')}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                       <AlertDialogAction onClick={handleRevertToDefaults}>
-                        Revert to org defaults
+                        {t('projects.revertToOrgDefaults', 'Revert to org defaults')}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
@@ -235,7 +238,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               )}
               <Button variant="outline" size="sm" className="gap-1.5" onClick={startEditing}>
                 <Pencil className="w-3.5 h-3.5" />
-                Edit
+                {t('common.edit')}
               </Button>
             </div>
           )}
@@ -251,14 +254,14 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
         ) : editing && draft ? (
           <div className="space-y-3">
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
-              <span>Priority</span>
-              <span>Response (min)</span>
-              <span>Resolution (min)</span>
-              <span>Warning at (%)</span>
+              <span>{t('common.priority')}</span>
+              <span>{t('projects.responseMin', 'Response (min)')}</span>
+              <span>{t('projects.resolutionMin', 'Resolution (min)')}</span>
+              <span>{t('projects.warningAt', 'Warning at (%)')}</span>
             </div>
-            {PRIORITY_LEVELS.map(({ value, label }) => (
+            {PRIORITY_LEVELS.map(({ value }) => (
               <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center">
-                <span className="text-sm font-medium">{label}</span>
+                <span className="text-sm font-medium">{getPriorityLabel(t, value)}</span>
                 <Input
                   type="number" min={1} placeholder="Org default"
                   value={draft[value].responseMinutes}
@@ -281,22 +284,22 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
             ))}
             <div className="flex gap-2 pt-2">
               <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                {isSaving ? "Saving…" : "Save overrides"}
+                {isSaving ? t('common.saving') : t('projects.saveOverrides', 'Save overrides')}
               </Button>
               <Button size="sm" variant="ghost" onClick={cancelEditing} disabled={isSaving}>
-                Cancel
+                {t('common.cancel')}
               </Button>
             </div>
           </div>
         ) : (
           <div className="space-y-1">
             <div className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 text-xs font-medium text-muted-foreground pb-1 border-b border-border">
-              <span>Priority</span>
-              <span>Response</span>
-              <span>Resolution</span>
-              <span>Warning at</span>
+              <span>{t('common.priority')}</span>
+              <span>{t('projects.response', 'Response')}</span>
+              <span>{t('projects.resolution', 'Resolution')}</span>
+              <span>{t('projects.warningAtShort', 'Warning at')}</span>
             </div>
-            {PRIORITY_LEVELS.map(({ value, label }) => {
+            {PRIORITY_LEVELS.map(({ value }) => {
               const proj = projectPolicies?.find((p) => p.priority === value);
               const org  = orgPolicies?.find((p) => p.priority === value);
               const hasProjectOverride = proj && (proj.responseMinutes != null || proj.resolutionMinutes != null);
@@ -316,7 +319,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               return (
                 <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center py-1.5 border-b border-border last:border-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-medium">{label}</span>
+                    <span className="text-sm font-medium">{getPriorityLabel(t, value)}</span>
                     {hasProjectOverride && (
                       <span className="text-[9px] font-semibold bg-primary/10 text-primary px-1 rounded">override</span>
                     )}
@@ -341,7 +344,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
           >
             <span className="flex items-center gap-2">
               <History className="w-4 h-4" />
-              Change history
+              {t('projects.changeHistory', 'Change history')}
               {auditHistory && auditHistory.length > 0 && (
                 <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">{auditHistory.length}</span>
               )}
@@ -354,19 +357,19 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               {isLoadingHistory ? (
                 <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
                   <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  Loading history…
+                  {t('projects.loadingHistory', 'Loading history…')}
                 </div>
               ) : !auditHistory || auditHistory.length === 0 ? (
-                <p className="py-4 text-sm text-muted-foreground">No changes recorded yet.</p>
+                <p className="py-4 text-sm text-muted-foreground">{t('projects.noChangesRecorded', 'No changes recorded yet.')}</p>
               ) : (
                 <div className="rounded-lg border border-border overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">When</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">By</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Action</th>
-                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">New policy values</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap">{t('projects.when', 'When')}</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t('projects.by', 'By')}</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t('common.action')}</th>
+                        <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">{t('projects.newPolicyValues', 'New policy values')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -387,13 +390,13 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                             </td>
                             <td className="px-3 py-2.5">
                               {entry.newPolicies.length === 0 ? (
-                                <span className="text-muted-foreground italic">Reverted to org defaults</span>
+                                <span className="text-muted-foreground italic">{t('projects.revertedToOrgDefaults', 'Reverted to org defaults')}</span>
                               ) : (
                                 <div className="space-y-0.5">
                                   {entry.newPolicies.map((p) => (
                                     <div key={p.priority} className="flex items-baseline gap-1.5">
                                       <span className="font-medium text-foreground w-14 shrink-0">
-                                        {PRIORITY_LABEL[p.priority] ?? p.priority}:
+                                        {getPriorityLabel(t, p.priority)}:
                                       </span>
                                       <span className="text-muted-foreground">{formatPolicyLine(p)}</span>
                                     </div>
@@ -427,7 +430,8 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
-  const { t, tSingular } = useTerminology();
+  const { t: term, tSingular } = useTerminology();
+  const { t } = useTranslation();
 
   const [editOpen, setEditOpen] = useState(false);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -452,12 +456,12 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const deleteMutation = useDeleteProject({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Project deleted successfully" });
+        toast({ title: t('projects.deleteProjectSuccess', 'Project deleted successfully') });
         queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
         setLocation("/projects");
       },
       onError: () => {
-        toast({ title: "Failed to delete project", variant: "destructive" });
+        toast({ title: t('projects.deleteProjectFailed', 'Failed to delete project'), variant: "destructive" });
       }
     }
   });
@@ -467,7 +471,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   }
 
   if (!project) {
-    return <div className="text-center py-12">{tSingular("projects")} not found</div>;
+    return <div className="text-center py-12">{t('projects.notFound', '{{project}} not found', { project: tSingular("projects") })}</div>;
   }
 
   const progress = project.taskCount ? Math.round(((project.completedTaskCount || 0) / project.taskCount) * 100) : 0;
@@ -486,14 +490,14 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               className="hover:text-foreground flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back
+              {t('common.back')}
             </button>
             <span>/</span>
           </>
         )}
         <Link href="/projects" className="hover:text-foreground flex items-center gap-1 transition-colors">
           {!fromSearch && <ArrowLeft className="w-4 h-4" />}
-          {t("projects")}
+          {term("projects")}
         </Link>
         <span>/</span>
         <span className="text-foreground truncate">{project.name}</span>
@@ -509,11 +513,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               <div className="flex flex-wrap items-center gap-3 mt-2 text-sm text-muted-foreground">
                 <div className="flex items-center gap-1 bg-secondary/50 px-2 py-1 rounded-md">
                   <Calendar className="w-3.5 h-3.5" />
-                  Due: {project.dueDate ? formatDate(project.dueDate) : "No date"}
+                  {t('common.dueDate')}: {project.dueDate ? formatDate(project.dueDate) : t('projects.noDate', 'No date')}
                 </div>
                 <div className="flex items-center gap-1 bg-secondary/50 px-2 py-1 rounded-md">
                   <Clock className="w-3.5 h-3.5" />
-                  Updated: {formatTimeAgo(project.updatedAt)}
+                  {t('common.updated')}: {formatTimeAgo(project.updatedAt)}
                 </div>
               </div>
             </div>
@@ -523,29 +527,28 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               {canManageProjects && (
                 <>
                   <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-                    <Edit className="w-3.5 h-3.5" /> Edit {tSingular("projects")}
+                    <Edit className="w-3.5 h-3.5" /> {t('projects.editProject', { defaultValue: 'Edit {{project}}', project: tSingular("projects") })}
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={`Delete ${tSingular("projects")}`} data-testid="btn-delete-project">
+                      <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={t('projects.deleteProject', { defaultValue: 'Delete {{project}}', project: tSingular("projects") })} data-testid="btn-delete-project">
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogTitle>{t('projects.deleteProjectConfirm')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This will permanently delete the project "{project.name}" and all associated tasks.
-                          This action cannot be undone.
+                          {t('projects.deleteProjectDesc', { defaultValue: 'This will permanently delete the {{project}} and all associated data.', project: tSingular("projects").toLowerCase() })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => deleteMutation.mutate({ id: project.id })}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          {deleteMutation.isPending ? "Deleting..." : `Delete ${tSingular("projects")}`}
+                          {deleteMutation.isPending ? t('common.deleting') : t('projects.deleteProject', { defaultValue: 'Delete {{project}}', project: tSingular("projects") })}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -563,11 +566,11 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           <div className="bg-card border border-border/50 rounded-lg p-4 mt-6">
             <div className="flex justify-between items-end mb-2">
               <div className="space-y-1">
-                <span className="text-sm font-medium text-muted-foreground">{tSingular("projects")} Progress</span>
+                <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
                 <div className="text-2xl font-bold">{progress}%</div>
               </div>
               <div className="text-sm text-muted-foreground mb-1">
-                {project.completedTaskCount || 0} of {project.taskCount || 0} {t("tasks")} Completed
+                {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
               </div>
             </div>
             <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
@@ -596,7 +599,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
       {/* Tasks Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {t("tasks")}</h2>
+          <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {term("tasks")}</h2>
           <div className="flex items-center gap-2">
             {/* List / Board toggle — identical styling to tasks.tsx */}
             <Button
@@ -605,7 +608,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setViewMode("list")}
-              title="List view"
+              title={t('tasks.listView')}
             >
               <LayoutList className="w-4 h-4" />
             </Button>
@@ -615,12 +618,12 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               size="icon"
               className="h-8 w-8"
               onClick={() => setViewMode("board")}
-              title="Board view"
+              title={t('tasks.kanbanView')}
             >
               <Columns className="w-4 h-4" />
             </Button>
             <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
-              <Plus className="w-4 h-4" /> Add {tSingular("tasks")}
+              <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
             </Button>
           </div>
         </div>
@@ -678,7 +681,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                  <p>No {t("tasks").toLowerCase()} found for this {tSingular("projects").toLowerCase()}.</p>
+                  <p>{t('tasks.noTasks', { tasks: term("tasks") })} {t('projects.forThisProject', { defaultValue: 'found for this {{project}}.', project: tSingular("projects").toLowerCase() })}</p>
                 </div>
               )}
             </CardContent>

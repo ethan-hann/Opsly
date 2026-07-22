@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import confetti from "canvas-confetti";
 import {
   Dialog,
@@ -64,6 +65,7 @@ function fireConfetti() {
 }
 
 export function OwnershipCelebration({ open, onClose, orgName }: OwnershipCelebrationProps) {
+  const { t } = useTranslation();
   const firedRef = useRef(false);
 
   useEffect(() => {
@@ -76,6 +78,12 @@ export function OwnershipCelebration({ open, onClose, orgName }: OwnershipCelebr
     }
   }, [open]);
 
+  const features = [
+    { labelKey: "ownership.manageMembers", descKey: "ownership.manageMembersDesc" },
+    { labelKey: "ownership.fullSettings", descKey: "ownership.fullSettingsDesc" },
+    { labelKey: "ownership.apiKeys", descKey: "ownership.apiKeysDesc" },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-md text-center gap-6">
@@ -83,31 +91,31 @@ export function OwnershipCelebration({ open, onClose, orgName }: OwnershipCelebr
           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center ring-4 ring-primary/20">
             <Crown className="w-8 h-8 text-primary" />
           </div>
-          <DialogTitle className="text-2xl">You're the new Owner!</DialogTitle>
+          <DialogTitle className="text-2xl">{t('ownership.newOwnerTitle')}</DialogTitle>
           <DialogDescription className="text-base">
             {orgName ? (
-              <>You now have full ownership of <span className="font-semibold text-foreground">{orgName}</span>. With great power comes great responsibility.</>
+              <>
+                {t('ownership.newOwnerDescPre')}{" "}
+                <span className="font-semibold text-foreground">{orgName}</span>
+                {t('ownership.newOwnerDescPost')}
+              </>
             ) : (
-              <>You now have full ownership of your organization. With great power comes great responsibility.</>
+              <>{t('ownership.newOwnerDescNoOrg')}</>
             )}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid grid-cols-3 gap-3 text-sm">
-          {[
-            { label: "Manage members", desc: "Invite & remove people" },
-            { label: "Full settings", desc: "Configure everything" },
-            { label: "API keys", desc: "Control integrations" },
-          ].map(({ label, desc }) => (
-            <div key={label} className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
-              <p className="font-medium text-foreground text-xs">{label}</p>
-              <p className="text-muted-foreground text-xs">{desc}</p>
+          {features.map(({ labelKey, descKey }) => (
+            <div key={labelKey} className="rounded-lg border border-border bg-muted/40 p-3 space-y-1">
+              <p className="font-medium text-foreground text-xs">{t(labelKey)}</p>
+              <p className="text-muted-foreground text-xs">{t(descKey)}</p>
             </div>
           ))}
         </div>
 
         <Button onClick={onClose} className="w-full">
-          Get started
+          {t('ownership.getStarted')}
         </Button>
       </DialogContent>
     </Dialog>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -56,14 +57,16 @@ const PRIORITY_OPTIONS: { value: TaskInputPriority; label: string }[] = [
   { value: "critical", label: "Critical" },
 ];
 
-const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
-  { value: "incident", label: "Incident" },
-  { value: "change", label: "Change" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "deployment", label: "Deployment" },
-  { value: "support", label: "Support" },
-  { value: "other", label: "Other" },
-];
+function getCategoryOptions(t: (k: string) => string): { value: TaskInputCategory; label: string }[] {
+  return [
+    { value: "incident", label: t('tasks.categoryIncident') },
+    { value: "change", label: t('tasks.categoryChange') },
+    { value: "maintenance", label: t('tasks.categoryMaintenance') },
+    { value: "deployment", label: t('tasks.categoryDeployment') },
+    { value: "support", label: t('tasks.categorySupport') },
+    { value: "other", label: t('tasks.categoryOther') },
+  ];
+}
 
 // ─── Template picker ──────────────────────────────────────────────────────────
 
@@ -75,6 +78,7 @@ interface TemplatePickerProps {
 }
 
 function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: TemplatePickerProps) {
+  const { t: tr } = useTranslation();
   const [open, setOpen] = useState(false);
 
   if (templates.length === 0) return null;
@@ -92,7 +96,7 @@ function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: Templa
             }`}
           >
             <FileText className="w-3 h-3" />
-            {activeTemplate ? activeTemplate.name : "Use template"}
+            {activeTemplate ? activeTemplate.name : tr('tasks.useTemplate')}
             <ChevronDown className="w-3 h-3 opacity-60" />
           </button>
         </PopoverTrigger>
@@ -101,31 +105,31 @@ function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: Templa
             type="button"
             onClick={onClear}
             className="flex items-center justify-center w-6 h-7 rounded-r-md border border-l-0 border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            aria-label="Clear template"
+            aria-label={tr('tasks.clearTemplate')}
           >
             <X className="w-3 h-3" />
           </button>
         )}
         <PopoverContent className="w-64 p-1" align="start">
           <div className="flex flex-col gap-0.5">
-            {templates.map((t) => (
+            {templates.map((tmpl) => (
               <button
-                key={t.id}
+                key={tmpl.id}
                 type="button"
-                onClick={() => { onSelect(t); setOpen(false); }}
+                onClick={() => { onSelect(tmpl); setOpen(false); }}
                 className={`w-full text-left px-3 py-2 text-xs rounded-sm transition-colors ${
-                  activeTemplate?.id === t.id
+                  activeTemplate?.id === tmpl.id
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
                 }`}
               >
-                <p className="font-medium">{t.name}</p>
+                <p className="font-medium">{tmpl.name}</p>
                 <div className="flex gap-1.5 mt-0.5 opacity-70">
                   <Badge variant="outline" className="text-[10px] py-0 capitalize border-current">
-                    {t.defaultPriority}
+                    {tmpl.defaultPriority}
                   </Badge>
                   <Badge variant="outline" className="text-[10px] py-0 capitalize border-current">
-                    {t.defaultCategory}
+                    {tmpl.defaultCategory}
                   </Badge>
                 </div>
               </button>
@@ -134,10 +138,10 @@ function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: Templa
         </PopoverContent>
       </Popover>
       {!activeTemplate && (
-        <span className="text-xs text-muted-foreground">Pre-fill from a saved template</span>
+        <span className="text-xs text-muted-foreground">{tr('tasks.preFillFromTemplate')}</span>
       )}
       {activeTemplate && (
-        <span className="text-xs text-muted-foreground">Fields pre-filled — edit freely</span>
+        <span className="text-xs text-muted-foreground">{tr('tasks.fieldsPreFilled')}</span>
       )}
     </div>
   );
@@ -147,6 +151,7 @@ function TemplatePicker({ templates, activeTemplate, onSelect, onClear }: Templa
 
 export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemplate }: NewTaskModalProps) {
   const { tSingular } = useTerminology();
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const { mutate: createTask, isPending } = useCreateTask();
   const { data: projects } = useListProjects();
@@ -254,12 +259,12 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-          toast({ title: "Task created", description: `"${title.trim()}" has been created.` });
+          toast({ title: t("tasks.newTask", { task: tSingular("tasks") }), description: t("tasks.createdSuccess", { title: title.trim() }) });
           resetForm();
           onOpenChange(false);
         },
         onError: () => {
-          toast({ title: "Error", description: "Failed to create task.", variant: "destructive" });
+          toast({ title: t("common.error"), description: t("tasks.failedToCreate"), variant: "destructive" });
         },
       }
     );
@@ -274,7 +279,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>New {tSingular("tasks")}</DialogTitle>
+          <DialogTitle>{t("tasks.newTask", { task: tSingular("tasks") })}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           {/* Template picker */}
@@ -286,10 +291,10 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
           />
 
           <div className="space-y-1">
-            <Label htmlFor="task-title">Title <span className="text-destructive">*</span></Label>
+            <Label htmlFor="task-title">{t("common.name")} <span className="text-destructive">*</span></Label>
             <Input
               id="task-title"
-              placeholder="e.g. Investigate disk usage on prod-01"
+              placeholder={t("tasks.titlePlaceholder")}
               value={title}
               onChange={(e) => { setTitle(e.target.value); setErrors(prev => ({ ...prev, title: "" })); }}
             />
@@ -297,23 +302,23 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
           </div>
 
           <div className="space-y-1">
-            <Label>Description</Label>
+            <Label>{t("common.description")}</Label>
             <MarkdownEditor
               value={description}
               onChange={setDescription}
-              placeholder="Optional details, runbook steps..."
+              placeholder={t("tasks.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
             />
           </div>
 
           <div className="space-y-1">
-            <Label>Project</Label>
+            <Label>{t("tasks.filterByProject")}</Label>
             <Select value={projectId} onValueChange={setProjectId} disabled={!!initialProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="No project" />
+                <SelectValue placeholder={t("taskDetail.noProject")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No project</SelectItem>
+                <SelectItem value="none">{t("taskDetail.noProject")}</SelectItem>
                 {projects?.map(p => (
                   <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                 ))}
@@ -323,10 +328,10 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label>Status</Label>
+              <Label>{t("common.status")}</Label>
               <Select value={status} onValueChange={setStatus}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select stage…" />
+                  <SelectValue placeholder={t("taskDetail.selectStage")} />
                 </SelectTrigger>
                 <SelectContent>
                   {activeStages.map((s) => (
@@ -336,7 +341,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Priority</Label>
+              <Label>{t("common.priority")}</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as TaskInputPriority)}>
                 <SelectTrigger>
                   <SelectValue />
@@ -349,13 +354,13 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Category</Label>
+              <Label>{t("tasks.filterByCategory")}</Label>
               <Select value={category} onValueChange={(v) => setCategory(v as TaskInputCategory)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_OPTIONS.map(o => (
+                  {getCategoryOptions(t).map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -365,7 +370,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Assignee</Label>
+              <Label>{t("common.assignee")}</Label>
               <AssigneeCombobox
                 value={assignee}
                 onChange={(v) => { setAssignee(v); setErrors(prev => ({ ...prev, assignee: "" })); }}
@@ -374,7 +379,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="task-due">Due Date</Label>
+              <Label htmlFor="task-due">{t("common.dueDate")}</Label>
               <Input
                 id="task-due"
                 type="date"
@@ -392,10 +397,10 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Creating..." : "Create Task"}
+              {isPending ? t("common.saving") : t("tasks.createTask", { task: tSingular("tasks") })}
             </Button>
           </DialogFooter>
         </form>

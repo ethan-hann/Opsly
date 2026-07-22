@@ -66,6 +66,7 @@ vi.mock("@workspace/api-client-react", () => ({
   useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),
   useListComments: () => ({ data: [] }),
+  getListCommentsQueryKey: () => ["listComments"],
   useCreateComment: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteComment: () => ({ mutate: vi.fn() }),
   useListProjects: () => ({ data: [] }),
@@ -81,6 +82,15 @@ vi.mock("@workspace/api-client-react", () => ({
 
 vi.mock("@workspace/replit-auth-web", () => ({
   useAuth: () => ({ user: { id: "u1", email: "user@example.com", firstName: "Test", lastName: "User" } }),
+}));
+
+vi.mock("@/context/terminology-context", () => ({
+  useTerminology: () => ({
+    t: (key: string) => key,
+    ts: (key: string) => key,
+    tSingular: (key: string) => key,
+  }),
+  TerminologyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("wouter", () => ({
@@ -161,8 +171,10 @@ describe("TaskDetail — delete_tasks permission gate", () => {
 
     renderPage();
 
-    // The delete button has title="Delete Task"
-    expect(screen.getByTitle("Delete Task")).toBeInTheDocument();
+    // The delete button title comes from i18n: "Delete {{task}}" with term mock returning "tasks"
+    // resulting in "Delete tasks"
+    const deleteBtn = document.querySelector('button[title^="Delete"]');
+    expect(deleteBtn).toBeInTheDocument();
   });
 
   it("hides the Delete Task button when the user lacks delete_tasks", () => {
@@ -171,6 +183,7 @@ describe("TaskDetail — delete_tasks permission gate", () => {
 
     renderPage();
 
-    expect(screen.queryByTitle("Delete Task")).not.toBeInTheDocument();
+    const deleteBtn = document.querySelector('button[title^="Delete"]');
+    expect(deleteBtn).not.toBeInTheDocument();
   });
 });

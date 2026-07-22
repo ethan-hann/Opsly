@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2, Mail, CheckCircle2, XCircle, Pencil, RotateCcw, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -46,6 +47,7 @@ interface EditForm {
 }
 
 export function AdminSmtpTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [status, setStatus] = useState<SmtpStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,15 +103,15 @@ export function AdminSmtpTab() {
     e.preventDefault();
     const portNum = parseInt(form.port, 10);
     if (!form.host.trim()) {
-      toast({ title: "Validation error", description: "Host is required.", variant: "destructive" });
+      toast({ title: t('admin.smtp.validationErrorTitle'), description: t('admin.smtp.hostRequired'), variant: "destructive" });
       return;
     }
     if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
-      toast({ title: "Validation error", description: "Port must be a number between 1 and 65535.", variant: "destructive" });
+      toast({ title: t('admin.smtp.validationErrorTitle'), description: t('admin.smtp.portInvalid'), variant: "destructive" });
       return;
     }
     if (!form.from.trim()) {
-      toast({ title: "Validation error", description: "From address is required.", variant: "destructive" });
+      toast({ title: t('admin.smtp.validationErrorTitle'), description: t('admin.smtp.fromRequired'), variant: "destructive" });
       return;
     }
 
@@ -133,22 +135,22 @@ export function AdminSmtpTab() {
       });
       if (!res.ok) {
         const err = await res.json() as { error?: string };
-        toast({ title: "Save failed", description: err.error ?? "Unknown error", variant: "destructive" });
+        toast({ title: t('admin.smtp.saveFailed'), description: err.error ?? t('common.unknown'), variant: "destructive" });
         return;
       }
       const updated = await res.json() as SmtpStatus;
       setStatus(updated);
       setIsEditing(false);
-      toast({ title: "SMTP config saved", description: "The new settings are active immediately." });
+      toast({ title: t('admin.smtp.configSaved'), description: t('admin.smtp.configSavedDesc') });
     } catch (err) {
-      toast({ title: "Request failed", description: String(err), variant: "destructive" });
+      toast({ title: t('admin.smtp.requestFailed'), description: String(err), variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   }
 
   async function resetToEnv() {
-    if (!confirm("Reset SMTP config to environment variables? The DB override will be deleted.")) return;
+    if (!confirm(t('admin.smtp.resetConfirm'))) return;
     setIsResetting(true);
     try {
       const res = await fetch(`${BASE}/api/admin/email/config`, {
@@ -157,15 +159,15 @@ export function AdminSmtpTab() {
       });
       if (!res.ok) {
         const err = await res.json() as { error?: string };
-        toast({ title: "Reset failed", description: err.error ?? "Unknown error", variant: "destructive" });
+        toast({ title: t('admin.smtp.resetFailed'), description: err.error ?? t('common.unknown'), variant: "destructive" });
         return;
       }
       const updated = await res.json() as SmtpStatus;
       setStatus(updated);
       setIsEditing(false);
-      toast({ title: "Reset to environment variables", description: "The DB override has been removed." });
+      toast({ title: t('admin.smtp.resetSuccess'), description: t('admin.smtp.resetSuccessDesc') });
     } catch (err) {
-      toast({ title: "Request failed", description: String(err), variant: "destructive" });
+      toast({ title: t('admin.smtp.requestFailed'), description: String(err), variant: "destructive" });
     } finally {
       setIsResetting(false);
     }
@@ -184,12 +186,12 @@ export function AdminSmtpTab() {
       });
       const body = await res.json() as { success: boolean; error?: string };
       if (body.success) {
-        toast({ title: "Test email sent", description: `Delivered to ${testEmail.trim()}` });
+        toast({ title: t('admin.smtp.testSent'), description: t('admin.smtp.testSentDesc', { email: testEmail.trim() }) });
       } else {
-        toast({ title: "Delivery failed", description: body.error ?? "Unknown error", variant: "destructive" });
+        toast({ title: t('admin.smtp.deliveryFailed'), description: body.error ?? t('common.unknown'), variant: "destructive" });
       }
     } catch (err) {
-      toast({ title: "Request failed", description: String(err), variant: "destructive" });
+      toast({ title: t('admin.smtp.requestFailed'), description: String(err), variant: "destructive" });
     } finally {
       setIsSending(false);
     }
@@ -212,8 +214,7 @@ export function AdminSmtpTab() {
         <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-sm">
           <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <p className="text-amber-800 dark:text-amber-300">
-            <strong>DB override active.</strong> These values override the server environment variables.
-            A server restart will revert to the values from environment variables.
+            {t('admin.smtp.dbOverrideWarning')}
           </p>
         </div>
       )}
@@ -224,17 +225,17 @@ export function AdminSmtpTab() {
           <div className="flex items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base">
               <Mail className="w-4 h-4" />
-              SMTP Configuration
+              {t('admin.smtp.smtpConfig')}
             </CardTitle>
             <div className="flex items-center gap-2">
               {status && !isEditing && (
                 <>
                   <Badge variant={isDbOverride ? "default" : "secondary"} className="text-xs">
-                    {isDbOverride ? "DB override" : "From environment"}
+                    {isDbOverride ? t('admin.smtp.dbOverrideBadge') : t('admin.smtp.fromEnvBadge')}
                   </Badge>
                   <Button size="sm" variant="outline" className="gap-1.5 h-8" onClick={startEdit}>
                     <Pencil className="w-3 h-3" />
-                    Edit
+                    {t('admin.smtp.editButton')}
                   </Button>
                   {isDbOverride && (
                     <Button
@@ -245,7 +246,7 @@ export function AdminSmtpTab() {
                       disabled={isResetting}
                     >
                       {isResetting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
-                      Reset to environment
+                      {t('admin.smtp.resetToEnv')}
                     </Button>
                   )}
                 </>
@@ -255,8 +256,8 @@ export function AdminSmtpTab() {
           {!isEditing && (
             <CardDescription>
               {isDbOverride
-                ? "A database override is active. Edit or reset below."
-                : "SMTP is configured via server environment variables."}
+                ? t('admin.smtp.dbOverrideActive')
+                : t('admin.smtp.fromEnvDesc')}
             </CardDescription>
           )}
         </CardHeader>
@@ -266,10 +267,10 @@ export function AdminSmtpTab() {
             <form onSubmit={saveConfig} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="smtp-host" className="text-xs">Host <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="smtp-host" className="text-xs">{t('admin.smtp.hostLabel')} <span className="text-destructive">*</span></Label>
                   <Input
                     id="smtp-host"
-                    placeholder="smtp.example.com"
+                    placeholder={t('admin.smtp.hostPlaceholder')}
                     value={form.host}
                     onChange={(e) => setForm((f) => ({ ...f, host: e.target.value }))}
                     disabled={isSaving}
@@ -277,11 +278,11 @@ export function AdminSmtpTab() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="smtp-port" className="text-xs">Port <span className="text-destructive">*</span></Label>
+                  <Label htmlFor="smtp-port" className="text-xs">{t('admin.smtp.portLabel')} <span className="text-destructive">*</span></Label>
                   <Input
                     id="smtp-port"
                     type="number"
-                    placeholder="587"
+                    placeholder={t('admin.smtp.portPlaceholder')}
                     value={form.port}
                     onChange={(e) => setForm((f) => ({ ...f, port: e.target.value }))}
                     disabled={isSaving}
@@ -298,15 +299,15 @@ export function AdminSmtpTab() {
                   disabled={isSaving}
                 />
                 <Label htmlFor="smtp-secure" className="text-sm cursor-pointer">
-                  Use TLS/SSL (port 465)
+                  {t('admin.smtp.useTlsSsl')}
                 </Label>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="smtp-user" className="text-xs">Username</Label>
+                <Label htmlFor="smtp-user" className="text-xs">{t('admin.smtp.usernameLabel')}</Label>
                 <Input
                   id="smtp-user"
-                  placeholder="user@example.com"
+                  placeholder={t('admin.smtp.userPlaceholder')}
                   value={form.user}
                   onChange={(e) => setForm((f) => ({ ...f, user: e.target.value }))}
                   disabled={isSaving}
@@ -315,11 +316,11 @@ export function AdminSmtpTab() {
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="smtp-pass" className="text-xs">Password</Label>
+                <Label htmlFor="smtp-pass" className="text-xs">{t('admin.smtp.passwordLabel')}</Label>
                 <Input
                   id="smtp-pass"
                   type="password"
-                  placeholder={status?.hasPassword ? "••••••••  (leave blank to keep existing)" : "No password saved"}
+                  placeholder={status?.hasPassword ? t('admin.smtp.passwordPlaceholderHas') : t('admin.smtp.passwordPlaceholderNone')}
                   value={form.pass}
                   onChange={(e) => setForm((f) => ({ ...f, pass: e.target.value }))}
                   disabled={isSaving}
@@ -328,16 +329,16 @@ export function AdminSmtpTab() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {status?.hasPassword
-                    ? "A password is saved. Leave blank to keep the existing one, or type a new one to replace it."
-                    : "No password is currently saved."}
+                    ? t('admin.smtp.passwordHint')
+                    : t('admin.smtp.noPasswordSaved')}
                 </p>
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="smtp-from" className="text-xs">From address <span className="text-destructive">*</span></Label>
+                <Label htmlFor="smtp-from" className="text-xs">{t('admin.smtp.fromLabel')} <span className="text-destructive">*</span></Label>
                 <Input
                   id="smtp-from"
-                  placeholder='Opsly <noreply@example.com>'
+                  placeholder={t('admin.smtp.fromPlaceholder')}
                   value={form.from}
                   onChange={(e) => setForm((f) => ({ ...f, from: e.target.value }))}
                   disabled={isSaving}
@@ -348,10 +349,10 @@ export function AdminSmtpTab() {
               <div className="flex gap-2 pt-1">
                 <Button type="submit" size="sm" disabled={isSaving} className="gap-1.5">
                   {isSaving && <Loader2 className="w-3 h-3 animate-spin" />}
-                  {isSaving ? "Saving…" : "Save config"}
+                  {isSaving ? t('admin.smtp.saving') : t('admin.smtp.saveConfig')}
                 </Button>
                 <Button type="button" size="sm" variant="ghost" onClick={cancelEdit} disabled={isSaving}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               </div>
             </form>
@@ -363,22 +364,21 @@ export function AdminSmtpTab() {
                   <>
                     <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" />
                     <div>
-                      <p className="font-medium text-sm">Connected</p>
-                      <p className="text-xs text-muted-foreground">SMTP is configured and ready to send email.</p>
+                      <p className="font-medium text-sm">{t('admin.smtp.connected')}</p>
+                      <p className="text-xs text-muted-foreground">{t('admin.smtp.connectedDesc')}</p>
                     </div>
-                    <Badge variant="secondary" className="ml-auto">Active</Badge>
+                    <Badge variant="secondary" className="ml-auto">{t('admin.smtp.activeBadge')}</Badge>
                   </>
                 ) : (
                   <>
                     <XCircle className="w-5 h-5 text-muted-foreground shrink-0" />
                     <div>
-                      <p className="font-medium text-sm">Not configured</p>
+                      <p className="font-medium text-sm">{t('admin.smtp.notConfigured')}</p>
                       <p className="text-xs text-muted-foreground">
-                        Set <code className="bg-muted px-1 rounded text-xs">SMTP_HOST</code> or use
-                        the Edit button to configure SMTP.
+                        {t('admin.smtp.notConfiguredDesc')}
                       </p>
                     </div>
-                    <Badge variant="outline" className="ml-auto text-muted-foreground">Disabled</Badge>
+                    <Badge variant="outline" className="ml-auto text-muted-foreground">{t('admin.smtp.disabledBadge')}</Badge>
                   </>
                 )}
               </div>
@@ -387,11 +387,11 @@ export function AdminSmtpTab() {
                 <table className="w-full text-sm border-collapse">
                   <tbody>
                     {[
-                      ["Host", `${status.host}:${status.port}`],
-                      ["Security", status.secure ? "TLS/SSL" : "STARTTLS"],
-                      ["Username", status.user || "(none)"],
-                      ["Password", status.hasPassword ? "••••••••" : "(not set)"],
-                      ["From address", status.from],
+                      [t('admin.smtp.fieldHost'), `${status.host}:${status.port}`],
+                      [t('admin.smtp.fieldSecurity'), status.secure ? t('admin.smtp.tlsSsl') : t('admin.smtp.startTls')],
+                      [t('admin.smtp.fieldUsername'), status.user || t('admin.smtp.noneUser')],
+                      [t('admin.smtp.fieldPassword'), status.hasPassword ? "••••••••" : t('admin.smtp.notSet')],
+                      [t('admin.smtp.fieldFromAddress'), status.from],
                     ].map(([label, value]) => (
                       <tr key={label} className="border-b border-border last:border-0">
                         <td className="py-2 pr-4 text-muted-foreground w-32">{label}</td>
@@ -410,25 +410,25 @@ export function AdminSmtpTab() {
               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground list-none flex items-center gap-1 select-none">
                 <span className="group-open:hidden">▶</span>
                 <span className="hidden group-open:inline">▼</span>
-                Environment variable reference
+                {t('admin.smtp.envVarReference')}
               </summary>
               <table className="mt-2 w-full text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-border">
-                    <th className="text-left pb-1 text-muted-foreground font-medium">Variable</th>
-                    <th className="text-left pb-1 text-muted-foreground font-medium">Description</th>
+                    <th className="text-left pb-1 text-muted-foreground font-medium">{t('admin.smtp.variable')}</th>
+                    <th className="text-left pb-1 text-muted-foreground font-medium">{t('admin.smtp.varDescription')}</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono">
                   {[
-                    ["SMTP_HOST", "Mail server hostname (required)"],
-                    ["SMTP_PORT", "Port — default 587"],
-                    ["SMTP_SECURE", '"true" for TLS/SSL (port 465)'],
-                    ["SMTP_USER", "SMTP auth username"],
-                    ["SMTP_PASS", "SMTP auth password"],
-                    ["SMTP_FROM", 'Sender address, e.g. "Opsly <noreply@example.com>"'],
-                    ["APP_URL", "Frontend base URL used in email links"],
-                    ["SECRET_ENCRYPTION_KEY", "Required to encrypt stored SMTP passwords"],
+                    ["SMTP_HOST", t('admin.smtp.smtpHostVar')],
+                    ["SMTP_PORT", t('admin.smtp.smtpPortVar')],
+                    ["SMTP_SECURE", t('admin.smtp.smtpSecureVar')],
+                    ["SMTP_USER", t('admin.smtp.smtpUserVar')],
+                    ["SMTP_PASS", t('admin.smtp.smtpPassVar')],
+                    ["SMTP_FROM", t('admin.smtp.smtpFromVar')],
+                    ["APP_URL", t('admin.smtp.appUrlVar')],
+                    ["SECRET_ENCRYPTION_KEY", t('admin.smtp.secretKeyVar')],
                   ].map(([name, desc]) => (
                     <tr key={name} className="border-b border-border/50 last:border-0">
                       <td className="py-1.5 pr-4 text-foreground">{name}</td>
@@ -445,24 +445,24 @@ export function AdminSmtpTab() {
       {/* Test email card */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Send Test Email</CardTitle>
+          <CardTitle className="text-base">{t('admin.smtp.sendTestEmail')}</CardTitle>
           <CardDescription>
-            Send a test email to verify your SMTP configuration is working correctly.
+            {t('admin.smtp.sendTestEmailDesc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {!status?.configured ? (
             <p className="text-sm text-muted-foreground">
-              Configure SMTP first using the Edit button above, or set the environment variables.
+              {t('admin.smtp.smtpNotConfigured')}
             </p>
           ) : (
             <form onSubmit={sendTest} className="flex gap-2">
               <div className="flex-1 space-y-1">
-                <Label htmlFor="test-email" className="text-xs">Recipient</Label>
+                <Label htmlFor="test-email" className="text-xs">{t('admin.smtp.recipient')}</Label>
                 <Input
                   id="test-email"
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('admin.smtp.recipientPlaceholder')}
                   value={testEmail}
                   onChange={(e) => setTestEmail(e.target.value)}
                   disabled={isSending}
@@ -472,7 +472,7 @@ export function AdminSmtpTab() {
               <div className="flex items-end">
                 <Button type="submit" disabled={isSending || !testEmail.trim()} className="gap-2 h-9">
                   {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
-                  {isSending ? "Sending…" : "Send test"}
+                  {isSending ? t('admin.smtp.sending') : t('admin.smtp.sendTest')}
                 </Button>
               </div>
             </form>

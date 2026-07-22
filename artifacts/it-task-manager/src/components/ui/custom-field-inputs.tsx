@@ -5,6 +5,7 @@
 import type { CustomFieldDefinition } from "@workspace/api-client-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "react-i18next";
 import {
   Select,
   SelectContent,
@@ -20,13 +21,14 @@ interface CustomFieldInputsProps {
 }
 
 export function CustomFieldInputs({ fields, values, onChange }: CustomFieldInputsProps) {
+  const { t } = useTranslation();
   if (fields.length === 0) return null;
 
   return (
     <div className="space-y-3">
       <div className="border-t border-border pt-3">
         <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-          Custom Fields
+          {t('customFields.title')}
         </p>
         <div className="space-y-3">
           {fields.map((field) => {

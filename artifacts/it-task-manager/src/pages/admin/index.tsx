@@ -7,6 +7,8 @@ import { AdminUsersTab } from "./users-tab";
 import { AdminUsageTab } from "./usage-tab";
 import { AdminAuditTab } from "./audit-tab";
 import { AdminSmtpTab } from "./smtp-tab";
+import { useTranslation } from "react-i18next";
+import { LanguagePicker } from "@/components/ui/language-picker";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -20,6 +22,7 @@ async function checkIsInstanceAdmin(): Promise<boolean> {
 }
 
 export default function AdminConsolePage() {
+  const { t } = useTranslation();
   const [status, setStatus] = useState<"loading" | "authorized" | "denied">("loading");
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export default function AdminConsolePage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-muted-foreground">Checking access…</p>
+          <p className="text-sm text-muted-foreground">{t('admin.checkingAccess')}</p>
         </div>
       </div>
     );
@@ -42,12 +45,12 @@ export default function AdminConsolePage() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-3">
           <Shield className="w-12 h-12 text-destructive mx-auto" />
-          <h1 className="text-2xl font-bold">Access Denied</h1>
+          <h1 className="text-2xl font-bold">{t('admin.accessDenied')}</h1>
           <p className="text-muted-foreground max-w-sm">
-            This area is restricted to instance administrators. Contact your server operator if you believe this is an error.
+            {t('admin.accessDeniedDesc')}
           </p>
           <a href="/" className="text-primary underline text-sm">
-            Return to the app
+            {t('admin.returnToApp')}
           </a>
         </div>
       </div>
@@ -64,16 +67,19 @@ export default function AdminConsolePage() {
               <Shield className="w-4 h-4 text-destructive-foreground" />
             </div>
             <div>
-              <h1 className="font-bold tracking-tight">Instance Admin Console</h1>
-              <p className="text-xs text-muted-foreground">Server-wide administration</p>
+              <h1 className="font-bold tracking-tight">{t('admin.title')}</h1>
+              <p className="text-xs text-muted-foreground">{t('admin.subtitle')}</p>
             </div>
           </div>
-          <a
-            href="/"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            ← Back to app
-          </a>
+          <div className="flex items-center gap-3">
+            <LanguagePicker />
+            <a
+              href="/"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('admin.backToApp')}
+            </a>
+          </div>
         </div>
       </header>
 
@@ -83,27 +89,27 @@ export default function AdminConsolePage() {
           <TabsList className="mb-6">
             <TabsTrigger value="orgs" className="gap-2">
               <Building2 className="w-4 h-4" />
-              Orgs
+              {t('admin.tabs.orgs')}
             </TabsTrigger>
             <TabsTrigger value="features" className="gap-2">
               <SlidersHorizontal className="w-4 h-4" />
-              Feature Flags
+              {t('admin.tabs.features')}
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="w-4 h-4" />
-              Users
+              {t('admin.tabs.users')}
             </TabsTrigger>
             <TabsTrigger value="usage" className="gap-2">
               <BarChart3 className="w-4 h-4" />
-              Usage
+              {t('admin.tabs.usage')}
             </TabsTrigger>
             <TabsTrigger value="audit" className="gap-2">
               <ScrollText className="w-4 h-4" />
-              Audit Log
+              {t('admin.tabs.auditLog')}
             </TabsTrigger>
             <TabsTrigger value="smtp" className="gap-2">
               <Mail className="w-4 h-4" />
-              Email / SMTP
+              {t('admin.tabs.smtp')}
             </TabsTrigger>
           </TabsList>
 

@@ -1,3 +1,6 @@
+import { useTranslation } from 'react-i18next';
+import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from 'date-fns/locale';
+import i18n from '@/i18n';
 import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MentionTextarea } from "@/components/ui/mention-textarea";
 import { useTerminology } from "@/context/terminology-context";
@@ -10,6 +13,7 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { SlaBadge } from "@/components/ui/sla-badge";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
+import { formatDistanceToNow } from "date-fns";
 import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, Pencil, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown } from "lucide-react";
 import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
@@ -51,30 +55,36 @@ import type { ReactionSummaryType } from "@/hooks/use-reactions";
 
 // ─── Field change label helpers ───────────────────────────────────────────────
 
-const STATUS_LABELS: Record<string, string> = {
-  todo: "To Do",
-  in_progress: "In Progress",
-  blocked: "Blocked",
-  done: "Done",
-};
+function getStatusLabel(value: string): string {
+  const map: Record<string, string> = {
+    todo: i18n.t('taskDetail.statusTodo'),
+    in_progress: i18n.t('taskDetail.statusInProgress'),
+    blocked: i18n.t('taskDetail.statusBlocked'),
+    done: i18n.t('taskDetail.statusDone'),
+  };
+  return map[value] ?? value;
+}
 
-const PRIORITY_LABELS: Record<string, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  critical: "Critical",
-};
+function getPriorityLabel(value: string): string {
+  const map: Record<string, string> = {
+    low: i18n.t('tasks.priorityLow'),
+    medium: i18n.t('tasks.priorityMedium'),
+    high: i18n.t('tasks.priorityHigh'),
+    critical: i18n.t('tasks.priorityCritical'),
+  };
+  return map[value] ?? value;
+}
 
 function labelFor(field: string, value: string | null | undefined): string {
   if (value == null || value === "") return "—";
-  if (field === "status") return STATUS_LABELS[value] ?? value;
-  if (field === "priority") return PRIORITY_LABELS[value] ?? value;
+  if (field === "status") return getStatusLabel(value);
+  if (field === "priority") return getPriorityLabel(value);
   return value;
 }
 
 function eventDescription(field: string, oldValue: string | null | undefined, newValue: string | null | undefined): string {
   if (field === "created") {
-    return `Task created: "${newValue ?? ""}"`;
+    return i18n.t('taskDetail.taskCreated', { title: newValue ?? "" });
   }
 
   if (field === "sla_breached") {
@@ -84,11 +94,11 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
       const pipeIdx = newValue.indexOf("|");
       if (pipeIdx !== -1) {
         const slaType = newValue.slice(0, pipeIdx);
-        const typeLabel = slaType === "resolution" ? "resolution limit" : "response limit";
-        return `SLA deadline breached — ${typeLabel} exceeded`;
+        const typeLabel = slaType === "resolution" ? i18n.t('taskDetail.resolutionLimit') : i18n.t('taskDetail.responseLimit');
+        return i18n.t('taskDetail.slaBreached', { type: typeLabel });
       }
     }
-    return "SLA deadline breached";
+    return i18n.t('taskDetail.slaDeadlineBreached');
   }
 
   if (field === "sla_warning") {
@@ -100,9 +110,9 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
         const isoStr = pipeIdx !== -1 ? newValue.slice(pipeIdx + 1) : newValue;
         const slaType = pipeIdx !== -1 ? newValue.slice(0, pipeIdx) : null;
         const typeLabel = slaType === "resolution"
-          ? "resolution limit"
+          ? i18n.t('taskDetail.resolutionLimit')
           : slaType === "response"
-            ? "response limit"
+            ? i18n.t('taskDetail.responseLimit')
             : null;
 
         const projected = new Date(isoStr);
@@ -113,14 +123,14 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
           const s = diffSec % 60;
           const timeStr = m === 0 ? `${s}s` : s === 0 ? `${m}m` : `${m}m ${s}s`;
           return typeLabel
-            ? `SLA warning — ${typeLabel} breach in ${timeStr}`
-            : `SLA warning — breach projected in ${timeStr}`;
+            ? i18n.t('taskDetail.slaWarning', { type: typeLabel, time: timeStr })
+            : i18n.t('taskDetail.slaWarning', { type: "breach", time: `projected in ${timeStr}` });
         }
       } catch {
         // fall through to generic label
       }
     }
-    return "SLA warning fired";
+    return i18n.t('taskDetail.slaWarningFired');
   }
 
   // Custom-field audit events use a "cf:<fieldName>" prefix so they can be
@@ -129,28 +139,28 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
     const cfName = field.slice(3);
     const oldStr = oldValue || "—";
     const newStr = newValue || "—";
-    if (!oldValue && newValue) return `${cfName} set to ${newStr}`;
-    if (oldValue && !newValue) return `${cfName} cleared (was ${oldStr})`;
-    return `${cfName} changed from ${oldStr} → ${newStr}`;
+    if (!oldValue && newValue) return i18n.t('taskDetail.cfSet', { field: cfName, value: newStr });
+    if (oldValue && !newValue) return i18n.t('taskDetail.cfCleared', { field: cfName, value: oldStr });
+    return i18n.t('taskDetail.cfChanged', { field: cfName, old: oldStr, new: newStr });
   }
 
   const fieldLabel: Record<string, string> = {
-    status: "Status",
-    priority: "Priority",
-    assignee: "Assignee",
-    category: "Category",
-    title: "Title",
-    dueDate: "Due date",
-    projectId: "Project",
+    status: i18n.t('taskDetail.fieldStatus'),
+    priority: i18n.t('taskDetail.fieldPriority'),
+    assignee: i18n.t('taskDetail.fieldAssignee'),
+    category: i18n.t('taskDetail.fieldCategory'),
+    title: i18n.t('taskDetail.fieldTitle'),
+    dueDate: i18n.t('taskDetail.fieldDueDate'),
+    projectId: i18n.t('taskDetail.fieldProject'),
   };
 
   const label = fieldLabel[field] ?? field;
   const oldStr = labelFor(field, oldValue);
   const newStr = labelFor(field, newValue);
 
-  if (!oldValue && newValue) return `${label} set to ${newStr}`;
-  if (oldValue && !newValue) return `${label} cleared (was ${oldStr})`;
-  return `${label} changed from ${oldStr} → ${newStr}`;
+  if (!oldValue && newValue) return i18n.t('taskDetail.fieldSet', { field: label, value: newStr });
+  if (oldValue && !newValue) return i18n.t('taskDetail.fieldCleared', { field: label, value: oldStr });
+  return i18n.t('taskDetail.fieldChanged', { field: label, old: oldStr, new: newStr });
 }
 
 // ─── Mention token rendering ──────────────────────────────────────────────────
@@ -307,6 +317,10 @@ function CommentNodeRenderer({
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
+  const { t: tComment, i18n: i18nComment } = useTranslation();
+  const dateFnsLocaleMapComment: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+  const dateFnsLocaleComment = dateFnsLocaleMapComment[i18nComment.language] ?? dateFnsLocaleMapComment[i18nComment.language?.split('-')[0]] ?? enUS;
+
   const editMutation = useUpdateComment({
     mutation: {
       onSuccess: () => {
@@ -314,7 +328,7 @@ function CommentNodeRenderer({
         queryClient.invalidateQueries({ queryKey: commentsQueryKey });
       },
       onError: () => {
-        toast({ title: "Failed to save edit", variant: "destructive" });
+        toast({ title: tComment('taskDetail.failedSaveEdit'), variant: "destructive" });
       },
     },
   });
@@ -362,7 +376,7 @@ function CommentNodeRenderer({
           </div>
           <div className={`flex-1 min-w-0 bg-muted/15 border border-border/30 rounded-lg px-3 py-2.5 ${node.depth > 0 ? "border-l-2 border-l-border/30" : ""}`}>
             <p className="text-sm italic text-muted-foreground/60 select-none">
-              This comment was deleted.
+              {i18n.t('taskDetail.commentDeleted')}
             </p>
           </div>
         </div>
@@ -403,15 +417,15 @@ function CommentNodeRenderer({
 
         <div className={`flex-1 min-w-0 bg-muted/30 border border-border/50 rounded-lg p-3 ${node.depth > 0 ? "border-l-2 " + accentColor.replace("border-", "border-l-") : ""}`}>
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium">{node.author || "System"}</span>
+            <span className="text-sm font-medium">{node.author || tComment('common.system')}</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{formatTimeAgo(node.createdAt)}</span>
+              <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(node.createdAt), { addSuffix: true, locale: dateFnsLocaleComment })}</span>
               {node.editedAt && (
                 <span
                   className="text-xs text-muted-foreground/60 italic"
-                  title={`Edited ${new Date(node.editedAt).toLocaleString()}`}
+                  title={tComment('taskDetail.editedAt', { date: new Date(node.editedAt).toLocaleString() })}
                 >
-                  (edited)
+                  ({tComment('common.edited')})
                 </span>
               )}
               <button
@@ -426,10 +440,10 @@ function CommentNodeRenderer({
                   }
                 }}
                 className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded text-xs flex items-center gap-0.5"
-                title="Reply to this comment"
+                title={tComment('taskDetail.replyToComment')}
               >
                 <CornerDownRight className="w-3 h-3" />
-                Reply
+                {tComment('common.reply')}
               </button>
               {canEdit && !isEditing && (
                 <button
@@ -439,7 +453,7 @@ function CommentNodeRenderer({
                     setIsEditing(true);
                   }}
                   className="text-muted-foreground hover:text-primary transition-colors p-0.5 rounded"
-                  title="Edit comment"
+                  title={tComment('taskDetail.editComment')}
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
@@ -448,7 +462,7 @@ function CommentNodeRenderer({
                 <button
                   onClick={() => onDelete(node.id)}
                   className="text-muted-foreground hover:text-destructive transition-colors p-0.5 rounded"
-                  title="Delete comment"
+                  title={tComment('taskDetail.deleteComment')}
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -474,7 +488,7 @@ function CommentNodeRenderer({
                   onClick={() => setIsEditing(false)}
                   disabled={editMutation.isPending}
                 >
-                  Cancel
+                  {tComment('common.cancel')}
                 </Button>
                 <Button
                   size="sm"
@@ -485,7 +499,7 @@ function CommentNodeRenderer({
                   }}
                   disabled={!editText.trim() || editMutation.isPending}
                 >
-                  {editMutation.isPending ? "Saving…" : "Save"}
+                  {editMutation.isPending ? i18n.t('taskDetail.saving') : i18n.t('common.save')}
                 </Button>
               </div>
             </div>
@@ -505,7 +519,7 @@ function CommentNodeRenderer({
           {isReplying && !(node.depth === 0 && rootCollapsed) && (
             <div className="mt-3 flex flex-col gap-2">
               <MentionTextarea
-                placeholder={`Reply to ${node.author || "this comment"}…`}
+                placeholder={tComment('taskDetail.replyTo', { author: node.author || tComment('taskDetail.addComment') })}
                 className="min-h-[64px] bg-background font-sans text-sm resize-y"
                 value={replyText}
                 onChange={setReplyText}
@@ -519,7 +533,7 @@ function CommentNodeRenderer({
                   className="text-xs"
                   onClick={() => { setReplyingToId(null); setReplyText(""); }}
                 >
-                  Cancel
+                  {tComment('common.cancel')}
                 </Button>
                 <Button
                   size="sm"
@@ -527,7 +541,7 @@ function CommentNodeRenderer({
                   onClick={() => onPostReply(node.id)}
                   disabled={!replyText.trim() || isPostingReply}
                 >
-                  {isPostingReply ? "Posting…" : "Post Reply"}
+                  {isPostingReply ? i18n.t('taskDetail.posting') : i18n.t('common.reply')}
                 </Button>
               </div>
             </div>
@@ -544,7 +558,7 @@ function CommentNodeRenderer({
             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
           >
             <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-            {node.children.length} {node.children.length === 1 ? "reply" : "replies"}
+            {tComment('taskDetail.replyCount', { count: node.children.length, replies: node.children.length === 1 ? tComment('common.reply') : tComment('common.replies') })}
           </button>
         </div>
       )}
@@ -558,7 +572,7 @@ function CommentNodeRenderer({
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors italic"
           >
             <ChevronDown className="w-3.5 h-3.5" />
-            — {node.children.length} {node.children.length === 1 ? "reply" : "replies"} hidden —
+            {tComment('taskDetail.repliesHidden', { count: node.children.length, replies: node.children.length === 1 ? tComment('common.reply') : tComment('common.replies') })}
           </button>
         </div>
       )}
@@ -573,7 +587,7 @@ function CommentNodeRenderer({
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
             >
               <ChevronDown className="w-3.5 h-3.5" />
-              Continue thread ({node.children.length} {node.children.length === 1 ? "reply" : "replies"}) →
+              {tComment('taskDetail.continueThread', { count: node.children.length, replies: node.children.length === 1 ? tComment('common.reply') : tComment('common.replies') })}
             </button>
           </div>
         ) : (
@@ -586,7 +600,7 @@ function CommentNodeRenderer({
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                 >
                   <ChevronDown className="w-3.5 h-3.5 rotate-180" />
-                  Collapse thread
+                  {tComment('taskDetail.collapseThread')}
                 </button>
               </div>
             )}
@@ -656,6 +670,7 @@ function InlineAssignee({
   onSelect: (email: string) => void;
 }) {
   const { t: tTerm } = useTerminology();
+  const { t } = useTranslation();
   const selected = members.find((m) => m.email?.toLowerCase() === value.toLowerCase());
   const label = selected
     ? ([selected.firstName, selected.lastName].filter(Boolean).join(" ") || selected.email)
@@ -667,19 +682,19 @@ function InlineAssignee({
         <button type="button" className={GHOST_TRIGGER}>
           <User className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <span className={cn("truncate", !label && "text-muted-foreground italic")}>
-            {label ?? "Unassigned"}
+            {label ?? t('taskDetail.unassigned')}
           </span>
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder={`Search ${tTerm("members").toLowerCase()}…`} />
+          <CommandInput placeholder={t('common.searchMembers', { members: tTerm("members").toLowerCase() })} />
           <CommandList>
-            <CommandEmpty>No {tTerm("members").toLowerCase()} found.</CommandEmpty>
+            <CommandEmpty>{t('taskDetail.noMembersFound')}</CommandEmpty>
             <CommandGroup>
               <CommandItem value="__unassigned__" onSelect={() => onSelect("")}>
                 <Check className={cn("mr-2 h-4 w-4", !value ? "opacity-100" : "opacity-0")} />
-                <span className="text-muted-foreground italic">Unassigned</span>
+                <span className="text-muted-foreground italic">{t('taskDetail.unassigned')}</span>
               </CommandItem>
               {members.map((member) => {
                 const email = member.email ?? "";
@@ -716,6 +731,7 @@ function InlineDueDatePicker({
   onOpenChange: (v: boolean) => void;
   onChange: (date: string | null) => void;
 }) {
+  const { t: tDue } = useTranslation();
   // Parse YYYY-MM-DD as local date to avoid UTC-offset day shifts
   const selected = value
     ? (() => {
@@ -730,7 +746,7 @@ function InlineDueDatePicker({
         <button type="button" className={GHOST_TRIGGER}>
           <CalendarIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           <span className={cn(!value && "text-muted-foreground italic")}>
-            {value ? formatDate(value) : "No due date"}
+            {value ? formatDate(value) : tDue('taskDetail.noDueDate')}
           </span>
         </button>
       </PopoverTrigger>
@@ -755,7 +771,7 @@ function InlineDueDatePicker({
               className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground py-1 rounded transition-colors"
               onClick={() => { onChange(null); onOpenChange(false); }}
             >
-              <X className="w-3.5 h-3.5" /> Clear due date
+              <X className="w-3.5 h-3.5" /> {tDue('taskDetail.clearDueDate')}
             </button>
           </div>
         )}
@@ -809,6 +825,7 @@ function InlineMultiSelect({
   value: unknown;
   onChange: (v: string[]) => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const options = field.options ?? [];
   const selected: string[] = Array.isArray(value) ? (value as string[]) : [];
@@ -845,7 +862,7 @@ function InlineMultiSelect({
             );
           })}
           {options.length === 0 && (
-            <p className="text-xs text-muted-foreground px-2 py-1">No options configured</p>
+            <p className="text-xs text-muted-foreground px-2 py-1">{t('taskDetail.noOptionsConfigured')}</p>
           )}
         </div>
       </PopoverContent>
@@ -931,6 +948,7 @@ function CommentReactionBar({
   currentUserId: string | null;
   commentsQueryKey: readonly unknown[];
 }) {
+  const { t: tReact } = useTranslation();
   const [paletteVisible, setPaletteVisible] = useState(false);
   const hideTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { data: paletteData } = useReactionPalette();
@@ -988,7 +1006,7 @@ function CommentReactionBar({
                 ? "border-primary/60 bg-primary/10 text-primary font-medium"
                 : "border-border bg-background hover:bg-muted text-foreground/70",
             ].join(" ")}
-            title={`${r.count} reaction${r.count !== 1 ? "s" : ""}`}
+            title={tReact('taskDetail.reactionCount_other', { count: r.count })}
           >
             <span>{r.emoji}</span>
             <span>{r.count}</span>
@@ -1006,8 +1024,8 @@ function CommentReactionBar({
           <button
             type="button"
             className="inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-border text-muted-foreground hover:border-primary hover:text-primary text-sm transition-colors leading-none"
-            title="Add reaction"
-            aria-label="Add reaction"
+            title={tReact('taskDetail.addReaction')}
+            aria-label={tReact('taskDetail.addReaction')}
           >
             {triggerEmoji}
           </button>
@@ -1084,8 +1102,8 @@ function WatcherAvatarStack({
         <button
           type="button"
           className="flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
-          title="See watchers"
-          aria-label={`${totalCount} ${totalCount === 1 ? "watcher" : "watchers"} — click to see list`}
+          title={i18n.t('taskDetail.seeWatchers')}
+          aria-label={`${totalCount} ${totalCount === 1 ? i18n.t('taskDetail.watchersCount', { count: 1 }) : i18n.t('taskDetail.watchersCount_plural', { count: totalCount })} — click to see list`}
         >
           <div className="flex -space-x-2">
             {displayed.map((w, i) => {
@@ -1126,7 +1144,7 @@ function WatcherAvatarStack({
       </PopoverTrigger>
       <PopoverContent className="w-52 p-2" align="end">
         <p className="text-xs font-semibold text-muted-foreground px-1 mb-2">
-          {totalCount} {totalCount === 1 ? "watcher" : "watchers"}
+          {totalCount === 1 ? i18n.t('taskDetail.watchersCount', { count: 1 }) : i18n.t('taskDetail.watchersCount_plural', { count: totalCount })}
         </p>
         <ul className="space-y-0.5">
           {watchers.map((w, i) => (
@@ -1168,7 +1186,10 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { hasPermission } = useOrgContext();
-  const { t, tSingular } = useTerminology();
+  const { t: term, tSingular } = useTerminology();
+  const { t, i18n } = useTranslation();
+  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
 
   const [commentText, setCommentText] = useState("");
   const [editOpen, setEditOpen] = useState(false);
@@ -1187,13 +1208,13 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const handleToggleWatch = () => {
     if (isWatching) {
       unwatchMutation.mutate(undefined, {
-        onSuccess: () => toast({ title: "Unwatched task" }),
-        onError: () => toast({ title: "Failed to unwatch task", variant: "destructive" }),
+        onSuccess: () => toast({ title: t('taskDetail.unwatchedTask') }),
+        onError: () => toast({ title: t('taskDetail.failedUnwatch'), variant: "destructive" }),
       });
     } else {
       watchMutation.mutate(undefined, {
-        onSuccess: () => toast({ title: "Watching task" }),
-        onError: () => toast({ title: "Failed to watch task", variant: "destructive" }),
+        onSuccess: () => toast({ title: t('taskDetail.watchingTask') }),
+        onError: () => toast({ title: t('taskDetail.failedWatch'), variant: "destructive" }),
       });
     }
   };
@@ -1221,14 +1242,14 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const deleteMutation = useDeleteTask({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Task deleted successfully" });
+        toast({ title: t('taskDetail.taskDeleted') });
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         setLocation("/tasks");
       },
       onError: () => {
-        toast({ title: "Failed to delete task", variant: "destructive" });
+        toast({ title: t('taskDetail.failedDeleteTask'), variant: "destructive" });
       }
     }
   });
@@ -1236,7 +1257,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const updateMutation = useUpdateTask({
     mutation: {
       onSuccess: (data) => {
-        toast({ title: "Task updated" });
+        toast({ title: t('taskDetail.taskUpdated') });
         queryClient.setQueryData(["getTask", taskId], data);
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
@@ -1244,7 +1265,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         queryClient.invalidateQueries({ queryKey: ["listTaskEvents", taskId] });
       },
       onError: () => {
-        toast({ title: "Failed to update task", variant: "destructive" });
+        toast({ title: t('taskDetail.failedUpdateTask'), variant: "destructive" });
       }
     }
   });
@@ -1253,7 +1274,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     mutation: {
       onSuccess: () => {
         setCommentText("");
-        toast({ title: "Comment posted" });
+        toast({ title: t('taskDetail.commentPosted') });
         queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
       }
     }
@@ -1264,11 +1285,11 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       onSuccess: () => {
         setReplyText("");
         setReplyingToId(null);
-        toast({ title: "Reply posted" });
+        toast({ title: t('taskDetail.replyPosted') });
         queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
       },
       onError: () => {
-        toast({ title: "Failed to post reply", variant: "destructive" });
+        toast({ title: t('taskDetail.failedReply'), variant: "destructive" });
       }
     }
   });
@@ -1276,11 +1297,11 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const deleteCommentMutation = useDeleteComment({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Comment deleted" });
+        toast({ title: t('taskDetail.commentDeleted') });
         queryClient.invalidateQueries({ queryKey: ["listComments", taskId] });
       },
       onError: () => {
-        toast({ title: "Failed to delete comment", variant: "destructive" });
+        toast({ title: t('taskDetail.failedDeleteComment'), variant: "destructive" });
       }
     }
   });
@@ -1300,7 +1321,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   }
 
   if (!task) {
-    return <div className="text-center py-12">{tSingular("tasks")} not found</div>;
+    return <div className="text-center py-12">{t('taskDetail.notFound')}</div>;
   }
 
   const handleStatusChange = (newStatus: any) => {
@@ -1337,7 +1358,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     if (!commentText.trim()) return;
     commentMutation.mutate({
       id: taskId,
-      data: { content: commentText, author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? "Unknown")) : "Unknown" }
+      data: { content: commentText, author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? i18n.t('common.unknown'))) : i18n.t('common.unknown') }
     });
   };
 
@@ -1347,7 +1368,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
       id: taskId,
       data: {
         content: replyText,
-        author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? "Unknown")) : "Unknown",
+        author: user ? (user.firstName ? `${user.firstName} ${user.lastName ?? ""}`.trim() : (user.email ?? i18n.t('common.unknown'))) : i18n.t('common.unknown'),
         parentId,
       },
     });
@@ -1411,14 +1432,14 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               className="hover:text-foreground flex items-center gap-1 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back
+              {t('common.back')}
             </button>
             <span>/</span>
           </>
         )}
         <Link href="/tasks" className="hover:text-foreground flex items-center gap-1 transition-colors">
           {!fromSearch && <ArrowLeft className="w-4 h-4" />}
-          {t("tasks")}
+          {term("tasks")}
         </Link>
         <span>/</span>
         <span className="text-foreground">TSK-{task.orgTaskNumber}</span>
@@ -1444,40 +1465,40 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                     className="gap-1.5 text-xs"
                     onClick={handleToggleWatch}
                     disabled={watchMutation.isPending || unwatchMutation.isPending}
-                    title={isWatching ? "Click to stop watching" : "Watch this task to get notified of changes"}
+                    title={isWatching ? t('taskDetail.unwatchTitle') : t('taskDetail.watchTitle')}
                   >
                     {isWatching ? (
-                      <><EyeOff className="w-3.5 h-3.5" /> Unwatch</>
+                      <><EyeOff className="w-3.5 h-3.5" /> {t('tasks.unwatchTask')}</>
                     ) : (
-                      <><Eye className="w-3.5 h-3.5" /> Watch</>
+                      <><Eye className="w-3.5 h-3.5" /> {t('tasks.watchTask')}</>
                     )}
                   </Button>
                   {canEdit && (
                     <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
-                      <Edit className="w-3.5 h-3.5" /> Edit {tSingular("tasks")}
+                      <Edit className="w-3.5 h-3.5" /> {t('taskDetail.editTask', { task: tSingular("tasks") })}
                     </Button>
                   )}
                   {canDelete && (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={`Delete ${tSingular("tasks")}`}>
+                        <Button variant="outline" size="icon" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" title={t('taskDetail.deleteTask', { task: tSingular("tasks") })}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
                         <AlertDialogHeader>
-                          <AlertDialogTitle>Delete this {tSingular("tasks").toLowerCase()}?</AlertDialogTitle>
+                          <AlertDialogTitle>{t('taskDetail.deleteTaskConfirm', { task: tSingular("tasks").toLowerCase() })}</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the task and all associated comments.
+                            {t('taskDetail.deleteTaskDesc')}
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={() => deleteMutation.mutate({ id: task.id })}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                           >
-                            {deleteMutation.isPending ? "Deleting..." : "Delete"}
+                            {deleteMutation.isPending ? t('common.deleting') : t('taskDetail.deleteConfirmButton')}
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
@@ -1489,7 +1510,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 <StatusBadge status={task.status} stageName={task.stageName} stageColor={task.stageColor} stageArchived={task.stageArchived} />
                 <PriorityBadge priority={task.priority} />
                 <span className="text-xs font-mono uppercase bg-secondary text-secondary-foreground px-2 py-0.5 rounded border border-border">
-                  {task.category}
+                  {t(`tasks.category${task.category.charAt(0).toUpperCase() + task.category.slice(1)}` as any)}
                 </span>
                 <FeatureGate feature="sla_tracking" compact>
                   <SlaBadge
@@ -1508,7 +1529,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 {task.description ? (
                   <MarkdownPreview content={task.description} className="px-0 py-0" />
                 ) : (
-                  <span className="italic text-muted-foreground text-sm">No description provided.</span>
+                  <span className="italic text-muted-foreground text-sm">{t('taskDetail.noDescription')}</span>
                 )}
               </div>
             </CardContent>
@@ -1521,16 +1542,16 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <MessageSquare className="w-5 h-5 text-muted-foreground" />
-                    Activity
+                    {t('taskDetail.activity')}
                   </CardTitle>
                   <TabsList>
                     <TabsTrigger value="discussion">
                       <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                      Discussion
+                      {t('taskDetail.discussion')}
                     </TabsTrigger>
                     <TabsTrigger value="history">
                       <History className="w-3.5 h-3.5 mr-1.5" />
-                      History
+                      {t('taskDetail.history')}
                     </TabsTrigger>
                   </TabsList>
                 </div>
@@ -1568,13 +1589,13 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                     </div>
                   ) : (
                     <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
-                      No comments yet. Be the first to start the discussion.
+                      {t('taskDetail.noComments')}
                     </div>
                   )}
                 </CardContent>
                 <CardFooter className="bg-muted/10 border-t border-border p-4 flex-col items-stretch gap-3">
                   <MentionTextarea
-                    placeholder="Add a comment… type @ to mention someone"
+                    placeholder={t('taskDetail.addComment')}
                     className="min-h-[80px] bg-background font-sans text-sm resize-y"
                     value={commentText}
                     onChange={setCommentText}
@@ -1587,7 +1608,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       disabled={!commentText.trim() || commentMutation.isPending}
                       className="text-xs"
                     >
-                      {commentMutation.isPending ? "Posting..." : "Post Comment"}
+                      {commentMutation.isPending ? t('taskDetail.posting') : t('taskDetail.postComment')}
                     </Button>
                   </div>
                 </CardFooter>
@@ -1640,7 +1661,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                                   {eventDescription(item.field, item.oldValue, item.newValue)}
                                 </span>
                                 <span className="text-xs text-muted-foreground/60 ml-auto shrink-0">
-                                  {formatTimeAgo(item.createdAt)}
+                                  {formatDistanceToNow(new Date(item.createdAt), { addSuffix: true, locale: dateFnsLocale })}
                                 </span>
                               </div>
                             </div>
@@ -1651,8 +1672,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                   ) : (
                     <div className="text-center py-6 text-muted-foreground text-sm border border-dashed border-border rounded-lg bg-card/30">
                       {hasPermission("view_audit_log")
-                        ? "No history recorded for this task yet."
-                        : "You don't have permission to view the task history."}
+                        ? t('taskDetail.noHistory')
+                        : t('taskDetail.noHistory')}
                     </div>
                   )}
                 </CardContent>
@@ -1665,7 +1686,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         <div className="space-y-6">
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-muted/20 border-b border-border py-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Notes</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('taskDetail.notes')}</CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <InlineNotes taskId={taskId} />
@@ -1674,32 +1695,33 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
           <Card className="border-border shadow-sm">
             <CardHeader className="bg-muted/20 border-b border-border py-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Properties</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('common.details')}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-border text-sm">
 
                 {/* Project */}
-                <PropertyRow icon={<FolderGit2 className="w-4 h-4" />} label={tSingular("projects")}>
+                <PropertyRow icon={<FolderGit2 className="w-4 h-4" />} label={term("projects")}>
+
                   {canEdit ? (
                     <Select value={task.projectId?.toString() ?? "none"} onValueChange={handleProjectChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
-                        <SelectValue placeholder="None" />
+                        <SelectValue placeholder={t('common.none')} />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none"><span className="italic text-muted-foreground">None</span></SelectItem>
+                        <SelectItem value="none"><span className="italic text-muted-foreground">{t('common.none')}</span></SelectItem>
                         {projects.map((p) => (
                           <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <span className="font-medium">{task.projectName ?? <span className="text-muted-foreground italic">None</span>}</span>
+                    <span className="font-medium">{task.projectName ?? <span className="text-muted-foreground italic">{t('common.none')}</span>}</span>
                   )}
                 </PropertyRow>
 
                 {/* Status */}
-                <PropertyRow icon={<Activity className="w-4 h-4" />} label="Status">
+                <PropertyRow icon={<Activity className="w-4 h-4" />} label={t('common.status')}>
                   {canEdit && (canClose || task.stageType !== 'closed') ? (
                     <Select value={task.status} onValueChange={handleStatusChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
@@ -1725,17 +1747,17 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </PropertyRow>
 
                 {/* Priority */}
-                <PropertyRow icon={<AlertTriangle className="w-4 h-4" />} label="Priority">
+                <PropertyRow icon={<AlertTriangle className="w-4 h-4" />} label={t('common.priority')}>
                   {canEdit ? (
                     <Select value={task.priority} onValueChange={handlePriorityChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="critical">Critical</SelectItem>
+                        <SelectItem value="low">{t('tasks.priorityLow')}</SelectItem>
+                        <SelectItem value="medium">{t('tasks.priorityMedium')}</SelectItem>
+                        <SelectItem value="high">{t('tasks.priorityHigh')}</SelectItem>
+                        <SelectItem value="critical">{t('tasks.priorityCritical')}</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
@@ -1744,7 +1766,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 </PropertyRow>
 
                 {/* Category */}
-                <PropertyRow icon={<Tag className="w-4 h-4" />} label="Category">
+                <PropertyRow icon={<Tag className="w-4 h-4" />} label={t('tasks.filterByCategory')}>
                   {canEdit ? (
                     <Select value={task.category} onValueChange={handleCategoryChange}>
                       <SelectTrigger className="h-8 border-transparent hover:border-border bg-transparent hover:bg-background -ml-2 px-2 shadow-none focus:ring-0 w-full justify-between">
@@ -1752,17 +1774,17 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       </SelectTrigger>
                       <SelectContent>
                         {(["incident","change","maintenance","deployment","support","other"] as const).map((c) => (
-                          <SelectItem key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</SelectItem>
+                          <SelectItem key={c} value={c}>{t(`tasks.category${c.charAt(0).toUpperCase() + c.slice(1)}`)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <span className="font-medium capitalize">{task.category}</span>
+                    <span className="font-medium">{t(`tasks.category${task.category.charAt(0).toUpperCase() + task.category.slice(1)}` as any)}</span>
                   )}
                 </PropertyRow>
 
                 {/* Assignee */}
-                <PropertyRow icon={<User className="w-4 h-4" />} label="Assignee">
+                <PropertyRow icon={<User className="w-4 h-4" />} label={t('common.assignee')}>
                   {canEdit ? (
                     <InlineAssignee
                       value={task.assignee ?? ""}
@@ -1772,12 +1794,12 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       onSelect={handleAssigneeChange}
                     />
                   ) : (
-                    <span className="font-medium">{task.assignee ?? <span className="text-muted-foreground italic">Unassigned</span>}</span>
+                    <span className="font-medium">{task.assignee ?? <span className="text-muted-foreground italic">{t('taskDetail.unassigned')}</span>}</span>
                   )}
                 </PropertyRow>
 
                 {/* Due Date */}
-                <PropertyRow icon={<CalendarIcon className="w-4 h-4" />} label="Due Date">
+                <PropertyRow icon={<CalendarIcon className="w-4 h-4" />} label={t('common.dueDate')}>
                   {canEdit ? (
                     <InlineDueDatePicker
                       value={task.dueDate ?? null}
@@ -1786,7 +1808,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                       onChange={handleDueDateChange}
                     />
                   ) : (
-                    <span className="font-medium">{task.dueDate ? formatDate(task.dueDate) : <span className="text-muted-foreground italic">No due date</span>}</span>
+                    <span className="font-medium">{task.dueDate ? formatDate(task.dueDate) : <span className="text-muted-foreground italic">{t('taskDetail.noDueDate')}</span>}</span>
                   )}
                 </PropertyRow>
 
@@ -1814,7 +1836,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                 {/* Created date — always read-only */}
                 <div className="p-3 flex flex-col gap-1.5 bg-muted/5">
                   <span className="text-muted-foreground flex items-center gap-2 text-xs">
-                    <Clock className="w-4 h-4" /> Created
+                    <Clock className="w-4 h-4" /> {t('common.created')}
                   </span>
                   <span className="text-xs">{formatDate(task.createdAt)}</span>
                 </div>

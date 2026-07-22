@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
+import i18n from '@/i18n';
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -67,9 +69,9 @@ import {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function copyText(text: string, toast: ReturnType<typeof useToast>["toast"]) {
+function copyText(text: string, toast: ReturnType<typeof useToast>["toast"], label = i18n.t('common.copiedToClipboard')) {
   navigator.clipboard.writeText(text).catch(() => {});
-  toast({ title: "Copied to clipboard" });
+  toast({ title: label });
 }
 
 function buildFullIngestUrl(path: string): string {
@@ -84,37 +86,43 @@ function buildCurlCommand(fullUrl: string): string {
   );
 }
 
-const VISIBILITY_OPTIONS: { value: WebhookVisibility; label: string; Icon: typeof Lock }[] = [
-  { value: "private", label: "Private (only me)", Icon: Lock },
-  { value: "public_read", label: "Shared — org members can view", Icon: Eye },
-  { value: "public_write", label: "Public — org members can use & view", Icon: Globe },
-];
+function getVisibilityOptions(t: (key: string) => string): { value: WebhookVisibility; label: string; Icon: typeof Lock }[] {
+  return [
+    { value: "private" as WebhookVisibility, label: t('webhooks.visibility.private'), Icon: Lock },
+    { value: "public_read" as WebhookVisibility, label: t('webhooks.visibility.public_read'), Icon: Eye },
+    { value: "public_write" as WebhookVisibility, label: t('webhooks.visibility.public_write_in'), Icon: Globe },
+  ];
+}
 
 // ─── Payload field reference ──────────────────────────────────────────────────
 
-const PAYLOAD_FIELDS = [
-  { name: "title",       type: "string",          required: true,  note: "Task title. Falls back to the Title field setting, then the Default title, then 'Untitled Alert'." },
-  { name: "description", type: "string",          required: false, note: "Task description." },
-  { name: "priority",    type: "string",          required: false, note: "low · medium · high · critical. Defaults to medium (or template default)." },
-  { name: "category",    type: "string",          required: false, note: "incident · change · maintenance · deployment · support · other. Defaults to incident." },
-  { name: "status",      type: "string",          required: false, note: "todo · in_progress · blocked · done. Defaults to todo; invalid values are ignored." },
-  { name: "assignee",    type: "string",          required: false, note: "Assignee user ID or username. Passed through as-is." },
-  { name: "dueDate",     type: "string | number", required: false, note: "Accepts YYYY-MM-DD, ISO 8601 (\"2025-03-15T10:30:00Z\"), or a Unix timestamp (seconds or ms). Can also be set via a field mapping below." },
-];
+function getPayloadFields(t: (key: string) => string) {
+  return [
+    { name: "title",       type: "string",          required: true,  note: t('webhooks.payloadFieldTitleNote') },
+    { name: "description", type: "string",          required: false, note: t('webhooks.payloadFieldDescNote') },
+    { name: "priority",    type: "string",          required: false, note: t('webhooks.payloadFieldPriorityNote') },
+    { name: "category",    type: "string",          required: false, note: t('webhooks.payloadFieldCategoryNote') },
+    { name: "status",      type: "string",          required: false, note: t('webhooks.payloadFieldStatusNote') },
+    { name: "assignee",    type: "string",          required: false, note: t('webhooks.payloadFieldAssigneeNote') },
+    { name: "dueDate",     type: "string | number", required: false, note: t('webhooks.payloadFieldDueDateNote') },
+  ];
+}
 
 // ─── Template Builder ─────────────────────────────────────────────────────────
 
 type FieldMappingRow = { id: number; key: string; value: string };
 
-const STATIC_MAPPING_OPTIONS = [
-  { value: "title",       label: "Title",       hint: "string — overrides the Title field setting above" },
-  { value: "description", label: "Description", hint: "string" },
-  { value: "priority",    label: "Priority",    hint: "low · medium · high · critical" },
-  { value: "category",    label: "Category",    hint: "incident · change · maintenance · deployment · support · other" },
-  { value: "status",      label: "Status",      hint: "todo · in_progress · blocked · done" },
-  { value: "assignee",    label: "Assignee",    hint: "user ID or username string" },
-  { value: "dueDate",     label: "Due date",    hint: "YYYY-MM-DD, ISO 8601, or Unix timestamp (seconds or ms)" },
-];
+function getStaticMappingOptions(t: (key: string) => string): { value: string; label: string; hint: string }[] {
+  return [
+    { value: "title",       label: t('webhooks.field.title'),       hint: t('webhooks.hintTitle') },
+    { value: "description", label: t('webhooks.field.description'), hint: t('webhooks.hintString') },
+    { value: "priority",    label: t('webhooks.field.priority'),    hint: t('webhooks.hintPriority') },
+    { value: "category",    label: t('webhooks.field.category'),    hint: t('webhooks.hintCategory') },
+    { value: "status",      label: t('webhooks.field.status'),      hint: t('webhooks.hintStatus') },
+    { value: "assignee",    label: t('webhooks.field.assignee'),    hint: t('webhooks.hintAssignee') },
+    { value: "dueDate",     label: t('webhooks.field.dueDate'),     hint: t('webhooks.hintDueDate') },
+  ];
+}
 
 function TemplateBuilder({
   template,
@@ -127,6 +135,7 @@ function TemplateBuilder({
   customFieldDefs?: CustomFieldDefinition[];
   readOnly?: boolean;
 }) {
+  const { t } = useTranslation();
   const [rows, setRows] = useState<FieldMappingRow[]>(() =>
     Object.entries(template.fieldMapping ?? {}).map(([key, value], id) => ({ id, key, value }))
   );
@@ -136,23 +145,23 @@ function TemplateBuilder({
   }
 
   const mappingOptions = [
-    ...STATIC_MAPPING_OPTIONS,
+    ...getStaticMappingOptions(t),
     ...(customFieldDefs.length > 0
       ? [
-          { value: "__separator__", label: "── Custom fields ──", hint: "" },
+          { value: "__separator__", label: t('webhooks.field.customFields'), hint: "" },
           ...customFieldDefs.map((f) => ({
             value: `cf:${f.id}`,
             label: f.name,
             hint:
               f.type === "multi_select"
-                ? `multi-select — send an array: ["A", "B"]`
+                ? t('webhooks.hintMultiSelect')
                 : f.type === "single_select"
-                ? `single-select — one of: ${(f.options ?? []).join(" · ") || "any string"}`
+                ? t('webhooks.hintSingleSelect', { options: (f.options ?? []).join(" · ") || t('webhooks.hintAnyString') })
                 : f.type === "number"
-                ? "number"
+                ? t('webhooks.hintNumber')
                 : f.type === "date"
-                ? "date — ISO string e.g. 2025-06-01"
-                : "text",
+                ? t('webhooks.hintDate')
+                : t('webhooks.hintText'),
           })),
         ]
       : []),
@@ -181,31 +190,22 @@ function TemplateBuilder({
     <div className="space-y-6">
       {/* How-to callout */}
       <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
-        <p className="font-medium text-foreground">How payload mapping works</p>
-        <p>
-          When an external system POSTs JSON to your ingest URL, Opsly reads specific keys from
-          that JSON and uses them to fill in the task fields. These settings tell Opsly{" "}
-          <em>where</em> to look in the JSON body.
-        </p>
-        <p>
-          Use <strong>dot-notation</strong> to reach nested keys —{" "}
-          <code className="bg-background px-1 rounded">labels.severity</code> reads{" "}
-          <code className="bg-background px-1 rounded">{`{ "labels": { "severity": "high" } }`}</code>.
-        </p>
+        <p className="font-medium text-foreground">{t('webhooks.howMappingWorks')}</p>
+        <p>{t('webhooks.howMappingDesc1')}</p>
+        <p>{t('webhooks.howMappingDesc2')}</p>
       </div>
 
       {/* Title */}
       <div className="space-y-1.5">
-        <Label>Task title</Label>
+        <Label>{t('webhooks.taskTitleLabel')}</Label>
         <p className="text-xs text-muted-foreground">
-          Which JSON key holds the title? Leave blank and Opsly looks for a{" "}
-          <code className="bg-muted px-1 rounded">title</code> key automatically.
+          {t('webhooks.taskTitleDesc')}
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Read title from</span>
+            <span className="text-xs text-muted-foreground">{t('webhooks.readTitleFrom')}</span>
             <Input
-              placeholder="e.g. alertname"
+              placeholder={t('webhooks.egAlertname')}
               value={template.titleField ?? ""}
               onChange={(e) => update({ titleField: e.target.value || undefined })}
               className="h-8 text-sm"
@@ -213,9 +213,9 @@ function TemplateBuilder({
             />
           </div>
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Fallback when key is missing</span>
+            <span className="text-xs text-muted-foreground">{t('webhooks.fallbackWhenMissing')}</span>
             <Input
-              placeholder="Untitled Alert"
+              placeholder={t('webhooks.untitledAlert')}
               value={template.defaultTitle ?? ""}
               onChange={(e) => update({ defaultTitle: e.target.value || undefined })}
               className="h-8 text-sm"
@@ -227,17 +227,12 @@ function TemplateBuilder({
 
       {/* Description */}
       <div className="space-y-1.5">
-        <Label>
-          Task description{" "}
-          <span className="font-normal text-muted-foreground">(optional)</span>
-        </Label>
+        <Label>{t('webhooks.taskDescriptionOptional')}</Label>
         <p className="text-xs text-muted-foreground">
-          Which JSON key holds the description? Leave blank to use a{" "}
-          <code className="bg-muted px-1 rounded">description</code> key. Supports
-          dot-notation.
+          {t('webhooks.descriptionDesc')}
         </p>
         <Input
-          placeholder="e.g. annotations.summary"
+          placeholder={t('webhooks.egAnnotationsSummary')}
           value={template.descriptionField ?? ""}
           onChange={(e) => update({ descriptionField: e.target.value || undefined })}
           className="h-8 text-sm"
@@ -247,15 +242,13 @@ function TemplateBuilder({
 
       {/* Defaults */}
       <div className="space-y-1.5">
-        <Label>Defaults</Label>
+        <Label>{t('webhooks.defaultsLabel')}</Label>
         <p className="text-xs text-muted-foreground">
-          Applied when the incoming payload doesn't include a{" "}
-          <code className="bg-muted px-1 rounded">priority</code> or{" "}
-          <code className="bg-muted px-1 rounded">category</code> key.
+          {t('webhooks.defaultsDesc')}
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Default priority</span>
+            <span className="text-xs text-muted-foreground">{t('webhooks.defaultPriority')}</span>
             <Select
               value={template.defaultPriority ?? "__none__"}
               onValueChange={(v) =>
@@ -268,22 +261,21 @@ function TemplateBuilder({
               disabled={readOnly}
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="medium (system default)" />
+                <SelectValue placeholder={t('webhooks.mediumDefault')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">
-                  <span className="text-muted-foreground">medium (system default)</span>
+                  <span className="text-muted-foreground">{t('webhooks.mediumDefault')}</span>
                 </SelectItem>
-                {["low", "medium", "high", "critical"].map((v) => (
-                  <SelectItem key={v} value={v}>
-                    {v.charAt(0).toUpperCase() + v.slice(1)}
-                  </SelectItem>
-                ))}
+                <SelectItem value="low">{t('tasks.priorityLow')}</SelectItem>
+                <SelectItem value="medium">{t('tasks.priorityMedium')}</SelectItem>
+                <SelectItem value="high">{t('tasks.priorityHigh')}</SelectItem>
+                <SelectItem value="critical">{t('tasks.priorityCritical')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <div className="space-y-1">
-            <span className="text-xs text-muted-foreground">Default category</span>
+            <span className="text-xs text-muted-foreground">{t('webhooks.defaultCategory')}</span>
             <Select
               value={template.defaultCategory ?? "__none__"}
               onValueChange={(v) =>
@@ -296,17 +288,18 @@ function TemplateBuilder({
               disabled={readOnly}
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="incident (system default)" />
+                <SelectValue placeholder={t('webhooks.incidentDefault')} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">
-                  <span className="text-muted-foreground">incident (system default)</span>
+                  <span className="text-muted-foreground">{t('webhooks.incidentDefault')}</span>
                 </SelectItem>
-                {["incident", "change", "maintenance", "deployment", "support", "other"].map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </SelectItem>
-                ))}
+                <SelectItem value="incident">{t('tasks.categoryIncident')}</SelectItem>
+                <SelectItem value="change">{t('tasks.categoryChange')}</SelectItem>
+                <SelectItem value="maintenance">{t('tasks.categoryMaintenance')}</SelectItem>
+                <SelectItem value="deployment">{t('tasks.categoryDeployment')}</SelectItem>
+                <SelectItem value="support">{t('tasks.categorySupport')}</SelectItem>
+                <SelectItem value="other">{t('tasks.categoryOther')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -316,29 +309,25 @@ function TemplateBuilder({
       {/* Field remapping */}
       <div className="space-y-2">
         <div className="space-y-1">
-          <Label>
-            Remap payload fields{" "}
-            <span className="font-normal text-muted-foreground">(optional)</span>
-          </Label>
+          <Label>{t('webhooks.remapFieldsOptional')}</Label>
           <p className="text-xs text-muted-foreground">
-            When your system uses different field names, map them here. For example, if
-            your payload sends severity as{" "}
-            <code className="bg-muted px-1 rounded">labels.severity</code>, map it to{" "}
-            <strong>Priority</strong>. These take precedence over payload defaults.
+            {t('webhooks.remapDesc1')}{" "}
+            <code className="bg-muted px-1 rounded">labels.severity</code>{t('webhooks.remapDesc2')}{" "}
+            <strong>{t('webhooks.field.priority')}</strong>{t('webhooks.remapDesc3')}
           </p>
         </div>
 
         {customFieldDefs.length > 0 && (
           <div className="rounded-md bg-muted px-3 py-2.5 text-xs text-muted-foreground leading-relaxed space-y-1">
-            <p className="font-medium text-foreground">Setting custom fields from a payload</p>
-            <p>Your org has custom fields. You can populate them from webhook payloads by mapping any payload key to a custom field target below.</p>
+            <p className="font-medium text-foreground">{t('webhooks.customFieldsCustomize')}</p>
+            <p>{t('webhooks.customFieldsPayloadDesc')}</p>
             <p>
-              <strong>Text / number / date</strong> — send a plain value:{" "}
+              <strong>{t('webhooks.cfTypeTextNumberDate')}</strong> {t('webhooks.cfTypeTextNumberDateDesc')}{" "}
               <code className="bg-background px-1 rounded">{`"env": "production"`}</code>
             </p>
-            <p><strong>Single-select</strong> — send one string matching an option label.</p>
+            <p><strong>{t('webhooks.cfTypeSingleSelect')}</strong> {t('webhooks.cfTypeSingleSelectDesc')}</p>
             <p>
-              <strong>Multi-select</strong> — send a JSON array:{" "}
+              <strong>{t('webhooks.cfTypeMultiSelect')}</strong> {t('webhooks.cfTypeMultiSelectDesc')}{" "}
               <code className="bg-background px-1 rounded">{`"tags": ["API", "P1"]`}</code>
             </p>
           </div>
@@ -347,9 +336,9 @@ function TemplateBuilder({
         {rows.length > 0 && (
           <div className="space-y-1.5">
             <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
-              <span className="text-xs font-medium text-muted-foreground">From payload key</span>
+              <span className="text-xs font-medium text-muted-foreground">{t('webhooks.fromPayloadKey')}</span>
               <span />
-              <span className="text-xs font-medium text-muted-foreground">Maps to task field</span>
+              <span className="text-xs font-medium text-muted-foreground">{t('webhooks.mapsToTaskField')}</span>
               <span />
             </div>
             {rows.map((row) => {
@@ -358,7 +347,7 @@ function TemplateBuilder({
               return (
                 <div key={row.id} className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-2 items-center">
                   <Input
-                    placeholder="e.g. labels.severity"
+                    placeholder={t('webhooks.egLabelsSeverity')}
                     value={row.key}
                     onChange={(e) => updateRow(row.id, "key", e.target.value)}
                     className="h-7 text-xs"
@@ -374,7 +363,7 @@ function TemplateBuilder({
                     disabled={readOnly}
                   >
                     <SelectTrigger className="h-7 text-xs">
-                      <SelectValue placeholder="choose field…" />
+                      <SelectValue placeholder={t('webhooks.chooseField')} />
                     </SelectTrigger>
                     <SelectContent>
                       {mappingOptions.map((o) =>
@@ -383,7 +372,7 @@ function TemplateBuilder({
                             key="separator"
                             className="px-2 py-1 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider select-none"
                           >
-                            Custom fields
+                            {t('webhooks.customFieldsGroup')}
                           </div>
                         ) : (
                           <SelectItem key={o.value} value={o.value}>
@@ -425,7 +414,7 @@ function TemplateBuilder({
             onClick={addRow}
             className="h-7 text-xs gap-1"
           >
-            <Plus className="w-3 h-3" /> Add field mapping
+            <Plus className="w-3 h-3" /> {t('webhooks.addFieldMapping')}
           </Button>
         )}
       </div>
@@ -441,6 +430,8 @@ export default function WebhookInboundEditPage({
   params: { id: string };
 }) {
   const [, setLocation] = useLocation();
+  const { t } = useTranslation();
+  const VISIBILITY_OPTIONS = getVisibilityOptions(t);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -556,9 +547,9 @@ export default function WebhookInboundEditPage({
       payload = JSON.parse(formatted);
       setJsonError(null);
     } catch (e) {
-      const msg = e instanceof SyntaxError ? e.message : "Invalid JSON";
+      const msg = e instanceof SyntaxError ? e.message : t('webhooks.invalidJson');
       setJsonError(msg);
-      setTestState({ status: "error", error: `Invalid JSON — ${msg}` });
+      setTestState({ status: "error", error: `${t('webhooks.invalidJson')} — ${msg}` });
       return;
     }
     try {
@@ -590,11 +581,11 @@ export default function WebhookInboundEditPage({
     mutation: {
       onSuccess: (created) => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Inbound webhook created" });
+        toast({ title: t('webhooks.inboundCreated', 'Inbound webhook created') });
         setLocation(`/webhooks/inbound/${created.id}`);
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -602,10 +593,10 @@ export default function WebhookInboundEditPage({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Webhook updated" });
+        toast({ title: t('webhooks.updated', 'Webhook updated') });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -613,11 +604,11 @@ export default function WebhookInboundEditPage({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Webhook deleted" });
+        toast({ title: t('webhooks.deleted', 'Webhook deleted') });
         setLocation("/webhooks");
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -627,10 +618,10 @@ export default function WebhookInboundEditPage({
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
         const fullUrl = buildFullIngestUrl(data.ingestUrl);
         navigator.clipboard.writeText(fullUrl).catch(() => {});
-        toast({ title: "Secret rotated", description: "New ingest URL copied to clipboard." });
+        toast({ title: t('webhooks.secretRotated', 'Secret rotated'), description: t('webhooks.secretRotatedDesc', 'New ingest URL copied to clipboard.') });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -672,11 +663,10 @@ export default function WebhookInboundEditPage({
     return (
       <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
         <p className="text-muted-foreground">
-          Webhook not found. It may have been deleted or doesn't belong to your
-          organization.
+          {t('webhooks.notFound', "Webhook not found. It may have been deleted or doesn't belong to your organization.")}
         </p>
         <Button variant="outline" onClick={() => setLocation("/webhooks")}>
-          ← Back to Webhooks
+          ← {t('webhooks.backToWebhooks', 'Back to Webhooks')}
         </Button>
       </div>
     );
@@ -700,7 +690,7 @@ export default function WebhookInboundEditPage({
           onClick={() => setLocation("/webhooks")}
         >
           <ArrowLeft className="w-4 h-4" />
-          Webhooks
+          {t('webhooks.title')}
         </Button>
       </div>
 
@@ -709,16 +699,16 @@ export default function WebhookInboundEditPage({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">
-              {isNew ? "New inbound webhook" : (existing?.name ?? "Inbound webhook")}
+              {isNew ? t('webhooks.newInbound', 'New inbound webhook') : (existing?.name ?? t('webhooks.inboundWebhook', 'Inbound webhook'))}
             </h1>
             {existing && (
-              <Badge variant="secondary" className="text-xs">Inbound</Badge>
+              <Badge variant="secondary" className="text-xs">{t('webhooks.inboundBadge', 'Inbound')}</Badge>
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {isNew
-              ? "POST any JSON to the generated URL — Opsly creates a task automatically."
-              : "External systems POST JSON to this URL to create tasks automatically."}
+              ? t('webhooks.inboundNewDesc', 'POST any JSON to the generated URL — Opsly creates a task automatically.')
+              : t('webhooks.inboundExistingDesc', 'External systems POST JSON to this URL to create tasks automatically.')}
           </p>
         </div>
 
@@ -733,24 +723,23 @@ export default function WebhookInboundEditPage({
                 disabled={isPending}
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                {t('common.delete')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                <AlertDialogTitle>{t('webhooks.deleteWebhookConfirm')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  The ingest URL will stop working immediately. Tasks already
-                  created by this webhook are kept.
+                  {t('webhooks.inboundDeleteDesc', 'The ingest URL will stop working immediately. Tasks already created by this webhook are kept.')}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => deleteHook({ id: existing.id })}
                 >
-                  Delete
+                  {t('common.delete')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -763,8 +752,7 @@ export default function WebhookInboundEditPage({
         <div className="flex items-center gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
           <ShieldAlert className="w-4 h-4 shrink-0" />
           <span>
-            You can view this webhook but not edit it — only its owner can make
-            changes.
+            {t('webhooks.readOnlyBanner', "You can view this webhook but not edit it — only its owner can make changes.")}
           </span>
         </div>
       )}
@@ -775,7 +763,7 @@ export default function WebhookInboundEditPage({
           <CardContent className="py-4 space-y-4">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm">Ingest URL</Label>
+                <Label className="text-sm">{t('webhooks.ingestUrlLabel')}</Label>
                 {existing.isOwner && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -786,23 +774,20 @@ export default function WebhookInboundEditPage({
                         disabled={isPending}
                       >
                         <RefreshCw className="w-3 h-3" />
-                        Rotate secret
+                        {t('webhooks.rotateSecret', 'Rotate secret')}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
+                        <AlertDialogTitle>{t('webhooks.rotateSecretConfirm', 'Rotate secret?')}</AlertDialogTitle>
                         <AlertDialogDescription>
-                          The current ingest URL will stop working immediately.
-                          Any external system using it must be updated to the
-                          new URL. The new URL is automatically copied to your
-                          clipboard.
+                          {t('webhooks.rotateSecretDesc', 'The current ingest URL will stop working immediately. Any external system using it must be updated to the new URL. The new URL is automatically copied to your clipboard.')}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                         <AlertDialogAction onClick={() => rotate({ id: existing.id })}>
-                          Rotate &amp; copy
+                          {t('webhooks.rotateAndCopy', 'Rotate & copy')}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -818,19 +803,19 @@ export default function WebhookInboundEditPage({
                   size="icon"
                   className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => copyText(fullUrl, toast)}
-                  title="Copy ingest URL"
+                  title={t('webhooks.copyIngestUrl')}
                 >
                   <Copy className="w-4 h-4" />
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground">
-                The URL itself is the secret — no authentication header required. Rotate it to invalidate the old URL.
+                {t('webhooks.ingestUrlSecret')}
               </p>
             </div>
 
             {/* curl example */}
             <div className="space-y-1.5">
-              <Label className="text-sm">Example request</Label>
+              <Label className="text-sm">{t('webhooks.exampleRequest')}</Label>
               <div className="relative">
                 <pre className="bg-muted rounded-md p-3 text-xs font-mono overflow-x-auto whitespace-pre leading-relaxed">
                   {curlCmd}
@@ -840,7 +825,7 @@ export default function WebhookInboundEditPage({
                   size="icon"
                   className="absolute top-1.5 right-1.5 h-6 w-6 text-muted-foreground hover:text-foreground"
                   onClick={() => copyText(curlCmd, toast)}
-                  title="Copy curl command"
+                  title={t('webhooks.copyCurlCommand')}
                 >
                   <Copy className="w-3.5 h-3.5" />
                 </Button>
@@ -852,28 +837,28 @@ export default function WebhookInboundEditPage({
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground transition-colors list-none flex items-center gap-1.5 select-none">
                 <ChevronDown className="w-3.5 h-3.5 group-open:hidden" />
                 <ChevronUp className="w-3.5 h-3.5 hidden group-open:block" />
-                Accepted payload fields
+                {t('webhooks.acceptedPayloadFields')}
               </summary>
               <div className="mt-2">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="text-muted-foreground">
-                      <th className="pr-3 pb-1 font-medium w-24">Field</th>
-                      <th className="pr-3 pb-1 font-medium w-16">Type</th>
-                      <th className="pr-3 pb-1 font-medium w-20">Required</th>
-                      <th className="pb-1 font-medium">Notes</th>
+                      <th className="pr-3 pb-1 font-medium w-24">{t('webhooks.tableField')}</th>
+                      <th className="pr-3 pb-1 font-medium w-16">{t('webhooks.tableType')}</th>
+                      <th className="pr-3 pb-1 font-medium w-20">{t('webhooks.tableRequired')}</th>
+                      <th className="pb-1 font-medium">{t('webhooks.tableNotes')}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {PAYLOAD_FIELDS.map((f) => (
+                    {getPayloadFields(t).map((f) => (
                       <tr key={f.name} className="border-t border-border/50">
                         <td className="pr-3 py-1 font-mono text-foreground">{f.name}</td>
                         <td className="pr-3 py-1 text-muted-foreground">{f.type}</td>
                         <td className="pr-3 py-1">
                           {f.required ? (
-                            <span className="text-amber-600 font-medium">required</span>
+                            <span className="text-amber-600 font-medium">{t('webhooks.required')}</span>
                           ) : (
-                            <span className="text-muted-foreground">optional</span>
+                            <span className="text-muted-foreground">{t('webhooks.optional')}</span>
                           )}
                         </td>
                         <td className="py-1 text-muted-foreground leading-relaxed">{f.note}</td>
@@ -882,8 +867,7 @@ export default function WebhookInboundEditPage({
                   </tbody>
                 </table>
                 <p className="mt-2.5 text-xs text-muted-foreground">
-                  Custom fields are also accepted — configure which payload keys map to them in the{" "}
-                  <span className="font-medium text-foreground">Field mappings</span> section below.
+                  {t('webhooks.customFieldsRemapNote')}
                 </p>
               </div>
             </details>
@@ -896,13 +880,13 @@ export default function WebhookInboundEditPage({
         {/* Basic settings */}
         <Card>
           <CardContent className="py-5 space-y-5">
-            <h2 className="text-sm font-semibold">Settings</h2>
+            <h2 className="text-sm font-semibold">{t('webhooks.settingsHeading')}</h2>
 
             <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('webhooks.nameLabel')}</Label>
               <Input
                 id="name"
-                placeholder="Datadog alerts"
+                placeholder={t('webhooks.egWebhookName')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -912,17 +896,17 @@ export default function WebhookInboundEditPage({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Project (optional)</Label>
+                <Label>{t('webhooks.projectOptionalLabel')}</Label>
                 <Select
                   value={projectId?.toString() ?? "__none__"}
                   onValueChange={(v) => setProjectId(v === "__none__" ? null : Number(v))}
                   disabled={readOnly || isPending}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="No project" />
+                    <SelectValue placeholder={t('webhooks.noProject')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">No project</SelectItem>
+                    <SelectItem value="__none__">{t('webhooks.noProject')}</SelectItem>
                     {projectOptions.map((p) => (
                       <SelectItem key={p.id} value={p.id.toString()}>
                         {p.name}
@@ -933,7 +917,7 @@ export default function WebhookInboundEditPage({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Visibility</Label>
+                <Label>{t('webhooks.visibilityLabel')}</Label>
                 <Select
                   value={visibility}
                   onValueChange={(v) => setVisibility(v as WebhookVisibility)}
@@ -956,7 +940,7 @@ export default function WebhookInboundEditPage({
             {/* Task template picker */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label>Task template <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Label>{t('webhooks.taskTemplateOptional')}</Label>
                 {taskTemplateId !== null &&
                   taskTemplates.some((t) => t.id === taskTemplateId) &&
                   !readOnly && (
@@ -966,11 +950,11 @@ export default function WebhookInboundEditPage({
                       disabled={isPending}
                       onClick={() => {
                         applyTaskTemplate(taskTemplateId);
-                        toast({ title: "Template re-applied" });
+                        toast({ title: t('webhooks.templateReapplied', 'Template re-applied') });
                       }}
                     >
                       <RefreshCw className="w-3 h-3" />
-                      Re-apply template
+                      {t('webhooks.reApplyTemplate')}
                     </button>
                   )}
               </div>
@@ -980,10 +964,10 @@ export default function WebhookInboundEditPage({
                 disabled={readOnly || isPending}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="None — fill defaults manually below" />
+                  <SelectValue placeholder={t('webhooks.noTemplateFill')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">None — fill defaults manually below</SelectItem>
+                  <SelectItem value="__none__">{t('webhooks.noTemplateFill')}</SelectItem>
                   {taskTemplates.map((t) => (
                     <SelectItem key={t.id} value={t.id.toString()}>
                       {t.name}
@@ -993,19 +977,19 @@ export default function WebhookInboundEditPage({
               </Select>
               {taskTemplateId !== null && (
                 <p className="text-xs text-muted-foreground">
-                  Choosing a template fills in the defaults below — you can override any field before saving.
-                  Use <span className="font-medium text-foreground">Re-apply template</span> to pull in the latest template values at any time.
+                  {t('webhooks.choosingTemplateFills')}
+                  {t('webhooks.reApplyTemplateDescPre')} <span className="font-medium text-foreground">{t('webhooks.reApplyTemplate')}</span> {t('webhooks.reApplyTemplateDescPost')}
                 </p>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-4 items-start">
               <div className="space-y-1.5">
-                <Label htmlFor="rateLimit">Rate limit (tasks / minute)</Label>
+                <Label htmlFor="rateLimit">{t('webhooks.rateLimit')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Allowed range: 1–10,000. Requests that exceed this cap return{" "}
-                  <code className="bg-muted px-1 rounded">429</code> with a{" "}
-                  <code className="bg-muted px-1 rounded">Retry-After: 60</code> header.
+                  {t('webhooks.rateLimitDescPre')}{" "}
+                  <code className="bg-muted px-1 rounded">429</code> {t('webhooks.rateLimitDescMid')}{" "}
+                  <code className="bg-muted px-1 rounded">Retry-After: 60</code> {t('webhooks.rateLimitDescEnd')}
                 </p>
                 <input
                   id="rateLimit"
@@ -1025,9 +1009,9 @@ export default function WebhookInboundEditPage({
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="enabled-toggle">Enabled</Label>
+                <Label htmlFor="enabled-toggle">{t('webhooks.enabledLabel')}</Label>
                 <p className="text-xs text-muted-foreground">
-                  Disabled webhooks reject incoming requests with 404.
+                  {t('webhooks.disabledHelp')}
                 </p>
                 <div className="flex items-center gap-2 pt-1">
                   <Switch
@@ -1036,7 +1020,7 @@ export default function WebhookInboundEditPage({
                     onCheckedChange={setEnabled}
                     disabled={readOnly || isPending}
                   />
-                  <span className="text-sm">{enabled ? "Active" : "Disabled"}</span>
+                  <span className="text-sm">{enabled ? t('common.active') : t('common.disabled')}</span>
                 </div>
               </div>
             </div>
@@ -1047,17 +1031,13 @@ export default function WebhookInboundEditPage({
         <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium">Inbound tasks fire outbound events</p>
+            <p className="font-medium">{t('webhooks.inboundFiresOutbound')}</p>
             <p>
-              When an external system POSTs to this ingest URL, Opsly creates a
-              task and immediately fires a{" "}
+              {t('webhooks.inboundFiresDesc1')}{" "}
               <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
                 task.created
               </code>{" "}
-              outbound event. If that system also subscribes to your outbound
-              webhooks, it will receive an echo of its own action — which can
-              cause loops. Make sure your external system ignores events it
-              originally triggered.
+              {t('webhooks.inboundFiresDesc2')}
             </p>
           </div>
         </div>
@@ -1065,7 +1045,7 @@ export default function WebhookInboundEditPage({
         {/* Payload mapping */}
         <Card>
           <CardContent className="py-5 space-y-5">
-            <h2 className="text-sm font-semibold">Payload mapping</h2>
+            <h2 className="text-sm font-semibold">{t('webhooks.payloadMapping')}</h2>
             <TemplateBuilder
               template={template}
               onChange={setTemplate}
@@ -1085,7 +1065,7 @@ export default function WebhookInboundEditPage({
             >
               <span className="flex items-center gap-2">
                 <Terminal className="w-4 h-4" />
-                Test with sample payload
+                {t('webhooks.testWithSample')}
               </span>
               {testOpen ? (
                 <ChevronUp className="w-4 h-4 text-muted-foreground" />
@@ -1096,9 +1076,7 @@ export default function WebhookInboundEditPage({
             {testOpen && (
               <div className="pb-5 space-y-3 border-t pt-4">
                 <p className="text-xs text-muted-foreground">
-                  Paste a JSON payload to preview what task fields this webhook
-                  would create, given your current template settings. Your changes
-                  don't need to be saved first.
+                  {t('webhooks.testPayloadDesc')}
                 </p>
                 <div className="space-y-1">
                   <Textarea
@@ -1117,7 +1095,7 @@ export default function WebhookInboundEditPage({
                           setJsonError(null);
                         } catch (err) {
                           setJsonError(
-                            err instanceof SyntaxError ? err.message : "Invalid JSON"
+                            err instanceof SyntaxError ? err.message : t('webhooks.invalidJson')
                           );
                         }
                       }
@@ -1170,7 +1148,7 @@ export default function WebhookInboundEditPage({
                     ) : (
                       <Terminal className="w-3.5 h-3.5" />
                     )}
-                    Parse payload
+                    {t('webhooks.parsePayload')}
                   </Button>
                   <Button
                     type="button"
@@ -1179,10 +1157,10 @@ export default function WebhookInboundEditPage({
                     className="gap-1.5 text-muted-foreground"
                     onClick={() => setTestPayload(formatJson(testPayload))}
                     disabled={!testPayload.trim() || !!jsonError}
-                    title="Format JSON"
+                    title={t('webhooks.formatJson')}
                   >
                     <Braces className="w-3.5 h-3.5" />
-                    Format
+                    {t('webhooks.format')}
                   </Button>
                 </div>
                 {testState.status === "error" && !jsonError && (
@@ -1192,14 +1170,14 @@ export default function WebhookInboundEditPage({
                   <div className="rounded-md border bg-muted/40 divide-y text-xs">
                     {(
                       [
-                        ["Title", testState.result.title],
-                        ["Priority", testState.result.priority],
-                        ["Category", testState.result.category],
+                        [t('webhooks.field.title'), testState.result.title],
+                        [t('webhooks.field.priority'), testState.result.priority],
+                        [t('webhooks.field.category'), testState.result.category],
                         ...(testState.result.description
-                          ? [["Description", testState.result.description]]
+                          ? [[t('webhooks.field.description'), testState.result.description]]
                           : []),
                         ...(testState.result.dueDate
-                          ? [["Due date", testState.result.dueDate]]
+                          ? [[t('webhooks.field.dueDate'), testState.result.dueDate]]
                           : []),
                       ] as [string, string][]
                     ).map(([label, value]) => (
@@ -1210,7 +1188,7 @@ export default function WebhookInboundEditPage({
                     ))}
                     {Object.entries(testState.result.customFields ?? {}).map(([cfId, val]) => {
                       const def = activeCustomFieldDefs.find((f) => String(f.id) === cfId);
-                      const label = def ? def.name : `Custom field #${cfId}`;
+                      const label = def ? def.name : t('webhooks.customFieldFallback', { id: cfId });
                       const display = Array.isArray(val) ? val.join(", ") : String(val ?? "");
                       return (
                         <div key={cfId} className="flex px-3 py-1.5 gap-3">
@@ -1235,18 +1213,18 @@ export default function WebhookInboundEditPage({
               onClick={() => setLocation("/webhooks")}
               disabled={isPending}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" disabled={isPending || !name.trim()}>
               {isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving…
+                  {t('common.saving')}
                 </>
               ) : isNew ? (
-                "Create webhook"
+                t('webhooks.createWebhook', 'Create webhook')
               ) : (
-                "Save changes"
+                t('webhooks.saveChanges', 'Save changes')
               )}
             </Button>
           </div>

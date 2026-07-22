@@ -1,9 +1,11 @@
 import { AlertTriangle } from "lucide-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Button } from "@/components/ui/button";
+import { useTranslation } from "react-i18next";
 
 export function OrgSuspendedPage() {
   const { logout } = useAuth();
+  const { t } = useTranslation();
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -11,13 +13,12 @@ export function OrgSuspendedPage() {
         <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
           <AlertTriangle className="w-8 h-8 text-destructive" />
         </div>
-        <h1 className="text-2xl font-bold">Organization Suspended</h1>
+        <h1 className="text-2xl font-bold">{t('orgSuspended.title')}</h1>
         <p className="text-muted-foreground">
-          Your organization has been suspended by the instance administrator. Please contact your
-          server operator to restore access.
+          {t('orgSuspended.desc')}
         </p>
         <Button variant="outline" onClick={logout}>
-          Sign out
+          {t('orgSuspended.signOut')}
         </Button>
       </div>
     </div>

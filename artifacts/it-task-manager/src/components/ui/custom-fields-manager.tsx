@@ -3,6 +3,7 @@
  * Rendered inside the Org Settings page.
  */
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useListCustomFieldDefinitions,
   useCreateCustomFieldDefinition,
@@ -56,14 +57,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 const FIELD_TYPES = [
-  { value: "text", label: "Text" },
-  { value: "number", label: "Number" },
-  { value: "date", label: "Date" },
-  { value: "single_select", label: "Single Select" },
-  { value: "multi_select", label: "Multi Select" },
-] as const;
+  { value: "text" as const },
+  { value: "number" as const },
+  { value: "date" as const },
+  { value: "single_select" as const },
+  { value: "multi_select" as const },
+];
 
-type FieldType = typeof FIELD_TYPES[number]["value"];
+type FieldType = "text" | "number" | "date" | "single_select" | "multi_select";
 
 function typeBadgeVariant(type: string) {
   switch (type) {
@@ -76,8 +77,15 @@ function typeBadgeVariant(type: string) {
   }
 }
 
-function typeLabel(type: string) {
-  return FIELD_TYPES.find((t) => t.value === type)?.label ?? type;
+function typeLabel(t: (k: string) => string, type: string): string {
+  const map: Record<string, string> = {
+    text: t('customFields.typeText'),
+    number: t('customFields.typeNumber'),
+    date: t('customFields.typeDate'),
+    single_select: t('customFields.typeSingleSelect'),
+    multi_select: t('customFields.typeMultiSelect'),
+  };
+  return map[type] ?? type;
 }
 
 // ─── FieldRow ─────────────────────────────────────────────────────────────────
@@ -98,6 +106,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
   } = useSortable({ id: field.id });
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [editingName, setEditingName] = useState(false);
   const [nameVal, setNameVal] = useState(field.name);
   const [editingOptions, setEditingOptions] = useState(false);
@@ -121,6 +130,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
         setOptionConflict(null);
       },
       onError: (err: Error) => {
+        // handle 409 conflict below
         const apiErr = err as any;
         if (apiErr?.status === 409 && typeof apiErr?.data?.affectedTaskCount === "number") {
           const opts = optionsText.split("\n").map((s: string) => s.trim()).filter(Boolean);
@@ -132,7 +142,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
           setOptionConflict({ opts, affectedCount: apiErr.data.affectedTaskCount, affectedTaskIds, removedOptions });
           return;
         }
-        toast({ title: "Update failed", description: err.message, variant: "destructive" });
+        toast({ title: t("customFields.save"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -140,11 +150,11 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
   const { mutate: deleteField } = useDeleteCustomFieldDefinition({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Field deleted" });
+        toast({ title: t("customFields.deleteField") });
         onDeleted();
       },
       onError: (err: Error) => {
-        toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -222,7 +232,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
 
         {/* Type badge */}
         <Badge variant={typeBadgeVariant(field.type)} className="text-xs shrink-0 capitalize">
-          {typeLabel(field.type)}
+          {typeLabel(t, field.type)}
         </Badge>
 
         {/* Options editor toggle (select types only) */}
@@ -245,19 +255,18 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete custom field?</AlertDialogTitle>
+              <AlertDialogTitle>{t("customFields.deleteField")}</AlertDialogTitle>
               <AlertDialogDescription>
-                <span className="font-medium">"{field.name}"</span> will be hidden from all task forms.
-                Existing data in task records is preserved but will no longer be displayed.
+                <span className="font-medium">"{field.name}"</span> {t("customFields.deleteFieldDesc")}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => deleteField({ id: field.id })}
               >
-                Delete field
+                {t("customFields.deleteField")}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -312,7 +321,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
             </div>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground">One option per line</p>
+              <p className="text-xs text-muted-foreground">{t('customFields.oneOptionPerLine')}</p>
               <textarea
                 className="w-full min-h-[96px] text-sm border border-border rounded-md p-2 bg-background resize-y focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 value={optionsText}
@@ -324,10 +333,10 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
                   size="sm" variant="ghost"
                   onClick={() => { setOptionsText((field.options ?? []).join("\n")); setEditingOptions(false); }}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </Button>
                 <Button size="sm" onClick={saveOptions} disabled={isUpdating}>
-                  {isUpdating ? "Saving…" : "Save options"}
+                  {isUpdating ? t("common.saving") : t("customFields.save")}
                 </Button>
               </div>
             </>
@@ -348,6 +357,7 @@ interface AddFieldFormProps {
 function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [type, setType] = useState<FieldType>("text");
   const [optionsText, setOptionsText] = useState("");
@@ -358,11 +368,11 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListCustomFieldDefinitionsQueryKey() });
-        toast({ title: "Custom field created" });
+        toast({ title: t("customFields.addField") });
         onCreated();
       },
       onError: (err: Error) => {
-        toast({ title: "Failed to create field", description: err.message, variant: "destructive" });
+        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -381,10 +391,10 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
     <form onSubmit={handleSubmit} className="rounded-md border border-primary/40 bg-primary/5 p-4 space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Field name</label>
+          <label className="text-xs font-medium text-muted-foreground">{t("customFields.fieldName")}</label>
           <Input
             autoFocus
-            placeholder="e.g. Affected Service"
+            placeholder={t("customFields.fieldNamePlaceholder")}
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="h-8 text-sm"
@@ -392,14 +402,14 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
           />
         </div>
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Type</label>
+          <label className="text-xs font-medium text-muted-foreground">{t("customFields.fieldType")}</label>
           <Select value={type} onValueChange={(v) => setType(v as FieldType)}>
             <SelectTrigger className="h-8 text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {FIELD_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+              {FIELD_TYPES.map((ft) => (
+                <SelectItem key={ft.value} value={ft.value}>{typeLabel(t, ft.value)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -408,7 +418,7 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
 
       {isSelect && (
         <div className="space-y-1">
-          <label className="text-xs font-medium text-muted-foreground">Options (one per line)</label>
+          <label className="text-xs font-medium text-muted-foreground">{t("customFields.options")}</label>
           <textarea
             className="w-full min-h-[80px] text-sm border border-border rounded-md p-2 bg-background resize-y focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             placeholder={"Option A\nOption B\nOption C"}
@@ -420,10 +430,10 @@ function AddFieldForm({ onCancel, onCreated }: AddFieldFormProps) {
 
       <div className="flex gap-2 justify-end">
         <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={isPending}>
-          Cancel
+          {t("common.cancel")}
         </Button>
         <Button type="submit" size="sm" disabled={isPending || !name.trim()}>
-          {isPending ? "Creating…" : "Add field"}
+          {isPending ? t("common.saving") : t("customFields.addField")}
         </Button>
       </div>
     </form>
@@ -440,15 +450,16 @@ interface DeletedFieldRowProps {
 
 function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
 
   const { mutate: restoreField, isPending: isRestoring } = useRestoreCustomFieldDefinition({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Field restored", description: `"${field.name}" is active again.` });
+        toast({ title: t("customFields.addField"), description: `"${field.name}" is active again.` });
         onRestored();
       },
       onError: (err: Error) => {
-        toast({ title: "Restore failed", description: err.message, variant: "destructive" });
+        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -458,15 +469,15 @@ function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) 
       onSuccess: (data) => {
         const count = data.affectedTaskCount;
         toast({
-          title: "Field permanently erased",
+          title: t("customFields.deleteField"),
           description: count === 0
-            ? "No task data was affected."
+            ? t("common.noData")
             : `Removed data from ${count} task${count === 1 ? "" : "s"}.`,
         });
         onPurged();
       },
       onError: (err: Error) => {
-        toast({ title: "Purge failed", description: err.message, variant: "destructive" });
+        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -484,7 +495,7 @@ function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) 
         onClick={() => restoreField({ id: field.id })}
       >
         <Undo2 className="w-3.5 h-3.5" />
-        Restore
+        {t("common.reset")}
       </Button>
 
       <AlertDialog>
@@ -496,24 +507,23 @@ function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) 
             disabled={isPurging || isRestoring}
           >
             <Flame className="w-3.5 h-3.5" />
-            Purge all data
+            {t("common.delete")}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Permanently erase "{field.name}"?</AlertDialogTitle>
+            <AlertDialogTitle>{t("customFields.deleteField")} "{field.name}"?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will permanently delete the field definition and remove its stored value from
-              every task in your org. <span className="font-semibold text-destructive">This cannot be undone.</span>
+              {t("customFields.deleteFieldDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => purgeField({ id: field.id })}
             >
-              Erase permanently
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -527,6 +537,7 @@ function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) 
 export function CustomFieldsManager() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Fetch all fields including soft-deleted so we can show the purge section
@@ -553,7 +564,7 @@ export function CustomFieldsManager() {
       onError: (err: Error) => {
         // Roll back to server order on failure
         setFields(serverFields);
-        toast({ title: "Reorder failed", description: err.message, variant: "destructive" });
+        toast({ title: t("common.error"), description: err.message, variant: "destructive" });
       },
     },
   });
@@ -577,10 +588,10 @@ export function CustomFieldsManager() {
       {/* Active fields */}
       <div className="space-y-3">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading fields…</p>
+          <p className="text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : fields.length === 0 && !showAddForm ? (
           <p className="text-sm text-muted-foreground italic">
-            No custom fields yet. Add a field to extend every task in your org.
+            {t("customFields.noFields")}
           </p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -611,7 +622,7 @@ export function CustomFieldsManager() {
             onClick={() => setShowAddForm(true)}
           >
             <Plus className="w-4 h-4" />
-            Add field
+            {t("customFields.addField")}
           </Button>
         )}
       </div>

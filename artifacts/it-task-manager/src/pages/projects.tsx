@@ -10,13 +10,15 @@ import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
 import { NewProjectModal } from "@/components/ui/new-project-modal";
 import { useTerminology } from "@/context/terminology-context";
+import { useTranslation } from "react-i18next";
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
   const [showNewProject, setShowNewProject] = useState(false);
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
-  const { t, ts } = useTerminology();
+  const { t: term, ts } = useTerminology();
+  const { t } = useTranslation();
 
   // URL-driven status filter (e.g. ?status=active from the dashboard KPI card)
   const urlSearch = useSearch();
@@ -38,13 +40,13 @@ export default function ProjectsList() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t("projects")}</h1>
-          <p className="text-muted-foreground mt-1">Manage IT initiatives, deployments, and epics.</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("projects.title", { projects: term("projects") })}</h1>
+          <p className="text-muted-foreground mt-1">{t('projects.subtitle')}</p>
         </div>
         {canManageProjects && (
           <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
             <Plus className="w-4 h-4" />
-            New {ts("projects")}
+            {t("projects.newProject", { project: ts("projects") })}
           </Button>
         )}
       </div>
@@ -53,14 +55,14 @@ export default function ProjectsList() {
       {statusFilter && (
         <div className="flex items-center justify-between gap-3 rounded-md border border-primary/20 bg-primary/5 px-4 py-2 text-sm">
           <span className="text-primary font-medium capitalize">
-            Showing {statusFilter} projects only
+            {t("projects.statusActive")} — {statusFilter}
           </span>
           <button
             onClick={clearStatusFilter}
             className="flex items-center gap-1 text-xs text-primary/80 hover:text-primary transition-colors"
           >
             <X className="w-3 h-3" />
-            Clear filter
+            {t("common.clear")}
           </button>
         </div>
       )}
@@ -81,7 +83,7 @@ export default function ProjectsList() {
                         {project.hasSlaOverrides && (
                           <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 dark:bg-violet-900/40 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
                             <Shield className="w-2.5 h-2.5" />
-                            Custom SLA
+                            {t('projects.customSla')}
                           </span>
                         )}
                         <StatusBadge status={project.status} />
@@ -91,21 +93,21 @@ export default function ProjectsList() {
                       {project.name}
                     </CardTitle>
                     <CardDescription className="line-clamp-2 min-h-[2.5rem]">
-                      {project.description || "No description provided."}
+                      {project.description || t('projects.noDescription')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="mt-auto pt-0 space-y-4">
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {project.dueDate ? formatDate(project.dueDate) : "No Due Date"}
+                        {project.dueDate ? formatDate(project.dueDate) : t('projects.noDate')}
                       </div>
                       <PriorityBadge priority={project.priority} />
                     </div>
 
                     <div className="space-y-1.5">
                       <div className="flex justify-between text-xs">
-                        <span className="text-muted-foreground">Progress</span>
+                        <span className="text-muted-foreground">{t('common.progress')}</span>
                         <span className="font-medium">{progress}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
@@ -115,7 +117,7 @@ export default function ProjectsList() {
                         />
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-1 text-right">
-                        {project.completedTaskCount || 0} / {project.taskCount || 0} {t("tasks").toUpperCase()}
+                        {project.completedTaskCount || 0} / {project.taskCount || 0} {term("tasks").toUpperCase()}
                       </div>
                     </div>
                   </CardContent>
@@ -127,22 +129,22 @@ export default function ProjectsList() {
           <div className="col-span-full py-12 text-center border-2 border-dashed border-border rounded-xl bg-card/50">
             <FolderGit2 className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-50" />
             <h3 className="text-lg font-medium">
-              {statusFilter ? `No ${statusFilter} ${t("projects").toLowerCase()}` : `No ${t("projects").toLowerCase()} found`}
+              {statusFilter ? `${t("common.filter")}: ${statusFilter} ${term("projects").toLowerCase()}` : t("projects.noProjects", { projects: term("projects") })}
             </h3>
             <p className="text-muted-foreground mb-4">
               {statusFilter
-                ? `Try clearing the filter to see all ${t("projects").toLowerCase()}.`
-                : `Get started by creating a new ${ts("projects").toLowerCase()} initiative.`}
+                ? t("projects.clearFilterDesc", { projects: term("projects") })
+                : t("projects.noProjectsDesc", { project: ts("projects") })}
             </p>
             {statusFilter ? (
               <Button variant="outline" className="gap-2" onClick={clearStatusFilter}>
                 <X className="w-4 h-4" />
-                Clear filter
+                {t("common.clear")}
               </Button>
             ) : canManageProjects ? (
               <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
                 <Plus className="w-4 h-4" />
-                Create {ts("projects")}
+                {t("projects.createProject", { project: ts("projects") })}
               </Button>
             ) : null}
           </div>

@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 type Status = 'loading' | 'success' | 'error';
 
@@ -20,11 +21,12 @@ function getToken(): string {
 export default function UnsubscribePage() {
   const [status, setStatus] = useState<Status>('loading');
   const [errorMsg, setErrorMsg] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     const token = getToken();
     if (!token) {
-      setErrorMsg('No unsubscribe token found. Please use the link from your digest email.');
+      setErrorMsg(t('unsubscribe.noToken'));
       setStatus('error');
       return;
     }
@@ -37,14 +39,15 @@ export default function UnsubscribePage() {
         if (res.ok && data.ok) {
           setStatus('success');
         } else {
-          setErrorMsg(data.error ?? 'Something went wrong. Please try again.');
+          setErrorMsg(data.error ?? t('unsubscribe.genericError'));
           setStatus('error');
         }
       })
       .catch(() => {
-        setErrorMsg('Could not reach the server. Please try again later.');
+        setErrorMsg(t('unsubscribe.networkError'));
         setStatus('error');
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -55,10 +58,10 @@ export default function UnsubscribePage() {
             <>
               <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Processing…
+                {t('unsubscribe.processingTitle')}
               </h1>
               <p className="text-sm text-gray-500">
-                Updating your email preferences.
+                {t('unsubscribe.processingDesc')}
               </p>
             </>
           )}
@@ -67,16 +70,15 @@ export default function UnsubscribePage() {
             <>
               <CheckCircle className="h-10 w-10 text-green-500" />
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                You've been unsubscribed
+                {t('unsubscribe.successTitle')}
               </h1>
               <p className="text-sm text-gray-500">
-                You will no longer receive digest emails. You can re-enable them
-                at any time from{' '}
+                {t('unsubscribe.successDesc')}{' '}
                 <a
                   href="/settings/notifications"
                   className="text-blue-600 underline hover:text-blue-700"
                 >
-                  notification settings
+                  {t('unsubscribe.notificationSettings')}
                 </a>
                 .
               </p>
@@ -87,16 +89,16 @@ export default function UnsubscribePage() {
             <>
               <XCircle className="h-10 w-10 text-red-500" />
               <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                Unable to unsubscribe
+                {t('unsubscribe.errorTitle')}
               </h1>
               <p className="text-sm text-gray-500">{errorMsg}</p>
               <p className="text-sm text-gray-400">
-                You can manage your digest preferences from{' '}
+                {t('unsubscribe.managePrefs')}{' '}
                 <a
                   href="/settings/notifications"
                   className="text-blue-600 underline hover:text-blue-700"
                 >
-                  notification settings
+                  {t('unsubscribe.notificationSettings')}
                 </a>
                 .
               </p>

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import {
   useListInboundWebhooks,
@@ -67,29 +69,25 @@ import {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const VISIBILITY_LABELS: Record<
-  WebhookVisibility,
-  { label: string; Icon: typeof Lock }
-> = {
-  private: { label: "Private", Icon: Lock },
-  public_read: { label: "Shared (read-only)", Icon: Eye },
-  public_write: { label: "Public", Icon: Globe },
-};
-
 function buildFullIngestUrl(path: string): string {
   return `${window.location.origin}${path}`;
 }
 
-function copyText(text: string, toast: ReturnType<typeof useToast>["toast"]) {
+function copyText(text: string, toast: ReturnType<typeof useToast>["toast"], copiedLabel = i18n.t('common.copiedToClipboard')) {
   navigator.clipboard.writeText(text).catch(() => {});
-  toast({ title: "Copied to clipboard" });
+  toast({ title: copiedLabel });
 }
 
 function VisibilityBadge({ v }: { v: WebhookVisibility }) {
-  const { label } = VISIBILITY_LABELS[v] ?? VISIBILITY_LABELS.private;
+  const { t } = useTranslation();
+  const labelKey = v === "public_write"
+    ? "webhooks.visibility.public_write"
+    : v === "public_read"
+    ? "webhooks.visibility.public_read"
+    : "webhooks.visibility.private";
   return (
     <Badge variant="outline" className="text-xs gap-1">
-      {label}
+      {t(labelKey)}
     </Badge>
   );
 }
@@ -101,18 +99,20 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatTimeAgoShort(iso: string): string {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function formatTimeAgoShort(iso: string, t: (key: string, opts?: any) => string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
+  if (m < 1) return t('common.justNow');
+  if (m < 60) return t('common.minAgo', { count: m });
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
+  if (h < 24) return t('common.hourAgo', { count: h });
+  return t('common.dayAgo', { count: Math.floor(h / 24) });
 }
 
 function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
   const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
   return (
     <div className="text-xs border-b border-border/30 last:border-0">
       <button
@@ -134,7 +134,7 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
           {formatDuration(d.durationMs)}
         </span>
         <span className="text-muted-foreground shrink-0 w-16 text-right">
-          {formatTimeAgoShort(d.createdAt)}
+          {formatTimeAgoShort(d.createdAt, t)}
         </span>
         {expanded ? (
           <ChevronUp className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -145,19 +145,19 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
       {expanded && (
         <div className="px-3 pb-2 space-y-1 text-muted-foreground bg-muted/20">
           <div className="flex gap-2">
-            <span className="font-medium text-foreground/60 w-16 shrink-0">URL</span>
+            <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryUrl')}</span>
             <code className="truncate">{d.url}</code>
           </div>
           {d.error && (
             <div className="flex gap-2">
-              <span className="font-medium text-foreground/60 w-16 shrink-0">Error</span>
+              <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryError')}</span>
               <span className="text-destructive break-all">{d.error}</span>
             </div>
           )}
           <div className="flex gap-2">
-            <span className="font-medium text-foreground/60 w-16 shrink-0">Status</span>
+            <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryStatus')}</span>
             <span>
-              {d.success ? "Success" : "Failed"} · {formatDuration(d.durationMs)}
+              {d.success ? t('common.success') : t('common.failed')} · {formatDuration(d.durationMs)}
             </span>
           </div>
         </div>
@@ -168,13 +168,14 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
 
 function DeliveryLogContent({ webhookId }: { webhookId: number }) {
   const { data: deliveries, isFetching } = useListOutboundWebhookDeliveries(webhookId);
+  const { t } = useTranslation();
   return (
     <div className="mt-2 rounded-md border border-border/50 overflow-hidden bg-card">
       {isFetching && !deliveries ? (
-        <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+        <p className="text-xs text-muted-foreground text-center py-4">{t('common.loading')}</p>
       ) : !deliveries || deliveries.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-4">
-          No deliveries yet. They appear here after the next matching event fires.
+          {t('webhooks.noDeliveries')}
         </p>
       ) : (
         <div>
@@ -189,6 +190,7 @@ function DeliveryLogContent({ webhookId }: { webhookId: number }) {
 
 function DeliveryLog({ webhookId }: { webhookId: number }) {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
   return (
     <div className="border-t border-border/40 mt-3 pt-3">
       <button
@@ -197,7 +199,7 @@ function DeliveryLog({ webhookId }: { webhookId: number }) {
         className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
       >
         <Activity className="w-3.5 h-3.5" />
-        <span className="font-medium">Recent deliveries</span>
+        <span className="font-medium">{t('webhooks.recentDeliveries')}</span>
         <span className="ml-auto">
           {open ? (
             <ChevronUp className="w-3.5 h-3.5" />
@@ -238,6 +240,7 @@ function InboundHookCard({
   onRotate,
 }: InboundHookCardProps) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [docsOpen, setDocsOpen] = useState(false);
   const fullUrl = buildFullIngestUrl(h.ingestUrl);
 
@@ -256,7 +259,7 @@ function InboundHookCard({
               )}
               {!h.enabled && (
                 <Badge variant="outline" className="text-xs text-muted-foreground">
-                  Disabled
+                  {t('common.disabled')}
                 </Badge>
               )}
             </div>
@@ -270,7 +273,7 @@ function InboundHookCard({
                 size="icon"
                 className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={() => copyText(fullUrl, toast)}
-                title="Copy ingest URL"
+                title={t('webhooks.copyIngestUrlTitle')}
               >
                 <Copy className="w-3.5 h-3.5" />
               </Button>
@@ -278,7 +281,7 @@ function InboundHookCard({
 
             {h.taskTemplateName && (
               <p className="text-xs text-muted-foreground mt-1">
-                Seeded from:{" "}
+                {t('webhooks.seededFrom')}{" "}
                 <span className="font-medium text-foreground">{h.taskTemplateName}</span>
               </p>
             )}
@@ -286,7 +289,7 @@ function InboundHookCard({
               h.taskTemplate?.defaultCategory ||
               h.taskTemplate?.titleField) && (
               <p className="text-xs text-muted-foreground mt-1">
-                Template:{" "}
+                {t('webhooks.templateLabel')}{" "}
                 {[
                   h.taskTemplate.titleField &&
                     `title from "${h.taskTemplate.titleField}"`,
@@ -301,7 +304,7 @@ function InboundHookCard({
             )}
 
             <p className="text-xs text-muted-foreground mt-1">
-              Rate limit:{" "}
+              {t('webhooks.rateLimitLabel')}{" "}
               <span className="font-medium text-foreground">
                 {h.rateLimitPerMinute} tasks / min
               </span>
@@ -332,16 +335,15 @@ function InboundHookCard({
                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75" />
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
                         </span>
-                        Rate limit hit — {activity.tasksLastMinute}/
-                        {h.rateLimitPerMinute} tasks/min · possible loop
+                        {t('webhooks.rateLimitHit', { current: activity.tasksLastMinute, max: h.rateLimitPerMinute })}
                       </>
                     ) : highRate ? (
                       <>
                         <Activity className="w-3 h-3 shrink-0" />
-                        High rate — {activity.tasksLastMinute} tasks/min
+                        {t('webhooks.highRate', { count: activity.tasksLastMinute })}
                         {activity.tasksLastHour > activity.tasksLastMinute && (
                           <span className="font-normal text-muted-foreground">
-                            · {activity.tasksLastHour} in last hr
+                            · {activity.tasksLastHour} {t('webhooks.inLastHour')}
                           </span>
                         )}
                       </>
@@ -349,8 +351,8 @@ function InboundHookCard({
                       <>
                         <Activity className="w-3 h-3 shrink-0" />
                         {activity.tasksLastMinute > 0
-                          ? `${activity.tasksLastMinute} task${activity.tasksLastMinute === 1 ? "" : "s"} this minute`
-                          : `${activity.tasksLastHour} task${activity.tasksLastHour === 1 ? "" : "s"} in last hour`}
+                          ? t('webhooks.tasksThisMinute', { count: activity.tasksLastMinute })
+                          : t('webhooks.tasksLastHour', { count: activity.tasksLastHour })}
                       </>
                     )}
                   </div>
@@ -363,7 +365,7 @@ function InboundHookCard({
               className="flex items-center gap-1.5 mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
             >
               <Terminal className="w-3.5 h-3.5" />
-              How to send data
+              {t('webhooks.howToSendData')}
               {docsOpen ? (
                 <ChevronUp className="w-3 h-3" />
               ) : (
@@ -379,7 +381,7 @@ function InboundHookCard({
                 checked={h.enabled}
                 onCheckedChange={onToggle}
                 className="scale-75"
-                title={h.enabled ? "Disable webhook" : "Enable webhook"}
+                title={h.enabled ? t('webhooks.disableWebhook') : t('webhooks.enableWebhook')}
               />
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -387,24 +389,22 @@ function InboundHookCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-amber-600"
-                    title="Rotate secret (generates a new URL)"
+                    title={t('webhooks.rotateSecretHint')}
                   >
                     <RefreshCw className="w-4 h-4" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Rotate secret?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('webhooks.rotateSecretConfirm', 'Rotate secret?')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      The current ingest URL will stop working immediately. Any
-                      external system using it must be updated to the new URL.
-                      The new URL is automatically copied to your clipboard.
+                      {t('webhooks.rotateSecretDesc', 'The current ingest URL will stop working immediately. Any external system using it must be updated to the new URL. The new URL is automatically copied to your clipboard.')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                     <AlertDialogAction onClick={onRotate}>
-                      Rotate &amp; copy
+                      {t('webhooks.rotateAndCopy', 'Rotate & copy')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -414,7 +414,7 @@ function InboundHookCard({
                 size="icon"
                 className="h-8 w-8 text-muted-foreground hover:text-foreground"
                 onClick={onEdit}
-                title="Edit"
+                title={t('common.edit')}
               >
                 <Pencil className="w-4 h-4" />
               </Button>
@@ -424,26 +424,25 @@ function InboundHookCard({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    title="Delete"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                    <AlertDialogTitle>{t('webhooks.deleteWebhookTitle')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      The ingest URL will stop working. Tasks already created by
-                      this webhook are kept.
+                      {t('webhooks.deleteInboundDesc')}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={onDelete}
                     >
-                      Delete
+                      {t('common.delete')}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -456,8 +455,7 @@ function InboundHookCard({
         {docsOpen && (
           <div className="border border-border rounded-md bg-muted/30 p-3 space-y-2 text-xs">
             <p className="text-muted-foreground">
-              POST JSON to the ingest URL. No authentication header required — the URL
-              itself is the secret.
+              {t('webhooks.howToSendDesc')}
             </p>
             <pre className="bg-muted rounded-md px-3 py-2 font-mono overflow-x-auto whitespace-pre leading-relaxed">
               {`curl -X POST "${fullUrl}" \\
@@ -465,7 +463,7 @@ function InboundHookCard({
   -d '{"title":"CPU spike","priority":"high"}'`}
             </pre>
             <p className="text-muted-foreground">
-              Open the webhook to see the full payload reference and test your template.
+              {t('webhooks.openWebhookRef')}
             </p>
           </div>
         )}
@@ -483,6 +481,7 @@ function InboundTab({
 }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListInboundWebhooks();
   const { data: outboundHooks = [] } = useListOutboundWebhooks();
@@ -520,10 +519,10 @@ function InboundTab({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        toast({ title: "Webhook deleted" });
+        toast({ title: t("webhooks.deleteWebhook") });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t("common.error"), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -538,11 +537,11 @@ function InboundTab({
     mutation: {
       onSuccess: (data) => {
         qc.invalidateQueries({ queryKey: getListInboundWebhooksQueryKey() });
-        copyText(buildFullIngestUrl(data.ingestUrl), toast);
-        toast({ title: "Secret rotated", description: "New ingest URL copied to clipboard." });
+        copyText(buildFullIngestUrl(data.ingestUrl), toast, t("webhooks.copied"));
+        toast({ title: t("webhooks.secretKey"), description: t("webhooks.copyUrl") });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t("common.error"), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -550,14 +549,14 @@ function InboundTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          POST any JSON to an ingest URL and Opsly creates a task automatically.
+          {t("webhooks.inboundPageDesc")}
         </p>
         <Button
           size="sm"
           className="gap-2 shrink-0"
           onClick={() => setLocation("/webhooks/inbound/new")}
         >
-          <Plus className="w-4 h-4" /> New webhook
+          <Plus className="w-4 h-4" /> {t("webhooks.newInbound")}
         </Button>
       </div>
 
@@ -566,28 +565,25 @@ function InboundTab({
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <div className="space-y-1">
             <p className="font-medium">
-              Loop risk: outbound webhooks are subscribed to task.created
+              {t("webhooks.loopRiskTitle")}
             </p>
             <p>
-              When an inbound webhook creates a task, Opsly fires a{" "}
+              {t("webhooks.loopRiskDesc1")}{" "}
               <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
                 task.created
               </code>{" "}
-              outbound event. If the source system also receives your outbound events
-              and POSTs back, a loop forms — stopped only by each webhook's rate limit.
-              Check whether{" "}
+              {t("webhooks.loopRiskDesc2")}{" "}
               {outboundRiskHooks.length === 1 ? (
                 <span className="font-medium">{outboundRiskHooks[0]!.name}</span>
               ) : (
                 outboundRiskHooks.map((oh, i) => (
                   <span key={oh.id}>
-                    {i > 0 && (i === outboundRiskHooks.length - 1 ? " and " : ", ")}
+                    {i > 0 && (i === outboundRiskHooks.length - 1 ? ` ${t("webhooks.loopRiskAnd")} ` : ", ")}
                     <span className="font-medium">{oh.name}</span>
                   </span>
                 ))
               )}{" "}
-              {outboundRiskHooks.length === 1 ? "points" : "point"} at the same system
-              sending you data.
+              {t("webhooks.loopRiskVerb", { count: outboundRiskHooks.length })} {t("webhooks.loopRiskAtSystem")}
             </p>
           </div>
         </div>
@@ -597,14 +593,14 @@ function InboundTab({
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowDownLeft className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No inbound webhooks yet.</p>
+            <p className="text-sm text-muted-foreground">{t("webhooks.noWebhooks")}</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setLocation("/webhooks/inbound/new")}
               className="gap-2"
             >
-              <Plus className="w-4 h-4" /> Create your first
+              <Plus className="w-4 h-4" /> {t("webhooks.newInbound")}
             </Button>
           </CardContent>
         </Card>
@@ -613,7 +609,7 @@ function InboundTab({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search webhooks…"
+              placeholder={t("webhooks.title")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -621,7 +617,7 @@ function InboundTab({
           </div>
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No webhooks match{" "}
+              {t("common.noResults")}{" "}
               <span className="font-medium">"{search}"</span>.
             </p>
           ) : (
@@ -655,6 +651,7 @@ function OutboundTab({
 }) {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: hooks = [] } = useListOutboundWebhooks();
   const [search, setSearch] = useState("");
@@ -676,10 +673,10 @@ function OutboundTab({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Webhook deleted" });
+        toast({ title: t("webhooks.deleteWebhook") });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t("common.error"), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -694,15 +691,14 @@ function OutboundTab({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Opsly POSTs signed event payloads to your endpoints when tasks or
-          projects change.
+          {t("webhooks.outboundPageDesc")}
         </p>
         <Button
           size="sm"
           className="gap-2 shrink-0"
           onClick={() => setLocation("/webhooks/outbound/new")}
         >
-          <Plus className="w-4 h-4" /> New webhook
+          <Plus className="w-4 h-4" /> {t("webhooks.newOutbound")}
         </Button>
       </div>
 
@@ -710,14 +706,14 @@ function OutboundTab({
         <Card className="border-dashed">
           <CardContent className="py-10 flex flex-col items-center gap-3 text-center">
             <ArrowUpRight className="w-8 h-8 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">No outbound webhooks yet.</p>
+            <p className="text-sm text-muted-foreground">{t("webhooks.noWebhooks")}</p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setLocation("/webhooks/outbound/new")}
               className="gap-2"
             >
-              <Plus className="w-4 h-4" /> Create your first
+              <Plus className="w-4 h-4" /> {t("webhooks.newOutbound")}
             </Button>
           </CardContent>
         </Card>
@@ -726,7 +722,7 @@ function OutboundTab({
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
             <Input
-              placeholder="Search webhooks…"
+              placeholder={t("webhooks.title")}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-8 h-8 text-sm"
@@ -734,7 +730,7 @@ function OutboundTab({
           </div>
           {filtered.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No webhooks match{" "}
+              {t("common.noResults")}{" "}
               <span className="font-medium">"{search}"</span>.
             </p>
           ) : (
@@ -758,7 +754,7 @@ function OutboundTab({
                                 variant="outline"
                                 className="text-xs text-muted-foreground"
                               >
-                                All projects
+                                {t("webhooks.allProjects")}
                               </Badge>
                             )}
                             {!h.enabled && (
@@ -766,7 +762,7 @@ function OutboundTab({
                                 variant="outline"
                                 className="text-xs text-muted-foreground"
                               >
-                                Disabled
+                                {t("common.disabled")}
                               </Badge>
                             )}
                           </div>
@@ -799,7 +795,7 @@ function OutboundTab({
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-foreground"
                               onClick={() => setLocation(`/webhooks/outbound/${h.id}`)}
-                              title="Edit"
+                              title={t("common.edit")}
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -809,26 +805,26 @@ function OutboundTab({
                                   variant="ghost"
                                   size="icon"
                                   className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                  title="Delete"
+                                  title={t("common.delete")}
                                 >
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               </AlertDialogTrigger>
                               <AlertDialogContent>
                                 <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                                  <AlertDialogTitle>{t("webhooks.deleteWebhookTitle")}</AlertDialogTitle>
                                   <AlertDialogDescription>
-                                    Opsly will stop sending events to{" "}
+                                    {t("webhooks.deleteOutboundDescPre")}{" "}
                                     <strong>{h.url}</strong>.
                                   </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                                   <AlertDialogAction
                                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     onClick={() => deleteHook({ id: h.id })}
                                   >
-                                    Delete
+                                    {t("common.delete")}
                                   </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
@@ -854,6 +850,7 @@ function OutboundTab({
 
 export default function WebhooksPage() {
   const { data: projects = [] } = useListProjects();
+  const { t } = useTranslation();
   const projectOptions = projects.map((p) => ({ id: p.id, name: p.name }));
 
   return (
@@ -861,21 +858,20 @@ export default function WebhooksPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
           <Webhook className="w-7 h-7 text-primary" />
-          Webhooks
+          {t("webhooks.title")}
         </h1>
         <p className="text-muted-foreground mt-1">
-          Connect Opsly to external systems. Receive alerts as tasks or push
-          events to any URL.
+          {t("webhooks.pageDesc")}
         </p>
       </div>
 
       <Tabs defaultValue="inbound">
         <TabsList className="mb-4">
           <TabsTrigger value="inbound" className="gap-2">
-            <ArrowDownLeft className="w-4 h-4" /> Inbound
+            <ArrowDownLeft className="w-4 h-4" /> {t("webhooks.inbound")}
           </TabsTrigger>
           <TabsTrigger value="outbound" className="gap-2">
-            <ArrowUpRight className="w-4 h-4" /> Outbound
+            <ArrowUpRight className="w-4 h-4" /> {t("webhooks.outbound")}
           </TabsTrigger>
         </TabsList>
 

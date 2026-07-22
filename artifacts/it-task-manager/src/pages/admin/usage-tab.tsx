@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Building2, Users, CheckSquare, TrendingUp, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -52,6 +53,7 @@ function StatCard({
 }
 
 export function AdminUsageTab() {
+  const { t } = useTranslation();
   const { data, isLoading, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["admin-usage"],
     queryFn: fetchUsage,
@@ -62,44 +64,44 @@ export function AdminUsageTab() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-semibold">Instance Metrics</h2>
+          <h2 className="font-semibold">{t('admin.usage.title')}</h2>
           <p className="text-sm text-muted-foreground">
-            Live summary from the database.
+            {t('admin.usage.subtitle')}
             {dataUpdatedAt > 0 && (
-              <> Last updated {new Date(dataUpdatedAt).toLocaleTimeString()}.</>
+              <> {t('admin.usage.lastUpdated', { time: new Date(dataUpdatedAt).toLocaleTimeString() })}</>
             )}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={() => refetch()} disabled={isLoading}>
           <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh
+          {t('admin.usage.refresh')}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={Building2}
-          label="Total Organizations"
+          label={t('admin.usage.totalOrgs')}
           value={data?.totalOrgs}
-          sub="All orgs including suspended"
+          sub={t('admin.usage.totalOrgsDesc')}
         />
         <StatCard
           icon={Users}
-          label="Total Users"
+          label={t('admin.usage.totalUsers')}
           value={data?.totalUsers}
-          sub="Across all organizations"
+          sub={t('admin.usage.totalUsersDesc')}
         />
         <StatCard
           icon={CheckSquare}
-          label="Total Tasks"
+          label={t('admin.usage.totalTasks')}
           value={data?.totalTasks}
-          sub="All time, all orgs"
+          sub={t('admin.usage.totalTasksDesc')}
         />
         <StatCard
           icon={TrendingUp}
-          label="Tasks (last 30 days)"
+          label={t('admin.usage.tasksLast30')}
           value={data?.tasksLast30Days}
-          sub="New tasks in the past month"
+          sub={t('admin.usage.tasksLast30Desc')}
         />
       </div>
     </div>

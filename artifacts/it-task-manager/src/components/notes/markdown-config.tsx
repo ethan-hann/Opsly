@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import remarkSupersub from "remark-supersub";
 import rehypeRaw from "rehype-raw";
@@ -98,6 +99,7 @@ function getMermaid() {
 }
 
 export function MermaidBlock({ code }: { code: string }) {
+  const { t } = useTranslation();
   // The mermaid target div must ALWAYS be in the DOM so elRef is never null
   // when the useEffect fires.  We hide/show it with CSS instead of conditional
   // rendering so mermaid.run() always has a real, attached element to write into.
@@ -137,16 +139,16 @@ export function MermaidBlock({ code }: { code: string }) {
     <>
       {status === "loading" && (
         <div className="bg-muted rounded-md p-4 text-xs text-muted-foreground animate-pulse my-2">
-          Rendering diagram…
+          {t('markdown.renderingDiagram')}
         </div>
       )}
       {status === "error" && (
         <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 my-3 text-xs text-destructive">
           <span className="mt-0.5 shrink-0">⚠</span>
           <div>
-            <p className="font-medium">Invalid Mermaid syntax</p>
+            <p className="font-medium">{t('markdown.invalidMermaid')}</p>
             <p className="text-destructive/70 mt-0.5">
-              Fix the diagram code to see a preview.
+              {t('markdown.fixDiagram')}
             </p>
           </div>
         </div>

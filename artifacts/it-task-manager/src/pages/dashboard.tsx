@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { useTerminology } from "@/context/terminology-context";
 import { Link } from "wouter";
 import {
@@ -27,15 +28,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type SlaPeriod = "7d" | "30d" | "90d" | "all";
 
-const SLA_PERIOD_OPTIONS: { value: SlaPeriod; label: string; heading: string }[] = [
-  { value: "7d",  label: "7d",  heading: "Last 7 Days" },
-  { value: "30d", label: "30d", heading: "Last 30 Days" },
-  { value: "90d", label: "90d", heading: "Last 90 Days" },
-  { value: "all", label: "All",  heading: "All Time" },
+// Labels are computed inside the component using t(); this array holds i18n keys
+const SLA_PERIOD_KEYS: { value: SlaPeriod; labelKey: string; headingKey: string }[] = [
+  { value: "7d",  labelKey: "dashboard.last7d",  headingKey: "dashboard.last7dHeading" },
+  { value: "30d", labelKey: "dashboard.last30d", headingKey: "dashboard.last30dHeading" },
+  { value: "90d", labelKey: "dashboard.last90d", headingKey: "dashboard.last90dHeading" },
+  { value: "all", labelKey: "dashboard.allTime", headingKey: "dashboard.allTimeHeading" },
 ];
 
 export default function Dashboard() {
-  const { t, tSingular } = useTerminology();
+  const { t: term } = useTerminology();
+  const { t } = useTranslation();
   const [slaPeriod, setSlaPeriod] = useState<SlaPeriod>("30d");
 
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
@@ -56,10 +59,17 @@ export default function Dashboard() {
     { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: slaPeriod }), refetchInterval: 30_000, refetchOnWindowFocus: true } },
   );
 
+  const SLA_PERIOD_OPTIONS = SLA_PERIOD_KEYS.map(k => ({
+    value: k.value,
+    label: t(k.labelKey),
+    heading: t(k.headingKey),
+  }));
+
   const activePeriod = SLA_PERIOD_OPTIONS.find(o => o.value === slaPeriod)!;
 
   const hour = new Date().getHours();
-  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const greetingKey = hour < 12 ? "dashboard.greetingMorning" : hour < 18 ? "dashboard.greetingAfternoon" : "dashboard.greetingEvening";
+  const greeting = t(greetingKey) + t('dashboard.greetingSuffix');
 
   const activeProjects = projects?.filter(p => p.status === "active") ?? [];
 
@@ -77,18 +87,18 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100">System Status</h1>
-          <p className="text-stone-500 dark:text-stone-400 mt-1">{greeting}. Here's what needs your attention today.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100">{t('dashboard.title')}</h1>
+          <p className="text-stone-500 dark:text-stone-400 mt-1">{greeting}</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/projects">
             <Button variant="ghost" className="font-medium text-primary bg-primary/10 hover:bg-primary/20 border-0">
-              Manage {t("projects")}
+              {t('dashboard.manageProjects', { projects: term('projects') })}
             </Button>
           </Link>
           <Link href="/tasks">
             <Button className="font-medium bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm gap-2">
-              View All {t("tasks")}
+              {t('dashboard.viewAllTasks', { tasks: term('tasks') })}
               <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
@@ -105,9 +115,9 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Active {t("projects")}</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.activeProjects', { projects: term('projects') })}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">{summary.activeProjects}</p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Out of {summary.totalProjects} total</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.activeProjectsOutOf', { total: summary.totalProjects })}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <Briefcase className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -120,11 +130,11 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Open {t("tasks")}</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.openTasks', { tasks: term('tasks') })}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.open}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Requires attention</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.openTasksRequires')}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <LayoutGrid className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -137,11 +147,11 @@ export default function Dashboard() {
               <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Closed {t("tasks")}</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.closedTasks', { tasks: term('tasks') })}</p>
                     <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
                       {summary.tasksByStageType.closed}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">Resolved</p>
+                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.closedTasksResolved')}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
                     <CheckCircle2 className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -158,7 +168,7 @@ export default function Dashboard() {
               }`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">Overdue {t("tasks")}</p>
+                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.overdueTasks', { tasks: term('tasks') })}</p>
                     <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
                       {summary.overdueCount}
                     </p>
@@ -190,7 +200,7 @@ export default function Dashboard() {
             }`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">SLA Compliance</p>
+                  <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.slaCompliance')}</p>
                   <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${
                     slaSummary.complianceRate >= 90
                       ? "text-emerald-600 dark:text-emerald-400"
@@ -202,8 +212,8 @@ export default function Dashboard() {
                   </p>
                   <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">
                     {slaSummary.totalTracked === 0
-                      ? "No tracked tasks"
-                      : `${slaSummary.breachedCount} breached · ${activePeriod.label}`}
+                      ? t('dashboard.noTrackedTasks')
+                      : t('dashboard.breachedCount', { count: slaSummary.breachedCount, period: activePeriod.label })}
                   </p>
                 </div>
                 <div className={`w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 ${
@@ -230,7 +240,7 @@ export default function Dashboard() {
             <div className="flex items-center gap-2 min-w-0">
               <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500 shrink-0" />
               <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 truncate">
-                SLA Compliance — {activePeriod.heading}
+                {t('dashboard.slaCompliancePeriod', { period: activePeriod.heading })}
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3 shrink-0">
@@ -255,12 +265,12 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
                   {slaSummary.avgBreachMinutes != null && (
                     <span className="text-red-600 dark:text-red-400 font-medium whitespace-nowrap">
-                      Avg overshoot: {slaSummary.avgBreachMinutes >= 60
+                      {t('dashboard.avgOvershoot')} {slaSummary.avgBreachMinutes >= 60
                         ? `${Math.round(slaSummary.avgBreachMinutes / 60 * 10) / 10}h`
                         : `${Math.round(slaSummary.avgBreachMinutes)}m`}
                     </span>
                   )}
-                  <span className="whitespace-nowrap">{slaSummary.withinSlaCount} on target · {slaSummary.breachedCount} breached · {slaSummary.totalTracked} total</span>
+                  <span className="whitespace-nowrap">{slaSummary.withinSlaCount} {t('dashboard.withinSla')} · {slaSummary.breachedCount} {t('dashboard.breaches')} · {slaSummary.totalTracked} {t('common.total')}</span>
                 </div>
               )}
             </div>
@@ -300,7 +310,7 @@ export default function Dashboard() {
                       />
                     </div>
                     <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
-                      {p.breachedCount > 0 ? `${p.breachedCount} breached` : "No breaches"} · {p.totalTracked} total
+                      {p.breachedCount > 0 ? `${p.breachedCount} ${t('dashboard.breaches')}` : t('dashboard.noBreaches')} · {p.totalTracked} {t('common.total')}
                     </p>
                   </div>
                   </Link>
@@ -310,7 +320,7 @@ export default function Dashboard() {
           ) : (
             <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm flex flex-col items-center gap-2">
               <ShieldCheck className="w-7 h-7 opacity-30" />
-              <p>No SLA data for this period. Select a different window above.</p>
+              <p>{t('dashboard.noSlaData')}</p>
             </div>
           )}
         </div>
@@ -328,12 +338,12 @@ export default function Dashboard() {
               <div className="px-6 py-5 border-b border-red-100 dark:border-red-900/60 flex items-center justify-between bg-red-50/40 dark:bg-red-950/20">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
-                  <h2 className="text-lg font-semibold text-red-900 dark:text-red-300">SLA Breached</h2>
+                  <h2 className="text-lg font-semibold text-red-900 dark:text-red-300">{t('dashboard.slaBreached')}</h2>
                   <span className="ml-1 text-xs font-medium px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-400">
                     {slaBreachedTasks.length}
                   </span>
                 </div>
-                <p className="text-sm text-stone-400 dark:text-stone-500">Resolution time exceeded</p>
+                <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.resolutionTimeExceeded')}</p>
               </div>
               <div className="divide-y divide-stone-100 dark:divide-stone-800">
                 {slaBreachedTasks.slice(0, 5).map(task => (
@@ -349,7 +359,7 @@ export default function Dashboard() {
                           </h3>
                         </Link>
                         <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
-                          <span>{task.projectName || "Unassigned"}</span>
+                          <span>{task.projectName || t('common.unassigned')}</span>
                         </div>
                       </div>
                     </div>
@@ -374,9 +384,9 @@ export default function Dashboard() {
             <div className="px-6 py-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-rose-50/40 dark:bg-rose-950/20">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-300">Attention Required</h2>
+                <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-300">{t('dashboard.attentionRequired')}</h2>
               </div>
-              <p className="text-sm text-stone-400 dark:text-stone-500">Overdue or critical priority tasks</p>
+              <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.overdueOrCritical')}</p>
             </div>
 
             {isLoadingOverdue ? (
@@ -399,16 +409,16 @@ export default function Dashboard() {
                           </h3>
                         </Link>
                         <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                          <span className="text-xs">{task.projectName || "Unassigned"}</span>
+                          <span className="text-xs">{task.projectName || t('common.unassigned')}</span>
                           <span>·</span>
                           {task.dueDate ? (
                             <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs">
                               <Clock className="w-3 h-3" />
-                              Due {formatDate(task.dueDate)}
+                              {t('dashboard.dueOn', { date: formatDate(task.dueDate) })}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
-                              Critical priority
+                              {t('dashboard.criticalPriority')}
                             </span>
                           )}
                         </div>
@@ -424,7 +434,7 @@ export default function Dashboard() {
             ) : (
               <div className="p-10 text-center text-stone-400 dark:text-stone-500 flex flex-col items-center gap-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-500 opacity-60" />
-                <p className="text-sm">No overdue or critical tasks. System nominal.</p>
+                <p className="text-sm">{t('dashboard.noOverdueTasks')}</p>
               </div>
             )}
           </div>
@@ -433,8 +443,8 @@ export default function Dashboard() {
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Active {t("projects")}</h2>
-                <p className="text-sm text-stone-400 dark:text-stone-500">Ongoing operational streams</p>
+                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">{t('dashboard.activeProjectsSection', { projects: term('projects') })}</h2>
+                <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.ongoingStreams')}</p>
               </div>
               <Link href="/projects">
                 <button className="p-2 text-stone-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors">
@@ -465,7 +475,7 @@ export default function Dashboard() {
                         </div>
                         <div className="mb-3">
                           <div className="flex justify-between text-xs mb-1.5">
-                            <span className="text-stone-500 dark:text-stone-400 font-medium">Progress</span>
+                            <span className="text-stone-500 dark:text-stone-400 font-medium">{t('common.progress')}</span>
                             <span className="text-stone-700 dark:text-stone-300 font-bold">{progress}%</span>
                           </div>
                           <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
@@ -476,8 +486,8 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50">
-                          <span>{project.completedTaskCount || 0}/{project.taskCount || 0} {t("tasks").toLowerCase()}</span>
-                          <span>{progress}% complete</span>
+                          <span>{t('dashboard.tasksCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0, tasks: term('tasks').toLowerCase() })}</span>
+                          <span>{progress}% {t('common.complete')}</span>
                         </div>
                       </div>
                     </Link>
@@ -486,7 +496,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
-                No active {t("projects").toLowerCase()}.
+                {t('dashboard.noActiveProjects', { projects: term('projects').toLowerCase() })}
               </div>
             )}
           </div>
@@ -496,7 +506,7 @@ export default function Dashboard() {
         <div className="lg:col-span-1">
           <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6 sticky top-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">Activity Log</h2>
+              <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">{t('dashboard.activityLog')}</h2>
               <Activity className="w-5 h-5 text-stone-400 dark:text-stone-500" />
             </div>
 
@@ -541,14 +551,14 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
-                No recent activity.
+                {t('dashboard.noRecentActivity')}
               </div>
             )}
 
             {activity && activity.length > 0 && (
               <Link href="/tasks">
                 <button className="w-full mt-8 py-2.5 text-sm font-medium text-primary bg-primary/5 hover:bg-primary/10 rounded-xl transition-colors">
-                  View All {t("tasks")}
+                  {t('dashboard.viewAllTasks', { tasks: term('tasks') })}
                 </button>
               </Link>
             )}

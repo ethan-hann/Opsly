@@ -1,4 +1,6 @@
 import { formatDistanceToNow } from "date-fns";
+import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 import { FileText, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -25,8 +27,11 @@ function stripHtml(html: string): string {
 }
 
 export function NoteCard({ note, isSelected, projectName, taskTitle, onClick, onDelete }: NoteCardProps) {
+  const { t, i18n } = useTranslation();
+  const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
+  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? dateFnsLocaleMap[i18n.language?.split('-')[0]] ?? enUS;
   const canDelete = note.isOwner;
-  const preview = stripHtml(note.content).slice(0, 120) || "No content yet";
+  const preview = stripHtml(note.content).slice(0, 120) || t('notes.noContentYet');
   const linkedTo = taskTitle ?? projectName;
 
   return (
@@ -56,7 +61,7 @@ export function NoteCard({ note, isSelected, projectName, taskTitle, onClick, on
       <p className="text-xs text-muted-foreground line-clamp-2 pl-5">{preview}</p>
       <div className="flex items-center gap-2 pl-5">
         <span className="text-xs text-muted-foreground/60">
-          {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
+          {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true, locale: dateFnsLocale })}
         </span>
         {linkedTo && (
           <>

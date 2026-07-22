@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/context/terminology-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -59,24 +60,31 @@ interface EditTaskModalProps {
 }
 
 
-const PRIORITY_OPTIONS: { value: TaskInputPriority; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "critical", label: "Critical" },
-];
+function getPriorityOptions(t: (k: string) => string): { value: TaskInputPriority; label: string }[] {
+  return [
+    { value: "low", label: t('tasks.priorityLow') },
+    { value: "medium", label: t('tasks.priorityMedium') },
+    { value: "high", label: t('tasks.priorityHigh') },
+    { value: "critical", label: t('tasks.priorityCritical') },
+  ];
+}
 
-const CATEGORY_OPTIONS: { value: TaskInputCategory; label: string }[] = [
-  { value: "incident", label: "Incident" },
-  { value: "change", label: "Change" },
-  { value: "maintenance", label: "Maintenance" },
-  { value: "deployment", label: "Deployment" },
-  { value: "support", label: "Support" },
-  { value: "other", label: "Other" },
-];
+function getCategoryOptions(t: (k: string) => string): { value: TaskInputCategory; label: string }[] {
+  return [
+    { value: "incident", label: t('tasks.categoryIncident') },
+    { value: "change", label: t('tasks.categoryChange') },
+    { value: "maintenance", label: t('tasks.categoryMaintenance') },
+    { value: "deployment", label: t('tasks.categoryDeployment') },
+    { value: "support", label: t('tasks.categorySupport') },
+    { value: "other", label: t('tasks.categoryOther') },
+  ];
+}
 
 export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) {
   const { tSingular } = useTerminology();
+  const { t } = useTranslation();
+  const priorityOptions = getPriorityOptions(t);
+  const categoryOptions = getCategoryOptions(t);
   const queryClient = useQueryClient();
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { hasPermission } = useOrgContext();
@@ -152,11 +160,11 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
-          toast({ title: "Task updated" });
+          toast({ title: t("taskDetail.editTask", { task: tSingular("tasks") }) });
           onOpenChange(false);
         },
         onError: () => {
-          toast({ title: "Error", description: "Failed to update task.", variant: "destructive" });
+          toast({ title: t("common.error"), description: t("tasks.failedToUpdate"), variant: "destructive" });
         },
       }
     );
@@ -166,11 +174,11 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
-          <DialogTitle>Edit {tSingular("tasks")}</DialogTitle>
+          <DialogTitle>{t("taskDetail.editTask", { task: tSingular("tasks") })}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="space-y-1">
-            <Label htmlFor="edit-task-title">Title <span className="text-destructive">*</span></Label>
+            <Label htmlFor="edit-task-title">{t("common.name")} <span className="text-destructive">*</span></Label>
             <Input
               id="edit-task-title"
               value={title}
@@ -180,23 +188,23 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           </div>
 
           <div className="space-y-1">
-            <Label>Description</Label>
+            <Label>{t("common.description")}</Label>
             <MarkdownEditor
               value={description}
               onChange={setDescription}
-              placeholder="Optional details, runbook steps..."
+              placeholder={t("tasks.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
             />
           </div>
 
           <div className="space-y-1">
-            <Label>Project</Label>
+            <Label>{t("tasks.filterByProject")}</Label>
             <Select value={projectId} onValueChange={setProjectId}>
               <SelectTrigger>
-                <SelectValue placeholder="No project" />
+                <SelectValue placeholder={t("taskDetail.noProject")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">No project</SelectItem>
+                <SelectItem value="none">{t("taskDetail.noProject")}</SelectItem>
                 {projects?.map(p => (
                   <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
                 ))}
@@ -206,7 +214,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
 
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1">
-              <Label>Status</Label>
+              <Label>{t("common.status")}</Label>
               {/* Read-only when task is in a closed stage and user lacks close_tasks */}
               {!canClose && task.stageType === 'closed' ? (
                 <div className="h-9 px-3 py-2 text-sm rounded-md border border-input bg-muted text-muted-foreground flex items-center">
@@ -229,22 +237,22 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
               )}
             </div>
             <div className="space-y-1">
-              <Label>Priority</Label>
+              <Label>{t("common.priority")}</Label>
               <Select value={priority} onValueChange={(v) => setPriority(v as TaskInputPriority)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {PRIORITY_OPTIONS.map(o => (
+                  {priorityOptions.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Category</Label>
+              <Label>{t("tasks.filterByCategory")}</Label>
               <Select value={category} onValueChange={(v) => setCategory(v as TaskInputCategory)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_OPTIONS.map(o => (
+                  {categoryOptions.map(o => (
                     <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                   ))}
                 </SelectContent>
@@ -254,7 +262,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Assignee</Label>
+              <Label>{t("common.assignee")}</Label>
               <AssigneeCombobox
                 value={assignee}
                 onChange={(v) => { setAssignee(v); setErrors(prev => ({ ...prev, assignee: "" })); }}
@@ -263,7 +271,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="edit-task-due">Due Date</Label>
+              <Label htmlFor="edit-task-due">{t("common.dueDate")}</Label>
               <Input
                 id="edit-task-due"
                 type="date"
@@ -281,10 +289,10 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : "Save Changes"}
+              {isPending ? t("common.saving") : t("common.save")}
             </Button>
           </DialogFooter>
         </form>

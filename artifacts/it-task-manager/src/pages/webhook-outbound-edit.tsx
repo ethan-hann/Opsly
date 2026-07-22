@@ -1,4 +1,9 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
+import { formatDistanceToNow } from 'date-fns';
+import { enUS, es, fr, de, pt, ja, zhCN, ar, type Locale } from 'date-fns/locale';
+
+const dateFnsLocaleMap: Record<string, Locale> = { en: enUS, es, fr, de, pt, ja, zh: zhCN, ar };
 import { useLocation } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -60,28 +65,26 @@ import type { OutboundWebhookDelivery } from "@workspace/api-client-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-const ALL_EVENTS = [
-  { value: "task.created", label: "Task created" },
-  { value: "task.updated", label: "Task updated" },
-  { value: "task.status_changed", label: "Task status changed" },
-  { value: "task.assigned", label: "Task assigned" },
-  { value: "task.commented", label: "Task commented" },
-  { value: "task.sla_breached", label: "Task SLA breached" },
-  { value: "task.sla_warning", label: "Task SLA warning (approaching deadline)" },
-  { value: "task.deleted", label: "Task deleted" },
-  { value: "task.watcher_added", label: "Task watcher added" },
-  { value: "task.watcher_removed", label: "Task watcher removed" },
-  { value: "project.created", label: "Project created" },
-  { value: "project.updated", label: "Project updated" },
-  { value: "project.deleted", label: "Project deleted" },
-  { value: "member.joined", label: "Member joined" },
-  { value: "member.removed", label: "Member removed" },
-  { value: "note.created", label: "Note created" },
-  { value: "note.updated", label: "Note updated" },
-  { value: "note.deleted", label: "Note deleted" },
+const ALL_EVENT_VALUES = [
+  "task.created", "task.updated", "task.status_changed", "task.assigned",
+  "task.commented", "task.sla_breached", "task.sla_warning", "task.deleted",
+  "task.watcher_added", "task.watcher_removed", "project.created",
+  "project.updated", "project.deleted", "member.joined", "member.removed",
+  "note.created", "note.updated", "note.deleted",
 ] as const;
+type EventValue = (typeof ALL_EVENT_VALUES)[number];
 
-type EventValue = (typeof ALL_EVENTS)[number]["value"];
+function getEventLabel(value: EventValue, t: (key: string) => string): string {
+  return t(`webhooks.event.${value.replace(/\./g, '_')}`);
+}
+
+function getVisibilityOptions(t: (key: string) => string): { value: WebhookVisibility; label: string }[] {
+  return [
+    { value: "private" as WebhookVisibility, label: t('webhooks.visibility.private') },
+    { value: "public_read" as WebhookVisibility, label: t('webhooks.visibility.public_read') },
+    { value: "public_write" as WebhookVisibility, label: t('webhooks.visibility.public_write_out') },
+  ];
+}
 
 const EVENT_PARENTS: Partial<Record<EventValue, EventValue[]>> = {
   "task.status_changed": ["task.updated"],
@@ -105,12 +108,6 @@ function getOverlappingPairs(selected: EventValue[]): Array<[EventValue, EventVa
   return pairs;
 }
 
-const VISIBILITY_OPTIONS: { value: WebhookVisibility; label: string }[] = [
-  { value: "private", label: "Private (only me)" },
-  { value: "public_read", label: "Shared — org members can view" },
-  { value: "public_write", label: "Public — org members can view & use" },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatDuration(ms: number): string {
@@ -118,19 +115,11 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function formatTimeAgoShort(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60_000);
-  if (m < 1) return "just now";
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  return `${Math.floor(h / 24)}d ago`;
-}
-
 // ─── Delivery log ─────────────────────────────────────────────────────────────
 
 function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
+  const { t, i18n } = useTranslation();
+  const dateFnsLocale = dateFnsLocaleMap[i18n.language] ?? enUS;
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="text-xs border-b border-border/30 last:border-0">
@@ -153,7 +142,7 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
           {formatDuration(d.durationMs)}
         </span>
         <span className="text-muted-foreground shrink-0 w-16 text-right">
-          {formatTimeAgoShort(d.createdAt)}
+          {formatDistanceToNow(new Date(d.createdAt), { addSuffix: true, locale: dateFnsLocale })}
         </span>
         {expanded ? (
           <ChevronUp className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -164,19 +153,19 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
       {expanded && (
         <div className="px-3 pb-2 space-y-1 text-muted-foreground bg-muted/20">
           <div className="flex gap-2">
-            <span className="font-medium text-foreground/60 w-16 shrink-0">URL</span>
+            <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryUrl')}</span>
             <code className="truncate">{d.url}</code>
           </div>
           {d.error && (
             <div className="flex gap-2">
-              <span className="font-medium text-foreground/60 w-16 shrink-0">Error</span>
+              <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryError')}</span>
               <span className="text-destructive break-all">{d.error}</span>
             </div>
           )}
           <div className="flex gap-2">
-            <span className="font-medium text-foreground/60 w-16 shrink-0">Status</span>
+            <span className="font-medium text-foreground/60 w-16 shrink-0">{t('webhooks.deliveryStatus')}</span>
             <span>
-              {d.success ? "Success" : "Failed"} · {formatDuration(d.durationMs)}
+              {d.success ? t('webhooks.deliverySuccess') : t('webhooks.deliveryFailed')} · {formatDuration(d.durationMs)}
             </span>
           </div>
         </div>
@@ -186,14 +175,15 @@ function DeliveryRow({ d }: { d: OutboundWebhookDelivery }) {
 }
 
 function DeliveryLogPanel({ webhookId }: { webhookId: number }) {
+  const { t } = useTranslation();
   const { data: deliveries, isFetching } = useListOutboundWebhookDeliveries(webhookId);
   return (
     <div className="rounded-md border border-border/50 overflow-hidden bg-card">
       {isFetching && !deliveries ? (
-        <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+        <p className="text-xs text-muted-foreground text-center py-4">{t('webhooks.deliveryLoading')}</p>
       ) : !deliveries || deliveries.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-6">
-          No deliveries yet. They appear here after the next matching event fires.
+          {t('webhooks.noDeliveries')}
         </p>
       ) : (
         <div>
@@ -214,6 +204,9 @@ export default function WebhookOutboundEditPage({
   params: { id: string };
 }) {
   const [, setLocation] = useLocation();
+  const { t } = useTranslation();
+  const ALL_EVENTS = ALL_EVENT_VALUES.map(value => ({ value, label: getEventLabel(value, t) }));
+  const VISIBILITY_OPTIONS = getVisibilityOptions(t);
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -308,11 +301,11 @@ export default function WebhookOutboundEditPage({
     mutation: {
       onSuccess: (created) => {
         qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Outbound webhook created" });
+        toast({ title: t('webhooks.outboundCreated', 'Outbound webhook created') });
         setLocation(`/webhooks/outbound/${created.id}`);
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -320,10 +313,10 @@ export default function WebhookOutboundEditPage({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Webhook updated" });
+        toast({ title: t('webhooks.updated', 'Webhook updated') });
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -331,11 +324,11 @@ export default function WebhookOutboundEditPage({
     mutation: {
       onSuccess: () => {
         qc.invalidateQueries({ queryKey: getListOutboundWebhooksQueryKey() });
-        toast({ title: "Webhook deleted" });
+        toast({ title: t('webhooks.deleted', 'Webhook deleted') });
         setLocation("/webhooks");
       },
       onError: (e: Error) =>
-        toast({ title: "Error", description: e.message, variant: "destructive" }),
+        toast({ title: t('common.error'), description: e.message, variant: "destructive" }),
     },
   });
 
@@ -374,11 +367,10 @@ export default function WebhookOutboundEditPage({
     return (
       <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
         <p className="text-muted-foreground">
-          Webhook not found. It may have been deleted or doesn't belong to your
-          organization.
+          {t('webhooks.notFound', "Webhook not found. It may have been deleted or doesn't belong to your organization.")}
         </p>
         <Button variant="outline" onClick={() => setLocation("/webhooks")}>
-          ← Back to Webhooks
+          ← {t('webhooks.backToWebhooks', 'Back to Webhooks')}
         </Button>
       </div>
     );
@@ -398,7 +390,7 @@ export default function WebhookOutboundEditPage({
           onClick={() => setLocation("/webhooks")}
         >
           <ArrowLeft className="w-4 h-4" />
-          Webhooks
+          {t('webhooks.title')}
         </Button>
       </div>
 
@@ -407,16 +399,16 @@ export default function WebhookOutboundEditPage({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight">
-              {isNew ? "New outbound webhook" : (existing?.name ?? "Outbound webhook")}
+              {isNew ? t('webhooks.newOutbound', 'New outbound webhook') : (existing?.name ?? t('webhooks.outboundWebhook', 'Outbound webhook'))}
             </h1>
             {existing && (
-              <Badge variant="secondary" className="text-xs">Outbound</Badge>
+              <Badge variant="secondary" className="text-xs">{t('webhooks.outboundBadge', 'Outbound')}</Badge>
             )}
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {isNew
-              ? "Opsly will POST signed event payloads to your endpoint when tasks or projects change."
-              : "Opsly POSTs signed event payloads to this endpoint when matching events fire."}
+              ? t('webhooks.outboundNewDesc', 'Opsly will POST signed event payloads to your endpoint when tasks or projects change.')
+              : t('webhooks.outboundExistingDesc', 'Opsly POSTs signed event payloads to this endpoint when matching events fire.')}
           </p>
         </div>
 
@@ -430,24 +422,24 @@ export default function WebhookOutboundEditPage({
                 disabled={isPending}
               >
                 <Trash2 className="w-4 h-4" />
-                Delete
+                {t('common.delete')}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Delete webhook?</AlertDialogTitle>
+                <AlertDialogTitle>{t('webhooks.deleteWebhookConfirm')}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Opsly will stop sending events to{" "}
+                  {t('webhooks.outboundDeleteDesc', 'Opsly will stop sending events to')}{" "}
                   <strong>{existing.url}</strong>.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
                 <AlertDialogAction
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   onClick={() => deleteHook({ id: existing.id })}
                 >
-                  Delete
+                  {t('common.delete')}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -460,7 +452,7 @@ export default function WebhookOutboundEditPage({
         <div className="flex items-center gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-sm text-amber-800 dark:text-amber-300">
           <ShieldAlert className="w-4 h-4 shrink-0" />
           <span>
-            You can view this webhook but not edit it — only its owner can make changes.
+            {t('webhooks.readOnlyBanner', "You can view this webhook but not edit it — only its owner can make changes.")}
           </span>
         </div>
       )}
@@ -470,7 +462,7 @@ export default function WebhookOutboundEditPage({
         <Card>
           <CardContent className="py-4 space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-sm">Signing secret</Label>
+              <Label className="text-sm">{t('webhooks.signingSecretLabel')}</Label>
             </div>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-xs bg-muted px-3 py-2 rounded-md break-all">
@@ -482,17 +474,17 @@ export default function WebhookOutboundEditPage({
                 className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={() => {
                   navigator.clipboard.writeText(existing.secret).catch(() => {});
-                  toast({ title: "Copied to clipboard" });
+                  toast({ title: t('webhooks.copied') });
                 }}
-                title="Copy signing secret"
+                title={t('webhooks.copySigningSecret')}
               >
                 <Copy className="w-4 h-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Verify incoming requests by checking the{" "}
-              <code className="bg-muted px-1 rounded">X-Opsly-Signature</code> header
-              (HMAC-SHA256 of the raw body signed with this secret).
+              {t('webhooks.signingInfoPre')}{" "}
+              <code className="bg-muted px-1 rounded">X-Opsly-Signature</code>{" "}
+              {t('webhooks.signingInfoPost')}
             </p>
           </CardContent>
         </Card>
@@ -503,13 +495,13 @@ export default function WebhookOutboundEditPage({
         {/* Basic settings */}
         <Card>
           <CardContent className="py-5 space-y-5">
-            <h2 className="text-sm font-semibold">Settings</h2>
+            <h2 className="text-sm font-semibold">{t('webhooks.settingsHeading')}</h2>
 
             <div className="space-y-1.5">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('webhooks.nameLabel')}</Label>
               <Input
                 id="name"
-                placeholder="Slack notifications"
+                placeholder={t('webhooks.egWebhookNameOutbound')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -518,11 +510,11 @@ export default function WebhookOutboundEditPage({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="target-url">Target URL</Label>
+              <Label htmlFor="target-url">{t('webhooks.targetUrlLabel')}</Label>
               <div className="flex gap-2">
                 <Input
                   id="target-url"
-                  placeholder="https://hooks.slack.com/services/..."
+                  placeholder={t('webhooks.egTargetUrl')}
                   value={url}
                   onChange={(e) => {
                     setUrl(e.target.value);
@@ -547,14 +539,14 @@ export default function WebhookOutboundEditPage({
                     ) : (
                       <ArrowUpRight className="w-3.5 h-3.5" />
                     )}
-                    Send test
+                    {t('webhooks.sendTest')}
                   </Button>
                 )}
               </div>
               {testState.status === "success" && (
                 <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  {testState.statusCode} · {testState.durationMs}ms — endpoint reachable
+                  {testState.statusCode} · {testState.durationMs}ms — {t('webhooks.endpointReachable')}
                 </p>
               )}
               {testState.status === "error" && (
@@ -568,17 +560,17 @@ export default function WebhookOutboundEditPage({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label>Project filter (optional)</Label>
+                <Label>{t('webhooks.projectFilterLabel')}</Label>
                 <Select
                   value={projectId?.toString() ?? "__none__"}
                   onValueChange={(v) => setProjectId(v === "__none__" ? null : Number(v))}
                   disabled={readOnly || isPending}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="No project" />
+                    <SelectValue placeholder={t('webhooks.noProject')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">No project</SelectItem>
+                    <SelectItem value="__none__">{t('webhooks.noProject')}</SelectItem>
                     {projectOptions.map((p) => (
                       <SelectItem key={p.id} value={p.id.toString()}>
                         {p.name}
@@ -589,7 +581,7 @@ export default function WebhookOutboundEditPage({
               </div>
 
               <div className="space-y-1.5">
-                <Label>Visibility</Label>
+                <Label>{t('webhooks.visibilityLabel')}</Label>
                 <Select
                   value={visibility}
                   onValueChange={(v) => setVisibility(v as WebhookVisibility)}
@@ -610,7 +602,7 @@ export default function WebhookOutboundEditPage({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="out-enabled">Enabled</Label>
+              <Label htmlFor="out-enabled">{t('webhooks.enabledLabel')}</Label>
               <div className="flex items-center gap-2">
                 <Switch
                   id="out-enabled"
@@ -619,7 +611,7 @@ export default function WebhookOutboundEditPage({
                   disabled={readOnly || isPending}
                 />
                 <span className="text-sm text-muted-foreground">
-                  {enabled ? "Active — events will be delivered" : "Disabled — no events delivered"}
+                  {enabled ? t('webhooks.activeDelivery', 'Active — events will be delivered') : t('webhooks.disabledDelivery', 'Disabled — no events delivered')}
                 </span>
               </div>
             </div>
@@ -629,25 +621,22 @@ export default function WebhookOutboundEditPage({
         {/* Events */}
         <Card>
           <CardContent className="py-5 space-y-4">
-            <h2 className="text-sm font-semibold">Events</h2>
+            <h2 className="text-sm font-semibold">{t('webhooks.eventsHeading')}</h2>
 
             <div className="flex gap-2.5 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40 px-3 py-2.5 text-xs text-blue-800 dark:text-blue-300 leading-relaxed">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <div className="space-y-1">
-                <p className="font-medium">One action can fire multiple events</p>
+                <p className="font-medium">{t('webhooks.oneActionMultiple')}</p>
                 <p>
-                  Some events are sub-events of a broader parent. For example,
-                  changing a task's status fires both{" "}
+                  {t('webhooks.subEventsDescPre')}{" "}
                   <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">
                     task.updated
                   </code>{" "}
-                  and{" "}
+                  {t('webhooks.subEventsDescMid')}{" "}
                   <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">
                     task.status_changed
                   </code>
-                  . Similarly, note events also fire a parent event. If you subscribe
-                  to both a parent and its sub-event, your endpoint will receive two
-                  requests for the same action. Select only the broadest event you need.
+                  {t('webhooks.subEventsDescPost')}
                 </p>
               </div>
             </div>
@@ -680,7 +669,7 @@ export default function WebhookOutboundEditPage({
                       <span>{ev.label}</span>
                       {isChild && (
                         <span className="text-[10px] text-muted-foreground font-normal">
-                          also fires {EVENT_PARENTS[ev.value]!.join(" / ")}
+                          {t('webhooks.alsoFires')} {EVENT_PARENTS[ev.value]!.join(" / ")}
                         </span>
                       )}
                     </span>
@@ -694,30 +683,30 @@ export default function WebhookOutboundEditPage({
               <div className="flex gap-2.5 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                 <div className="space-y-1">
-                  <p className="font-medium">Overlapping events selected</p>
+                  <p className="font-medium">{t('webhooks.overlappingEvents')}</p>
                   <ul className="list-disc list-inside space-y-0.5">
                     {overlaps.map(([parent, child]) => (
                       <li key={child}>
                         <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
                           {parent}
                         </code>{" "}
-                        already includes{" "}
+                        {t('webhooks.alreadyIncludes')}{" "}
                         <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
                           {child}
                         </code>{" "}
-                        — your endpoint will receive two requests per action.
+                        — {t('webhooks.doubleProcessing')}
                       </li>
                     ))}
                   </ul>
                   <p>
-                    Consider removing the sub-event(s) to avoid double-processing.
+                    {t('webhooks.removeSubEvents')}
                   </p>
                 </div>
               </div>
             )}
 
             {events.length === 0 && !readOnly && (
-              <p className="text-xs text-destructive">Select at least one event.</p>
+              <p className="text-xs text-destructive">{t('webhooks.selectAtLeastOneEvent', 'Select at least one event.')}</p>
             )}
           </CardContent>
         </Card>
@@ -731,7 +720,7 @@ export default function WebhookOutboundEditPage({
               onClick={() => setLocation("/webhooks")}
               disabled={isPending}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -740,12 +729,12 @@ export default function WebhookOutboundEditPage({
               {isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Saving…
+                  {t('common.saving')}
                 </>
               ) : isNew ? (
-                "Create webhook"
+                t('webhooks.createWebhook', 'Create webhook')
               ) : (
-                "Save changes"
+                t('webhooks.saveChanges', 'Save changes')
               )}
             </Button>
           </div>
@@ -757,7 +746,7 @@ export default function WebhookOutboundEditPage({
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">Recent deliveries</h2>
+            <h2 className="text-sm font-semibold">{t('webhooks.recentDeliveries')}</h2>
           </div>
           <DeliveryLogPanel webhookId={existing.id} />
         </div>

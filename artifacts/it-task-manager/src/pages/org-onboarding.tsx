@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { useCreateOrg } from "@workspace/api-client-react";
 import { Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,17 +13,18 @@ interface OrgOnboardingProps {
 }
 
 export default function OrgOnboarding({ onCreated }: OrgOnboardingProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const { toast } = useToast();
   const { mutate: createOrg, isPending } = useCreateOrg({
     mutation: {
       onSuccess: () => {
-        toast({ title: "Organization created", description: "Welcome to your new workspace!" });
+        toast({ title: t('orgOnboarding.created'), description: t('orgOnboarding.createdDesc') });
         onCreated();
       },
       onError: (err: Error) => {
         toast({
-          title: "Failed to create organization",
+          title: t('orgOnboarding.createFailed'),
           description: err.message,
           variant: "destructive",
         });
@@ -46,24 +48,24 @@ export default function OrgOnboarding({ onCreated }: OrgOnboardingProps) {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Opsly</h1>
-            <p className="text-muted-foreground text-sm mt-1">Track incidents, manage deployments, and coordinate projects</p>
+            <p className="text-muted-foreground text-sm mt-1">{t('orgOnboarding.tagline')}</p>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Create your organization</CardTitle>
+            <CardTitle>{t('orgOnboarding.createOrg')}</CardTitle>
             <CardDescription>
-              Set up a workspace for your team. You'll be able to invite members after creation.
+              {t('orgOnboarding.createOrgDesc')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="org-name">Organization name</Label>
+                <Label htmlFor="org-name">{t('orgOnboarding.orgName')}</Label>
                 <Input
                   id="org-name"
-                  placeholder="e.g. Acme IT Operations"
+                  placeholder={t('orgOnboarding.orgNamePlaceholder')}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus
@@ -76,7 +78,7 @@ export default function OrgOnboarding({ onCreated }: OrgOnboardingProps) {
                 className="w-full"
                 disabled={isPending || !name.trim()}
               >
-                {isPending ? "Creating…" : "Create organization"}
+                {isPending ? t('orgOnboarding.creating') : t('orgOnboarding.createButton')}
               </Button>
             </form>
           </CardContent>

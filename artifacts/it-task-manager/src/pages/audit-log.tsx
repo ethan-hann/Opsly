@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from "wouter";
 import { useGetOrgAuditLog, type AuditEvent } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
@@ -33,16 +34,19 @@ const CATEGORY_VARIANT: Record<AuditCategory, "default" | "secondary" | "outline
   task: "default",
 };
 
-const CATEGORY_LABEL: Record<AuditCategory, string> = {
-  member: "Member",
-  project: "Project",
-  webhook: "Webhook",
-  role: "Role",
-  settings: "Settings",
-  custom_field: "Custom Field",
-  workflow: "Workflow",
-  task: "Task",
-};
+function getCategoryLabel(t: (k: string) => string, cat: AuditCategory): string {
+  const map: Record<AuditCategory, string> = {
+    member: t('auditLog.categoryMember'),
+    project: t('auditLog.categoryProject'),
+    webhook: t('auditLog.categoryWebhook'),
+    role: t('auditLog.categoryRole'),
+    settings: t('auditLog.categorySettings'),
+    custom_field: t('auditLog.categoryCustomField'),
+    workflow: t('auditLog.categoryWorkflow'),
+    task: t('auditLog.categoryTask'),
+  };
+  return map[cat] ?? cat;
+}
 
 // ─── URL filter helpers ───────────────────────────────────────────────────────
 //
@@ -74,13 +78,15 @@ function useAuditFilters() {
 // ─── Access denied ────────────────────────────────────────────────────────────
 
 function AccessDenied() {
+  const { t } = useTranslation();
   return (
     <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
       <AlertTriangle className="w-12 h-12 text-muted-foreground/40" />
-      <h2 className="text-lg font-semibold">Access Denied</h2>
+      <h2 className="text-lg font-semibold">{t('auditLog.accessDenied')}</h2>
       <p className="text-sm text-muted-foreground max-w-sm">
-        You don't have permission to view the audit log. Contact your org owner to request the{" "}
-        <code className="text-xs bg-muted px-1 py-0.5 rounded">view_audit_log</code> permission.
+        {t('auditLog.accessDeniedDescPre')}{" "}
+        <code className="text-xs bg-muted px-1 py-0.5 rounded">view_audit_log</code>{" "}
+        {t('auditLog.accessDeniedDescPost')}
       </p>
     </div>
   );
@@ -97,6 +103,7 @@ export default function AuditLogPage() {
 // ─── Content ──────────────────────────────────────────────────────────────────
 
 function AuditLogContent() {
+  const { t } = useTranslation();
   const { from, to, actor, category, setFilter, clearFilters } = useAuditFilters();
 
   // allEvents accumulates across Load More presses.
@@ -188,21 +195,21 @@ function AuditLogContent() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Audit Log</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('auditLog.title')}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Unified feed of org-level and task-level changes.
+            {t('auditLog.filter')}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={handleRefresh} disabled={isFetching || loadingMore}>
           <RefreshCw className={`w-4 h-4 mr-2 ${isFetching ? "animate-spin" : ""}`} />
-          Refresh
+          {t('common.refresh')}
         </Button>
       </div>
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="flex flex-col gap-1 min-w-[140px]">
-          <label className="text-xs font-medium text-muted-foreground">From</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('auditLog.timestamp')}</label>
           <Input
             type="date"
             value={from}
@@ -211,7 +218,7 @@ function AuditLogContent() {
           />
         </div>
         <div className="flex flex-col gap-1 min-w-[140px]">
-          <label className="text-xs font-medium text-muted-foreground">To</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('auditLog.timestamp')}</label>
           <Input
             type="date"
             value={to}
@@ -220,33 +227,33 @@ function AuditLogContent() {
           />
         </div>
         <div className="flex flex-col gap-1 min-w-[180px]">
-          <label className="text-xs font-medium text-muted-foreground">Actor</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('auditLog.actor')}</label>
           <Input
-            placeholder="Search by name…"
+            placeholder={t('common.search') + "..."}
             value={actor}
             onChange={(e) => handleFilterChange("actor", e.target.value)}
             className="h-8 text-sm"
           />
         </div>
         <div className="flex flex-col gap-1 min-w-[160px]">
-          <label className="text-xs font-medium text-muted-foreground">Category</label>
+          <label className="text-xs font-medium text-muted-foreground">{t('auditLog.filter')}</label>
           <Select
             value={category || "all"}
             onValueChange={(v) => handleFilterChange("category", v === "all" ? "" : v)}
           >
             <SelectTrigger className="h-8 text-sm">
-              <SelectValue placeholder="All categories" />
+              <SelectValue placeholder={t('auditLog.categoryAll')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All categories</SelectItem>
-              <SelectItem value="member">Member</SelectItem>
-              <SelectItem value="project">Project</SelectItem>
-              <SelectItem value="webhook">Webhook</SelectItem>
-              <SelectItem value="role">Role</SelectItem>
-              <SelectItem value="settings">Settings</SelectItem>
-              <SelectItem value="custom_field">Custom Field</SelectItem>
-              <SelectItem value="workflow">Workflow</SelectItem>
-              <SelectItem value="task">Task</SelectItem>
+              <SelectItem value="all">{t('auditLog.categoryAll')}</SelectItem>
+              <SelectItem value="member">{t('auditLog.categoryMember')}</SelectItem>
+              <SelectItem value="project">{t('auditLog.categoryProject')}</SelectItem>
+              <SelectItem value="webhook">{t('auditLog.categoryWebhook')}</SelectItem>
+              <SelectItem value="role">{t('auditLog.categoryRole')}</SelectItem>
+              <SelectItem value="settings">{t('auditLog.categorySettings')}</SelectItem>
+              <SelectItem value="custom_field">{t('auditLog.categoryCustomField')}</SelectItem>
+              <SelectItem value="workflow">{t('auditLog.categoryWorkflow')}</SelectItem>
+              <SelectItem value="task">{t('auditLog.categoryTask')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -257,7 +264,7 @@ function AuditLogContent() {
             className="h-8 text-xs text-muted-foreground"
             onClick={handleClearFilters}
           >
-            Clear filters
+            {t('common.clear')}
           </Button>
         )}
       </div>
@@ -270,9 +277,9 @@ function AuditLogContent() {
       ) : isError ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
           <AlertTriangle className="w-8 h-8 text-destructive/60" />
-          <p className="text-sm text-muted-foreground">Failed to load the audit log.</p>
+          <p className="text-sm text-muted-foreground">{t('auditLog.failedToLoad')}</p>
           <Button variant="outline" size="sm" onClick={handleRefresh}>
-            Retry
+            {t('common.retry')}
           </Button>
         </div>
       ) : (
@@ -281,10 +288,10 @@ function AuditLogContent() {
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">Time</th>
-                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">Category</th>
-                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">Actor</th>
-                  <th className="px-4 py-3 text-left font-medium text-xs">Description</th>
+                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">{t('auditLog.timestamp')}</th>
+                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">{t('common.type')}</th>
+                  <th className="px-4 py-3 text-left font-medium text-xs whitespace-nowrap">{t('auditLog.actor')}</th>
+                  <th className="px-4 py-3 text-left font-medium text-xs">{t('auditLog.details')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -293,7 +300,7 @@ function AuditLogContent() {
                     <td colSpan={4} className="px-4 py-12 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <ScrollText className="w-8 h-8 opacity-30" />
-                        <p className="text-sm">No audit events match your filters.</p>
+                        <p className="text-sm">{t('auditLog.noEntries')}</p>
                       </div>
                     </td>
                   </tr>
@@ -316,7 +323,7 @@ function AuditLogContent() {
                 disabled={loadingMore}
               >
                 <ChevronDown className={`w-4 h-4 mr-2 ${loadingMore ? "animate-spin" : ""}`} />
-                {loadingMore ? "Loading…" : "Load more"}
+                {loadingMore ? t('common.loading') : t('common.viewAll')}
               </Button>
             </div>
           )}
@@ -329,6 +336,7 @@ function AuditLogContent() {
 // ─── Event row ────────────────────────────────────────────────────────────────
 
 function EventRow({ event }: { event: AuditEvent }) {
+  const { t } = useTranslation();
   const cat = event.category as AuditCategory;
   const base = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
@@ -339,7 +347,7 @@ function EventRow({ event }: { event: AuditEvent }) {
       </td>
       <td className="px-4 py-2.5 whitespace-nowrap">
         <Badge variant={CATEGORY_VARIANT[cat] ?? "outline"} className="text-xs">
-          {CATEGORY_LABEL[cat] ?? cat}
+          {getCategoryLabel(t, cat)}
         </Badge>
       </td>
       <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -348,7 +356,7 @@ function EventRow({ event }: { event: AuditEvent }) {
             {event.actorName}
           </span>
         ) : (
-          <span className="italic opacity-50">System</span>
+          <span className="italic opacity-50">{t('common.system')}</span>
         )}
       </td>
       <td className="px-4 py-2.5 text-sm">
@@ -358,7 +366,7 @@ function EventRow({ event }: { event: AuditEvent }) {
             href={`${base}/tasks/${event.targetId}`}
             className="ml-2 text-xs text-primary hover:underline"
           >
-            View task →
+            {t('auditLog.viewTask')}
           </a>
         )}
       </td>

@@ -42,6 +42,18 @@ const MOCK_SUMMARY = {
 };
 
 // ---------------------------------------------------------------------------
+// Terminology — mock the context so no provider is needed in the tree
+// ---------------------------------------------------------------------------
+vi.mock("@/context/terminology-context", () => ({
+  useTerminology: () => ({
+    t: (key: string) => key,
+    ts: (key: string) => key,
+    tSingular: (key: string) => key,
+  }),
+  TerminologyProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+// ---------------------------------------------------------------------------
 // Force getSlaStatus to report a resolution breach so the SLA Breached
 // panel renders without needing a real DB or clock arithmetic.
 // ---------------------------------------------------------------------------

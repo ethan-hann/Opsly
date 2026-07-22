@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Bell, Mail } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -42,38 +43,34 @@ interface NotificationPreference {
   enabled: boolean;
 }
 
-const TYPE_META: Record<
-  NotificationType,
-  { label: string; description: string }
-> = {
-  task_assigned: {
-    label: "Task assigned to you",
-    description: "When someone assigns or re-assigns a task to you.",
-  },
-  task_updated: {
-    label: "Task status or priority changed",
-    description:
-      "When a task you are assigned to has its status or priority updated.",
-  },
-  comment_added: {
-    label: "New comment on your task",
-    description:
-      "When someone comments on a task you are assigned to.",
-  },
-  sla_breached: {
-    label: "SLA breach",
-    description:
-      "When a task you are assigned to breaches its SLA deadline.",
-  },
-  mention: {
-    label: "@Mention",
-    description: "When someone mentions you in a comment.",
-  },
-  comment_reply: {
-    label: "Reply to my comment",
-    description: "When someone replies directly to a comment you wrote.",
-  },
-};
+function getTypeMeta(t: (k: string) => string): Record<NotificationType, { label: string; description: string }> {
+  return {
+    task_assigned: {
+      label: t('notificationPreferences.types.taskAssigned'),
+      description: t('notificationPreferences.types.taskAssignedDesc'),
+    },
+    task_updated: {
+      label: t('notificationPreferences.types.taskUpdated'),
+      description: t('notificationPreferences.types.taskUpdatedDesc'),
+    },
+    comment_added: {
+      label: t('notificationPreferences.types.commentAdded'),
+      description: t('notificationPreferences.types.commentAddedDesc'),
+    },
+    sla_breached: {
+      label: t('notificationPreferences.types.slaBreached'),
+      description: t('notificationPreferences.types.slaBreachedDesc'),
+    },
+    mention: {
+      label: t('notificationPreferences.types.mention'),
+      description: t('notificationPreferences.types.mentionDesc'),
+    },
+    comment_reply: {
+      label: t('notificationPreferences.types.commentReply'),
+      description: t('notificationPreferences.types.commentReplyDesc'),
+    },
+  };
+}
 
 const ORDER: NotificationType[] = [
   "task_assigned",
@@ -126,6 +123,8 @@ async function saveDigestPreference(frequency: DigestFrequency): Promise<void> {
 }
 
 export function NotificationPreferencesPage() {
+  const { t } = useTranslation();
+  const typeMeta = getTypeMeta(t);
   const { toast } = useToast();
   const [prefs, setPrefs] = useState<NotificationPreference[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,8 +143,8 @@ export function NotificationPreferencesPage() {
       })
       .catch(() =>
         toast({
-          title: "Error",
-          description: "Could not load notification preferences.",
+          title: t('common.error'),
+          description: t('notificationPreferences.errorLoad'),
           variant: "destructive",
         }),
       )
@@ -157,9 +156,9 @@ export function NotificationPreferencesPage() {
     try {
       await saveDigestPreference(freq);
       setDigestFrequency(freq);
-      toast({ title: "Email digest preference saved" });
+      toast({ title: t('notificationPreferences.saved') });
     } catch {
-      toast({ title: "Error", description: "Could not save digest preference.", variant: "destructive" });
+      toast({ title: t('common.error'), description: t('notificationPreferences.errorDigest'), variant: "destructive" });
     } finally {
       setSavingDigest(false);
     }
@@ -174,13 +173,13 @@ export function NotificationPreferencesPage() {
     try {
       const saved = await savePreferences(updated);
       setPrefs(saved);
-      toast({ title: "Preferences saved" });
+      toast({ title: t('notificationPreferences.saved') });
     } catch {
       // Revert on failure
       setPrefs(prefs);
       toast({
-        title: "Error",
-        description: "Could not save preferences.",
+        title: t('common.error'),
+        description: t('notificationPreferences.errorSave'),
         variant: "destructive",
       });
     } finally {
@@ -203,7 +202,7 @@ export function NotificationPreferencesPage() {
         <Link href="/org/settings">
           <Button variant="ghost" size="sm" className="gap-1.5">
             <ArrowLeft className="w-4 h-4" />
-            Back to Settings
+            {t('common.back')}
           </Button>
         </Link>
       </div>
@@ -213,10 +212,10 @@ export function NotificationPreferencesPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Mail className="w-5 h-5 text-muted-foreground" />
-            <CardTitle>Email Digest</CardTitle>
+            <CardTitle>{t('notificationPreferences.emailNotifications')}</CardTitle>
           </div>
           <CardDescription>
-            Receive a summary of your unread notifications by email. Requires the server to have SMTP configured.
+            {t('notificationPreferences.digestFrequency')}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -224,7 +223,7 @@ export function NotificationPreferencesPage() {
             <div className="h-9 w-40 bg-muted animate-pulse rounded" />
           ) : (
             <div className="flex items-center gap-3">
-              <Label className="text-sm shrink-0">Send me a digest</Label>
+              <Label className="text-sm shrink-0">{t('notificationPreferences.digestFrequency')}</Label>
               <Select
                 value={digestFrequency}
                 onValueChange={(v) => void handleDigestChange(v as DigestFrequency)}
@@ -234,12 +233,12 @@ export function NotificationPreferencesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Never</SelectItem>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="none">{t('notificationPreferences.never')}</SelectItem>
+                  <SelectItem value="daily">{t('notificationPreferences.daily')}</SelectItem>
+                  <SelectItem value="weekly">{t('notificationPreferences.weekly')}</SelectItem>
                 </SelectContent>
               </Select>
-              {savingDigest && <span className="text-xs text-muted-foreground">Saving…</span>}
+              {savingDigest && <span className="text-xs text-muted-foreground">{t('common.saving')}</span>}
             </div>
           )}
         </CardContent>
@@ -249,11 +248,10 @@ export function NotificationPreferencesPage() {
         <CardHeader>
           <div className="flex items-center gap-2">
             <Bell className="w-5 h-5 text-muted-foreground" />
-            <CardTitle>In-App Notification Preferences</CardTitle>
+            <CardTitle>{t('notificationPreferences.title')}</CardTitle>
           </div>
           <CardDescription>
-            Choose which events generate in-app notifications for you.
-            Changes take effect immediately.
+            {t('notificationPreferences.desc')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-0">
@@ -275,7 +273,7 @@ export function NotificationPreferencesPage() {
           ) : (
             <div>
               {orderedPrefs.map((pref) => {
-                const meta = TYPE_META[pref.eventType];
+                const meta = typeMeta[pref.eventType];
                 return (
                   <div
                     key={pref.eventType}

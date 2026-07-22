@@ -1,9 +1,19 @@
 import { useAuth } from '@workspace/replit-auth-web';
 import { Button } from '@/components/ui/button';
 import { Activity, Shield, Zap, BarChart3, MessageSquareText } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { LanguagePicker } from '@/components/ui/language-picker';
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { t } = useTranslation();
+
+  const features = [
+    { icon: Shield, labelKey: 'auth.incidentTracking', descKey: 'auth.incidentTrackingDesc' },
+    { icon: Zap, labelKey: 'auth.deploymentManagement', descKey: 'auth.deploymentManagementDesc' },
+    { icon: BarChart3, labelKey: 'auth.projectVisibility', descKey: 'auth.projectVisibilityDesc' },
+    { icon: MessageSquareText, labelKey: 'auth.teamCoordination', descKey: 'auth.teamCoordinationDesc' },
+  ] as const;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -19,27 +29,22 @@ export default function LoginPage() {
         <div className="space-y-8">
           <div>
             <h1 className="text-4xl font-bold tracking-tight leading-tight">
-              IT Operations, under control.
+              {t('auth.itOperationsTitle')}
             </h1>
             <p className="mt-4 text-muted-foreground text-lg leading-relaxed">
-              Track incidents, manage deployments, and coordinate projects - all in one place built for hobbyists, powerful enough for engineering teams.
+              {t('auth.itOperationsDesc')}
             </p>
           </div>
 
           <div className="space-y-4">
-            {[
-              { icon: Shield, label: 'Incident Tracking', desc: 'Triage and resolve critical issues fast' },
-              { icon: Zap, label: 'Deployment Management', desc: 'Monitor and coordinate releases end-to-end' },
-              { icon: BarChart3, label: 'Project Visibility', desc: 'Real-time progress across all workstreams' },
-              { icon: MessageSquareText, label: 'Team Coordination', desc: 'Communicate and collaborate effectively' }
-            ].map(({ icon: Icon, label, desc }) => (
-              <div key={label} className="flex items-start gap-4">
+            {features.map(({ icon: Icon, labelKey, descKey }) => (
+              <div key={labelKey} className="flex items-start gap-4">
                 <div className="w-9 h-9 rounded-md border border-border bg-background flex items-center justify-center shrink-0 mt-0.5">
                   <Icon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">{label}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+                  <p className="font-medium text-sm">{t(labelKey)}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t(descKey)}</p>
                 </div>
               </div>
             ))}
@@ -63,9 +68,9 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-2xl font-bold tracking-tight">Sign in</h2>
+            <h2 className="text-2xl font-bold tracking-tight">{t('auth.signIn')}</h2>
             <p className="text-sm text-muted-foreground">
-              Access your IT operations dashboard
+              {t('auth.accessDashboard')}
             </p>
           </div>
 
@@ -76,11 +81,15 @@ export default function LoginPage() {
               onClick={login}
               data-testid="button-login"
             >
-              Log in
+              {t('auth.logIn')}
             </Button>
             <p className="text-xs text-center text-muted-foreground">
-              Authentication is handled securely.
+              {t('auth.authSecure')}
             </p>
+          </div>
+
+          <div className="flex justify-center">
+            <LanguagePicker />
           </div>
         </div>
       </div>

@@ -50,10 +50,8 @@ import { useGlobalSearch } from "@/hooks/use-global-search";
 import { useTerminology } from "@/context/terminology-context";
 import { useBranding } from "@/context/branding-context";
 import { ScrollNavigationButtons } from "@/components/ui/scroll-navigation-buttons";
-
-const externalNavItems = [
-  { href: "/api/docs", label: "API Docs", icon: BookOpen },
-];
+import { useTranslation } from "react-i18next";
+import { LanguagePicker } from "@/components/ui/language-picker";
 
 function readCollapsed() {
   try {
@@ -111,6 +109,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingName, setEditingName] = useState("");
+  const { t } = useTranslation();
 
   if (!views || views.length === 0) return null;
 
@@ -147,7 +146,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
             </div>
           </TooltipTrigger>
           <TooltipContent side="right">
-            <p>Saved Views ({views.length})</p>
+            <p>{t('nav.savedViewsCount', { count: views.length })}</p>
           </TooltipContent>
         </Tooltip>
       </div>
@@ -162,7 +161,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
       >
         <span className="flex items-center gap-1.5">
           <Bookmark className="w-3 h-3" />
-          Views
+          {t('nav.savedViews')}
         </span>
         <ChevronRight className={`w-3 h-3 transition-transform ${expanded ? "rotate-90" : ""}`} />
       </button>
@@ -233,7 +232,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
                             handleToggleDefault(view);
                           }}
                           className="p-0.5 rounded opacity-50 hover:opacity-100 hover:bg-sidebar-accent transition-colors"
-                          title="Set as default"
+                          title={t('nav.setAsDefault')}
                         >
                           <Star className="w-3 h-3" fill="none" />
                         </button>
@@ -246,7 +245,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
                           setEditingName(view.name);
                         }}
                         className="p-0.5 rounded opacity-50 hover:opacity-100 hover:bg-sidebar-accent transition-colors"
-                        title="Rename"
+                        title={t('common.rename')}
                       >
                         <Pencil className="w-3 h-3" />
                       </button>
@@ -257,7 +256,7 @@ function ViewsSection({ collapsed, userId, canAdmin }: ViewsSectionProps) {
                           handleDelete(view.id);
                         }}
                         className="p-0.5 rounded opacity-50 hover:opacity-100 hover:text-destructive hover:bg-sidebar-accent transition-colors"
-                        title="Delete"
+                        title={t('common.delete')}
                       >
                         <Trash2 className="w-3 h-3" />
                       </button>
@@ -281,7 +280,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { isAdmin, org, isFeatureEnabled, isFeatureUnsubscribed, hasPermission } = useOrgContext();
   const { open: openSearch } = useGlobalSearch();
-  const { t } = useTerminology();
+  const { t: term } = useTerminology();
+  const { t } = useTranslation();
   const { logoUrl } = useBranding();
 
   const mainRef = useRef<HTMLElement>(null);
@@ -311,20 +311,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const canViewAuditLog = hasPermission("view_audit_log");
 
   // Build nav items dynamically so terminology labels update with the org's custom terms.
+  const externalNavItems = [
+    { href: "/api/docs", label: t('nav.apiDocs'), icon: BookOpen },
+  ];
+
   const dynamicNavItems = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/projects", label: t("projects"), icon: FolderGit2 },
-    { href: "/tasks", label: t("tasks"), icon: CheckSquare },
-    { href: "/notes", label: "Scratch Pad", icon: StickyNote },
-    { href: "/webhooks", label: "Webhooks", icon: Webhook },
+    { href: "/", label: t('nav.dashboard'), icon: LayoutDashboard },
+    { href: "/projects", label: term("projects"), icon: FolderGit2 },
+    { href: "/tasks", label: term("tasks"), icon: CheckSquare },
+    { href: "/notes", label: t('nav.scratchPad'), icon: StickyNote },
+    { href: "/webhooks", label: t('nav.webhooks'), icon: Webhook },
   ];
 
   const allNavItems = [
     ...dynamicNavItems.filter(
       (item) => item.href !== "/webhooks" || webhooksVisible,
     ),
-    ...(canViewAuditLog ? [{ href: "/audit-log", label: "Audit Log", icon: ScrollText }] : []),
-    { href: "/org/settings", label: "Org Settings", icon: Settings },
+    ...(canViewAuditLog ? [{ href: "/audit-log", label: t('nav.auditLog'), icon: ScrollText }] : []),
+    { href: "/org/settings", label: t('nav.orgSettings'), icon: Settings },
   ];
 
   return (
@@ -356,7 +360,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               variant="ghost"
               size="icon"
               className="shrink-0"
-              aria-label="Search (Ctrl+K)"
+              aria-label={t('nav.searchCtrlK')}
               onClick={openSearch}
             >
               <Search className="w-5 h-5" />
@@ -427,7 +431,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="right">
-                    <p>Collapse sidebar</p>
+                    <p>{t('nav.collapseSidebar')}</p>
                   </TooltipContent>
                 </Tooltip>
               </>
@@ -449,7 +453,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>Expand sidebar</p>
+                  <p>{t('nav.expandSidebar')}</p>
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -465,24 +469,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <TooltipTrigger asChild>
                   <button
                     onClick={openSearch}
-                    aria-label="Search (⌘K)"
+                    aria-label={t('nav.searchTooltip')}
                     className="flex justify-center items-center w-full py-2.5 rounded-md text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
                   >
                     <Search className="w-4 h-4 shrink-0" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>Search <kbd className="ml-1 text-[10px] opacity-60">⌘K</kbd></p>
+                  <p>{t('nav.search')} <kbd className="ml-1 text-[10px] opacity-60">⌘K</kbd></p>
                 </TooltipContent>
               </Tooltip>
             ) : (
               <button
                 onClick={openSearch}
-                aria-label="Search (⌘K)"
+                aria-label={t('nav.searchTooltip')}
                 className="flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
               >
                 <Search className="w-4 h-4 shrink-0" />
-                <span className="flex-1 text-left">Search</span>
+                <span className="flex-1 text-left">{t('nav.search')}</span>
                 <kbd className="hidden sm:inline-flex h-5 items-center gap-0.5 rounded border border-sidebar-border bg-sidebar-accent/30 px-1.5 text-[10px] font-medium text-sidebar-foreground/40">
                   ⌘K
                 </kbd>
@@ -583,13 +587,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   <NotificationBell collapsed />
                 </div>
                 <TooltipContent side="right">
-                  <p>Notifications</p>
+                  <p>{t('nav.notifications')}</p>
                 </TooltipContent>
               </Tooltip>
             ) : (
               <div className="flex items-center justify-between px-3 py-1">
                 <span className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-                  Notifications
+                  {t('nav.notifications')}
                 </span>
                 <NotificationBell />
               </div>
@@ -613,26 +617,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent side="right" align="end">
                         <DropdownMenuItem onClick={() => setTheme("light")}>
-                          Light
+                          {t('nav.themeLight')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setTheme("dark")}>
-                          Dark
+                          {t('nav.themeDark')}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setTheme("system")}>
-                          System
+                          {t('nav.themeSystem')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="right">
-                  <p>Theme</p>
+                  <p>{t('nav.theme')}</p>
                 </TooltipContent>
               </Tooltip>
             ) : (
               <div className="flex items-center justify-between px-3 py-1">
                 <span className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
-                  Theme
+                  {t('nav.theme')}
                 </span>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -647,16 +651,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => setTheme("light")}>
-                      Light
+                      {t('nav.themeLight')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setTheme("dark")}>
-                      Dark
+                      {t('nav.themeDark')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setTheme("system")}>
-                      System
+                      {t('nav.themeSystem')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+              </div>
+            )}
+
+            {/* Language picker */}
+            {collapsed ? null : (
+              <div className="flex items-center justify-between px-3 py-1">
+                <span className="text-xs font-semibold text-sidebar-foreground/50 uppercase tracking-wider">
+                  {t('nav.language')}
+                </span>
+                <LanguagePicker />
               </div>
             )}
 
@@ -684,7 +698,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                       <DropdownMenuContent side="right" align="end">
                         <DropdownMenuItem onClick={logout}>
                           <LogOut className="w-4 h-4 mr-2" />
-                          Log out
+                          {t('auth.logOut')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -726,7 +740,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   size="icon"
                   className="h-7 w-7 text-sidebar-foreground/50 hover:text-sidebar-foreground shrink-0"
                   onClick={logout}
-                  title="Log out"
+                  title={t('auth.logOut')}
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </Button>
