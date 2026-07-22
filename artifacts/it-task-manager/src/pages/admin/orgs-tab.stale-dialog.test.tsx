@@ -1,5 +1,5 @@
 /**
- * AdminOrgsTab — suspend dialog stays fresh when the org list refreshes.
+ * AdminOrgsTab — suspend and delete dialogs stay fresh when the org list refreshes.
  *
  * Confirms two behaviours that come from storing only the org ID in state
  * and deriving the current org snapshot from the live query data:
@@ -104,6 +104,11 @@ import { AdminOrgsTab } from "./orgs-tab.js";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
+// Helper: find the trash button (icon-only, no text content).
+function getTrashButton() {
+  return screen.getAllByRole("button").find((btn) => !btn.textContent?.trim())!;
+}
+
 describe("AdminOrgsTab — suspend dialog stays fresh on query refresh", () => {
   beforeEach(() => {
     mockMutate.mockClear();
@@ -143,5 +148,55 @@ describe("AdminOrgsTab — suspend dialog stays fresh on query refresh", () => {
 
     // The derived confirmSuspend becomes null → open={false} → dialog disappears.
     expect(screen.queryByTestId("alert-dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("AdminOrgsTab — delete dialog stays fresh on query refresh", () => {
+  beforeEach(() => {
+    mockMutate.mockClear();
+    mockOrgsData.current = [{ ...BASE_ORG }];
+  });
+
+  it("reflects the latest org name after the query refreshes while the dialog is open", () => {
+    const { rerender } = render(<AdminOrgsTab />);
+
+    // Open the delete dialog via the trash button (icon-only, no text).
+    fireEvent.click(getTrashButton());
+    expect(screen.getByTestId("alert-dialog")).toBeInTheDocument();
+
+    // Simulate a background query refresh: the org has been renamed.
+    mockOrgsData.current = [{ ...BASE_ORG, name: "Acme Corp Renamed" }];
+    rerender(<AdminOrgsTab />);
+
+    // Dialog must still be open — the org still exists in the list.
+    expect(screen.getByTestId("alert-dialog")).toBeInTheDocument();
+
+    // The org row now shows the updated name, confirming live data is used.
+    expect(screen.getByText("Acme Corp Renamed")).toBeInTheDocument();
+  });
+
+  it("closes automatically when the org is removed from the list while the dialog is open", () => {
+    const { rerender } = render(<AdminOrgsTab />);
+
+    // Open the delete dialog.
+    fireEvent.click(getTrashButton());
+    expect(screen.getByTestId("alert-dialog")).toBeInTheDocument();
+
+    // Simulate a refresh in which the org has already been deleted.
+    mockOrgsData.current = [];
+    rerender(<AdminOrgsTab />);
+
+    // confirmDeleteOrg becomes null → open={false} → dialog closes automatically.
+    expect(screen.queryByTestId("alert-dialog")).not.toBeInTheDocument();
+  });
+
+  it("calls deleteMutation with the live org id when Confirm is clicked", () => {
+    render(<AdminOrgsTab />);
+
+    fireEvent.click(getTrashButton());
+    fireEvent.click(screen.getByTestId("dialog-confirm"));
+
+    expect(mockMutate).toHaveBeenCalledOnce();
+    expect(mockMutate).toHaveBeenCalledWith("org-1");
   });
 });

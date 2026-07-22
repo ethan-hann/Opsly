@@ -55,10 +55,14 @@ export function AdminOrgsTab() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { data: orgs, isLoading, refetch } = useQuery({ queryKey: ["admin-orgs"], queryFn: fetchOrgs });
-  const [confirmDelete, setConfirmDelete] = useState<AdminOrg | null>(null);
-  // Store only the org ID so the dialog always reflects the latest query data
-  // if the list refreshes while the dialog is open.  If the org disappears from
-  // the list the derived value becomes null and the dialog closes automatically.
+  // Store only the org ID so each dialog always reflects the latest query data
+  // if the list refreshes while it is open.  If the org disappears from the
+  // list the derived value becomes null and the dialog closes automatically.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmDeleteOrg = confirmDeleteId
+    ? (orgs?.find((o) => o.id === confirmDeleteId) ?? null)
+    : null;
+
   const [confirmSuspendId, setConfirmSuspendId] = useState<string | null>(null);
   const confirmSuspend = confirmSuspendId
     ? (orgs?.find((o) => o.id === confirmSuspendId) ?? null)
@@ -72,7 +76,7 @@ export function AdminOrgsTab() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteOrg(id),
     onSuccess: () => {
-      setConfirmDelete(null);
+      setConfirmDeleteId(null);
       qc.invalidateQueries({ queryKey: ["admin-orgs"] });
     },
   });
@@ -160,7 +164,7 @@ export function AdminOrgsTab() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setConfirmDelete(org)}
+                      onClick={() => setConfirmDeleteId(org.id)}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
@@ -207,19 +211,19 @@ export function AdminOrgsTab() {
       </AlertDialog>
 
       {/* Delete confirmation */}
-      <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+      <AlertDialog open={!!confirmDeleteOrg} onOpenChange={(open) => !open && setConfirmDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{t('admin.orgs.deleteOrg')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('admin.orgs.deleteOrgDesc', { name: confirmDelete?.name ?? "" })}
+              {t('admin.orgs.deleteOrgDesc', { name: confirmDeleteOrg?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => confirmDelete && deleteMutation.mutate(confirmDelete.id)}
+              onClick={() => confirmDeleteOrg && deleteMutation.mutate(confirmDeleteOrg.id)}
               disabled={deleteMutation.isPending}
             >
               {t('admin.orgs.deleteButton')}
