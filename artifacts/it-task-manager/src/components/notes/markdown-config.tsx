@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import remarkSupersub from "remark-supersub";
 import rehypeRaw from "rehype-raw";
+import rehypeSlug from "rehype-slug";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +64,13 @@ export const sanitizeSchema = {
     // the copy button's class to survive rehypeSanitize.
     // "data*" covers the data-code attribute copyElement also sets.
     div:  ["className", "class", "dir", "data*"],
+    // Allow rehype-slug's id attributes on headings so anchor links work.
+    h1: ["id"],
+    h2: ["id"],
+    h3: ["id"],
+    h4: ["id"],
+    h5: ["id"],
+    h6: ["id"],
     p:    [...(defaultSchema.attributes?.p    ?? []), "dir"],
     svg:  ["className", "viewBox", "width", "height", "ariaHidden"],
     path: ["d"],
@@ -313,7 +321,8 @@ export type CalloutType = keyof typeof CALLOUT_CONFIG;
 export const remarkPlugins: any[] = [[remarkGfm, { singleTilde: false }], remarkSupersub, remarkHighlight, remarkCallouts];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const rehypePlugins: any[] = [rehypeRaw, [rehypeSanitize, sanitizeSchema]];
+// rehype-slug must run before rehype-sanitize so ids exist when sanitization runs.
+export const rehypePlugins: any[] = [rehypeRaw, rehypeSlug, [rehypeSanitize, sanitizeSchema]];
 
 // ── Shared component renderers ────────────────────────────────────────────────
 // Pass these as the `components` prop to ReactMarkdown (and to
@@ -335,6 +344,38 @@ function extractNodeText(node: React.ReactNode): string {
 }
 
 export const previewComponents: Record<string, React.ComponentType<any>> = {
+  // Links — hash-only hrefs scroll within the page; external links open in a
+  // new tab.  Without this override, wouter intercepts "#section" hrefs and
+  // routes to the base path, stripping the hash entirely.
+  a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    if (href?.startsWith("#")) {
+      return (
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.hash = href;
+          }}
+          className="text-primary underline underline-offset-2 hover:opacity-80"
+          {...props}
+        >
+          {children}
+        </a>
+      );
+    }
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-primary underline underline-offset-2 hover:opacity-80"
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  },
+
   // GFM checkboxes
   input: ({ checked, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
     <input
