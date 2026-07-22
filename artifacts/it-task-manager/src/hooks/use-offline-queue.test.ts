@@ -238,6 +238,81 @@ describe("useOfflineQueue", () => {
     await waitFor(() => expect(result.current.queueLength).toBe(1));
   });
 
+  it("queued mutations survive a simulated page refresh and replay in FIFO order", async () => {
+    const calls: string[] = [];
+    const mockFetch = vi.fn(async (url: RequestInfo | URL) => {
+      calls.push(url as string);
+      return new Response(null, { status: 200 });
+    });
+    setQueueFetchImpl(mockFetch);
+
+    // --- Phase 1: go offline and queue several mutations ---
+    // Simulate being offline (navigator.onLine = false)
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => false,
+    });
+
+    const { result: firstResult, unmount } = renderHook(() => useOfflineQueue());
+    await waitFor(() => expect(firstResult.current.queueLength).toBe(0));
+
+    await act(async () => {
+      await firstResult.current.addToQueue({
+        method: "POST",
+        url: "/api/tasks/first",
+        body: JSON.stringify({ title: "First" }),
+        headers: { "content-type": "application/json" },
+        timestamp: 1000,
+      });
+      await firstResult.current.addToQueue({
+        method: "PATCH",
+        url: "/api/tasks/second",
+        body: JSON.stringify({ status: "open" }),
+        headers: { "content-type": "application/json" },
+        timestamp: 2000,
+      });
+      await firstResult.current.addToQueue({
+        method: "POST",
+        url: "/api/comments/third",
+        body: JSON.stringify({ text: "hi" }),
+        headers: { "content-type": "application/json" },
+        timestamp: 3000,
+      });
+    });
+
+    expect(firstResult.current.queueLength).toBe(3);
+
+    // --- Phase 2: simulate page refresh by unmounting the hook ---
+    unmount();
+
+    // --- Phase 3: remount the hook (new page load) and come back online ---
+    Object.defineProperty(navigator, "onLine", {
+      configurable: true,
+      get: () => true,
+    });
+
+    const { result: secondResult } = renderHook(() => useOfflineQueue());
+
+    // The remounted hook should load the 3 persisted entries from IndexedDB
+    await waitFor(() => expect(secondResult.current.queueLength).toBe(3));
+
+    // --- Phase 4: flush the queue and verify FIFO replay ---
+    await act(async () => {
+      await secondResult.current.flushQueue();
+    });
+
+    // All three entries replayed in FIFO (insertion) order
+    expect(calls).toEqual([
+      "/api/tasks/first",
+      "/api/tasks/second",
+      "/api/comments/third",
+    ]);
+
+    // Queue is empty after successful replay
+    expect(secondResult.current.queueLength).toBe(0);
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+  });
+
   it("concurrent standaloneAddToQueue calls all persist without overwriting each other", async () => {
     // Fire 5 enqueues concurrently — if there were a read-modify-write race
     // some entries would be lost.  The mutex ensures all 5 are saved.
