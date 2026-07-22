@@ -81,71 +81,82 @@ export function sanitizeSvg(svg: string): string {
 
 // ── Mermaid block ─────────────────────────────────────────────────────────────
 
+// Module-level singleton — mermaid.initialize() must only be called once.
+// Calling it per-component in mermaid 11 resets the internal render queue and
+// causes every concurrent diagram to fail silently.
+let _mermaidReady: Promise<typeof import("mermaid").default> | null = null;
+function getMermaid() {
+  if (!_mermaidReady) {
+    _mermaidReady = import("mermaid").then((mod) => {
+      const m = mod.default;
+      // "antiscript" was removed in mermaid 11; "loose" is the safe replacement.
+      m.initialize({ startOnLoad: false, securityLevel: "loose", suppressErrorRendering: true });
+      return m;
+    });
+  }
+  return _mermaidReady;
+}
+
 export function MermaidBlock({ code }: { code: string }) {
-  const [svg, setSvg] = useState<string | null>(null);
-  const [error, setError] = useState(false);
+  // The mermaid target div must ALWAYS be in the DOM so elRef is never null
+  // when the useEffect fires.  We hide/show it with CSS instead of conditional
+  // rendering so mermaid.run() always has a real, attached element to write into.
+  const elRef = useRef<HTMLDivElement>(null);
+  const [status, setStatus] = useState<"loading" | "done" | "error">("loading");
 
   useEffect(() => {
+    const el = elRef.current;
+    if (!el) return;
     let cancelled = false;
-    import("mermaid")
-      .then(async (mod) => {
-        const mermaid = mod.default;
-        // securityLevel "antiscript" was removed in Mermaid 11 — it calls
-        // DOMPurify.addHook() which no longer exists, causing every diagram to
-        // throw. "loose" allows HTML labels without the broken DOMPurify hook.
-        // SVG output is still sanitized by sanitizeSvg() before DOM insertion.
-        mermaid.initialize({
-          startOnLoad: false,
-          securityLevel: "loose",
-          suppressErrorRendering: true,
-        });
+    setStatus("loading");
+
+    getMermaid()
+      .then(async (mermaid) => {
         try {
+          // Validate syntax first so we surface parse errors before touching DOM.
           await mermaid.parse(code.trim());
-          const id = `mermaid-${Math.random().toString(36).slice(2, 9)}`;
-          const { svg: rendered } = await mermaid.render(id, code.trim());
-          if (!cancelled) setSvg(sanitizeSvg(rendered));
-        } catch {
-          document
-            .querySelectorAll('[id^="mermaid-"], [id^="d"][id*="mermaid"]')
-            .forEach((el) => el.remove());
-          if (!cancelled) setError(true);
+          // Set diagram source as text content; mermaid.run() replaces it with SVG.
+          el.textContent = code.trim();
+          el.removeAttribute("data-processed");
+          await mermaid.run({ nodes: [el], suppressErrors: false });
+          if (!cancelled) setStatus("done");
+        } catch (err) {
+          console.error("[MermaidBlock] render error:", err);
+          if (!cancelled) setStatus("error");
         }
       })
-      .catch(() => {
-        if (!cancelled) setError(true);
+      .catch((err) => {
+        console.error("[MermaidBlock] mermaid load error:", err);
+        if (!cancelled) setStatus("error");
       });
-    return () => {
-      cancelled = true;
-    };
+
+    return () => { cancelled = true; };
   }, [code]);
 
-  if (error) {
-    return (
-      <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 my-3 text-xs text-destructive">
-        <span className="mt-0.5 shrink-0">⚠</span>
-        <div>
-          <p className="font-medium">Invalid Mermaid syntax</p>
-          <p className="text-destructive/70 mt-0.5">
-            Fix the diagram code to see a preview.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (svg === null) {
-    return (
-      <div className="bg-muted rounded-md p-4 text-xs text-muted-foreground animate-pulse my-2">
-        Rendering diagram…
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="my-4 overflow-x-auto flex justify-center"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    <>
+      {status === "loading" && (
+        <div className="bg-muted rounded-md p-4 text-xs text-muted-foreground animate-pulse my-2">
+          Rendering diagram…
+        </div>
+      )}
+      {status === "error" && (
+        <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2.5 my-3 text-xs text-destructive">
+          <span className="mt-0.5 shrink-0">⚠</span>
+          <div>
+            <p className="font-medium">Invalid Mermaid syntax</p>
+            <p className="text-destructive/70 mt-0.5">
+              Fix the diagram code to see a preview.
+            </p>
+          </div>
+        </div>
+      )}
+      {/* Always mounted — mermaid.run() writes SVG into this element in-place. */}
+      <div
+        ref={elRef}
+        className={`mermaid my-4 overflow-x-auto flex justify-center${status !== "done" ? " hidden" : ""}`}
+      />
+    </>
   );
 }
 
