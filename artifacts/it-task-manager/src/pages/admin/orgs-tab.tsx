@@ -56,6 +56,7 @@ export function AdminOrgsTab() {
   const qc = useQueryClient();
   const { data: orgs, isLoading, refetch } = useQuery({ queryKey: ["admin-orgs"], queryFn: fetchOrgs });
   const [confirmDelete, setConfirmDelete] = useState<AdminOrg | null>(null);
+  const [confirmSuspend, setConfirmSuspend] = useState<AdminOrg | null>(null);
 
   const toggleMutation = useMutation({
     mutationFn: ({ id, isDisabled }: { id: string; isDisabled: boolean }) => patchOrg(id, isDisabled),
@@ -141,7 +142,7 @@ export function AdminOrgsTab() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => handleToggle(org)}
+                      onClick={() => org.isDisabled ? handleToggle(org) : setConfirmSuspend(org)}
                       disabled={toggleMutation.isPending}
                     >
                       {org.isDisabled ? (
@@ -164,6 +165,40 @@ export function AdminOrgsTab() {
           </tbody>
         </table>
       </div>
+
+      {/* Suspend confirmation */}
+      <AlertDialog open={!!confirmSuspend} onOpenChange={(open) => !open && setConfirmSuspend(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('admin.orgs.suspendOrgTitle', { name: confirmSuspend?.name ?? "" })}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>{t('admin.orgs.suspendOrgDesc')}</p>
+                <ul className="mt-2 space-y-1 list-disc list-inside">
+                  <li>{t('admin.orgs.suspendOrgBullet1')}</li>
+                  <li>{t('admin.orgs.suspendOrgBullet2')}</li>
+                  <li>{t('admin.orgs.suspendOrgBullet3')}</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmSuspend) {
+                  handleToggle(confirmSuspend);
+                  setConfirmSuspend(null);
+                }
+              }}
+              disabled={toggleMutation.isPending}
+            >
+              {t('admin.orgs.suspendButton')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
