@@ -16,7 +16,7 @@ import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { NoteCard } from "@/components/notes/note-card";
 import {
   useListNotes, useCreateNote, useUpdateNote, useDeleteNote,
-  NoteVisibility,
+  NoteVisibility, useListOrgMembers,
 } from "@workspace/api-client-react";
 import { useListProjects, useListTasks } from "@workspace/api-client-react";
 import {
@@ -54,6 +54,9 @@ export default function NotesPage() {
   const [localContent, setLocalContent] = useState("");
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── org members (for @mention picker in editor) ─────────────────────────
+  const { data: members = [] } = useListOrgMembers();
 
   // ── offline draft selection ──────────────────────────────────────────────
   const { drafts, createDraft, updateDraft, deleteDraft } = useDraftNotes();
@@ -369,6 +372,7 @@ export default function NotesPage() {
         }}
         className="flex-1 overflow-hidden"
         previewMode="live"
+        members={members}
       />
     </div>
   ) : null;
@@ -506,6 +510,7 @@ export default function NotesPage() {
           onChange={handleContentChange}
           className="flex-1 overflow-hidden"
           previewMode="live"
+          members={members}
         />
       )}
     </div>

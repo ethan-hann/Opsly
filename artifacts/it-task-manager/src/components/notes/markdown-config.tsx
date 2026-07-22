@@ -78,6 +78,14 @@ export const sanitizeSchema = {
     h4: ["id"],
     h5: ["id"],
     h6: ["id"],
+    // Allow data-ref-type and data-ref-id on anchors so that reference chips
+    // produced by preprocessReferences() survive the rehype-sanitize pass.
+    a: [
+      ...(defaultSchema.attributes?.a ?? []),
+      "data-ref-type",
+      "data-ref-id",
+      "className",
+    ],
     p:    [...(defaultSchema.attributes?.p    ?? []), "dir"],
     svg:  ["className", "viewBox", "width", "height", "ariaHidden"],
     path: ["d"],
@@ -328,6 +336,7 @@ export function remarkCallouts() {
   return (tree: AstNode) => walkForCallouts(tree);
 }
 
+
 // ── Callout configuration ─────────────────────────────────────────────────────
 
 export const CALLOUT_CONFIG = {
@@ -346,6 +355,13 @@ export type CalloutType = keyof typeof CALLOUT_CONFIG;
 // remarkGfm is configured with singleTilde:false so that ~text~ is NOT consumed
 // as GFM strikethrough — leaving it for remark-supersub to render as <sub>.
 // GFM strikethrough still works with ~~text~~ (double tilde).
+// NOTE: @mention and #reference token preprocessing is done explicitly by each
+// rendering surface (MarkdownPreview, task-detail comment view, MarkdownEditor's
+// components.preview callback) via preprocessContent() from comment-utils.ts.
+// remark-gfm runs at the micromark parser phase, so a remark transform plugin
+// cannot intercept tokens before email autolinks fire; preprocessing the source
+// string up-front is the only reliable approach.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const remarkPlugins: any[] = [[remarkGfm, { singleTilde: false }], remarkSupersub, remarkHighlight, remarkCallouts];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -460,10 +476,51 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
   h5: makeHeading("h5"),
   h6: makeHeading("h6"),
 
-  // Links — hash-only hrefs scroll within the page; external links open in a
-  // new tab.  Without this override, wouter intercepts "#section" hrefs and
-  // routes to the base path, stripping the hash entirely.
+  // Links — four distinct cases handled in priority order:
+  //
+  // 1. Mention chips: preprocessMentions() emits `<a href="mailto:…">` for
+  //    3-part tokens that include an email address.  Render with the mention
+  //    chip style (amber primary tint) — no underline, no new-tab opener.
+  //
+  // 2. Reference chips: preprocessReferences() emits `<a href="/tasks/ID">`
+  //    or `<a href="/projects/ID">`.  Render with the reference chip style
+  //    (blue tint) and no underline.  The plain `<a>` lets wouter handle
+  //    client-side navigation for these internal paths.
+  //
+  // 3. Hash links: scroll within the page without triggering wouter routing
+  //    (wouter would strip the hash and navigate to the base path).
+  //
+  // 4. Everything else: open in a new tab with the generic link style.
+  //
+  // NOTE: we detect chips by their href pattern, not by className, because
+  // className may be stripped or altered during the HAST → React prop
+  // conversion by hast-util-to-jsx-runtime / rehype-sanitize.
   a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => {
+    // ── Mention email chip ────────────────────────────────────────────────────
+    if (href?.startsWith("mailto:")) {
+      return (
+        <a
+          href={href}
+          className="inline-flex items-center px-1 py-0.5 rounded bg-primary/15 text-primary text-sm font-medium hover:bg-primary/25 no-underline"
+        >
+          {children}
+        </a>
+      );
+    }
+
+    // ── Reference chip (task or project) ─────────────────────────────────────
+    if (href?.match(/^\/(tasks|projects)\/\d+$/)) {
+      return (
+        <a
+          href={href}
+          className="inline-flex items-center px-1 py-0.5 rounded bg-blue-500/15 text-blue-600 dark:text-blue-400 text-sm font-medium hover:bg-blue-500/25 no-underline"
+        >
+          {children}
+        </a>
+      );
+    }
+
+    // ── Hash link — scroll within page ───────────────────────────────────────
     if (href?.startsWith("#")) {
       return (
         <a
@@ -479,6 +536,8 @@ export const previewComponents: Record<string, React.ComponentType<any>> = {
         </a>
       );
     }
+
+    // ── External / all other links ────────────────────────────────────────────
     return (
       <a
         href={href}

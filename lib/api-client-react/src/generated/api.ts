@@ -44,6 +44,7 @@ import type {
   ErrorEnvelope,
   GetDashboardSlaSummaryParams,
   GetOrgAuditLogParams,
+  GetReferencesParams,
   GlobalSearchParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
@@ -78,6 +79,7 @@ import type {
   Project,
   ProjectInput,
   ProjectUpdate,
+  ReferenceSearchResults,
   RemoveWorkflowStageParams,
   RenameOrgInput,
   Role,
@@ -2723,6 +2725,91 @@ export function useGetDashboardSlaSummary<TData = Awaited<ReturnType<typeof getD
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetDashboardSlaSummaryQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetReferencesUrl = (params?: GetReferencesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/references/search?${stringifiedParams}` : `/api/references/search`
+}
+
+/**
+ * Returns tasks and projects scoped to the caller's org for use in the MarkdownEditor # reference picker. Accepts an optional `type` filter to restrict results to tasks, projects, or both (default: all). Session-only — API keys are not permitted.
+ * @summary Search tasks and projects for inline reference picker
+ */
+export const getReferences = async (params?: GetReferencesParams, options?: RequestInit): Promise<ReferenceSearchResults> => {
+
+  return customFetch<ReferenceSearchResults>(getGetReferencesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReferencesQueryKey = (params?: GetReferencesParams,) => {
+    return [
+    `/api/references/search`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetReferencesQueryOptions = <TData = Awaited<ReturnType<typeof getReferences>>, TError = ErrorType<void>>(params?: GetReferencesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReferences>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReferencesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReferences>>> = ({ signal }) => getReferences(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReferences>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReferencesQueryResult = NonNullable<Awaited<ReturnType<typeof getReferences>>>
+export type GetReferencesQueryError = ErrorType<void>
+
+
+/**
+ * @summary Search tasks and projects for inline reference picker
+ */
+
+export function useGetReferences<TData = Awaited<ReturnType<typeof getReferences>>, TError = ErrorType<void>>(
+ params?: GetReferencesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReferences>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReferencesQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

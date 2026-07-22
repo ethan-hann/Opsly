@@ -22,6 +22,7 @@ import exportRouter from "./export";
 import adminRouter from "./admin";
 import unsubscribeRouter from "./unsubscribe";
 import auditLogRouter from "./audit-log";
+import referencesRouter from "./references";
 
 const router: IRouter = Router();
 
@@ -48,5 +49,6 @@ router.use(exportRouter);
 router.use(adminRouter);
 router.use(unsubscribeRouter);
 router.use(auditLogRouter);
+router.use(referencesRouter);
 
 export default router;

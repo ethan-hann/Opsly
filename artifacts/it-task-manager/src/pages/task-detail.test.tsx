@@ -78,6 +78,7 @@ vi.mock("@workspace/api-client-react", () => ({
   getListTasksQueryKey: () => ["listTasks"],
   getGetOverdueTasksQueryKey: () => ["overdue"],
   getGetDashboardSummaryQueryKey: () => ["dashboard"],
+  useGetReferences: () => ({ data: { tasks: [], projects: [] }, isLoading: false }),
 }));
 
 vi.mock("@workspace/replit-auth-web", () => ({

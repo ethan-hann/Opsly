@@ -164,8 +164,12 @@ function eventDescription(field: string, oldValue: string | null | undefined, ne
   return i18n.t('taskDetail.fieldChanged', { field: label, old: oldStr, new: newStr });
 }
 
-// ─── Mention token preprocessing ─────────────────────────────────────────────
-import { preprocessMentions } from "@/lib/comment-utils";
+// ─── Mention / reference token preprocessing ─────────────────────────────────
+// preprocessContent() converts @[...] and #[...] tokens to inline HTML before
+// the markdown string enters the remark pipeline. remark-gfm extends the
+// micromark PARSER phase so email addresses inside tokens would be autolinked
+// before any remark transform runs; calling preprocessContent() up-front avoids that.
+import { preprocessContent } from "@/lib/comment-utils";
 
 // ─── Unified feed item types ──────────────────────────────────────────────────
 
@@ -473,7 +477,7 @@ function CommentNodeRenderer({
                 rehypePlugins={rehypePlugins}
                 components={previewComponents}
               >
-                {preprocessMentions(node.content)}
+                {preprocessContent(node.content)}
               </ReactMarkdown>
             </div>
           )}

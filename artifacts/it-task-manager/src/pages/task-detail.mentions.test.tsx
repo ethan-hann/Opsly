@@ -187,6 +187,7 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetOverdueTasksQueryKey: () => ["overdue"],
   getGetDashboardSummaryQueryKey: () => ["dashboard"],
   onOrgSuspended: vi.fn(() => () => {}),
+  useGetReferences: () => ({ data: { tasks: [], projects: [] }, isLoading: false }),
 }));
 
 // ---------------------------------------------------------------------------

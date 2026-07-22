@@ -13,6 +13,7 @@ import {
   previewComponents,
   AnchorUrlProvider,
 } from "./markdown-config";
+import { preprocessContent } from "@/lib/comment-utils";
 
 interface MarkdownPreviewProps {
   content: string;
@@ -45,7 +46,7 @@ export function MarkdownPreview({ content, className, noteId }: MarkdownPreviewP
         className="prose prose-sm dark:prose-invert max-w-none"
         components={previewComponents}
       >
-        {content}
+        {preprocessContent(content)}
       </ReactMarkdown>
     </div>
   );

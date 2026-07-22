@@ -40,12 +40,13 @@ const TASK_BETA = {
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock("@workspace/api-client-react", () => ({
-  useListNotes:    () => ({ data: [], refetch: vi.fn() }),
-  useCreateNote:   () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useUpdateNote:   () => ({ mutateAsync: vi.fn() }),
-  useDeleteNote:   () => ({ mutateAsync: vi.fn() }),
-  useListProjects: () => ({ data: [PROJECT_ALPHA, PROJECT_BETA] }),
-  useListTasks:    () => ({ data: [TASK_ALPHA, TASK_BETA] }),
+  useListNotes:       () => ({ data: [], refetch: vi.fn() }),
+  useCreateNote:      () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateNote:      () => ({ mutateAsync: vi.fn() }),
+  useDeleteNote:      () => ({ mutateAsync: vi.fn() }),
+  useListProjects:    () => ({ data: [PROJECT_ALPHA, PROJECT_BETA] }),
+  useListTasks:       () => ({ data: [TASK_ALPHA, TASK_BETA] }),
+  useListOrgMembers:  () => ({ data: [] }),
 }));
 
 vi.mock("wouter", () => ({

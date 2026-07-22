@@ -308,6 +308,7 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
               onChange={setDescription}
               placeholder={t("tasks.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
+              members={members}
             />
           </div>
 

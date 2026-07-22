@@ -194,6 +194,7 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
               onChange={setDescription}
               placeholder={t("tasks.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
+              members={members}
             />
           </div>
 

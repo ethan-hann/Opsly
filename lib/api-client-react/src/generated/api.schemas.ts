@@ -2282,6 +2282,32 @@ export interface SearchResults {
 }
 
 /**
+ * A task result returned by the reference search endpoint.
+ */
+export interface ReferenceTaskResult {
+  id: number;
+  title: string;
+  /** Name of the project the task belongs to, or null if unassigned. */
+  projectName?: string | null;
+}
+
+/**
+ * A project result returned by the reference search endpoint.
+ */
+export interface ReferenceProjectResult {
+  id: number;
+  name: string;
+}
+
+/**
+ * Reference search results grouped by entity type.
+ */
+export interface ReferenceSearchResults {
+  tasks: ReferenceTaskResult[];
+  projects: ReferenceProjectResult[];
+}
+
+/**
  * Confirmation returned after a successful ingest.
  */
 export interface WebhookIngestSuccess {
@@ -2417,6 +2443,33 @@ export const GetDashboardSlaSummaryPeriod = {
   '7d': '7d',
   '30d': '30d',
   '90d': '90d',
+  all: 'all',
+} as const;
+
+export type GetReferencesParams = {
+/**
+ * Search query string (up to 200 characters). Omit for top results.
+ * @maxLength 200
+ */
+q?: string;
+/**
+ * Filter results to tasks, projects, or all (default).
+ */
+type?: GetReferencesType;
+/**
+ * Maximum results per entity type (1–50, default 20).
+ * @minimum 1
+ * @maximum 50
+ */
+limit?: number;
+};
+
+export type GetReferencesType = typeof GetReferencesType[keyof typeof GetReferencesType];
+
+
+export const GetReferencesType = {
+  task: 'task',
+  project: 'project',
   all: 'all',
 } as const;
 

@@ -1037,6 +1037,55 @@ paths:
               schema:
                 $ref: "#/components/schemas/SlaSummary"
 
+  /references/search:
+    get:
+      operationId: getReferences
+      tags: [search]
+      summary: Search tasks and projects for inline reference picker
+      description: >
+        Returns tasks and projects scoped to the caller's org for use in the
+        MarkdownEditor # reference picker. Accepts an optional `type` filter
+        to restrict results to tasks, projects, or both (default: all).
+        Session-only — API keys are not permitted.
+      parameters:
+        - name: q
+          in: query
+          required: false
+          description: Search query string (up to 200 characters). Omit for top results.
+          schema:
+            type: string
+            maxLength: 200
+        - name: type
+          in: query
+          required: false
+          description: Filter results to tasks, projects, or all (default).
+          schema:
+            type: string
+            enum: [task, project, all]
+            default: all
+        - name: limit
+          in: query
+          required: false
+          description: Maximum results per entity type (1–50, default 20).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        "200":
+          description: Reference search results grouped by entity type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReferenceSearchResults"
+        "400":
+          description: Invalid query parameter.
+        "401":
+          description: Not authenticated.
+        "403":
+          description: Not an org member, or org is suspended.
+
   /search:
     get:
       operationId: globalSearch
@@ -4872,6 +4921,44 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SearchNoteResult"
+
+    ReferenceTaskResult:
+      description: A task result returned by the reference search endpoint.
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        projectName:
+          type: string
+          nullable: true
+          description: Name of the project the task belongs to, or null if unassigned.
+
+    ReferenceProjectResult:
+      description: A project result returned by the reference search endpoint.
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+
+    ReferenceSearchResults:
+      description: Reference search results grouped by entity type.
+      type: object
+      required: [tasks, projects]
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferenceTaskResult"
+        projects:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReferenceProjectResult"
 
     WebhookIngestSuccess:
       description: Confirmation returned after a successful ingest.

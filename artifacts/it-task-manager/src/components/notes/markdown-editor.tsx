@@ -1,48 +1,49 @@
 /**
  * MarkdownEditor — thin wrapper around @uiw/react-md-editor with built-in
- * mention autocomplete.
+ * mention autocomplete and / reference picker.
  *
- * When `members` is supplied the editor detects `@` in the textarea, shows a
- * floating picker, and inserts a canonical @[userId:Name] / @[everyone] token
- * on click, Enter, or Tab.  Pressing Tab auto-completes the currently
- * highlighted entry; ↑/↓ arrows navigate; Escape closes the picker.
+ * Typing `@` opens the @mention picker (requires `members` prop).
+ * Typing `/` opens the reference picker which searches tasks and projects.
  *
- * The picker is rendered via a React portal at document.body so that
- * `overflow-hidden` on the editor wrapper (applied by callers for sizing)
- * does not clip it.
+ * Both pickers are rendered via React portals at document.body so that
+ * `overflow-hidden` wrappers cannot clip them. They are positioned at the
+ * exact cursor location using the mirror-div technique (picker-utils.ts) and
+ * flip above or below the caret depending on available viewport space.
+ *
+ * Inserting a reference inserts a `#[task:ID:Title]` or `#[project:ID:Name]`
+ * canonical token; the remarkProcessTokens plugin (markdown-config.tsx)
+ * converts those tokens to styled chips in all preview surfaces uniformly.
  */
 
 import MDEditor from "@uiw/react-md-editor";
 import "@uiw/react-md-editor/markdown-editor.css";
 import { useEffect, useLayoutEffect, useState, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { remarkPlugins, rehypePlugins, previewComponents } from "./markdown-config";
+import { MarkdownPreview } from "./markdown-preview";
 import type { OrgMemberInfo } from "@workspace/api-client-react";
+import { MentionPicker, type MentionItem } from "./mention-picker";
+import { ReferencePicker, buildReferenceItems, type RefType } from "./reference-picker";
+import { computePickerRect, detectReferenceContext, PICKER_MAX_WIDTH, type PickerRect } from "./picker-utils";
+import { useGetReferences } from "@workspace/api-client-react";
 
 // ── Token helpers ─────────────────────────────────────────────────────────────
 
 function buildMemberToken(member: OrgMemberInfo): string {
-  const name =
-    [member.firstName, member.lastName].filter(Boolean).join(" ") ||
-    member.email ||
-    member.userId;
-  return `@[${member.userId}:${name}]`;
+  const name = [member.firstName, member.lastName].filter(Boolean).join(" ");
+  if (name) {
+    // Named member: append email as a third field so the renderer produces a
+    // mailto: link while showing the display name.
+    const emailSuffix = member.email ? `:${member.email}` : "";
+    return `@[${member.userId}:${name}${emailSuffix}]`;
+  }
+  // No real name — use email as the display value; the renderer will derive
+  // the label from the email's local-part (e.g. "testing@corp.com" → "@testing").
+  const displayName = member.email || member.userId;
+  return `@[${member.userId}:${displayName}]`;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface PickerItem {
-  token: string;
-  label: string;
-  sub?: string;
-}
-
-interface PickerRect {
-  top: number;
-  left: number;
-  width: number;
-}
 
 interface MarkdownEditorProps {
   value: string;
@@ -52,9 +53,9 @@ interface MarkdownEditorProps {
   readOnly?: boolean;
   /**
    * Which pane the editor opens in by default.
-   * - "edit"    — textarea only (default, good for compact usage)
+   * - "edit"    — textarea only (default)
    * - "live"    — side-by-side editor + preview
-   * - "preview" — rendered output only (used when readOnly=true)
+   * - "preview" — rendered output only (readOnly=true)
    */
   previewMode?: "edit" | "live" | "preview";
   /** Org members to offer in the @mention picker. Omit to disable mentions. */
@@ -70,7 +71,6 @@ function useColorMode(): "light" | "dark" {
       ? "dark"
       : "light",
   );
-
   useEffect(() => {
     const observer = new MutationObserver(() => {
       setColorMode(
@@ -83,7 +83,6 @@ function useColorMode(): "light" | "dark" {
     });
     return () => observer.disconnect();
   }, []);
-
   return colorMode;
 }
 
@@ -104,56 +103,42 @@ export function MarkdownEditor({
   // ── Mention state ──────────────────────────────────────────────────────────
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState<number>(-1);
-  const [selectedIdx, setSelectedIdx] = useState<number>(0);
-  // Position of the picker popup (fixed, relative to viewport)
-  const [pickerRect, setPickerRect] = useState<PickerRect | null>(null);
+  const [mentionIdx, setMentionIdx] = useState<number>(0);
+  const [mentionRect, setMentionRect] = useState<PickerRect | null>(null);
 
-  /** Open/update/close the mention picker based on cursor position. */
-  const detectMention = useCallback((text: string, cursorPos: number) => {
-    const before = text.slice(0, cursorPos);
-    const atIdx = before.lastIndexOf("@");
-    if (atIdx === -1) {
-      setMentionQuery(null);
-      setMentionStart(-1);
-      return;
-    }
-    const query = before.slice(atIdx + 1);
-    // A space or newline closes the picker
-    if (query.includes(" ") || query.includes("\n")) {
-      setMentionQuery(null);
-      setMentionStart(-1);
-      return;
-    }
-    setMentionQuery(query);
-    setMentionStart(atIdx);
-    setSelectedIdx(0);
-  }, []);
+  // ── Reference picker state ─────────────────────────────────────────────────
+  const [refQuery, setRefQuery] = useState<string | null>(null);
+  const [refStart, setRefStart] = useState<number>(-1);
+  const [refFilterType, setRefFilterType] = useState<RefType>("all");
+  const [refSelectedIdx, setRefSelectedIdx] = useState<number>(0);
+  const [refPickerRect, setRefPickerRect] = useState<PickerRect | null>(null);
 
-  /** Replace the `@<query>` segment with the chosen token. */
-  const insertMention = useCallback(
-    (token: string) => {
-      if (mentionStart === -1) return;
-      const ta = wrapperRef.current?.querySelector<HTMLTextAreaElement>("textarea");
-      const cursorPos = ta?.selectionStart ?? value.length;
-      const before = value.slice(0, mentionStart);
-      const after = value.slice(cursorPos);
-      const newVal = before + token + " " + after;
-      onChange(newVal);
-      setMentionQuery(null);
-      setMentionStart(-1);
-      setTimeout(() => {
-        const ta2 = wrapperRef.current?.querySelector<HTMLTextAreaElement>("textarea");
-        if (ta2) {
-          const pos = before.length + token.length + 1;
-          ta2.focus();
-          ta2.setSelectionRange(pos, pos);
-        }
-      }, 0);
+  // ── Reference data (fetched while picker is open) ─────────────────────────
+  const { data: refData } = useGetReferences(
+    { q: refQuery || undefined, type: refFilterType, limit: 20 },
+    {
+      query: {
+        enabled: refQuery !== null,
+        staleTime: 5_000,
+        queryKey: ["getReferences", refFilterType, refQuery],
+      },
     },
-    [mentionStart, value, onChange],
   );
 
-  // ── Build filtered picker items ────────────────────────────────────────────
+  const refItems = buildReferenceItems(
+    refData?.tasks ?? [],
+    refData?.projects ?? [],
+  );
+  const showRefPicker = refQuery !== null;
+
+  // ── Textarea accessor ──────────────────────────────────────────────────────
+  const getTextarea = useCallback(
+    () =>
+      wrapperRef.current?.querySelector<HTMLTextAreaElement>("textarea") ?? null,
+    [],
+  );
+
+  // ── Build filtered mention items ──────────────────────────────────────────
   const hasMentions = members.length > 0;
   const q = mentionQuery ?? "";
   const ql = q.toLowerCase();
@@ -165,7 +150,9 @@ export function MarkdownEditor({
     mentionQuery !== null
       ? members.filter((m) => {
           const name =
-            [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || "";
+            [m.firstName, m.lastName].filter(Boolean).join(" ") ||
+            m.email ||
+            "";
           return (
             name.toLowerCase().includes(ql) ||
             (m.email ?? "").toLowerCase().includes(ql)
@@ -173,7 +160,7 @@ export function MarkdownEditor({
         })
       : [];
 
-  const pickerItems: PickerItem[] = [
+  const mentionItems: MentionItem[] = [
     ...(showEveryone
       ? [{ token: "@[everyone]", label: "@everyone", sub: "Notify all members" }]
       : []),
@@ -186,44 +173,159 @@ export function MarkdownEditor({
     }),
   ];
 
-  const showPicker = hasMentions && mentionQuery !== null && pickerItems.length > 0;
+  const showPicker =
+    hasMentions && mentionQuery !== null && mentionItems.length > 0;
 
-  // ── Compute picker position whenever it becomes visible ───────────────────
+  // ── Picker position updates ───────────────────────────────────────────────
+  // Recompute whenever picker visibility or query changes so the popup tracks
+  // the cursor as the user types the search query.
+
   useLayoutEffect(() => {
-    if (!showPicker) {
-      setPickerRect(null);
-      return;
-    }
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    const rect = wrapper.getBoundingClientRect();
-    setPickerRect({
-      // Position the picker just above the editor wrapper
-      top: rect.top,
-      left: rect.left,
-      width: rect.width,
-    });
-  }, [showPicker]);
+    if (!showPicker) { setMentionRect(null); return; }
+    const ta = getTextarea();
+    if (!ta) return;
+    setMentionRect(computePickerRect(ta, ta.selectionStart ?? ta.value.length, 320));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPicker, mentionQuery]);
 
-  // ── textareaProps handlers ─────────────────────────────────────────────────
-  // These are spread directly onto the <textarea> inside MDEditor.
+  useLayoutEffect(() => {
+    if (!showRefPicker) { setRefPickerRect(null); return; }
+    const ta = getTextarea();
+    if (!ta) return;
+    setRefPickerRect(
+      computePickerRect(ta, ta.selectionStart ?? ta.value.length, PICKER_MAX_WIDTH),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showRefPicker, refQuery]);
+
+  // ── Trigger detection ─────────────────────────────────────────────────────
+
+  const detectMention = useCallback((text: string, cursorPos: number) => {
+    const before = text.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx === -1) { setMentionQuery(null); setMentionStart(-1); return; }
+    const query = before.slice(atIdx + 1);
+    if (query.includes(" ") || query.includes("\n")) {
+      setMentionQuery(null); setMentionStart(-1); return;
+    }
+    setMentionQuery(query);
+    setMentionStart(atIdx);
+    setMentionIdx(0);
+  }, []);
+
+  /**
+   * Open/update/close the reference picker using the shared
+   * `detectReferenceContext` utility which guards against URL/path false
+   * positives (only activates when `/` follows whitespace or start-of-text).
+   */
+  const detectReference = useCallback((text: string, cursorPos: number) => {
+    const ctx = detectReferenceContext(text, cursorPos);
+    if (!ctx.active) { setRefQuery(null); setRefStart(-1); return; }
+    setRefQuery(ctx.query);
+    setRefStart(ctx.slashIdx);
+    setRefSelectedIdx(0);
+  }, []);
+
+  // ── Token insertion ───────────────────────────────────────────────────────
+
+  const insertMention = useCallback(
+    (token: string) => {
+      if (mentionStart === -1) return;
+      const ta = getTextarea();
+      const cursorPos = ta?.selectionStart ?? value.length;
+      const before = value.slice(0, mentionStart);
+      const after = value.slice(cursorPos);
+      onChange(before + token + " " + after);
+      setMentionQuery(null);
+      setMentionStart(-1);
+      setTimeout(() => {
+        const ta2 = getTextarea();
+        if (ta2) {
+          const pos = before.length + token.length + 1;
+          ta2.focus();
+          ta2.setSelectionRange(pos, pos);
+        }
+      }, 0);
+    },
+    [mentionStart, value, onChange, getTextarea],
+  );
+
+  /**
+   * Replace the `/query` typed by the user with the selected token.
+   * The stored token begins with `#` regardless of the `/` trigger.
+   */
+  const insertReference = useCallback(
+    (token: string) => {
+      if (refStart === -1) return;
+      const ta = getTextarea();
+      const cursorPos = ta?.selectionStart ?? value.length;
+      const before = value.slice(0, refStart);
+      const after = value.slice(cursorPos);
+      onChange(before + token + " " + after);
+      setRefQuery(null);
+      setRefStart(-1);
+      setTimeout(() => {
+        const ta2 = getTextarea();
+        if (ta2) {
+          const pos = before.length + token.length + 1;
+          ta2.focus();
+          ta2.setSelectionRange(pos, pos);
+        }
+      }, 0);
+    },
+    [refStart, value, onChange, getTextarea],
+  );
+
+  // ── Keyboard handlers ─────────────────────────────────────────────────────
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // ── Reference picker navigation ──
+      if (showRefPicker && refItems.length > 0) {
+        switch (e.key) {
+          case "ArrowDown":
+            e.preventDefault();
+            setRefSelectedIdx((i) => (i + 1) % refItems.length);
+            return;
+          case "ArrowUp":
+            e.preventDefault();
+            setRefSelectedIdx((i) => (i - 1 + refItems.length) % refItems.length);
+            return;
+          case "Tab":
+          case "Enter":
+            e.preventDefault();
+            insertReference(refItems[refSelectedIdx]?.token ?? "");
+            return;
+          case "Escape":
+            e.preventDefault();
+            setRefQuery(null);
+            setRefStart(-1);
+            return;
+        }
+      } else if (showRefPicker) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setRefQuery(null);
+          setRefStart(-1);
+          return;
+        }
+      }
+
+      // ── Mention picker navigation ──
       if (!showPicker) return;
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
-          setSelectedIdx((i) => (i + 1) % pickerItems.length);
+          setMentionIdx((i) => (i + 1) % mentionItems.length);
           break;
         case "ArrowUp":
           e.preventDefault();
-          setSelectedIdx((i) => (i - 1 + pickerItems.length) % pickerItems.length);
+          setMentionIdx((i) => (i - 1 + mentionItems.length) % mentionItems.length);
           break;
         case "Tab":
         case "Enter":
           e.preventDefault();
-          insertMention(pickerItems[selectedIdx]?.token ?? "");
+          insertMention(mentionItems[mentionIdx]?.token ?? "");
           break;
         case "Escape":
           e.preventDefault();
@@ -232,28 +334,49 @@ export function MarkdownEditor({
           break;
       }
     },
-    [showPicker, pickerItems, selectedIdx, insertMention],
+    [
+      showPicker, showRefPicker,
+      mentionItems, refItems,
+      mentionIdx, refSelectedIdx,
+      insertMention, insertReference,
+    ],
   );
 
   const handleKeyUp = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      // Skip keys already handled by keyDown
       if (["ArrowUp", "ArrowDown", "Tab", "Enter", "Escape"].includes(e.key)) return;
       const ta = e.currentTarget;
-      detectMention(ta.value, ta.selectionStart ?? ta.value.length);
+      const text = ta.value;
+      const cursor = ta.selectionStart ?? text.length;
+      const before = text.slice(0, cursor);
+
+      // Whichever trigger appears closest (rightmost) to the cursor wins.
+      const lastAt = before.lastIndexOf("@");
+      const lastSlash = before.lastIndexOf("/");
+
+      if (lastSlash > lastAt) {
+        detectReference(text, cursor);
+        setMentionQuery(null);
+        setMentionStart(-1);
+      } else {
+        detectMention(text, cursor);
+        setRefQuery(null);
+        setRefStart(-1);
+      }
     },
-    [detectMention],
+    [detectMention, detectReference],
   );
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLTextAreaElement>) => {
       const ta = e.currentTarget;
       detectMention(ta.value, ta.selectionStart ?? ta.value.length);
+      detectReference(ta.value, ta.selectionStart ?? ta.value.length);
     },
-    [detectMention],
+    [detectMention, detectReference],
   );
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
 
   const resolvedPreview: "edit" | "live" | "preview" = readOnly
     ? "preview"
@@ -271,10 +394,16 @@ export function MarkdownEditor({
         preview={resolvedPreview}
         height="100%"
         visibleDragbar={false}
-        previewOptions={{
-          remarkPlugins,
-          rehypePlugins,
-          components: previewComponents,
+        components={{
+          // MDEditor always overrides `source` in previewOptions after
+          // spreading — our preprocessContent() call never reaches the
+          // internal preview.  The `components.preview` escape hatch gives us
+          // full control: MDEditor calls preview(rawSource) and renders whatever
+          // React element we return, so we can run preprocessContent() ourselves
+          // before handing the string to our own MarkdownPreview.
+          preview: (source) => (
+            <MarkdownPreview content={source} className="overflow-visible p-3" />
+          ),
         }}
         textareaProps={{
           placeholder,
@@ -284,54 +413,29 @@ export function MarkdownEditor({
         }}
       />
 
-      {/* ── Mention picker (portal, so overflow-hidden on wrapper can't clip it) ── */}
-      {showPicker &&
-        pickerRect &&
-        createPortal(
-          <div
-            style={{
-              position: "fixed",
-              top: pickerRect.top,
-              left: pickerRect.left,
-              width: pickerRect.width,
-              transform: "translateY(-100%) translateY(-4px)",
-              zIndex: 9999,
-            }}
-            className="max-h-52 overflow-auto rounded-md border border-border bg-popover shadow-lg"
-          >
-            {pickerItems.map((item, idx) => (
-              <button
-                key={item.token}
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  insertMention(item.token);
-                }}
-                className={cn(
-                  "w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors",
-                  idx === selectedIdx
-                    ? "bg-accent text-accent-foreground"
-                    : "hover:bg-accent hover:text-accent-foreground",
-                )}
-              >
-                <span
-                  className={cn(
-                    "font-medium",
-                    item.label.startsWith("@") && "text-primary",
-                  )}
-                >
-                  {item.label}
-                </span>
-                {item.sub && (
-                  <span className="text-xs text-muted-foreground truncate">
-                    {item.sub}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>,
-          document.body,
-        )}
+      {/* @mention picker — portal so overflow-hidden cannot clip it */}
+      {showPicker && mentionRect && (
+        <MentionPicker
+          items={mentionItems}
+          selectedIdx={mentionIdx}
+          pickerRect={mentionRect}
+          onSelect={insertMention}
+        />
+      )}
+
+      {/* / reference picker — portal */}
+      {showRefPicker && refPickerRect && (
+        <ReferencePicker
+          query={refQuery ?? ""}
+          filterType={refFilterType}
+          selectedIdx={refSelectedIdx}
+          pickerRect={refPickerRect}
+          onSelect={insertReference}
+          onClose={() => { setRefQuery(null); setRefStart(-1); }}
+          onFilterChange={setRefFilterType}
+          onSelectedIdxChange={setRefSelectedIdx}
+        />
+      )}
     </div>
   );
 }

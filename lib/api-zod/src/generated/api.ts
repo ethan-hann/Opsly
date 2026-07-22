@@ -903,6 +903,37 @@ export const GetDashboardSlaSummaryResponse = zod.object({
 
 
 /**
+ * Returns tasks and projects scoped to the caller's org for use in the MarkdownEditor # reference picker. Accepts an optional `type` filter to restrict results to tasks, projects, or both (default: all). Session-only — API keys are not permitted.
+ * @summary Search tasks and projects for inline reference picker
+ */
+export const getReferencesQueryQMax = 200;
+
+export const getReferencesQueryTypeDefault = `all`;
+export const getReferencesQueryLimitDefault = 20;
+export const getReferencesQueryLimitMax = 50;
+
+
+
+export const GetReferencesQueryParams = zod.object({
+  "q": zod.coerce.string().max(getReferencesQueryQMax).optional().describe('Search query string (up to 200 characters). Omit for top results.'),
+  "type": zod.enum(['task', 'project', 'all']).default(getReferencesQueryTypeDefault).describe('Filter results to tasks, projects, or all (default).'),
+  "limit": zod.coerce.number().min(1).max(getReferencesQueryLimitMax).default(getReferencesQueryLimitDefault).describe('Maximum results per entity type (1–50, default 20).')
+})
+
+export const GetReferencesResponse = zod.object({
+  "tasks": zod.array(zod.object({
+  "id": zod.number(),
+  "title": zod.string(),
+  "projectName": zod.string().nullish().describe('Name of the project the task belongs to, or null if unassigned.')
+}).describe('A task result returned by the reference search endpoint.')),
+  "projects": zod.array(zod.object({
+  "id": zod.number(),
+  "name": zod.string()
+}).describe('A project result returned by the reference search endpoint.'))
+}).describe('Reference search results grouped by entity type.')
+
+
+/**
  * Runs parallel ILIKE prefix queries on task titles, project names, and note titles/content. All results are scoped to the caller's organization. Returns up to `limit` results per entity type (default 5, max 20). Returns 400 if `q` is missing or blank.
  * @summary Global search across tasks, projects, and notes
  */

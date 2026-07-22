@@ -7,6 +7,7 @@ import {
   getListProjectsQueryKey,
   ProjectInputStatus,
   ProjectInputPriority,
+  useListOrgMembers,
 } from "@workspace/api-client-react";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -66,6 +67,7 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
   const { tSingular } = useTerminology();
   const queryClient = useQueryClient();
   const { mutate: updateProject, isPending } = useUpdateProject();
+  const { data: members = [] } = useListOrgMembers();
 
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
@@ -142,6 +144,7 @@ export function EditProjectModal({ open, onOpenChange, project }: EditProjectMod
               placeholder={t("projects.descriptionPlaceholder")}
               className="h-48 border border-input rounded-md overflow-hidden"
               previewMode="edit"
+              members={members}
             />
           </div>
 
