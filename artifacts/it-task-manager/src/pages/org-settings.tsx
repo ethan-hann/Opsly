@@ -66,6 +66,8 @@ import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
+import { useSearch, useLocation } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // ─── Branding ─────────────────────────────────────────────────────────────────
 
@@ -2625,7 +2627,7 @@ function SlaPoliciesCard() {
 export default function OrgSettings() {
   const { t: term, tSingular } = useTerminology();
   const { t } = useTranslation();
-  const { org, isAdmin, isOwner, hasPermission, refetchOrg } = useOrgContext();
+  const { org, isAdmin, isOwner, hasPermission, refetchOrg, isFeatureEnabled } = useOrgContext();
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -2638,6 +2640,38 @@ export default function OrgSettings() {
       .then((r) => { if (r.ok) setIsInstanceAdmin(true); })
       .catch(() => {});
   }, []);
+
+  // ── Tab navigation ───────────────────────────────────────────────────────────
+  const searchString = useSearch();
+  const [, setLocation] = useLocation();
+
+  const showBrandingTab    = isFeatureEnabled("branding")       && hasPermission("manage_org_settings");
+  const showStagesTab      = isFeatureEnabled("custom_statuses") && isAdmin;
+  const showTemplatesTab   = isAdmin;
+  const showSlaTab         = isFeatureEnabled("sla_tracking")   && isAdmin;
+  const showCustomFieldsTab = isFeatureEnabled("custom_fields")  && isAdmin;
+  const showApiKeysTab     = isFeatureEnabled("api_keys")       && isOwner;
+  const showExportTab      = isFeatureEnabled("data_export")    && isAdmin;
+
+  const tabVisible: Record<string, boolean> = {
+    general:      true,
+    members:      true,
+    roles:        true,
+    branding:     showBrandingTab,
+    stages:       showStagesTab,
+    templates:    showTemplatesTab,
+    sla:          showSlaTab,
+    customFields: showCustomFieldsTab,
+    apiKeys:      showApiKeysTab,
+    export:       showExportTab,
+  };
+
+  const requestedTab = new URLSearchParams(searchString).get("tab") ?? "general";
+  const activeTab = tabVisible[requestedTab] ? requestedTab : "general";
+
+  function handleTabChange(tab: string) {
+    setLocation(`/org/settings?tab=${tab}`);
+  }
 
   const [inviteValue, setInviteValue] = useState("");
   const [isCreatingRole, setIsCreatingRole] = useState(false);
@@ -2811,7 +2845,7 @@ export default function OrgSettings() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
@@ -2827,451 +2861,501 @@ export default function OrgSettings() {
         </p>
       </div>
 
-      {/* Org Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t("orgSettings.orgInfo")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Building2 className="w-5 h-5 text-primary" />
-            </div>
-            <div className="flex-1 min-w-0">
-              {isOwner && isEditingName ? (
-                <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
-                  <Input
-                    value={nameValue}
-                    onChange={(e) => setNameValue(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Escape") { setNameValue(org?.name ?? ""); setIsEditingName(false); } }}
-                    autoFocus maxLength={200}
-                    className="h-8 text-sm font-semibold"
-                    disabled={isRenaming}
-                  />
-                  <Button type="submit" size="sm" disabled={isRenaming || !nameValue.trim()}>
-                    {isRenaming ? t("common.saving") : t("common.save")}
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost"
-                    onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(false); }}
-                    disabled={isRenaming}>
-                    {t("common.cancel")}
-                  </Button>
-                </form>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold truncate">{org?.name}</p>
-                  {isOwner && (
-                    <Button variant="ghost" size="icon"
-                      className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
-                      onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}
-                      title={t("orgSettings.general.renameTitle")}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  )}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground font-mono mt-0.5">{org?.id}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        {/* Tab bar — scrolls horizontally on small screens */}
+        <TabsList className="flex h-auto flex-wrap gap-1 overflow-x-auto">
+          <TabsTrigger value="general">{t("orgSettings.tabs.general")}</TabsTrigger>
+          <TabsTrigger value="members">{t("orgSettings.tabs.members")}</TabsTrigger>
+          <TabsTrigger value="roles">{t("orgSettings.tabs.roles")}</TabsTrigger>
+          {showBrandingTab    && <TabsTrigger value="branding">{t("orgSettings.tabs.branding")}</TabsTrigger>}
+          {showStagesTab      && <TabsTrigger value="stages">{t("orgSettings.tabs.stages")}</TabsTrigger>}
+          {showTemplatesTab   && <TabsTrigger value="templates">{t("orgSettings.tabs.templates")}</TabsTrigger>}
+          {showSlaTab         && <TabsTrigger value="sla">{t("orgSettings.tabs.sla")}</TabsTrigger>}
+          {showCustomFieldsTab && <TabsTrigger value="customFields">{t("orgSettings.tabs.customFields")}</TabsTrigger>}
+          {showApiKeysTab     && <TabsTrigger value="apiKeys">{t("orgSettings.tabs.apiKeys")}</TabsTrigger>}
+          {showExportTab      && <TabsTrigger value="export">{t("orgSettings.tabs.export")}</TabsTrigger>}
+        </TabsList>
 
-      {/* Branding (manage_org_settings + branding feature) */}
-      <FeatureGate feature="branding">
-        {hasPermission("manage_org_settings") && <BrandingCard />}
-      </FeatureGate>
-
-      {/* Members */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{term("members")}</CardTitle>
-          <CardDescription>{members.length} {members.length !== 1 ? term("members").toLowerCase() : tSingular("members").toLowerCase()}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {members.map((m) => {
-            const isMe = m.userId === user?.id;
-            return (
-              <div key={m.userId} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                {/* Avatar */}
-                <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-primary">
-                  {m.firstName?.[0] ?? m.email?.[0] ?? "?"}
-                </div>
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm truncate">{getDisplayName(m)}</span>
-                    {isMe && <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.youBadge")}</Badge>}
-                  </div>
-                  {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
-                </div>
-                {/* Role badge or selector */}
-                {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") ? (
-                  <Select
-                    value={m.roleId}
-                    onValueChange={(roleId) => {
-                      const selected = roles.find((r) => r.id === roleId);
-                      if (selected?.isOwner) {
-                        // Ownership transfer — require explicit confirmation
-                        setPendingTransfer({ userId: m.userId, roleId, name: getDisplayName(m) });
-                      } else {
-                        updateMemberRole({ userId: m.userId, data: { roleId } });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="h-7 w-36 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roles
-                        .filter((r) => isOwner || !r.isOwner)
-                        .map((r) => (
-                          <SelectItem key={r.id} value={r.id} className="text-xs">
-                            {r.name}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant={roleBadgeVariant(m.roleName)} className="text-xs shrink-0 gap-1">
-                    {m.roleName === "Owner" && <Crown className="w-3 h-3" />}
-                    {m.roleName}
-                  </Badge>
-                )}
-                {/* Remove */}
-                {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") && (
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title={t("orgSettings.members.removeMember")}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>{t("orgSettings.members.removeMember")}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {getDisplayName(m)} {t("orgSettings.members.removeMemberDesc")}
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={() => removeMember({ userId: m.userId })}
-                        >
-                          {t("orgSettings.members.removeMember")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
-
-      {/* Ownership transfer confirmation */}
-      <AlertDialog open={pendingTransfer !== null} onOpenChange={(open) => { if (!open) setPendingTransfer(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("orgSettings.members.transferOwnership")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {pendingTransfer?.name} {t("orgSettings.members.transferOwnershipDesc")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (pendingTransfer) {
-                  updateMemberRole({ userId: pendingTransfer.userId, data: { roleId: pendingTransfer.roleId } });
-                }
-                setPendingTransfer(null);
-              }}
-            >
-              {t("orgSettings.members.transferOwnership")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Pending invitations */}
-      {isAdmin && invitations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Clock className="w-4 h-4" />
-              {t("orgSettings.members.pendingInvitations")}
-            </CardTitle>
-            <CardDescription>{invitations.length} {t("orgSettings.members.awaitingResponse")}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {invitations.map((inv) => {
-              const recipient = inv.invitedEmail ?? inv.invitedUserId ?? "Unknown";
-              const expiresAt = new Date(inv.expiresAt);
-              const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000));
-              return (
-                <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                  <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-muted-foreground">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{recipient}</p>
-                    <p className="text-xs text-muted-foreground">{t("orgSettings.members.expiresIn")} {daysLeft} {t("common.days")}</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.invitePending")}</Badge>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
-                    title={t("orgSettings.members.copyInviteTitle")}
-                    onClick={() => {
-                      navigator.clipboard.writeText(buildInviteLink(inv.token)).catch(() => {});
-                      toast({ title: t("orgSettings.members.inviteLinkCopied") });
-                    }}>
-                    <Link2 className="w-4 h-4" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" title={t("orgSettings.members.cancelInviteTitle")}>
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>{t("orgSettings.members.cancelInvitation")}</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          {t("orgSettings.members.cancelInvitationDesc")} <strong>{recipient}</strong>.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>{t("orgSettings.members.keepInvitation")}</AlertDialogCancel>
-                        <AlertDialogAction
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          onClick={() => cancelInvitation({ id: inv.id })}
-                        >
-                          {t("orgSettings.members.cancelInvitation")}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Invite */}
-      {canManageMembers && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              {t("orgSettings.members.inviteMember", { member: tSingular("members") })}
-            </CardTitle>
-            <CardDescription>
-              {t("orgSettings.members.inviteMemberDesc")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleInvite} className="flex gap-2">
-              <div className="flex-1">
-                <Input
-                  placeholder={t("orgSettings.members.emailPlaceholder")}
-                  value={inviteValue}
-                  onChange={(e) => setInviteValue(e.target.value)}
-                  disabled={isInviting}
-                />
-              </div>
-              <Button type="submit" disabled={isInviting || !inviteValue.trim()} className="gap-2">
-                <Mail className="w-4 h-4" />
-                {isInviting ? t("common.saving") : t("orgSettings.members.sendInvite")}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Roles */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Settings2 className="w-4 h-4" />
-                {t("orgSettings.roles.title", { member: tSingular("members") })}
-              </CardTitle>
-              <CardDescription className="mt-1">
-                {isOwner
-                  ? t("orgSettings.roles.descOwner")
-                  : t("orgSettings.roles.descMember")}
-              </CardDescription>
-            </div>
-            {isOwner && !isCreatingRole && (
-              <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(BLANK_PERMISSIONS); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
-                <Plus className="w-3.5 h-3.5" />
-                {t("orgSettings.roles.newRole")}
-              </Button>
-            )}
-          </div>
-          {isOwner && isCreatingRole && (
-            <form onSubmit={handleCreateRole} className="mt-4 rounded-lg border border-border bg-muted/30 p-4 space-y-4">
-              {duplicateSourceName && (
-                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Copy className="w-3 h-3 shrink-0" />
-                  {t("orgSettings.roles.copiedPermissionsFrom", { name: duplicateSourceName })}
-                </p>
-              )}
-              {/* Name row */}
-              <div className="flex gap-2">
-                <Input
-                  autoFocus
-                  placeholder={t("orgSettings.roles.roleNamePlaceholder")}
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  maxLength={100}
-                  disabled={isCreatingRoleReq}
-                  className="h-8 text-sm flex-1"
-                />
-                <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
-                  {isCreatingRoleReq ? t("common.saving") : t("orgSettings.roles.createRole")}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={cancelCreateRole}>
-                  {t("common.cancel")}
-                </Button>
-              </div>
-              {/* Permission groups */}
-              <div className="space-y-3">
-                {PERM_GROUPS.map((group) => (
-                  <div key={group.labelKey}>
-                    <p className="text-xs font-medium text-muted-foreground mb-1.5">{t(group.labelKey as any)}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {group.keys.map((key) => (
-                        <div key={key} className="flex items-center gap-2">
-                          <Switch
-                            id={`new-role-${key}`}
-                            checked={newRolePermissions?.[key] ?? false}
-                            onCheckedChange={(v) => handleNewRolePermToggle(key, v)}
-                            disabled={isCreatingRoleReq}
-                            className="h-4 w-7 data-[state=checked]:bg-primary"
-                          />
-                          <Label
-                            htmlFor={`new-role-${key}`}
-                            className="text-xs text-muted-foreground cursor-pointer"
-                          >
-                            {getPermLabels(t)[key]}
-                          </Label>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </form>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {roles.map((role) => (
-            <RoleCard
-              key={role.id}
-              role={role}
-              canEdit={isOwner}
-              members={members}
-              onUpdated={refetchRoles}
-              onDeleted={() => { refetchRoles(); refetchMembers(); }}
-              onDuplicate={handleDuplicate}
-            />
-          ))}
-          {roles.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">{t("orgSettings.roles.noRolesFound")}</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* SLA Policies (admin only, sla_tracking feature) */}
-      {isAdmin && <FeatureGate feature="sla_tracking"><SlaPoliciesCard /></FeatureGate>}
-
-      {/* Workflow Stages (admin only, custom_statuses feature) */}
-      {isAdmin && <FeatureGate feature="custom_statuses"><WorkflowStagesCard /></FeatureGate>}
-
-      {/* Task Templates (admin only) */}
-      {isAdmin && <TaskTemplatesCard />}
-
-      {/* Terminology (visible to all members, editable with manage_terminology) */}
-      <TerminologyCard />
-
-      {/* Reaction palette (visible to all members, editable with manage_reactions) */}
-      <ReactionPaletteCard />
-
-      {/* API Keys (owner only, api_keys feature) */}
-      {isOwner && <FeatureGate feature="api_keys"><ApiKeysCard /></FeatureGate>}
-
-      {/* Custom Fields (admin only, custom_fields feature) */}
-      {isAdmin && (
-        <FeatureGate feature="custom_fields">
+        {/* ── General ──────────────────────────────────────────────────────── */}
+        <TabsContent value="general" className="space-y-6 mt-6">
+          {/* Org Info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sliders className="w-4 h-4" />
-                {t("customFields.title")}
-              </CardTitle>
-              <CardDescription>
-                {t("customFields.desc")}
-              </CardDescription>
+              <CardTitle className="text-base">{t("orgSettings.orgInfo")}</CardTitle>
             </CardHeader>
             <CardContent>
-              <CustomFieldsManager />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <Building2 className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  {isOwner && isEditingName ? (
+                    <form onSubmit={handleRenameSubmit} className="flex items-center gap-2">
+                      <Input
+                        value={nameValue}
+                        onChange={(e) => setNameValue(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Escape") { setNameValue(org?.name ?? ""); setIsEditingName(false); } }}
+                        autoFocus maxLength={200}
+                        className="h-8 text-sm font-semibold"
+                        disabled={isRenaming}
+                      />
+                      <Button type="submit" size="sm" disabled={isRenaming || !nameValue.trim()}>
+                        {isRenaming ? t("common.saving") : t("common.save")}
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost"
+                        onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(false); }}
+                        disabled={isRenaming}>
+                        {t("common.cancel")}
+                      </Button>
+                    </form>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold truncate">{org?.name}</p>
+                      {isOwner && (
+                        <Button variant="ghost" size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}
+                          title={t("orgSettings.general.renameTitle")}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground font-mono mt-0.5">{org?.id}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
-        </FeatureGate>
-      )}
 
-      {/* Export Data (admin only, data_export feature) */}
-      {isAdmin && (
-        <div id="export">
-          <FeatureGate feature="data_export"><ExportCard /></FeatureGate>
-        </div>
-      )}
+          {/* Terminology */}
+          <TerminologyCard />
 
-      {/* Instance Admin Console (instance admins only) */}
-      {isInstanceAdmin && (
-        <Card className="border-primary/30">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-4">
-              <div>
+          {/* Reaction Palette */}
+          <ReactionPaletteCard />
+
+          {/* Instance Admin Console */}
+          {isInstanceAdmin && (
+            <Card className="border-primary/30">
+              <CardHeader>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-primary" />
+                      {t("orgSettings.adminConsole.title")}
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {t("orgSettings.adminConsole.desc")}
+                    </CardDescription>
+                  </div>
+                  <a href={`${BASE}/admin`} target="_blank" rel="noreferrer">
+                    <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      {t("orgSettings.adminConsole.openConsole")}
+                    </Button>
+                  </a>
+                </div>
+              </CardHeader>
+            </Card>
+          )}
+
+          {/* Danger Zone */}
+          <Card className="border-destructive/30">
+            <CardHeader>
+              <CardTitle className="text-base text-destructive">{t("orgSettings.dangerZone")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <LeaveOrgSection
+                orgName={org?.name ?? ""}
+                isOwner={isOwner}
+                isOnlyMember={members.length <= 1}
+                isLeaving={isLeaving}
+                onLeave={() => leaveOrg()}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Members ──────────────────────────────────────────────────────── */}
+        <TabsContent value="members" className="space-y-6 mt-6">
+          {/* Ownership transfer confirmation dialog (overlay — rendered here so it's
+              available whenever the Members tab is mounted) */}
+          <AlertDialog open={pendingTransfer !== null} onOpenChange={(open) => { if (!open) setPendingTransfer(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{t("orgSettings.members.transferOwnership")}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {pendingTransfer?.name} {t("orgSettings.members.transferOwnershipDesc")}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => {
+                    if (pendingTransfer) {
+                      updateMemberRole({ userId: pendingTransfer.userId, data: { roleId: pendingTransfer.roleId } });
+                    }
+                    setPendingTransfer(null);
+                  }}
+                >
+                  {t("orgSettings.members.transferOwnership")}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Members list */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{term("members")}</CardTitle>
+              <CardDescription>{members.length} {members.length !== 1 ? term("members").toLowerCase() : tSingular("members").toLowerCase()}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {members.map((m) => {
+                const isMe = m.userId === user?.id;
+                return (
+                  <div key={m.userId} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                    {/* Avatar */}
+                    <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-primary">
+                      {m.firstName?.[0] ?? m.email?.[0] ?? "?"}
+                    </div>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm truncate">{getDisplayName(m)}</span>
+                        {isMe && <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.youBadge")}</Badge>}
+                      </div>
+                      {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
+                    </div>
+                    {/* Role badge or selector */}
+                    {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") ? (
+                      <Select
+                        value={m.roleId}
+                        onValueChange={(roleId) => {
+                          const selected = roles.find((r) => r.id === roleId);
+                          if (selected?.isOwner) {
+                            setPendingTransfer({ userId: m.userId, roleId, name: getDisplayName(m) });
+                          } else {
+                            updateMemberRole({ userId: m.userId, data: { roleId } });
+                          }
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles
+                            .filter((r) => isOwner || !r.isOwner)
+                            .map((r) => (
+                              <SelectItem key={r.id} value={r.id} className="text-xs">
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant={roleBadgeVariant(m.roleName)} className="text-xs shrink-0 gap-1">
+                        {m.roleName === "Owner" && <Crown className="w-3 h-3" />}
+                        {m.roleName}
+                      </Badge>
+                    )}
+                    {/* Remove */}
+                    {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") && (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title={t("orgSettings.members.removeMember")}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{t("orgSettings.members.removeMember")}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {getDisplayName(m)} {t("orgSettings.members.removeMemberDesc")}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => removeMember({ userId: m.userId })}
+                            >
+                              {t("orgSettings.members.removeMember")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Pending invitations */}
+          {isAdmin && invitations.length > 0 && (
+            <Card>
+              <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-primary" />
-                  {t("orgSettings.adminConsole.title")}
+                  <Clock className="w-4 h-4" />
+                  {t("orgSettings.members.pendingInvitations")}
                 </CardTitle>
-                <CardDescription className="mt-1">
-                  {t("orgSettings.adminConsole.desc")}
-                </CardDescription>
-              </div>
-              <a href={`${BASE}/admin`} target="_blank" rel="noreferrer">
-                <Button variant="outline" size="sm" className="gap-1.5 shrink-0">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  {t("orgSettings.adminConsole.openConsole")}
-                </Button>
-              </a>
-            </div>
-          </CardHeader>
-        </Card>
-      )}
+                <CardDescription>{invitations.length} {t("orgSettings.members.awaitingResponse")}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {invitations.map((inv) => {
+                  const recipient = inv.invitedEmail ?? inv.invitedUserId ?? "Unknown";
+                  const expiresAt = new Date(inv.expiresAt);
+                  const daysLeft = Math.max(0, Math.ceil((expiresAt.getTime() - Date.now()) / 86_400_000));
+                  return (
+                    <div key={inv.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                      <div className="w-9 h-9 rounded-full bg-sidebar-accent flex items-center justify-center border border-border shrink-0 text-xs font-bold text-muted-foreground">
+                        <Mail className="w-4 h-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{recipient}</p>
+                        <p className="text-xs text-muted-foreground">{t("orgSettings.members.expiresIn")} {daysLeft} {t("common.days")}</p>
+                      </div>
+                      <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.invitePending")}</Badge>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+                        title={t("orgSettings.members.copyInviteTitle")}
+                        onClick={() => {
+                          navigator.clipboard.writeText(buildInviteLink(inv.token)).catch(() => {});
+                          toast({ title: t("orgSettings.members.inviteLinkCopied") });
+                        }}>
+                        <Link2 className="w-4 h-4" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" title={t("orgSettings.members.cancelInviteTitle")}>
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>{t("orgSettings.members.cancelInvitation")}</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t("orgSettings.members.cancelInvitationDesc")} <strong>{recipient}</strong>.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>{t("orgSettings.members.keepInvitation")}</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => cancelInvitation({ id: inv.id })}
+                            >
+                              {t("orgSettings.members.cancelInvitation")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Danger zone */}
-      <Card className="border-destructive/30">
-        <CardHeader>
-          <CardTitle className="text-base text-destructive">{t("orgSettings.dangerZone")}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LeaveOrgSection
-            orgName={org?.name ?? ""}
-            isOwner={isOwner}
-            isOnlyMember={members.length <= 1}
-            isLeaving={isLeaving}
-            onLeave={() => leaveOrg()}
-          />
-        </CardContent>
-      </Card>
+          {/* Invite member */}
+          {canManageMembers && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <UserPlus className="w-4 h-4" />
+                  {t("orgSettings.members.inviteMember", { member: tSingular("members") })}
+                </CardTitle>
+                <CardDescription>
+                  {t("orgSettings.members.inviteMemberDesc")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleInvite} className="flex gap-2">
+                  <div className="flex-1">
+                    <Input
+                      placeholder={t("orgSettings.members.emailPlaceholder")}
+                      value={inviteValue}
+                      onChange={(e) => setInviteValue(e.target.value)}
+                      disabled={isInviting}
+                    />
+                  </div>
+                  <Button type="submit" disabled={isInviting || !inviteValue.trim()} className="gap-2">
+                    <Mail className="w-4 h-4" />
+                    {isInviting ? t("common.saving") : t("orgSettings.members.sendInvite")}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* ── Roles ────────────────────────────────────────────────────────── */}
+        <TabsContent value="roles" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Settings2 className="w-4 h-4" />
+                    {t("orgSettings.roles.title", { member: tSingular("members") })}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {isOwner
+                      ? t("orgSettings.roles.descOwner")
+                      : t("orgSettings.roles.descMember")}
+                  </CardDescription>
+                </div>
+                {isOwner && !isCreatingRole && (
+                  <Button variant="outline" size="sm" className="gap-1.5 shrink-0" onClick={() => { setNewRolePermissions(BLANK_PERMISSIONS); setDuplicateSourceName(""); setIsCreatingRole(true); }}>
+                    <Plus className="w-3.5 h-3.5" />
+                    {t("orgSettings.roles.newRole")}
+                  </Button>
+                )}
+              </div>
+              {isOwner && isCreatingRole && (
+                <form onSubmit={handleCreateRole} className="mt-4 rounded-lg border border-border bg-muted/30 p-4 space-y-4">
+                  {duplicateSourceName && (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Copy className="w-3 h-3 shrink-0" />
+                      {t("orgSettings.roles.copiedPermissionsFrom", { name: duplicateSourceName })}
+                    </p>
+                  )}
+                  <div className="flex gap-2">
+                    <Input
+                      autoFocus
+                      placeholder={t("orgSettings.roles.roleNamePlaceholder")}
+                      value={newRoleName}
+                      onChange={(e) => setNewRoleName(e.target.value)}
+                      maxLength={100}
+                      disabled={isCreatingRoleReq}
+                      className="h-8 text-sm flex-1"
+                    />
+                    <Button type="submit" size="sm" disabled={isCreatingRoleReq || !newRoleName.trim()}>
+                      {isCreatingRoleReq ? t("common.saving") : t("orgSettings.roles.createRole")}
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost" onClick={cancelCreateRole}>
+                      {t("common.cancel")}
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {PERM_GROUPS.map((group) => (
+                      <div key={group.labelKey}>
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5">{t(group.labelKey as any)}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                          {group.keys.map((key) => (
+                            <div key={key} className="flex items-center gap-2">
+                              <Switch
+                                id={`new-role-${key}`}
+                                checked={newRolePermissions?.[key] ?? false}
+                                onCheckedChange={(v) => handleNewRolePermToggle(key, v)}
+                                disabled={isCreatingRoleReq}
+                                className="h-4 w-7 data-[state=checked]:bg-primary"
+                              />
+                              <Label
+                                htmlFor={`new-role-${key}`}
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                {getPermLabels(t)[key]}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </form>
+              )}
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {roles.map((role) => (
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  canEdit={isOwner}
+                  members={members}
+                  onUpdated={refetchRoles}
+                  onDeleted={() => { refetchRoles(); refetchMembers(); }}
+                  onDuplicate={handleDuplicate}
+                />
+              ))}
+              {roles.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">{t("orgSettings.roles.noRolesFound")}</p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Branding (feature-gated) ──────────────────────────────────────── */}
+        {showBrandingTab && (
+          <TabsContent value="branding" className="space-y-6 mt-6">
+            <BrandingCard />
+          </TabsContent>
+        )}
+
+        {/* ── Workflow Stages (feature-gated) ──────────────────────────────── */}
+        {showStagesTab && (
+          <TabsContent value="stages" className="space-y-6 mt-6">
+            <FeatureGate feature="custom_statuses">
+              <WorkflowStagesCard />
+            </FeatureGate>
+          </TabsContent>
+        )}
+
+        {/* ── Task Templates (admin only) ───────────────────────────────────── */}
+        {showTemplatesTab && (
+          <TabsContent value="templates" className="space-y-6 mt-6">
+            <TaskTemplatesCard />
+          </TabsContent>
+        )}
+
+        {/* ── SLA Policies (feature-gated) ──────────────────────────────────── */}
+        {showSlaTab && (
+          <TabsContent value="sla" className="space-y-6 mt-6">
+            <FeatureGate feature="sla_tracking">
+              <SlaPoliciesCard />
+            </FeatureGate>
+          </TabsContent>
+        )}
+
+        {/* ── Custom Fields (feature-gated) ─────────────────────────────────── */}
+        {showCustomFieldsTab && (
+          <TabsContent value="customFields" className="space-y-6 mt-6">
+            <FeatureGate feature="custom_fields">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Sliders className="w-4 h-4" />
+                    {t("customFields.title")}
+                  </CardTitle>
+                  <CardDescription>
+                    {t("customFields.desc")}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <CustomFieldsManager />
+                </CardContent>
+              </Card>
+            </FeatureGate>
+          </TabsContent>
+        )}
+
+        {/* ── API Keys (feature-gated, owner only) ──────────────────────────── */}
+        {showApiKeysTab && (
+          <TabsContent value="apiKeys" className="space-y-6 mt-6">
+            <FeatureGate feature="api_keys">
+              <ApiKeysCard />
+            </FeatureGate>
+          </TabsContent>
+        )}
+
+        {/* ── Export (feature-gated) ────────────────────────────────────────── */}
+        {showExportTab && (
+          <TabsContent value="export" className="space-y-6 mt-6">
+            <FeatureGate feature="data_export">
+              <ExportCard />
+            </FeatureGate>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }
