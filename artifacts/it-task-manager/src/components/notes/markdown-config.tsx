@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import React from "react";
+import { Link2, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import remarkSupersub from "remark-supersub";
@@ -343,7 +344,66 @@ function extractNodeText(node: React.ReactNode): string {
   return "";
 }
 
+// ── Heading with anchor link ───────────────────────────────────────────────────
+// Factory that creates h1–h6 renderers. Each heading shows a subtle link icon
+// on hover; clicking it sets window.location.hash and copies the URL to the
+// clipboard. The icon is only rendered when the heading has an id (set by
+// rehype-slug), so plain headings without ids are unaffected.
+function makeHeading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
+  function HeadingWithAnchor({
+    id,
+    children,
+    ...props
+  }: React.HTMLAttributes<HTMLHeadingElement>) {
+    const [copied, setCopied] = useState(false);
+
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!id) return;
+      window.location.hash = id;
+      const url = `${window.location.origin}${window.location.pathname}#${id}`;
+      navigator.clipboard?.writeText(url).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => { /* clipboard unavailable — hash is set, that's enough */ });
+    };
+
+    return (
+      <Tag id={id} className="group" {...props}>
+        {children}
+        {id && (
+          <button
+            type="button"
+            onClick={handleClick}
+            className={cn(
+              "ml-1.5 inline-flex items-center align-middle",
+              "opacity-0 group-hover:opacity-100 transition-opacity",
+              copied ? "text-green-500" : "text-muted-foreground hover:text-primary",
+            )}
+            aria-label="Copy link to section"
+            title={copied ? "Copied!" : "Copy link to section"}
+          >
+            {copied
+              ? <Check className="w-3.5 h-3.5" />
+              : <Link2 className="w-3.5 h-3.5" />}
+          </button>
+        )}
+      </Tag>
+    );
+  }
+  HeadingWithAnchor.displayName = `HeadingWithAnchor(${Tag})`;
+  return HeadingWithAnchor;
+}
+
 export const previewComponents: Record<string, React.ComponentType<any>> = {
+  // Headings with copy-link anchor buttons (visible on hover)
+  h1: makeHeading("h1"),
+  h2: makeHeading("h2"),
+  h3: makeHeading("h3"),
+  h4: makeHeading("h4"),
+  h5: makeHeading("h5"),
+  h6: makeHeading("h6"),
+
   // Links — hash-only hrefs scroll within the page; external links open in a
   // new tab.  Without this override, wouter intercepts "#section" hrefs and
   // routes to the base path, stripping the hash entirely.
