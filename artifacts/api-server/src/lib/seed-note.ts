@@ -94,7 +94,7 @@ flowchart LR
 | Bold | \`**text**\` | **bold** |
 | Italic | \`*text*\` | *italic* |
 | Strikethrough | \`~~text~~\` | ~~struck~~ |
-| Inline code | <code>&#96;code&#96;</code> | \`code\` |
+| Inline code | \`code\` | <code>code</code> |
 
 ---
 
