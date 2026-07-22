@@ -250,8 +250,8 @@ export interface ProjectUpdate {
   status?: ProjectUpdateStatus;
   /** New priority level. */
   priority?: ProjectUpdatePriority;
-  /** New target completion date in `YYYY-MM-DD` format. */
-  dueDate?: string;
+  /** New target completion date in `YYYY-MM-DD` format. Pass `null` to clear. */
+  dueDate?: string | null;
 }
 
 /**

@@ -203,7 +203,7 @@ export const UpdateProjectBody = zod.object({
   "description": zod.string().optional().describe('Updated description.'),
   "status": zod.enum(['planning', 'active', 'on_hold', 'completed']).optional().describe('New lifecycle status.'),
   "priority": zod.enum(['low', 'medium', 'high', 'critical']).optional().describe('New priority level.'),
-  "dueDate": zod.string().optional().describe('New target completion date in `YYYY-MM-DD` format.')
+  "dueDate": zod.string().nullish().describe('New target completion date in `YYYY-MM-DD` format. Pass `null` to clear.')
 }).describe('Partial update for an existing project. All fields are optional.')
 
 export const UpdateProjectResponse = zod.object({
