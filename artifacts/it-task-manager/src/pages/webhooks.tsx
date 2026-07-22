@@ -854,7 +854,7 @@ export default function WebhooksPage() {
   const projectOptions = projects.map((p) => ({ id: p.id, name: p.name }));
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
           <Webhook className="w-7 h-7 text-primary" />

@@ -651,7 +651,7 @@ export default function WebhookInboundEditPage({
   // While the list is loading we can't know if the hook exists yet.
   if (!isNew && isLoadingList) {
     return (
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="mx-auto space-y-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-64 w-full" />
       </div>
@@ -661,7 +661,7 @@ export default function WebhookInboundEditPage({
   // List loaded but the hook isn't in it — either wrong org or deleted.
   if (!isNew && !existing) {
     return (
-      <div className="max-w-3xl mx-auto py-16 text-center space-y-4">
+      <div className="mx-auto py-16 text-center space-y-4">
         <p className="text-muted-foreground">
           {t('webhooks.notFound', "Webhook not found. It may have been deleted or doesn't belong to your organization.")}
         </p>
@@ -680,7 +680,7 @@ export default function WebhookInboundEditPage({
   const curlCmd = fullUrl ? buildCurlCommand(fullUrl) : null;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-20">
+    <div className="mx-auto space-y-6 pb-20">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2">
         <Button
