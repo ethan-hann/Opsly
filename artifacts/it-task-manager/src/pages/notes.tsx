@@ -79,6 +79,30 @@ export default function NotesPage() {
     }
   }, [notes, preselectedId]);
 
+  // After the note content renders, scroll to the URL hash if present.
+  // The browser fires its native hash-scroll before async markdown renders,
+  // so we need to do it manually once localContent is actually in the DOM.
+  useEffect(() => {
+    if (!selectedId || !localContent) return;
+    const hash = window.location.hash;
+    if (!hash) return;
+    const id = decodeURIComponent(hash.slice(1)); // strip leading #
+    // Wait two frames: one for React to commit the new content, one for
+    // the browser to paint it, then a short buffer for ReactMarkdown's
+    // rehype pipeline to finish injecting ids into headings.
+    let timer: ReturnType<typeof setTimeout>;
+    const frame = requestAnimationFrame(() => {
+      timer = setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 120);
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [selectedId, localContent]);
+
   const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
 
   const filtersActive = filterProjectId !== "all" || filterTaskId !== "all";
