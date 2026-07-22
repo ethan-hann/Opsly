@@ -50,6 +50,7 @@ import { useGlobalSearch } from "@/hooks/use-global-search";
 import { useTerminology } from "@/context/terminology-context";
 import { useBranding } from "@/context/branding-context";
 import { ScrollNavigationButtons } from "@/components/ui/scroll-navigation-buttons";
+import { OfflineBanner } from "@/components/offline-banner";
 import { useTranslation } from "react-i18next";
 import { LanguagePicker } from "@/components/ui/language-picker";
 
@@ -752,6 +753,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* ── Main content ─────────────────────────────────────────────────── */}
         {/* On desktop: takes remaining width, scrolls independently of sidebar */}
         <main ref={mainRef} className="flex-1 min-w-0 overflow-y-auto">
+          <OfflineBanner />
           <div className="p-4 md:p-8 min-h-full">{children}</div>
         </main>
 

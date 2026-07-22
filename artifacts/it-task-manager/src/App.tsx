@@ -16,7 +16,6 @@ import { SseProvider } from '@/hooks/use-sse';
 import { GlobalSearchPalette } from '@/components/global-search-palette';
 import { TerminologyProvider } from '@/context/terminology-context';
 import { BrandingProvider } from '@/context/branding-context';
-import { OfflineBanner } from '@/components/offline-banner';
 
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
@@ -178,7 +177,6 @@ function App() {
         <TooltipProvider>
           <GlobalSearchProvider>
             <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-              <OfflineBanner />
               <Switch>
                 {/* Invite acceptance - outside AuthGuard/OrgGuard so unauthenticated
                     users can see the invite details before being asked to log in */}
