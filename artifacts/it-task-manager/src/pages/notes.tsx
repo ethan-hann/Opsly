@@ -6,7 +6,7 @@ import {
   Plus, StickyNote, Search, Link2Off,
   Eye,
   CheckCheck, Lock, Users, ArrowLeft, Edit2, X,
-  ChevronsUpDown, Check,
+  ChevronsUpDown, Check, WifiOff, FileText, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,8 @@ import {
 import {
   Tooltip, TooltipContent, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useDraftNotes, type DraftNote } from "@/hooks/use-draft-notes";
+import { formatDistanceToNow } from "date-fns";
 
 const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.ElementType; description: string }[] = [
   { value: "private",      label: "Private",       icon: Lock,  description: "Only you can see and edit" },
@@ -42,21 +44,37 @@ const VISIBILITY_OPTIONS: { value: NoteVisibility; label: string; icon: React.El
 export default function NotesPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
-  // Pre-select a note when navigated here via ?note=<id> (e.g. from "Edit in Scratch Pad")
   const urlSearch = useSearch();
   const [, navigate] = useLocation();
   const noteParam = new URLSearchParams(urlSearch).get("note");
   const preselectedId = noteParam ? parseInt(noteParam, 10) : null;
 
+  // ── server note selection ────────────────────────────────────────────────
   const [selectedId, setSelectedId] = useState<number | null>(preselectedId);
+  const [localContent, setLocalContent] = useState("");
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── offline draft selection ──────────────────────────────────────────────
+  const { drafts, createDraft, updateDraft, deleteDraft } = useDraftNotes();
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const activeDraft = drafts.find((d) => d.draftId === activeDraftId) ?? null;
+
+  // If the active draft was flushed to the server while open, clear selection
+  useEffect(() => {
+    if (activeDraftId && !drafts.find((d) => d.draftId === activeDraftId)) {
+      setActiveDraftId(null);
+      navigate("/notes");
+    }
+  }, [drafts, activeDraftId, navigate]);
+
+  // ── shared UI state ──────────────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [filterProjectId, setFilterProjectId] = useState<number | "all">("all");
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [deleteDraftTarget, setDeleteDraftTarget] = useState<string | null>(null);
   const isMobile = useIsMobile();
-  const [localContent, setLocalContent] = useState("");
-  const [savedAt, setSavedAt] = useState<number | null>(null);
-  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: notes = [], refetch } = useListNotes({});
   const { data: projects = [] } = useListProjects();
@@ -67,8 +85,9 @@ export default function NotesPage() {
   const deleteNote = useDeleteNote();
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // When navigated here with ?note=<id>, populate localContent once notes load
+  // ── preselect note from URL ──────────────────────────────────────────────
   const didSyncPreselect = useRef(false);
   useEffect(() => {
     if (!preselectedId || didSyncPreselect.current || notes.length === 0) return;
@@ -79,17 +98,12 @@ export default function NotesPage() {
     }
   }, [notes, preselectedId]);
 
-  // After the note content renders, scroll to the URL hash if present.
-  // The browser fires its native hash-scroll before async markdown renders,
-  // so we need to do it manually once localContent is actually in the DOM.
+  // ── hash scroll ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedId || !localContent) return;
     const hash = window.location.hash;
     if (!hash) return;
-    const id = decodeURIComponent(hash.slice(1)); // strip leading #
-    // Wait two frames: one for React to commit the new content, one for
-    // the browser to paint it, then a short buffer for ReactMarkdown's
-    // rehype pipeline to finish injecting ids into headings.
+    const id = decodeURIComponent(hash.slice(1));
     let timer: ReturnType<typeof setTimeout>;
     const frame = requestAnimationFrame(() => {
       timer = setTimeout(() => {
@@ -103,8 +117,14 @@ export default function NotesPage() {
     };
   }, [selectedId, localContent]);
 
-  const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
+  // Sync localContent when opening a draft
+  useEffect(() => {
+    if (activeDraft) {
+      setLocalContent(activeDraft.content);
+    }
+  }, [activeDraftId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const selectedNote = notes.find((n) => n.id === selectedId) ?? null;
   const filtersActive = filterProjectId !== "all" || filterTaskId !== "all";
 
   const filteredNotes = [...notes]
@@ -117,6 +137,15 @@ export default function NotesPage() {
       return matchesSearch && matchesProject && matchesTask;
     });
 
+  const filteredDrafts = drafts
+    .slice()
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .filter((d) => {
+      const q = search.toLowerCase();
+      return !q || d.title.toLowerCase().includes(q) || d.content.toLowerCase().includes(q);
+    });
+
+  // ── helpers ──────────────────────────────────────────────────────────────
   const flashSaved = () => {
     setSavedAt(Date.now());
     if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
@@ -135,25 +164,46 @@ export default function NotesPage() {
     [updateNote, refetch],
   );
 
+  /** Debounced save of a draft field to IDB (no network call). */
+  const scheduleDraftSave = useCallback(
+    (patch: Partial<Pick<DraftNote, "title" | "content">>) => {
+      if (!activeDraftId) return;
+      if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = setTimeout(() => {
+        updateDraft(activeDraftId, patch);
+      }, 500);
+    },
+    [activeDraftId, updateDraft],
+  );
+
+  // ── handlers ─────────────────────────────────────────────────────────────
   const handleNew = async () => {
+    if (!navigator.onLine) {
+      // Create a local draft stored in IndexedDB. The full editor opens
+      // immediately so the user can type. On reconnect, OfflineBanner flushes
+      // all drafts as single POST /api/notes calls with the final content.
+      const draft = await createDraft({
+        projectId: filterProjectId !== "all" ? (filterProjectId as number) : null,
+        taskId:    filterTaskId   !== "all" ? (filterTaskId   as number) : null,
+      });
+      setActiveDraftId(draft.draftId);
+      setSelectedId(null);
+      setLocalContent("");
+      navigate("/notes");
+      return;
+    }
+
     const result = await createNote.mutateAsync({
       data: {
         title: "Untitled Note",
         content: "",
         ...(filterProjectId !== "all" ? { projectId: filterProjectId as number } : {}),
-        ...(filterTaskId !== "all" ? { taskId: filterTaskId as number } : {}),
+        ...(filterTaskId    !== "all" ? { taskId:    filterTaskId    as number } : {}),
       },
     });
-    // When offline, customFetch queues the mutation and returns undefined.
-    // We can't navigate to a note that has no server-assigned ID yet.
-    if (!result) {
-      toast({
-        title: t("notes.queuedOffline", "Note queued"),
-        description: t("notes.queuedOfflineDesc", "It will be created when you reconnect."),
-      });
-      return;
-    }
+    if (!result) return; // unexpected — customFetch only returns undefined offline
     setSelectedId(result.id);
+    setActiveDraftId(null);
     setLocalContent("");
     navigate(`/notes?note=${result.id}`);
     refetch();
@@ -162,12 +212,22 @@ export default function NotesPage() {
   const handleSelectNote = (id: number) => {
     const note = notes.find((n) => n.id === id);
     setSelectedId(id);
+    setActiveDraftId(null);
     setLocalContent(note?.content ?? "");
     navigate(`/notes?note=${id}`);
   };
 
+  const handleSelectDraft = (draftId: string) => {
+    const draft = drafts.find((d) => d.draftId === draftId);
+    setActiveDraftId(draftId);
+    setSelectedId(null);
+    setLocalContent(draft?.content ?? "");
+    navigate("/notes");
+  };
+
   const handleBack = () => {
     setSelectedId(null);
+    setActiveDraftId(null);
     navigate("/notes");
   };
 
@@ -205,6 +265,16 @@ export default function NotesPage() {
     toast({ title: t("notes.deleteNote") });
   };
 
+  const handleDeleteDraft = async () => {
+    if (!deleteDraftTarget) return;
+    if (activeDraftId === deleteDraftTarget) {
+      setActiveDraftId(null);
+      setLocalContent("");
+    }
+    await deleteDraft(deleteDraftTarget);
+    setDeleteDraftTarget(null);
+  };
+
   const getProjectName = (id: number | null | undefined) =>
     id ? projects.find((p) => p.id === id)?.name ?? null : null;
   const getTaskTitle = (id: number | null | undefined) =>
@@ -212,14 +282,56 @@ export default function NotesPage() {
 
   const canEdit = !selectedNote || selectedNote.isOwner || selectedNote.visibility === "public_write";
 
-  // ─── editor area ────────────────────────────────────────────────────────────
-  const editorArea = selectedNote ? (
+  // ─── editor area ──────────────────────────────────────────────────────────
+
+  // Draft editor — full editing backed by IDB, no network required
+  const draftEditor = activeDraft ? (
     <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
-      {/* Note header */}
       <div className="px-4 md:px-5 pt-3 pb-2 border-b border-border shrink-0">
-        {/* Top row: back (mobile), title, save indicator, dock controls */}
         <div className="flex items-center gap-2">
-          {/* Back button - mobile only */}
+          <button
+            className="md:hidden shrink-0 p-1 -ml-1 text-muted-foreground hover:text-foreground"
+            onClick={handleBack}
+            aria-label="Back to notes list"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+
+          <input
+            key={activeDraft.draftId}
+            defaultValue={activeDraft.title}
+            onChange={(e) => scheduleDraftSave({ title: e.target.value || "Untitled Note" })}
+            className="flex-1 bg-transparent text-base md:text-lg font-semibold focus:outline-none placeholder:text-muted-foreground min-w-0"
+            placeholder="Untitled Note"
+          />
+        </div>
+
+        {/* Draft badge */}
+        <div className="mt-2 flex items-center gap-2">
+          <span className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400">
+            <WifiOff className="w-3 h-3" />
+            Draft — will be created when you&apos;re back online
+          </span>
+        </div>
+      </div>
+
+      <MarkdownEditor
+        value={localContent}
+        onChange={(md) => {
+          setLocalContent(md);
+          scheduleDraftSave({ content: md });
+        }}
+        className="flex-1 overflow-hidden"
+        previewMode="live"
+      />
+    </div>
+  ) : null;
+
+  // Real note editor
+  const noteEditor = selectedNote ? (
+    <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+      <div className="px-4 md:px-5 pt-3 pb-2 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
           <button
             className="md:hidden shrink-0 p-1 -ml-1 text-muted-foreground hover:text-foreground"
             onClick={handleBack}
@@ -245,10 +357,8 @@ export default function NotesPage() {
             <CheckCheck className="w-3.5 h-3.5" />
             {t("notes.saved")}
           </span>
-
         </div>
 
-        {/* Visibility toggle (owner) or read-only badge (non-owner) */}
         <div className="mt-2 flex flex-wrap items-center gap-2">
           {selectedNote.isOwner ? (
             <div className="flex items-center gap-0.5 rounded-md border border-border bg-muted/30 p-0.5">
@@ -290,7 +400,6 @@ export default function NotesPage() {
             </span>
           )}
 
-          {/* Link controls - editable for owners/public_write, read-only display otherwise */}
           {canEdit ? (
             <div className="flex flex-wrap items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5">
@@ -341,14 +450,11 @@ export default function NotesPage() {
         </div>
       </div>
 
-      {/* Editor (editable) or read-only rendered preview */}
       {!canEdit ? (
         <div className="flex-1 overflow-y-auto">
           <MarkdownPreview content={localContent} noteId={selectedId} />
         </div>
       ) : (
-        // The MDEditor toolbar provides its own Edit / Split / Preview toggle,
-        // so no separate dock/panel system is needed here.
         <MarkdownEditor
           value={localContent}
           onChange={handleContentChange}
@@ -357,7 +463,10 @@ export default function NotesPage() {
         />
       )}
     </div>
-  ) : (
+  ) : null;
+
+  // Empty state
+  const emptyState = (
     <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground bg-background">
       <StickyNote className="w-12 h-12 opacity-20" />
       <p className="text-sm">{t("notes.noNotesDesc")}</p>
@@ -367,10 +476,13 @@ export default function NotesPage() {
     </div>
   );
 
+  const editorArea = activeDraft ? draftEditor : selectedNote ? noteEditor : emptyState;
+  const hasSelection = activeDraft !== null || selectedId !== null;
+
   return (
     <div className="flex h-[calc(100dvh-2rem)] -m-4 md:-m-8 overflow-hidden rounded-lg border border-border">
-      {/* Note list sidebar - hidden on mobile when a note is open */}
-      <div className={`${selectedId !== null ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 flex-col border-r border-border bg-card`}>
+      {/* Sidebar */}
+      <div className={`${hasSelection ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 flex-col border-r border-border bg-card`}>
         <div className="p-3 border-b border-border flex items-center gap-2">
           <StickyNote className="w-4 h-4 text-primary" />
           <span className="font-semibold text-sm flex-1">{t("notes.title")}</span>
@@ -424,7 +536,7 @@ export default function NotesPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {filteredNotes.length === 0 ? (
+          {filteredDrafts.length === 0 && filteredNotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 gap-2 text-muted-foreground">
               <StickyNote className="w-8 h-8 opacity-30" />
               <p className="text-xs">{search ? t("common.noResults") : t("notes.noNotes")}</p>
@@ -435,24 +547,39 @@ export default function NotesPage() {
               )}
             </div>
           ) : (
-            filteredNotes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                isSelected={note.id === selectedId}
-                projectName={getProjectName(note.projectId)}
-                taskTitle={getTaskTitle(note.taskId)}
-                onClick={() => handleSelectNote(note.id)}
-                onDelete={() => setDeleteTarget(note.id)}
-              />
-            ))
+            <>
+              {/* Draft notes — shown above server notes with an offline badge */}
+              {filteredDrafts.map((draft) => (
+                <DraftNoteCard
+                  key={draft.draftId}
+                  draft={draft}
+                  isSelected={draft.draftId === activeDraftId}
+                  onClick={() => handleSelectDraft(draft.draftId)}
+                  onDelete={() => setDeleteDraftTarget(draft.draftId)}
+                />
+              ))}
+
+              {/* Server notes */}
+              {filteredNotes.map((note) => (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  isSelected={note.id === selectedId}
+                  projectName={getProjectName(note.projectId)}
+                  taskTitle={getTaskTitle(note.taskId)}
+                  onClick={() => handleSelectNote(note.id)}
+                  onDelete={() => setDeleteTarget(note.id)}
+                />
+              ))}
+            </>
           )}
         </div>
       </div>
 
-      {/* Editor - full width on mobile when note is open */}
+      {/* Editor */}
       {editorArea}
 
+      {/* Delete real note dialog */}
       <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -467,27 +594,93 @@ export default function NotesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete draft dialog */}
+      <AlertDialog open={deleteDraftTarget !== null} onOpenChange={(o) => !o && setDeleteDraftTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This draft only exists on this device. Deleting it cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleDeleteDraft}>
+              {t("common.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+// ─── Draft note sidebar card ──────────────────────────────────────────────────
+
+function DraftNoteCard({
+  draft,
+  isSelected,
+  onClick,
+  onDelete,
+}: {
+  draft: DraftNote;
+  isSelected: boolean;
+  onClick: () => void;
+  onDelete: () => void;
+}) {
+  const preview = (draft.content || "No content yet")
+    .replace(/[#*`_~>[\]]/g, "")
+    .slice(0, 120);
+
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "group relative flex flex-col gap-1.5 px-4 py-3 cursor-pointer border-b border-border transition-colors",
+        isSelected ? "bg-accent" : "hover:bg-accent/50",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <FileText className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+          <span className="font-medium text-sm truncate">{draft.title}</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground line-clamp-2 pl-5">{preview}</p>
+      <div className="flex items-center gap-2 pl-5">
+        <span className="text-xs text-muted-foreground/60">
+          {formatDistanceToNow(new Date(draft.updatedAt), { addSuffix: true })}
+        </span>
+        <span className="flex items-center gap-1 text-xs text-amber-500/80">
+          <WifiOff className="w-3 h-3" />
+          draft
+        </span>
+      </div>
     </div>
   );
 }
 
 // ─── Searchable select combobox ───────────────────────────────────────────────
-// Replaces <Select> wherever a filterable list is needed (projects, tasks).
 
 interface SearchableSelectProps {
   value: string;
   onValueChange: (val: string) => void;
   placeholder: string;
-  /** Label shown for the "none / all" option */
   noneLabel: string;
-  /** Value emitted when the none option is chosen (default: "none") */
   noneValue?: string;
-  /** Optional icon rendered next to the none label */
   noneIcon?: React.ReactNode;
   options: { value: string; label: string }[];
   searchPlaceholder?: string;
   triggerClassName?: string;
-  /** Tailwind width class applied to the popover content (default: "w-56") */
   contentWidth?: string;
 }
 

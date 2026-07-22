@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import { WifiOff } from "lucide-react";
+import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
+import { flushDraftNotes } from "@/lib/draft-notes";
 
 /**
  * Sticky amber banner that appears at the top of the screen when the device
@@ -20,10 +22,21 @@ export function OfflineBanner() {
   const queryClient = useQueryClient();
   const wasOffline = useRef(isOffline);
 
-  // Flush any mutations queued in a previous session on startup.
+  async function doFlush() {
+    await flushQueue();
+    const drafted = await flushDraftNotes();
+    await queryClient.invalidateQueries();
+    if (drafted > 0) {
+      toast.success(
+        `${drafted} draft ${drafted === 1 ? "note" : "notes"} saved`,
+      );
+    }
+  }
+
+  // Flush any mutations / drafts queued in a previous session on startup.
   useEffect(() => {
     if (typeof navigator !== "undefined" && navigator.onLine) {
-      flushQueue().then(() => queryClient.invalidateQueries());
+      doFlush();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -32,7 +45,7 @@ export function OfflineBanner() {
   // all cached query data so the UI reflects the replayed mutations.
   useEffect(() => {
     if (wasOffline.current && isOnline) {
-      flushQueue().then(() => queryClient.invalidateQueries());
+      doFlush();
     }
     wasOffline.current = isOffline;
   }, [isOnline, isOffline, flushQueue, queryClient]);
