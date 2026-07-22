@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useSearch } from "wouter";
+import { useSearch, useLocation } from "wouter";
 import { useTranslation } from "react-i18next";
 import {
   Plus, StickyNote, Search, Link2Off,
@@ -44,6 +44,7 @@ export default function NotesPage() {
   const { toast } = useToast();
   // Pre-select a note when navigated here via ?note=<id> (e.g. from "Edit in Scratch Pad")
   const urlSearch = useSearch();
+  const [, navigate] = useLocation();
   const noteParam = new URLSearchParams(urlSearch).get("note");
   const preselectedId = noteParam ? parseInt(noteParam, 10) : null;
 
@@ -121,6 +122,7 @@ export default function NotesPage() {
     });
     setSelectedId(result.id);
     setLocalContent("");
+    navigate(`/notes?note=${result.id}`);
     refetch();
   };
 
@@ -128,9 +130,13 @@ export default function NotesPage() {
     const note = notes.find((n) => n.id === id);
     setSelectedId(id);
     setLocalContent(note?.content ?? "");
+    navigate(`/notes?note=${id}`);
   };
 
-  const handleBack = () => setSelectedId(null);
+  const handleBack = () => {
+    setSelectedId(null);
+    navigate("/notes");
+  };
 
   const handleTitleChange = (val: string) => {
     if (!selectedNote) return;
