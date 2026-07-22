@@ -16,7 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp, LayoutList, Columns } from "lucide-react";
+import { ArrowLeft, Calendar, Pencil, Timer, Trash2, Edit, Plus, CheckSquare, Clock, RotateCcw, History, ChevronDown, ChevronUp, LayoutList, Columns, LayoutPanelTop } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { KanbanBoard } from "@/components/ui/kanban-board";
@@ -438,10 +439,19 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const [viewMode, setViewMode] = useState<"list" | "board">(
     () => (localStorage.getItem("project-detail-view-mode") as "list" | "board") ?? "list",
   );
+  const [layoutMode, setLayoutMode] = useState<"stacked" | "tabbed">(
+    () => (localStorage.getItem("project-detail-layout-mode") as "stacked" | "tabbed") ?? "stacked",
+  );
+  const [activeTab, setActiveTab] = useState("tasks");
 
   useEffect(() => {
     localStorage.setItem("project-detail-view-mode", viewMode);
   }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem("project-detail-layout-mode", layoutMode);
+    if (layoutMode === "tabbed") setActiveTab("tasks");
+  }, [layoutMode]);
 
   const { data: project, isLoading: isLoadingProject } = useGetProject(projectId, {
     query: { enabled: !!projectId, queryKey: ["getProject", projectId] }
@@ -524,6 +534,25 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
             <div className="flex items-center gap-2 shrink-0">
               <StatusBadge status={project.status} className="text-sm px-3 py-1" />
               <PriorityBadge priority={project.priority} className="text-sm px-3 py-1" />
+              {/* Layout mode toggle */}
+              <Button
+                variant={layoutMode === "stacked" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setLayoutMode("stacked")}
+                title={t('projects.stackedLayout', 'Stacked layout')}
+              >
+                <LayoutList className="w-4 h-4" />
+              </Button>
+              <Button
+                variant={layoutMode === "tabbed" ? "secondary" : "ghost"}
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setLayoutMode("tabbed")}
+                title={t('projects.tabbedLayout', 'Tabbed layout')}
+              >
+                <LayoutPanelTop className="w-4 h-4" />
+              </Button>
               {canManageProjects && (
                 <>
                   <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
@@ -562,132 +591,255 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
           {project.description && (
             <MarkdownPreview content={project.description} className="px-0 py-0" />
           )}
+        </CardContent>
+      </Card>
 
-          <div className="bg-card border border-border/50 rounded-lg p-4 mt-6">
-            <div className="flex justify-between items-end mb-2">
-              <div className="space-y-1">
-                <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
-                <div className="text-2xl font-bold">{progress}%</div>
-              </div>
-              <div className="text-sm text-muted-foreground mb-1">
-                {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
-              </div>
-            </div>
-            <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-primary rounded-full transition-all duration-1000 ease-out" 
-                style={{ width: `${progress}%` }} 
-              />
-            </div>
+      {/* Progress bar — standalone block, visible in both layout modes */}
+      <div className="bg-card border border-border/50 rounded-lg p-4">
+        <div className="flex justify-between items-end mb-2">
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-muted-foreground">{t('projects.progress', { defaultValue: '{{project}} Progress', project: tSingular("projects") })}</span>
+            <div className="text-2xl font-bold">{progress}%</div>
           </div>
-          
-        </CardContent>
-      </Card>
-
-      {/* Notes Section */}
-      <Card className="border-border/60 shadow-sm">
-        <CardContent className="pt-6">
-          <InlineNotes projectId={projectId} />
-        </CardContent>
-      </Card>
-
-      {/* SLA Overrides — visible to manage_sla_policies and view_audit_log */}
-      {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
-        <ProjectSlaPoliciesCard projectId={projectId} />
-      )}
-
-      {/* Tasks Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {term("tasks")}</h2>
-          <div className="flex items-center gap-2">
-            {/* List / Board toggle — identical styling to tasks.tsx */}
-            <Button
-              data-testid="view-toggle-list"
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode("list")}
-              title={t('tasks.listView')}
-            >
-              <LayoutList className="w-4 h-4" />
-            </Button>
-            <Button
-              data-testid="view-toggle-board"
-              variant={viewMode === "board" ? "secondary" : "ghost"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setViewMode("board")}
-              title={t('tasks.kanbanView')}
-            >
-              <Columns className="w-4 h-4" />
-            </Button>
-            <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
-              <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
-            </Button>
+          <div className="text-sm text-muted-foreground mb-1">
+            {t('projects.completedCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0 })} {term("tasks")} {t('projects.completedLabel', 'Completed')}
           </div>
         </div>
+        <div className="h-2.5 w-full bg-secondary rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-1000 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
 
-        {isLoadingTasks ? (
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
+      {/* ── Tabbed layout ──────────────────────────────────────────────────────── */}
+      {layoutMode === "tabbed" ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="notes">{t('notes.title', 'Notes')}</TabsTrigger>
+            {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
+              <TabsTrigger value="sla">{t('projects.slaPolicies', 'SLA Policies')}</TabsTrigger>
+            )}
+            <TabsTrigger value="tasks">{tSingular("projects")} {term("tasks")}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="notes">
+            <Card className="border-border/60 shadow-sm">
+              <CardContent className="pt-6">
+                <InlineNotes projectId={projectId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
+            <TabsContent value="sla">
+              <ProjectSlaPoliciesCard projectId={projectId} />
+            </TabsContent>
+          )}
+
+          <TabsContent value="tasks">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {term("tasks")}</h2>
+                <div className="flex items-center gap-2">
+                  <Button
+                    data-testid="view-toggle-list"
+                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setViewMode("list")}
+                    title={t('tasks.listView')}
+                  >
+                    <LayoutList className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    data-testid="view-toggle-board"
+                    variant={viewMode === "board" ? "secondary" : "ghost"}
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setViewMode("board")}
+                    title={t('tasks.kanbanView')}
+                  >
+                    <Columns className="w-4 h-4" />
+                  </Button>
+                  <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
+                    <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
+                  </Button>
+                </div>
+              </div>
+
+              {isLoadingTasks ? (
+                <Card>
+                  <CardContent className="p-4 space-y-3">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </CardContent>
+                </Card>
+              ) : viewMode === "board" ? (
+                <KanbanBoard tasks={tasks ?? []} stages={stages} />
+              ) : (
+                <Card>
+                  <CardContent className="p-0">
+                    {tasks && tasks.length > 0 ? (
+                      <div className="divide-y divide-border">
+                        {tasks.map(task => (
+                          <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className="mt-1 text-muted-foreground">
+                                <CheckSquare className="w-5 h-5" />
+                              </div>
+                              <div>
+                                <Link href={`/tasks/${task.id}`}>
+                                  <span className="font-medium hover:text-primary transition-colors cursor-pointer text-sm">
+                                    {task.title}
+                                  </span>
+                                </Link>
+                                <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                  <span className="uppercase">{task.category}</span>
+                                  {task.assignee && (
+                                    <>
+                                      <span>•</span>
+                                      <span>{task.assignee}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
+                              <StatusBadge
+                                status={task.status}
+                                stageName={task.stageName}
+                                stageColor={task.stageColor}
+                                stageArchived={task.stageArchived}
+                              />
+                              <PriorityBadge priority={task.priority} />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12 text-muted-foreground">
+                        <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                        <p>{t('tasks.noTasks', { tasks: term("tasks") })} {t('projects.forThisProject', { defaultValue: 'found for this {{project}}.', project: tSingular("projects").toLowerCase() })}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        /* ── Stacked layout (default) ──────────────────────────────────────── */
+        <>
+          {/* Notes Section */}
+          <Card className="border-border/60 shadow-sm">
+            <CardContent className="pt-6">
+              <InlineNotes projectId={projectId} />
             </CardContent>
           </Card>
-        ) : viewMode === "board" ? (
-          <KanbanBoard tasks={tasks ?? []} stages={stages} />
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              {tasks && tasks.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {tasks.map(task => (
-                    <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="mt-1 text-muted-foreground">
-                          <CheckSquare className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <Link href={`/tasks/${task.id}`}>
-                            <span className="font-medium hover:text-primary transition-colors cursor-pointer text-sm">
-                              {task.title}
-                            </span>
-                          </Link>
-                          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                            <span className="uppercase">{task.category}</span>
-                            {task.assignee && (
-                              <>
-                                <span>•</span>
-                                <span>{task.assignee}</span>
-                              </>
-                            )}
+
+          {/* SLA Overrides — visible to manage_sla_policies and view_audit_log */}
+          {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
+            <ProjectSlaPoliciesCard projectId={projectId} />
+          )}
+
+          {/* Tasks Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold tracking-tight">{tSingular("projects")} {term("tasks")}</h2>
+              <div className="flex items-center gap-2">
+                {/* List / Board toggle */}
+                <Button
+                  data-testid="view-toggle-list"
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode("list")}
+                  title={t('tasks.listView')}
+                >
+                  <LayoutList className="w-4 h-4" />
+                </Button>
+                <Button
+                  data-testid="view-toggle-board"
+                  variant={viewMode === "board" ? "secondary" : "ghost"}
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setViewMode("board")}
+                  title={t('tasks.kanbanView')}
+                >
+                  <Columns className="w-4 h-4" />
+                </Button>
+                <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
+                  <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
+                </Button>
+              </div>
+            </div>
+
+            {isLoadingTasks ? (
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </CardContent>
+              </Card>
+            ) : viewMode === "board" ? (
+              <KanbanBoard tasks={tasks ?? []} stages={stages} />
+            ) : (
+              <Card>
+                <CardContent className="p-0">
+                  {tasks && tasks.length > 0 ? (
+                    <div className="divide-y divide-border">
+                      {tasks.map(task => (
+                        <div key={task.id} className="p-4 hover:bg-muted/30 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-1 text-muted-foreground">
+                              <CheckSquare className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <Link href={`/tasks/${task.id}`}>
+                                <span className="font-medium hover:text-primary transition-colors cursor-pointer text-sm">
+                                  {task.title}
+                                </span>
+                              </Link>
+                              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                                <span className="uppercase">{task.category}</span>
+                                {task.assignee && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{task.assignee}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
+                            <StatusBadge
+                              status={task.status}
+                              stageName={task.stageName}
+                              stageColor={task.stageColor}
+                              stageArchived={task.stageArchived}
+                            />
+                            <PriorityBadge priority={task.priority} />
                           </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0 sm:ml-auto ml-8">
-                        <StatusBadge
-                          status={task.status}
-                          stageName={task.stageName}
-                          stageColor={task.stageColor}
-                          stageArchived={task.stageArchived}
-                        />
-                        <PriorityBadge priority={task.priority} />
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                  <p>{t('tasks.noTasks', { tasks: term("tasks") })} {t('projects.forThisProject', { defaultValue: 'found for this {{project}}.', project: tSingular("projects").toLowerCase() })}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+                  ) : (
+                    <div className="text-center py-12 text-muted-foreground">
+                      <CheckSquare className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                      <p>{t('tasks.noTasks', { tasks: term("tasks") })} {t('projects.forThisProject', { defaultValue: 'found for this {{project}}.', project: tSingular("projects").toLowerCase() })}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
