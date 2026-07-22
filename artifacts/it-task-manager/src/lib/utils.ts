@@ -7,7 +7,13 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(dateString: string | null | undefined, locale?: string) {
   if (!dateString) return "N/A";
-  const date = new Date(dateString);
+  // ISO date-only strings (YYYY-MM-DD) are parsed as UTC midnight by the Date
+  // constructor, which shifts them back a day for timezones west of UTC.
+  // Parse them as local midnight instead.
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dateString);
+  const date = dateOnly
+    ? new Date(`${dateString}T00:00:00`)
+    : new Date(dateString);
   return new Intl.DateTimeFormat(locale ?? "en-US", {
     month: "short",
     day: "numeric",
