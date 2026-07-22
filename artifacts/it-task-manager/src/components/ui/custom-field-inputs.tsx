@@ -44,7 +44,7 @@ export function CustomFieldInputs({ fields, values, onChange }: CustomFieldInput
                       id={`cf-${id}`}
                       value={typeof value === "string" ? value : ""}
                       onChange={(e) => onChange(id, e.target.value)}
-                      placeholder={`Enter ${field.name.toLowerCase()}`}
+                      placeholder={t("customFields.enterField", { name: field.name.toLowerCase() })}
                     />
                   </div>
                 );
@@ -58,7 +58,7 @@ export function CustomFieldInputs({ fields, values, onChange }: CustomFieldInput
                       type="number"
                       value={typeof value === "number" ? String(value) : typeof value === "string" ? value : ""}
                       onChange={(e) => onChange(id, e.target.value === "" ? null : Number(e.target.value))}
-                      placeholder={`Enter ${field.name.toLowerCase()}`}
+                      placeholder={t("customFields.enterField", { name: field.name.toLowerCase() })}
                     />
                   </div>
                 );
@@ -87,11 +87,11 @@ export function CustomFieldInputs({ fields, values, onChange }: CustomFieldInput
                       onValueChange={(v) => onChange(id, v === "__none__" ? null : v)}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder={`Select ${field.name.toLowerCase()}…`} />
+                        <SelectValue placeholder={t("customFields.selectField", { name: field.name.toLowerCase() })} />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__none__">
-                          <span className="text-muted-foreground italic">None</span>
+                          <span className="text-muted-foreground italic">{t("common.none")}</span>
                         </SelectItem>
                         {options.map((opt) => (
                           <SelectItem key={opt} value={opt}>{opt}</SelectItem>
@@ -132,7 +132,7 @@ export function CustomFieldInputs({ fields, values, onChange }: CustomFieldInput
                         );
                       })}
                       {options.length === 0 && (
-                        <span className="text-xs text-muted-foreground italic">No options configured</span>
+                        <span className="text-xs text-muted-foreground italic">{t("taskDetail.noOptionsConfigured")}</span>
                       )}
                     </div>
                   </div>

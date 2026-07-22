@@ -100,7 +100,12 @@
     "member": "عضو",
     "nMembers": "{{count}} عضو",
     "nMembers_one": "{{count}} عضو",
-    "nMembers_other": "{{count}} أعضاء"
+    "nMembers_other": "{{count}} أعضاء",
+    "youreOffline": "You're offline",
+    "changesQueued_one": "{{count}} change queued",
+    "changesQueued_other": "{{count}} changes queued",
+    "scrollToTop": "Scroll to top",
+    "scrollToBottom": "Scroll to bottom"
   },
   "nav": {
     "dashboard": "لوحة التحكم",
@@ -267,7 +272,10 @@
     "slaFilterActive": "عرض {{tasks}} المنتهكة SLA فقط — انقر للمسح",
     "slaFilter": "عرض {{tasks}} التي انتهكت SLA فقط",
     "bulkSelected": "{{count}} محدد",
-    "clearSelection": "مسح التحديد"
+    "clearSelection": "مسح التحديد",
+    "personalView": "Personal",
+    "defaultIndicator": "· Default",
+    "clearCustomFieldFilter": "Clear custom field filter"
   },
   "taskDetail": {
     "notFound": "المهمة غير موجودة",
@@ -423,7 +431,10 @@
     "statusPlanning": "تخطيط",
     "statusOnHold": "معلق",
     "subtitle": "إدارة مبادرات تكنولوجيا المعلومات والنشر والملاحم.",
-    "customSla": "SLA مخصص"
+    "customSla": "SLA مخصص",
+    "orgDefault": "Org default",
+    "warningDefault": "80% (default)",
+    "overrideBadge": "override"
   },
   "notes": {
     "title": "المفكرة",
@@ -448,7 +459,9 @@
     "allTasks": "جميع المهام",
     "clearFilters": "مسح الفلاتر",
     "searchProjectsPlaceholder": "البحث في المشاريع…",
-    "searchTasksPlaceholder": "البحث في المهام…"
+    "searchTasksPlaceholder": "البحث في المهام…",
+    "backToNotes": "Back to notes list",
+    "untitledNote": "Untitled Note"
   },
   "webhooks": {
     "inboundCreated": "تم إنشاء Webhook وارد",
@@ -757,7 +770,10 @@
       "badgeOpen": "مفتوح",
       "badgeNew": "جديد",
       "activeSidebarItem": "عنصر الشريط الجانبي النشط",
-      "revertColor": "استعادة"
+      "revertColor": "استعادة",
+      "pickColor": "Pick a brand color",
+      "colorPreview": "Color preview",
+      "logoAlt": "Logo preview"
     },
     "reactions": {
       "title": "لوحة ردود الفعل",
@@ -771,7 +787,8 @@
       "paletteReset": "تمت إعادة تعيين لوحة ردود الفعل",
       "emptyPalette": "لا توجد رموز تعبيرية في اللوحة.",
       "noPermission": "فقط الأعضاء ذوو الصلاحية يمكنهم تعديل اللوحة.",
-      "mustHaveOne": "يجب أن تحتوي اللوحة على رمز تعبيري واحد على الأقل"
+      "mustHaveOne": "يجب أن تحتوي اللوحة على رمز تعبيري واحد على الأقل",
+      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "المصطلحات",
@@ -786,7 +803,8 @@
       "singularLabel": "تسمية المفرد (اختياري)",
       "saveButton": "حفظ المصطلحات",
       "resetToDefaults": "إعادة تعيين الافتراضيات",
-      "defaultLabel": "الافتراضي: \"{{value}}\""
+      "defaultLabel": "الافتراضي: \"{{value}}\"",
+      "invitePlaceholder": "email@example.com or user ID"
     },
     "apiKeys": {
       "title": "مفاتيح API",
@@ -827,7 +845,8 @@
       "createdBy": "تم إنشاؤه بواسطة {{name}} بتاريخ {{date}}",
       "formatJSON": "JSON",
       "formatCSV": "CSV",
-      "builtIn": "مدمج"
+      "builtIn": "مدمج",
+      "keyNamePlaceholder": "e.g. Prometheus exporter"
     },
     "export": {
       "title": "تصدير البيانات",
@@ -852,7 +871,10 @@
       "format": "التنسيق",
       "preparing": "جار التحضير…",
       "inProgress": "قيد التنفيذ",
-      "downloadExport": "تنزيل التصدير"
+      "downloadExport": "تنزيل التصدير",
+      "jsonDesc": "— single self-describing file, designed for future import",
+      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
+      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
     },
     "orgInfo": "المنظمة",
     "orgRenamed": "تمت إعادة تسمية المنظمة",
@@ -872,7 +894,8 @@
       "leaveOrgConfirm": "هل تريد مغادرة المنظمة؟",
       "leaveOrgConfirmDesc": "هل أنت متأكد من أنك تريد مغادرة هذه المنظمة؟ ستفقد الوصول إلى جميع الموارد.",
       "leaveButton": "مغادرة",
-      "transferOwnership": "نقل الملكية"
+      "transferOwnership": "نقل الملكية",
+      "renameTitle": "Rename organization"
     },
     "members": {
       "invite": "دعوة عضو",
@@ -904,7 +927,11 @@
       "keepInvitation": "الاحتفاظ بالدعوة",
       "memberRemoved": "تم إزالة العضو",
       "invitationCanceled": "تم إلغاء الدعوة",
-      "leftOrg": "لقد غادرت المنظمة"
+      "leftOrg": "لقد غادرت المنظمة",
+      "youBadge": "You",
+      "copyInviteTitle": "Copy invite link",
+      "cancelInviteTitle": "Cancel invitation",
+      "emailPlaceholder": "email@example.com or user ID"
     },
     "roles": {
       "title": "الأدوار",
@@ -924,7 +951,10 @@
       "builtIn": "مدمج",
       "owner": "المالك",
       "renameRole": "إعادة تسمية الدور",
-      "duplicateRole": "تكرار الدور \"{{name}}\""
+      "duplicateRole": "تكرار الدور \"{{name}}\"",
+      "noRolesFound": "No roles found.",
+      "roleNamePlaceholder": "Role name",
+      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
     },
     "sla": {
       "title": "سياسات SLA",
@@ -935,7 +965,8 @@
       "criticalDesc": "يتطلب استجابة فورية",
       "highDesc": "مشكلة تشغيلية عاجلة",
       "mediumDesc": "عنصر عمل قياسي",
-      "lowDesc": "أولوية منخفضة، يمكن تأجيله"
+      "lowDesc": "أولوية منخفضة، يمكن تأجيله",
+      "noTargetPlaceholder": "No target"
     },
     "templates": {
       "title": "قوالب {{task}}",
@@ -952,7 +983,12 @@
       "defaultDescription": "الوصف الافتراضي / خطوات دليل التشغيل",
       "templateCreated": "تم إنشاء القالب",
       "templateUpdated": "تم تحديث القالب",
-      "templateDeleted": "تم حذف القالب"
+      "templateDeleted": "تم حذف القالب",
+      "templateNamePlaceholder": "e.g. Database Outage Response",
+      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
+      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
+      "editTemplate": "Edit template",
+      "deleteTemplateButton": "Delete template"
     },
     "workflow": {
       "addStage": "إضافة مرحلة",
@@ -1357,7 +1393,13 @@
     "typeNumber": "رقم",
     "typeDate": "تاريخ",
     "typeSingleSelect": "اختيار واحد",
-    "typeMultiSelect": "اختيار متعدد"
+    "typeMultiSelect": "اختيار متعدد",
+    "enterField": "Enter {{name}}",
+    "selectField": "Select {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
+    "dragToReorder": "Drag to reorder",
+    "clickToRename": "Click to rename",
+    "editOptions": "Edit options"
   },
   "upgradeModal": {
     "upgradeRequired": "الترقية مطلوبة",
@@ -1404,12 +1446,17 @@
   },
   "search": {
     "placeholder": "ابحث في المهام والمشاريع والملاحظات…",
-    "results": "نتائج البحث"
+    "results": "نتائج البحث",
+    "viewAllIn": "View all results for “{{query}}” in {{term}}",
+    "globalSearch": "Global search",
+    "emptyPrompt": "Type to search across tasks, projects & notes"
   },
   "markdown": {
     "invalidMermaid": "صيغة Mermaid غير صالحة",
     "fixDiagram": "أصلح كود المخطط لرؤية معاينة.",
-    "renderingDiagram": "جاري تصيير المخطط…"
+    "renderingDiagram": "جاري تصيير المخطط…",
+    "copyLinkToSection": "Copy link to section",
+    "copiedLink": "Copied!"
   },
   "assignee": {
     "searchPlaceholder": "ابحث بالاسم أو أدخل البريد الإلكتروني…",

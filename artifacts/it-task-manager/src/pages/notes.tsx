@@ -195,7 +195,7 @@ export default function NotesPage() {
 
     const result = await createNote.mutateAsync({
       data: {
-        title: "Untitled Note",
+        title: t("notes.untitledNote"),
         content: "",
         ...(filterProjectId !== "all" ? { projectId: filterProjectId as number } : {}),
         ...(filterTaskId    !== "all" ? { taskId:    filterTaskId    as number } : {}),
@@ -233,7 +233,7 @@ export default function NotesPage() {
 
   const handleTitleChange = (val: string) => {
     if (!selectedNote) return;
-    scheduleAutoSave(selectedNote.id, { title: val || "Untitled Note" });
+    scheduleAutoSave(selectedNote.id, { title: val || t("notes.untitledNote") });
   };
 
   const handleContentChange = (md: string) => {
@@ -335,7 +335,7 @@ export default function NotesPage() {
           <button
             className="md:hidden shrink-0 p-1 -ml-1 text-muted-foreground hover:text-foreground"
             onClick={handleBack}
-            aria-label="Back to notes list"
+            aria-label={t("notes.backToNotes")}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -346,7 +346,7 @@ export default function NotesPage() {
             onChange={(e) => handleTitleChange(e.target.value)}
             readOnly={!canEdit}
             className="flex-1 bg-transparent text-base md:text-lg font-semibold focus:outline-none placeholder:text-muted-foreground min-w-0 disabled:cursor-default"
-            placeholder="Untitled Note"
+            placeholder={t("notes.untitledNote")}
           />
 
           <span

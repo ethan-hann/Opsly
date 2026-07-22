@@ -574,14 +574,14 @@ function SaveViewPopover({
                               setNewName(activeView.name);
                             }}
                             className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                            title="Rename"
+                            title={t("common.rename")}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDelete(activeView.id)}
                             className="p-1 rounded text-muted-foreground hover:text-destructive transition-colors"
-                            title="Delete view"
+                            title={t("tasks.deleteView")}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -594,15 +594,15 @@ function SaveViewPopover({
               <div className="flex items-center gap-1 text-xs text-muted-foreground">
                 {activeView.isOrgWide ? (
                   <>
-                    <Globe className="w-3 h-3" /> Org-wide
+                    <Globe className="w-3 h-3" /> {t("tasks.orgWide")}
                   </>
                 ) : (
                   <>
-                    <Lock className="w-3 h-3" /> Personal
+                    <Lock className="w-3 h-3" /> {t("tasks.personalView")}
                   </>
                 )}
                 {activeView.isDefault && (
-                  <span className="ml-1 text-primary">· Default</span>
+                  <span className="ml-1 text-primary">{t("tasks.defaultIndicator")}</span>
                 )}
               </div>
               {activeView.createdBy === userId && (
@@ -1529,7 +1529,7 @@ export default function TasksList() {
                   <button
                     onClick={() => setCustomFieldFilter("", "")}
                     className="flex items-center justify-center w-6 h-8 rounded-r-md border border-l-0 border-primary bg-primary text-primary-foreground hover:bg-primary/80 transition-colors"
-                    aria-label="Clear custom field filter"
+                    aria-label={t("tasks.clearCustomFieldFilter")}
                   >
                     <X className="w-3 h-3" />
                   </button>

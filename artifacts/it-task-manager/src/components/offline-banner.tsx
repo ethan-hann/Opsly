@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { WifiOff } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { flushDraftNotes } from "@/lib/draft-notes";
  * reflects the newly-synced server state.
  */
 export function OfflineBanner() {
+  const { t } = useTranslation();
   const { isOnline, isOffline } = useNetworkStatus();
   const { queueLength, flushQueue } = useOfflineQueue();
   const queryClient = useQueryClient();
@@ -63,13 +65,13 @@ export function OfflineBanner() {
       ].join(" ")}
     >
       <WifiOff className="h-4 w-4 shrink-0" aria-hidden="true" />
-      <span>You&apos;re offline</span>
+      <span>{t("common.youreOffline")}</span>
       {queueLength > 0 && (
         <span
           className="inline-flex items-center justify-center rounded-full bg-amber-800 text-amber-50 text-xs font-semibold px-2 py-0.5 min-w-[1.5rem]"
-          aria-label={`${queueLength} ${queueLength === 1 ? "change" : "changes"} queued`}
+          aria-label={t("common.changesQueued", { count: queueLength })}
         >
-          {queueLength} {queueLength === 1 ? "change" : "changes"} queued
+          {t("common.changesQueued", { count: queueLength })}
         </span>
       )}
     </div>

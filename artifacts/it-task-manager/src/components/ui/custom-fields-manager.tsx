@@ -189,7 +189,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
           {...attributes}
           className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground shrink-0 touch-none"
           tabIndex={-1}
-          aria-label="Drag to reorder"
+          aria-label={t("customFields.dragToReorder")}
         >
           <GripVertical className="w-4 h-4" />
         </button>
@@ -223,7 +223,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
             <button
               className="text-sm font-medium hover:text-primary transition-colors text-left w-full truncate"
               onClick={() => { setNameVal(field.name); setEditingName(true); }}
-              title="Click to rename"
+              title={t("customFields.clickToRename")}
             >
               {field.name}
             </button>
@@ -240,7 +240,7 @@ function FieldRow({ field, onDeleted }: FieldRowProps) {
           <Button
             variant="ghost" size="icon" className="h-7 w-7 shrink-0"
             onClick={() => setEditingOptions((v) => !v)}
-            title="Edit options"
+            title={t("customFields.editOptions")}
           >
             <Settings2 className="w-4 h-4" />
           </Button>
@@ -455,7 +455,7 @@ function DeletedFieldRow({ field, onPurged, onRestored }: DeletedFieldRowProps) 
   const { mutate: restoreField, isPending: isRestoring } = useRestoreCustomFieldDefinition({
     mutation: {
       onSuccess: () => {
-        toast({ title: t("customFields.addField"), description: `"${field.name}" is active again.` });
+        toast({ title: t("customFields.addField"), description: t("customFields.fieldIsActiveAgain", { name: field.name }) });
         onRestored();
       },
       onError: (err: Error) => {

@@ -254,14 +254,14 @@ function BrandingCard() {
               onChange={(e) => setColorDraft(e.target.value)}
               disabled={!canManage || isPending}
               className="w-10 h-10 rounded cursor-pointer border border-border bg-transparent p-0.5 disabled:cursor-not-allowed"
-              title="Pick a brand color"
+              title={t("orgSettings.branding.pickColor")}
             />
             <code className="text-sm font-mono text-muted-foreground">{colorDraft}</code>
             {/* Live swatch preview */}
             <div
               className="w-6 h-6 rounded-full border border-border shrink-0"
               style={{ backgroundColor: colorDraft }}
-              title="Color preview"
+              title={t("orgSettings.branding.colorPreview")}
             />
             {/* Revert to saved color if draft has drifted */}
             {colorDraft !== (currentPrimaryColor ?? "#f59e0b") && (
@@ -270,7 +270,7 @@ function BrandingCard() {
                 onClick={() => setColorDraft(currentPrimaryColor ?? "#f59e0b")}
                 disabled={isPending}
                 className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors disabled:cursor-not-allowed"
-                title="Revert to saved color"
+                title={t("orgSettings.branding.revertColor")}
               >
                 {t("orgSettings.branding.revertColor")}
               </button>
@@ -297,7 +297,7 @@ function BrandingCard() {
           {logoUrlDraft && (
             <img
               src={logoUrlDraft}
-              alt="Logo preview"
+              alt={t("orgSettings.branding.logoAlt")}
               className="h-8 w-auto object-contain rounded border border-border"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               onLoad={(e) => { (e.target as HTMLImageElement).style.display = ""; }}
@@ -481,7 +481,7 @@ function ReactionPaletteCard() {
                   variant="outline"
                   onClick={handleReset}
                   disabled={isSaving}
-                  title="Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
+                  title={t("orgSettings.reactions.restoreDefaultsTitle")}
                 >
                   {t("orgSettings.reactions.resetToDefaults")}
                 </Button>
@@ -634,7 +634,7 @@ function TerminologyCard() {
               <div key={key} className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs font-medium">
-                    {meta.label} <span className="text-muted-foreground font-normal">(plural)</span>
+                    {meta.label} <span className="text-muted-foreground font-normal">{t("orgSettings.terminology.pluralLabel")}</span>
                     <span className="ml-1.5 text-muted-foreground font-normal">
                       {t('orgSettings.terminology.defaultLabel', { value: TERM_DEFAULTS[key] })}
                     </span>
@@ -929,7 +929,7 @@ function ApiKeysCard() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Prometheus exporter"
+                placeholder={t("orgSettings.apiKeys.keyNamePlaceholder")}
                 maxLength={200}
                 autoFocus
                 className="h-8 text-sm"
@@ -1198,7 +1198,7 @@ export function ExportCard() {
             <button
               className="text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setExportExpired(false)}
-              aria-label="Dismiss"
+              aria-label={t("notifications.dismiss")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -1230,7 +1230,7 @@ export function ExportCard() {
             <button
               className="text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setPendingExport(null)}
-              aria-label="Dismiss"
+              aria-label={t("notifications.dismiss")}
             >
               <X className="w-4 h-4" />
             </button>
@@ -1284,12 +1284,12 @@ export function ExportCard() {
                   {fmt === "json" ? (
                     <>
                       <span className="font-medium">JSON</span>
-                      <span className="text-muted-foreground"> — single self-describing file, designed for future import</span>
+                      <span className="text-muted-foreground"> {t("orgSettings.export.jsonDesc")}</span>
                     </>
                   ) : (
                     <>
                       <span className="font-medium">CSV</span>
-                      <span className="text-muted-foreground"> — ZIP archive, one spreadsheet per entity type</span>
+                      <span className="text-muted-foreground"> {t("orgSettings.export.csvDesc")}</span>
                     </>
                   )}
                 </span>
@@ -1310,7 +1310,7 @@ export function ExportCard() {
           onClick={handleExport}
           disabled={isExporting || jobQueued || scope.length === 0}
           className="gap-2"
-          title={jobQueued ? "An export is already being prepared — you'll be notified when it's ready" : undefined}
+          title={jobQueued ? t("orgSettings.export.exportQueuedHint") : undefined}
         >
           {isExporting || jobQueued ? (
             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1845,7 +1845,7 @@ function TemplateRow({
           <Input
             value={form.name}
             onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="e.g. Database Outage Response"
+            placeholder={t("orgSettings.templates.templateNamePlaceholder")}
             maxLength={200}
             autoFocus
             className="h-8 text-sm"
@@ -1853,11 +1853,11 @@ function TemplateRow({
           />
         </div>
         <div className="space-y-1">
-          <Label className="text-xs">Default title</Label>
+          <Label className="text-xs">{t("orgSettings.templates.defaultTitle")}</Label>
           <Input
             value={form.defaultTitle}
             onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
-            placeholder="e.g. [SERVICE] outage — investigate and restore"
+            placeholder={t("orgSettings.templates.defaultTitlePlaceholder")}
             maxLength={500}
             className="h-8 text-sm"
             disabled={isUpdating}
@@ -1904,7 +1904,7 @@ function TemplateRow({
           <MarkdownEditor
             value={form.defaultDescription}
             onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
-            placeholder="Checklist or steps to follow when this template is used..."
+            placeholder={t("orgSettings.templates.runbookPlaceholder")}
             readOnly={isUpdating}
             className="h-48 border border-input rounded-md overflow-hidden"
           />
@@ -1940,7 +1940,7 @@ function TemplateRow({
             variant="ghost" size="icon"
             className="h-7 w-7 text-muted-foreground hover:text-foreground"
             onClick={() => setIsEditing(true)}
-            title="Edit template"
+            title={t("orgSettings.templates.editTemplate")}
           >
             <Pencil className="w-3.5 h-3.5" />
           </Button>
@@ -1950,7 +1950,7 @@ function TemplateRow({
                 variant="ghost" size="icon"
                 className="h-7 w-7 text-muted-foreground hover:text-destructive"
                 disabled={isDeleting}
-                title="Delete template"
+                title={t("orgSettings.templates.deleteTemplateButton")}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -2084,7 +2084,7 @@ function WorkflowStagesCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
+        {isLoading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
 
         {sorted.map((stage, index) => {
           const isEditing = editingId === stage.id;
@@ -2304,7 +2304,7 @@ function TaskTemplatesCard() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Database Outage Response"
+                placeholder={t("orgSettings.templates.templateNamePlaceholder")}
                 maxLength={200}
                 autoFocus
                 className="h-8 text-sm"
@@ -2316,7 +2316,7 @@ function TaskTemplatesCard() {
               <Input
                 value={form.defaultTitle}
                 onChange={(e) => setForm((f) => ({ ...f, defaultTitle: e.target.value }))}
-                placeholder="e.g. [SERVICE] outage — investigate and restore"
+                placeholder={t("orgSettings.templates.defaultTitlePlaceholder")}
                 maxLength={500}
                 className="h-8 text-sm"
                 disabled={isCreatingReq}
@@ -2363,7 +2363,7 @@ function TaskTemplatesCard() {
               <MarkdownEditor
                 value={form.defaultDescription}
                 onChange={(md) => setForm((f) => ({ ...f, defaultDescription: md }))}
-                placeholder="Checklist or steps to follow when this template is used..."
+                placeholder={t("orgSettings.templates.runbookPlaceholder")}
                 readOnly={isCreatingReq}
                 className="h-48 border border-input rounded-md overflow-hidden"
               />
@@ -2547,7 +2547,7 @@ function SlaPoliciesCard() {
                 <Input
                   type="number"
                   min={1}
-                  placeholder="No target"
+                  placeholder={t("orgSettings.sla.noTargetPlaceholder")}
                   value={draft[value].responseMinutes}
                   onChange={(e) => updateDraft(value, "responseMinutes", e.target.value)}
                   className="h-8 text-sm"
@@ -2555,7 +2555,7 @@ function SlaPoliciesCard() {
                 <Input
                   type="number"
                   min={1}
-                  placeholder="No target"
+                  placeholder={t("orgSettings.sla.noTargetPlaceholder")}
                   value={draft[value].resolutionMinutes}
                   onChange={(e) => updateDraft(value, "resolutionMinutes", e.target.value)}
                   className="h-8 text-sm"
@@ -2864,7 +2864,7 @@ export default function OrgSettings() {
                     <Button variant="ghost" size="icon"
                       className="h-6 w-6 text-muted-foreground hover:text-foreground shrink-0"
                       onClick={() => { setNameValue(org?.name ?? ""); setIsEditingName(true); }}
-                      title="Rename organization">
+                      title={t("orgSettings.general.renameTitle")}>
                       <Pencil className="w-3.5 h-3.5" />
                     </Button>
                   )}
@@ -2900,7 +2900,7 @@ export default function OrgSettings() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-sm truncate">{getDisplayName(m)}</span>
-                    {isMe && <Badge variant="outline" className="text-xs shrink-0">You</Badge>}
+                    {isMe && <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.youBadge")}</Badge>}
                   </div>
                   {m.email && <p className="text-xs text-muted-foreground truncate">{m.email}</p>}
                 </div>
@@ -2941,7 +2941,7 @@ export default function OrgSettings() {
                 {canManageMembers && !isMe && (isOwner || m.roleName !== "Owner") && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title="Remove member">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" title={t("orgSettings.members.removeMember")}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -3020,9 +3020,9 @@ export default function OrgSettings() {
                     <p className="text-sm font-medium truncate">{recipient}</p>
                     <p className="text-xs text-muted-foreground">{t("orgSettings.members.expiresIn")} {daysLeft} {t("common.days")}</p>
                   </div>
-                  <Badge variant="outline" className="text-xs shrink-0">Pending</Badge>
+                  <Badge variant="outline" className="text-xs shrink-0">{t("orgSettings.members.invitePending")}</Badge>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
-                    title="Copy invite link"
+                    title={t("orgSettings.members.copyInviteTitle")}
                     onClick={() => {
                       navigator.clipboard.writeText(buildInviteLink(inv.token)).catch(() => {});
                       toast({ title: t("orgSettings.members.inviteLinkCopied") });
@@ -3031,7 +3031,7 @@ export default function OrgSettings() {
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" title="Cancel invitation">
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" title={t("orgSettings.members.cancelInviteTitle")}>
                         <X className="w-4 h-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -3076,7 +3076,7 @@ export default function OrgSettings() {
             <form onSubmit={handleInvite} className="flex gap-2">
               <div className="flex-1">
                 <Input
-                  placeholder="email@example.com or user ID"
+                  placeholder={t("orgSettings.members.emailPlaceholder")}
                   value={inviteValue}
                   onChange={(e) => setInviteValue(e.target.value)}
                   disabled={isInviting}
@@ -3118,14 +3118,14 @@ export default function OrgSettings() {
               {duplicateSourceName && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                   <Copy className="w-3 h-3 shrink-0" />
-                  Copied permissions from <strong>{duplicateSourceName}</strong> — adjust below then save.
+                  {t("orgSettings.roles.copiedPermissionsFrom", { name: duplicateSourceName })}
                 </p>
               )}
               {/* Name row */}
               <div className="flex gap-2">
                 <Input
                   autoFocus
-                  placeholder="Role name"
+                  placeholder={t("orgSettings.roles.roleNamePlaceholder")}
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   maxLength={100}
@@ -3182,7 +3182,7 @@ export default function OrgSettings() {
             />
           ))}
           {roles.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-4">No roles found.</p>
+            <p className="text-sm text-muted-foreground text-center py-4">{t("orgSettings.roles.noRolesFound")}</p>
           )}
         </CardContent>
       </Card>

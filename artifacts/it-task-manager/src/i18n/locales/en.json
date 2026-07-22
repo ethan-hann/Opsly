@@ -100,7 +100,12 @@
     "member": "member",
     "nMembers": "{{count}} member",
     "nMembers_one": "{{count}} member",
-    "nMembers_other": "{{count}} members"
+    "nMembers_other": "{{count}} members",
+    "youreOffline": "You're offline",
+    "changesQueued_one": "{{count}} change queued",
+    "changesQueued_other": "{{count}} changes queued",
+    "scrollToTop": "Scroll to top",
+    "scrollToBottom": "Scroll to bottom"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -267,7 +272,10 @@
     "slaFilterActive": "Showing SLA-breached {{tasks}} only — click to clear",
     "slaFilter": "Show only {{tasks}} that have breached their SLA",
     "bulkSelected": "{{count}} selected",
-    "clearSelection": "Clear selection"
+    "clearSelection": "Clear selection",
+    "personalView": "Personal",
+    "defaultIndicator": "· Default",
+    "clearCustomFieldFilter": "Clear custom field filter"
   },
   "taskDetail": {
     "unwatchedTask": "Unwatched",
@@ -423,7 +431,10 @@
     "statusPlanning": "Planning",
     "statusOnHold": "On Hold",
     "subtitle": "Manage IT initiatives, deployments, and epics.",
-    "customSla": "Custom SLA"
+    "customSla": "Custom SLA",
+    "orgDefault": "Org default",
+    "warningDefault": "80% (default)",
+    "overrideBadge": "override"
   },
   "notes": {
     "title": "Scratch Pad",
@@ -448,7 +459,9 @@
     "allTasks": "All tasks",
     "clearFilters": "Clear filters",
     "searchProjectsPlaceholder": "Search projects…",
-    "searchTasksPlaceholder": "Search tasks…"
+    "searchTasksPlaceholder": "Search tasks…",
+    "backToNotes": "Back to notes list",
+    "untitledNote": "Untitled Note"
   },
   "webhooks": {
     "inboundCreated": "Inbound webhook created",
@@ -753,7 +766,8 @@
       "leaveOrgConfirm": "Leave organization?",
       "leaveOrgConfirmDesc": "Are you sure you want to leave this organization? You will lose access to all resources.",
       "leaveButton": "Leave",
-      "transferOwnership": "Transfer ownership"
+      "transferOwnership": "Transfer ownership",
+      "renameTitle": "Rename organization"
     },
     "members": {
       "invite": "Invite member",
@@ -785,7 +799,11 @@
       "keepInvitation": "Keep invitation",
       "memberRemoved": "Member removed",
       "invitationCanceled": "Invitation canceled",
-      "leftOrg": "You have left the organization"
+      "leftOrg": "You have left the organization",
+      "youBadge": "You",
+      "copyInviteTitle": "Copy invite link",
+      "cancelInviteTitle": "Cancel invitation",
+      "emailPlaceholder": "email@example.com or user ID"
     },
     "branding": {
       "title": "Branding",
@@ -809,7 +827,10 @@
       "badgeOpen": "Open",
       "badgeNew": "New",
       "activeSidebarItem": "Active sidebar item",
-      "revertColor": "Revert"
+      "revertColor": "Revert",
+      "pickColor": "Pick a brand color",
+      "colorPreview": "Color preview",
+      "logoAlt": "Logo preview"
     },
     "reactions": {
       "title": "Reaction palette",
@@ -823,7 +844,8 @@
       "paletteReset": "Reaction palette reset to defaults",
       "emptyPalette": "No emoji in palette.",
       "noPermission": "Only members with the \"Manage reaction palette\" permission can edit the emoji palette.",
-      "mustHaveOne": "Palette must have at least one emoji"
+      "mustHaveOne": "Palette must have at least one emoji",
+      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "Terminology",
@@ -879,7 +901,8 @@
       "createdBy": "Created by {{name}} on {{date}}",
       "formatJSON": "JSON",
       "formatCSV": "CSV",
-      "builtIn": "Built-in"
+      "builtIn": "Built-in",
+      "keyNamePlaceholder": "e.g. Prometheus exporter"
     },
     "export": {
       "title": "Export Data",
@@ -904,7 +927,10 @@
       "format": "Format",
       "preparing": "Preparing your export — you'll receive a notification when it's ready.",
       "inProgress": "Export in progress…",
-      "downloadExport": "Download export"
+      "downloadExport": "Download export",
+      "jsonDesc": "— single self-describing file, designed for future import",
+      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
+      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
     },
     "roles": {
       "title": "{{member}} Roles & permissions",
@@ -924,7 +950,10 @@
       "builtIn": "Built-in",
       "owner": "Owner",
       "renameRole": "Rename role",
-      "duplicateRole": "Duplicate \"{{name}}\" role"
+      "duplicateRole": "Duplicate \"{{name}}\" role",
+      "noRolesFound": "No roles found.",
+      "roleNamePlaceholder": "Role name",
+      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
     },
     "sla": {
       "title": "SLA Policies",
@@ -932,6 +961,7 @@
       "saved": "SLA policies saved",
       "savePolicies": "Save policies",
       "noTarget": "No target set",
+      "noTargetPlaceholder": "No target",
       "criticalDesc": "Immediate response required",
       "highDesc": "Urgent operational issue",
       "mediumDesc": "Standard work item",
@@ -952,7 +982,12 @@
       "defaultDescription": "Default description / runbook steps",
       "templateCreated": "Template created",
       "templateUpdated": "Template updated",
-      "templateDeleted": "Template deleted"
+      "templateDeleted": "Template deleted",
+      "templateNamePlaceholder": "e.g. Database Outage Response",
+      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
+      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
+      "editTemplate": "Edit template",
+      "deleteTemplateButton": "Delete template"
     },
     "workflow": {
       "addStage": "Add stage",
@@ -1357,7 +1392,13 @@
     "typeNumber": "Number",
     "typeDate": "Date",
     "typeSingleSelect": "Single Select",
-    "typeMultiSelect": "Multi Select"
+    "typeMultiSelect": "Multi Select",
+    "enterField": "Enter {{name}}",
+    "selectField": "Select {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
+    "dragToReorder": "Drag to reorder",
+    "clickToRename": "Click to rename",
+    "editOptions": "Edit options"
   },
   "upgradeModal": {
     "upgradeRequired": "Upgrade required",
@@ -1404,12 +1445,17 @@
   },
   "search": {
     "placeholder": "Search tasks, projects, notes…",
-    "results": "Search results"
+    "results": "Search results",
+    "viewAllIn": "View all results for \u201c{{query}}\u201d in {{term}}",
+    "globalSearch": "Global search",
+    "emptyPrompt": "Type to search across tasks, projects & notes"
   },
   "markdown": {
     "invalidMermaid": "Invalid Mermaid syntax",
     "fixDiagram": "Fix the diagram code to see a preview.",
-    "renderingDiagram": "Rendering diagram…"
+    "renderingDiagram": "Rendering diagram…",
+    "copyLinkToSection": "Copy link to section",
+    "copiedLink": "Copied!"
   },
   "assignee": {
     "searchPlaceholder": "Search name or type email…",

@@ -192,7 +192,7 @@ export function GlobalSearchPalette() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && close()}>
       <DialogContent
         className="p-0 gap-0 max-w-xl overflow-hidden"
-        aria-label="Global search"
+        aria-label={i18nT("search.globalSearch")}
       >
         {/* Search input */}
         <div className="flex items-center gap-3 border-b px-4 py-3">
@@ -203,7 +203,7 @@ export function GlobalSearchPalette() {
           )}
           <input
             ref={inputRef}
-            aria-label="Search"
+            aria-label={i18nT("common.search")}
             aria-autocomplete="list"
             aria-controls="search-listbox"
             aria-activedescendant={
@@ -224,13 +224,13 @@ export function GlobalSearchPalette() {
         <div
           id="search-listbox"
           role="listbox"
-          aria-label="Search results"
+          aria-label={i18nT("search.results")}
           className="max-h-[min(70vh,480px)] overflow-y-auto p-2"
         >
           {/* Empty prompt */}
           {debouncedQuery.length === 0 && (
             <p className="py-10 text-center text-sm text-muted-foreground">
-              Type to search across tasks, projects &amp; notes
+              {i18nT("search.emptyPrompt")}
             </p>
           )}
 
@@ -252,7 +252,7 @@ export function GlobalSearchPalette() {
 
           {/* Tasks section */}
           {!isFetching && taskCount > 0 && (
-            <div role="group" aria-label="Tasks">
+            <div role="group" aria-label={t("tasks")}>
               <SectionHeading label={t("tasks")} />
               {data!.tasks.map((t, i) => {
                 const idx = taskStartIdx + i;
@@ -278,14 +278,14 @@ export function GlobalSearchPalette() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
               >
                 <ArrowRight className="w-3 h-3" />
-                View all results for &ldquo;{debouncedQuery}&rdquo; in {t("tasks")}
+                {i18nT("search.viewAllIn", { query: debouncedQuery, term: t("tasks") })}
               </a>
             </div>
           )}
 
           {/* Projects section */}
           {!isFetching && projectCount > 0 && (
-            <div role="group" aria-label="Projects">
+            <div role="group" aria-label={t("projects")}>
               <SectionHeading label={t("projects")} />
               {data!.projects.map((p, i) => {
                 const idx = projectStartIdx + i;
@@ -310,15 +310,15 @@ export function GlobalSearchPalette() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
               >
                 <ArrowRight className="w-3 h-3" />
-                View all results for &ldquo;{debouncedQuery}&rdquo; in {t("projects")}
+                {i18nT("search.viewAllIn", { query: debouncedQuery, term: t("projects") })}
               </a>
             </div>
           )}
 
           {/* Notes section */}
           {!isFetching && noteCount > 0 && (
-            <div role="group" aria-label="Notes">
-              <SectionHeading label="Notes" />
+            <div role="group" aria-label={i18nT("nav.scratchPad")}>
+              <SectionHeading label={i18nT("nav.scratchPad")} />
               {data!.notes.map((n, i) => {
                 const idx = noteStartIdx + i;
                 return (
@@ -342,7 +342,7 @@ export function GlobalSearchPalette() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
               >
                 <ArrowRight className="w-3 h-3" />
-                View all results for &ldquo;{debouncedQuery}&rdquo; in Notes
+                {i18nT("search.viewAllIn", { query: debouncedQuery, term: i18nT("nav.scratchPad") })}
               </a>
             </div>
           )}

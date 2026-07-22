@@ -264,13 +264,13 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               <div key={value} className="grid grid-cols-[120px_1fr_1fr_1fr] gap-3 items-center">
                 <span className="text-sm font-medium">{getPriorityLabel(t, value)}</span>
                 <Input
-                  type="number" min={1} placeholder="Org default"
+                  type="number" min={1} placeholder={t('projects.orgDefault')}
                   value={draft[value].responseMinutes}
                   onChange={(e) => updateDraft(value, "responseMinutes", e.target.value)}
                   className="h-8 text-sm"
                 />
                 <Input
-                  type="number" min={1} placeholder="Org default"
+                  type="number" min={1} placeholder={t('projects.orgDefault')}
                   value={draft[value].resolutionMinutes}
                   onChange={(e) => updateDraft(value, "resolutionMinutes", e.target.value)}
                   className="h-8 text-sm"
@@ -314,7 +314,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
               const displayWarning = () => {
                 if (proj?.warningThresholdPercent != null) return <strong className="text-foreground">{proj.warningThresholdPercent}%</strong>;
                 if (org?.warningThresholdPercent != null)  return <span className="text-muted-foreground/60">{org.warningThresholdPercent}% (org)</span>;
-                return <span className="text-muted-foreground/60">80% (default)</span>;
+                return <span className="text-muted-foreground/60">{t('projects.warningDefault')}</span>;
               };
 
               return (
@@ -322,7 +322,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-medium">{getPriorityLabel(t, value)}</span>
                     {hasProjectOverride && (
-                      <span className="text-[9px] font-semibold bg-primary/10 text-primary px-1 rounded">override</span>
+                      <span className="text-[9px] font-semibold bg-primary/10 text-primary px-1 rounded">{t('projects.overrideBadge')}</span>
                     )}
                   </div>
                   <span className="text-sm">{displayVal(proj?.responseMinutes, org?.responseMinutes)}</span>

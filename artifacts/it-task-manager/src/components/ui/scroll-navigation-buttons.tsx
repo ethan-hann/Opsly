@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +15,7 @@ interface ScrollNavigationButtonsProps {
 export function ScrollNavigationButtons({
   scrollContainerRef,
 }: ScrollNavigationButtonsProps) {
+  const { t } = useTranslation();
   const [showTop, setShowTop] = useState(false);
   const [showBottom, setShowBottom] = useState(false);
 
@@ -56,7 +58,7 @@ export function ScrollNavigationButtons({
         <TooltipTrigger asChild>
           <button
             onClick={() => scrollTo("top")}
-            aria-label="Scroll to top"
+            aria-label={t("common.scrollToTop")}
             className={cn(
               "h-9 w-9 rounded-full border border-border bg-background shadow-md",
               "flex items-center justify-center text-muted-foreground",
@@ -69,7 +71,7 @@ export function ScrollNavigationButtons({
           </button>
         </TooltipTrigger>
         <TooltipContent side="left">
-          <p>Scroll to top</p>
+          <p>{t("common.scrollToTop")}</p>
         </TooltipContent>
       </Tooltip>
 
@@ -77,7 +79,7 @@ export function ScrollNavigationButtons({
         <TooltipTrigger asChild>
           <button
             onClick={() => scrollTo("bottom")}
-            aria-label="Scroll to bottom"
+            aria-label={t("common.scrollToBottom")}
             className={cn(
               "h-9 w-9 rounded-full border border-border bg-background shadow-md",
               "flex items-center justify-center text-muted-foreground",
@@ -90,7 +92,7 @@ export function ScrollNavigationButtons({
           </button>
         </TooltipTrigger>
         <TooltipContent side="left">
-          <p>Scroll to bottom</p>
+          <p>{t("common.scrollToBottom")}</p>
         </TooltipContent>
       </Tooltip>
     </div>

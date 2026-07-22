@@ -382,6 +382,7 @@ function makeHeading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
     children,
     ...props
   }: React.HTMLAttributes<HTMLHeadingElement>) {
+    const { t } = useTranslation();
     const [copied, setCopied] = useState(false);
     const buildUrl = useContext(AnchorUrlContext);
 
@@ -414,8 +415,8 @@ function makeHeading(Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") {
               "opacity-0 group-hover:opacity-100 transition-opacity",
               copied ? "text-green-500" : "text-muted-foreground hover:text-primary",
             )}
-            aria-label="Copy link to section"
-            title={copied ? "Copied!" : "Copy link to section"}
+            aria-label={t("markdown.copyLinkToSection")}
+            title={copied ? t("markdown.copiedLink") : t("markdown.copyLinkToSection")}
           >
             {copied
               ? <Check className="w-3.5 h-3.5" />

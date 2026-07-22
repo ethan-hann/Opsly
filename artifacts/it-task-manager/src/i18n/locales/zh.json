@@ -100,7 +100,12 @@
     "member": "成员",
     "nMembers": "{{count}}位成员",
     "nMembers_one": "{{count}}位成员",
-    "nMembers_other": "{{count}}位成员"
+    "nMembers_other": "{{count}}位成员",
+    "youreOffline": "You're offline",
+    "changesQueued_one": "{{count}} change queued",
+    "changesQueued_other": "{{count}} changes queued",
+    "scrollToTop": "Scroll to top",
+    "scrollToBottom": "Scroll to bottom"
   },
   "nav": {
     "dashboard": "仪表板",
@@ -267,7 +272,10 @@
     "slaFilterActive": "仅显示违反SLA的{{tasks}} — 点击清除",
     "slaFilter": "仅显示违反SLA的{{tasks}}",
     "bulkSelected": "已选择{{count}}个",
-    "clearSelection": "清除选择"
+    "clearSelection": "清除选择",
+    "personalView": "Personal",
+    "defaultIndicator": "· Default",
+    "clearCustomFieldFilter": "Clear custom field filter"
   },
   "taskDetail": {
     "notFound": "未找到任务",
@@ -423,7 +431,10 @@
     "statusPlanning": "规划中",
     "statusOnHold": "暂停",
     "subtitle": "管理IT计划、部署和史诗。",
-    "customSla": "自定义SLA"
+    "customSla": "自定义SLA",
+    "orgDefault": "Org default",
+    "warningDefault": "80% (default)",
+    "overrideBadge": "override"
   },
   "notes": {
     "title": "便签本",
@@ -448,7 +459,9 @@
     "allTasks": "所有任务",
     "clearFilters": "清除过滤器",
     "searchProjectsPlaceholder": "搜索项目…",
-    "searchTasksPlaceholder": "搜索任务…"
+    "searchTasksPlaceholder": "搜索任务…",
+    "backToNotes": "Back to notes list",
+    "untitledNote": "Untitled Note"
   },
   "webhooks": {
     "inboundCreated": "入站Webhook已创建",
@@ -757,7 +770,10 @@
       "badgeOpen": "开放",
       "badgeNew": "新建",
       "activeSidebarItem": "活跃侧边栏项目",
-      "revertColor": "恢复"
+      "revertColor": "恢复",
+      "pickColor": "Pick a brand color",
+      "colorPreview": "Color preview",
+      "logoAlt": "Logo preview"
     },
     "reactions": {
       "title": "反应面板",
@@ -771,7 +787,8 @@
       "paletteReset": "反应面板已重置",
       "emptyPalette": "面板中没有表情符号。",
       "noPermission": "只有具有权限的成员才能编辑面板。",
-      "mustHaveOne": "面板至少需要一个表情符号"
+      "mustHaveOne": "面板至少需要一个表情符号",
+      "restoreDefaultsTitle": "Restore the 12 default emoji (👍 👎 ❤️ 😂 😮 😢 🎉 🙌 🔥 ✅ 🤔 👀)"
     },
     "terminology": {
       "title": "术语",
@@ -786,7 +803,8 @@
       "singularLabel": "单数标签（可选）",
       "saveButton": "保存术语",
       "resetToDefaults": "恢复默认",
-      "defaultLabel": "默认：\"{{value}}\""
+      "defaultLabel": "默认：\"{{value}}\"",
+      "invitePlaceholder": "email@example.com or user ID"
     },
     "apiKeys": {
       "title": "API密钥",
@@ -827,7 +845,8 @@
       "createdBy": "由 {{name}} 于 {{date}} 创建",
       "formatJSON": "JSON",
       "formatCSV": "CSV",
-      "builtIn": "内置"
+      "builtIn": "内置",
+      "keyNamePlaceholder": "e.g. Prometheus exporter"
     },
     "export": {
       "title": "数据导出",
@@ -852,7 +871,10 @@
       "format": "格式",
       "preparing": "准备中…",
       "inProgress": "进行中",
-      "downloadExport": "下载导出"
+      "downloadExport": "下载导出",
+      "jsonDesc": "— single self-describing file, designed for future import",
+      "csvDesc": "— ZIP archive, one spreadsheet per entity type",
+      "exportQueuedHint": "An export is already being prepared — you'll be notified when it's ready"
     },
     "orgInfo": "组织",
     "orgRenamed": "组织已重命名",
@@ -872,7 +894,8 @@
       "leaveOrgConfirm": "退出组织？",
       "leaveOrgConfirmDesc": "确定要退出此组织吗？您将失去对所有资源的访问权限。",
       "leaveButton": "退出",
-      "transferOwnership": "转让所有权"
+      "transferOwnership": "转让所有权",
+      "renameTitle": "Rename organization"
     },
     "members": {
       "invite": "邀请成员",
@@ -904,7 +927,11 @@
       "keepInvitation": "保留邀请",
       "memberRemoved": "成员已移除",
       "invitationCanceled": "邀请已取消",
-      "leftOrg": "您已退出组织"
+      "leftOrg": "您已退出组织",
+      "youBadge": "You",
+      "copyInviteTitle": "Copy invite link",
+      "cancelInviteTitle": "Cancel invitation",
+      "emailPlaceholder": "email@example.com or user ID"
     },
     "roles": {
       "title": "角色",
@@ -924,7 +951,10 @@
       "builtIn": "内置",
       "owner": "所有者",
       "renameRole": "重命名角色",
-      "duplicateRole": "复制角色\"{{name}}\""
+      "duplicateRole": "复制角色\"{{name}}\"",
+      "noRolesFound": "No roles found.",
+      "roleNamePlaceholder": "Role name",
+      "copiedPermissionsFrom": "Copied permissions from {{name}} — adjust below then save."
     },
     "sla": {
       "title": "SLA策略",
@@ -935,7 +965,8 @@
       "criticalDesc": "需要立即响应",
       "highDesc": "紧急运营问题",
       "mediumDesc": "标准工作项",
-      "lowDesc": "低紧迫性，可推迟"
+      "lowDesc": "低紧迫性，可推迟",
+      "noTargetPlaceholder": "No target"
     },
     "templates": {
       "title": "{{task}}模板",
@@ -952,7 +983,12 @@
       "defaultDescription": "默认描述/运行手册步骤",
       "templateCreated": "模板已创建",
       "templateUpdated": "模板已更新",
-      "templateDeleted": "模板已删除"
+      "templateDeleted": "模板已删除",
+      "templateNamePlaceholder": "e.g. Database Outage Response",
+      "defaultTitlePlaceholder": "e.g. [SERVICE] outage — investigate and restore",
+      "runbookPlaceholder": "Checklist or steps to follow when this template is used...",
+      "editTemplate": "Edit template",
+      "deleteTemplateButton": "Delete template"
     },
     "workflow": {
       "addStage": "添加阶段",
@@ -1357,7 +1393,13 @@
     "typeNumber": "数字",
     "typeDate": "日期",
     "typeSingleSelect": "单选",
-    "typeMultiSelect": "多选"
+    "typeMultiSelect": "多选",
+    "enterField": "Enter {{name}}",
+    "selectField": "Select {{name}}…",
+    "fieldIsActiveAgain": "\"{{name}}\" is active again.",
+    "dragToReorder": "Drag to reorder",
+    "clickToRename": "Click to rename",
+    "editOptions": "Edit options"
   },
   "upgradeModal": {
     "upgradeRequired": "需要升级",
@@ -1404,12 +1446,17 @@
   },
   "search": {
     "placeholder": "搜索任务、项目、笔记…",
-    "results": "搜索结果"
+    "results": "搜索结果",
+    "viewAllIn": "View all results for “{{query}}” in {{term}}",
+    "globalSearch": "Global search",
+    "emptyPrompt": "Type to search across tasks, projects & notes"
   },
   "markdown": {
     "invalidMermaid": "Mermaid 语法无效",
     "fixDiagram": "修复图表代码以查看预览。",
-    "renderingDiagram": "正在渲染图表…"
+    "renderingDiagram": "正在渲染图表…",
+    "copyLinkToSection": "Copy link to section",
+    "copiedLink": "Copied!"
   },
   "assignee": {
     "searchPlaceholder": "搜索姓名或输入邮箱…",
