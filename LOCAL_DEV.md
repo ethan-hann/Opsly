@@ -180,6 +180,7 @@ What this stack does automatically:
 - Creates a default local user in local auth mode:
   - email: `admin@example.com`
   - password: `changeme`
+- Promotes that default local user to instance admin (so `/admin` is available)
 
 ### First-time login (Docker local dev)
 
@@ -192,6 +193,10 @@ By default, the compose stack runs with `AUTH_MODE=local`.
 
 If you changed `LOCAL_DEV_USER_EMAIL` / `LOCAL_DEV_USER_PASSWORD` in
 `.env.docker`, use those values instead.
+
+By default, that local user is also granted instance-admin privileges. If you
+set `LOCAL_DEV_USER_INSTANCE_ADMIN=false`, `/admin` will be denied unless you
+configure another admin path.
 
 If you switch to `AUTH_MODE=oidc` or `AUTH_MODE=replit_oidc`, the app will use
 OIDC login instead of local credentials, so you'll need a working OIDC provider
