@@ -46,7 +46,9 @@ export default function NotesPage() {
   const { toast } = useToast();
   const urlSearch = useSearch();
   const [, navigate] = useLocation();
-  const noteParam = new URLSearchParams(urlSearch).get("note");
+  const searchParams = new URLSearchParams(urlSearch);
+  const noteParam = searchParams.get("note");
+  const searchParam = searchParams.get("search") ?? "";
   const preselectedId = noteParam ? parseInt(noteParam, 10) : null;
 
   // ── server note selection ────────────────────────────────────────────────
@@ -72,7 +74,7 @@ export default function NotesPage() {
   }, [drafts, activeDraftId, navigate]);
 
   // ── shared UI state ──────────────────────────────────────────────────────
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParam);
   const [filterProjectId, setFilterProjectId] = useState<number | "all">("all");
   const [filterTaskId, setFilterTaskId] = useState<number | "all">("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
