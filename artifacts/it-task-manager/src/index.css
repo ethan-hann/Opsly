@@ -73,56 +73,57 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  /* Light Theme — Warm Stone & Amber */
-  --background: 60 5% 98%;         /* stone-50  #fafaf9  */
-  --foreground: 20 14% 11%;        /* stone-900 #1c1917  */
+  /* Light Theme — MD3 Blue  (#0a7cf5 primary) */
+  --background: 214 30% 98%;       /* neutral-variant, slight blue tint  */
+  --foreground: 214 30% 11%;       /* deep cool-dark text                */
 
-  --card: 0 0% 100%;               /* white                */
-  --card-foreground: 20 14% 11%;
-  --card-border: 30 8% 91%;        /* stone-200 #e7e5e4   */
+  --card: 0 0% 100%;               /* white                              */
+  --card-foreground: 214 30% 11%;
+  --card-border: 214 20% 91%;      /* neutral blue-tinted border         */
 
   --popover: 0 0% 100%;
-  --popover-foreground: 20 14% 11%;
-  --popover-border: 30 8% 91%;
+  --popover-foreground: 214 30% 11%;
+  --popover-border: 214 20% 91%;
 
-  /* Amber primary */
-  --primary: 38 92% 44%;           /* amber-600 #d97706   */
+  /* MD3 Primary — #0a7cf5 = hsl(211 92% 50%) */
+  --primary: 211 92% 50%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 30 8% 91%;          /* stone-200           */
-  --secondary-foreground: 20 14% 11%;
+  --secondary: 214 20% 91%;        /* neutral-variant container          */
+  --secondary-foreground: 214 30% 11%;
 
-  --muted: 60 5% 96%;              /* stone-100 #f5f5f4   */
-  --muted-foreground: 25 8% 46%;   /* stone-500 #78716c   */
+  --muted: 214 25% 96%;            /* surface-variant                    */
+  --muted-foreground: 214 18% 46%; /* on-surface-variant                 */
 
-  --accent: 38 60% 94%;            /* very light amber    */
-  --accent-foreground: 20 14% 11%;
+  --accent: 211 80% 94%;           /* primary container — light blue     */
+  --accent-foreground: 211 80% 18%;/* on-primary-container               */
 
   --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
+  --destructive-foreground: 0 0% 100%;
 
-  --border: 30 8% 91%;             /* stone-200           */
-  --input: 30 8% 91%;
-  --ring: 38 92% 44%;              /* amber-600           */
+  --border: 214 20% 90%;
+  --input: 214 20% 90%;
+  --ring: 211 92% 50%;
 
-  --chart-1: 38 92% 44%;
-  --chart-2: 30 8% 91%;
-  --chart-3: 60 5% 96%;
-  --chart-4: 25 8% 46%;
-  --chart-5: 20 14% 11%;
+  /* MD3-inspired chart palette — blue family + semantic accents */
+  --chart-1: 211 92% 50%;          /* primary blue                       */
+  --chart-2: 188 72% 42%;          /* teal                               */
+  --chart-3: 142 56% 42%;          /* green                              */
+  --chart-4: 271 68% 56%;          /* violet                             */
+  --chart-5: 38 90% 52%;           /* amber (kept for warnings)          */
 
-  --sidebar: 60 5% 98%;            /* stone-50            */
-  --sidebar-foreground: 20 14% 11%;
-  --sidebar-border: 30 8% 91%;
-  --sidebar-primary: 38 92% 44%;   /* amber-600           */
+  --sidebar: 214 30% 98%;          /* matches background                 */
+  --sidebar-foreground: 214 30% 11%;
+  --sidebar-border: 214 20% 91%;
+  --sidebar-primary: 211 92% 50%;  /* #0a7cf5                            */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 38 60% 94%;    /* light amber — active nav bg */
-  --sidebar-accent-foreground: 20 14% 11%;
-  --sidebar-ring: 38 92% 44%;
+  --sidebar-accent: 211 80% 94%;   /* primary-container — active nav bg  */
+  --sidebar-accent-foreground: 211 80% 18%;
+  --sidebar-ring: 211 92% 50%;
 
   --app-font-sans: 'Inter', sans-serif;
   --app-font-mono: 'JetBrains Mono', monospace;
-  --radius: 0.75rem;               /* bumped from 0.5rem for warmer roundness */
+  --radius: 0.75rem;
 
   --shadow-2xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
   --shadow-xs: 0px 1px 2px 0px rgba(0,0,0,0.05);
@@ -152,52 +153,52 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
-  /* Dark Theme — Warm dark stone & amber */
-  --background: 20 14% 8%;         /* warm near-black     */
-  --foreground: 60 9% 96%;         /* warm off-white      */
+  /* Dark Theme — MD3 Blue, cool neutral surfaces */
+  --background: 214 18% 8%;        /* MD3 dark background  #0d1117-ish   */
+  --foreground: 214 20% 94%;       /* on-surface, cool off-white         */
 
-  --card: 20 14% 11%;              /* slightly lighter warm dark */
-  --card-foreground: 60 9% 96%;
-  --card-border: 20 12% 20%;       /* warm dark border    */
+  --card: 214 18% 11%;             /* MD3 surface                        */
+  --card-foreground: 214 20% 94%;
+  --card-border: 214 14% 20%;      /* outline-variant                    */
 
-  --popover: 20 14% 11%;
-  --popover-foreground: 60 9% 96%;
-  --popover-border: 20 12% 20%;
+  --popover: 214 18% 11%;
+  --popover-foreground: 214 20% 94%;
+  --popover-border: 214 14% 20%;
 
-  /* Brighter amber for dark mode */
-  --primary: 38 95% 58%;           /* amber-400 area      */
-  --primary-foreground: 20 14% 10%;
+  /* MD3 dark primary — lighter for contrast on dark bg */
+  --primary: 211 90% 68%;          /* ~#5cacfa, passes AA on dark bg     */
+  --primary-foreground: 214 30% 8%;/* on-primary (dark)                  */
 
-  --secondary: 20 12% 20%;         /* warm dark gray      */
-  --secondary-foreground: 60 9% 96%;
+  --secondary: 214 14% 20%;        /* secondary container                */
+  --secondary-foreground: 214 20% 94%;
 
-  --muted: 20 12% 18%;
-  --muted-foreground: 25 10% 62%;  /* warm muted text     */
+  --muted: 214 14% 17%;            /* surface-variant                    */
+  --muted-foreground: 214 14% 60%; /* on-surface-variant                 */
 
-  --accent: 38 40% 22%;            /* dark amber tint     */
-  --accent-foreground: 60 9% 96%;
+  --accent: 211 50% 22%;           /* primary-container dark             */
+  --accent-foreground: 214 20% 94%;
 
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
 
-  --border: 20 12% 20%;
-  --input: 20 12% 20%;
-  --ring: 38 95% 58%;
+  --border: 214 14% 20%;
+  --input: 214 14% 20%;
+  --ring: 211 90% 68%;
 
-  --chart-1: 38 95% 58%;
-  --chart-2: 20 12% 20%;
-  --chart-3: 25 10% 62%;
-  --chart-4: 60 9% 96%;
-  --chart-5: 20 14% 10%;
+  --chart-1: 211 90% 68%;          /* primary blue (dark)                */
+  --chart-2: 188 65% 55%;          /* teal                               */
+  --chart-3: 142 52% 55%;          /* green                              */
+  --chart-4: 271 65% 68%;          /* violet                             */
+  --chart-5: 38 90% 62%;           /* amber                              */
 
-  --sidebar: 20 14% 8%;            /* same as background  */
-  --sidebar-foreground: 60 9% 96%;
-  --sidebar-border: 20 12% 20%;
-  --sidebar-primary: 38 95% 58%;   /* amber in dark mode  */
-  --sidebar-primary-foreground: 20 14% 10%;
-  --sidebar-accent: 38 40% 20%;    /* dark amber nav hover */
-  --sidebar-accent-foreground: 60 9% 96%;
-  --sidebar-ring: 38 95% 58%;
+  --sidebar: 214 18% 8%;           /* same as background                 */
+  --sidebar-foreground: 214 20% 94%;
+  --sidebar-border: 214 14% 20%;
+  --sidebar-primary: 211 90% 68%;  /* lighter blue for dark mode         */
+  --sidebar-primary-foreground: 214 30% 8%;
+  --sidebar-accent: 211 50% 20%;   /* primary-container dark — nav hover */
+  --sidebar-accent-foreground: 214 20% 94%;
+  --sidebar-ring: 211 90% 68%;
 }
 
 @layer base {
