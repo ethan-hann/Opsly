@@ -194,6 +194,11 @@ By default, the compose stack runs with `AUTH_MODE=local`.
 If you changed `LOCAL_DEV_USER_EMAIL` / `LOCAL_DEV_USER_PASSWORD` in
 `.env.docker`, use those values instead.
 
+In local auth mode, invited users who do not have accounts yet can open their
+invite link and create an account directly from the invite page before
+accepting the invitation. The account email is always taken from the invitation
+and cannot be changed on that page.
+
 By default, that local user is also granted instance-admin privileges. If you
 set `LOCAL_DEV_USER_INSTANCE_ADMIN=false`, `/admin` will be denied unless you
 configure another admin path.

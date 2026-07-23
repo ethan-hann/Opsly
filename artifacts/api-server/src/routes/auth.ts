@@ -5,7 +5,7 @@ import {
   LogoutMobileSessionResponse,
 } from '@workspace/api-zod';
 import { and, eq } from 'drizzle-orm';
-import { db, usersTable } from '@workspace/db';
+import { db, invitationsTable, usersTable } from '@workspace/db';
 import { Router, type IRouter, type Request, type Response } from 'express';
 import * as oidc from 'openid-client';
 import { z } from 'zod';
@@ -24,13 +24,21 @@ import {
   SESSION_TTL,
   type SessionData,
 } from '../lib/auth';
-import { verifyLocalPassword } from '../lib/local-password';
+import { hashLocalPassword, verifyLocalPassword } from '../lib/local-password';
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
 const localLoginBodySchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  returnTo: z.string().optional(),
+});
+
+const localInviteRegistrationBodySchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
+  firstName: z.string().trim().min(1).max(120).optional(),
+  lastName: z.string().trim().min(1).max(120).optional(),
   returnTo: z.string().optional(),
 });
 
@@ -297,6 +305,101 @@ router.post('/auth/local/login', async (req: Request, res: Response) => {
   const sid = await createSession(sessionData);
   setSessionCookie(res, sid);
   res.json({
+    user: sessionData.user,
+    returnTo: getSafeReturnTo(returnTo),
+  });
+});
+
+router.post('/auth/local/register-invite', async (req: Request, res: Response) => {
+  if (getAuthMode() !== 'local') {
+    res
+      .status(400)
+      .json({ error: 'Local registration is disabled for the configured auth mode.' });
+    return;
+  }
+
+  const parsed = localInviteRegistrationBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Missing or invalid required parameters' });
+    return;
+  }
+
+  const { token, password, returnTo } = parsed.data;
+  const firstName = parsed.data.firstName ?? null;
+  const lastName = parsed.data.lastName ?? null;
+
+  const [invitation] = await db
+    .select({
+      invitedEmail: invitationsTable.invitedEmail,
+      status: invitationsTable.status,
+      expiresAt: invitationsTable.expiresAt,
+    })
+    .from(invitationsTable)
+    .where(eq(invitationsTable.token, token))
+    .limit(1);
+
+  if (
+    !invitation ||
+    invitation.status !== 'pending' ||
+    invitation.expiresAt <= new Date()
+  ) {
+    res.status(404).json({ error: 'Invitation not found or expired' });
+    return;
+  }
+
+  if (!invitation.invitedEmail) {
+    res.status(400).json({ error: 'This invitation requires an existing account.' });
+    return;
+  }
+
+  const email = invitation.invitedEmail.toLowerCase();
+
+  const [existingUser] = await db
+    .select({
+      id: usersTable.id,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1);
+
+  if (existingUser) {
+    res.status(409).json({ error: 'An account already exists for this email. Please sign in.' });
+    return;
+  }
+
+  const passwordHash = await hashLocalPassword(password);
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      email,
+      firstName,
+      lastName,
+      authProvider: 'local',
+      externalAuthId: null,
+      passwordHash,
+      profileImageUrl: null,
+    })
+    .returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      profileImageUrl: usersTable.profileImageUrl,
+    });
+
+  if (!user) {
+    res.status(409).json({ error: 'An account already exists for this email. Please sign in.' });
+    return;
+  }
+
+  const sessionData: SessionData = {
+    user,
+    authProvider: 'local',
+  };
+
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+  res.status(201).json({
     user: sessionData.user,
     returnTo: getSafeReturnTo(returnTo),
   });

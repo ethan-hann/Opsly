@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams } from "wouter";
 import {
@@ -9,6 +9,7 @@ import {
 import { useAuth } from "@workspace/replit-auth-web";
 import { Activity, AlertTriangle, CheckCircle, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -90,9 +91,14 @@ function DeclinedScreen() {
 export default function InvitePage() {
   const { t, i18n } = useTranslation();
   const { token } = useParams<{ token: string }>();
-  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login, loginMethod } = useAuth();
   const { toast } = useToast();
   const [result, setResult] = useState<"accepted" | "declined" | null>(null);
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerFirstName, setRegisterFirstName] = useState("");
+  const [registerLastName, setRegisterLastName] = useState("");
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
 
   const {
     data: preview,
@@ -128,6 +134,44 @@ export default function InvitePage() {
   if (isError || !preview) return <ErrorScreen />;
   if (result === "accepted") return <AcceptedScreen orgName={preview.orgName} />;
   if (result === "declined") return <DeclinedScreen />;
+
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token) {
+      setRegisterError("Missing invitation token.");
+      return;
+    }
+    setIsRegistering(true);
+    setRegisterError(null);
+    try {
+      const response = await fetch("/api/auth/local/register-invite", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          token,
+          password: registerPassword,
+          firstName: registerFirstName || undefined,
+          lastName: registerLastName || undefined,
+          returnTo: window.location.pathname,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        setRegisterError(payload.error ?? `Registration failed (HTTP ${response.status})`);
+        return;
+      }
+
+      window.location.reload();
+    } finally {
+      setIsRegistering(false);
+    }
+  }
 
   const expiresDate = new Date(preview.expiresAt).toLocaleDateString(i18n.language || undefined, {
     year: "numeric",
@@ -165,15 +209,63 @@ export default function InvitePage() {
           <CardFooter className="flex flex-col gap-3">
             {!isAuthenticated ? (
               <>
-                <Button
-                  className="w-full"
-                  onClick={() => login(window.location.pathname)}
-                >
-                  {t('auth.logIn')}
-                </Button>
-                <p className="text-xs text-center text-muted-foreground">
-                  {t('invite.redirectAfterSignIn')}
-                </p>
+                {loginMethod === "password" ? (
+                  <div className="w-full space-y-3">
+                    <form className="space-y-3" onSubmit={handleRegister}>
+                      <Input
+                        type="password"
+                        value={registerPassword}
+                        onChange={(event) => setRegisterPassword(event.target.value)}
+                        placeholder={t('auth.passwordPlaceholder')}
+                        autoComplete="new-password"
+                        minLength={8}
+                        required
+                      />
+                      <Input
+                        type="text"
+                        value={registerFirstName}
+                        onChange={(event) => setRegisterFirstName(event.target.value)}
+                        placeholder={t('auth.firstNamePlaceholder')}
+                        autoComplete="given-name"
+                      />
+                      <Input
+                        type="text"
+                        value={registerLastName}
+                        onChange={(event) => setRegisterLastName(event.target.value)}
+                        placeholder={t('auth.lastNamePlaceholder')}
+                        autoComplete="family-name"
+                      />
+                      {registerError ? (
+                        <p className="text-xs text-destructive">{registerError}</p>
+                      ) : null}
+                      <Button className="w-full" type="submit" disabled={isRegistering}>
+                        {isRegistering ? t('auth.signingIn') : t('auth.createAccount')}
+                      </Button>
+                    </form>
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => login(window.location.pathname)}
+                    >
+                      {t('auth.logIn')}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      {t('invite.redirectAfterSignIn')}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      className="w-full"
+                      onClick={() => login(window.location.pathname)}
+                    >
+                      {t('auth.logIn')}
+                    </Button>
+                    <p className="text-xs text-center text-muted-foreground">
+                      {t('invite.redirectAfterSignIn')}
+                    </p>
+                  </>
+                )}
               </>
             ) : (
               <div className="flex gap-3 w-full">
