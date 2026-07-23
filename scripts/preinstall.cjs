@@ -1,6 +1,5 @@
-// Cross-platform preinstall check (replaces the sh -c version that breaks on Windows).
 // Removes stray lockfiles and enforces pnpm as the package manager.
-const { unlinkSync } = require('fs');
+const { unlinkSync } = import('fs');
 
 ['package-lock.json', 'yarn.lock'].forEach(f => {
   try { unlinkSync(f); } catch (_) {}
