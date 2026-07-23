@@ -82,6 +82,12 @@ import {
   Workflow,
   Check,
   Eye,
+  Users,
+  ShieldUser,
+  NotepadTextDashed,
+  Siren,
+  RectangleEllipsis,
+  Paintbrush,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3802,45 +3808,49 @@ export default function OrgSettings() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         {/* Tab bar — scrolls horizontally on small screens */}
-        <TabsList className="flex h-auto flex-wrap gap-1 overflow-x-auto">
+        <TabsList className="flex h-auto flex-wrap gap-1 overflow-x-auto [&_button]:gap-1.5">
           <TabsTrigger value="general">
-            {t("orgSettings.tabs.general")}
+            <Settings2 className="w-4 h-4 text-primary"/> {t("orgSettings.tabs.general")}
           </TabsTrigger>
           <TabsTrigger value="members">
-            {t("orgSettings.tabs.members")}
+            <ShieldUser className="w-4 h-4 text-primary"/> {t("orgSettings.tabs.members")}
           </TabsTrigger>
-          <TabsTrigger value="roles">{t("orgSettings.tabs.roles")}</TabsTrigger>
+          <TabsTrigger value="roles">
+            <Users className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.roles")}
+          </TabsTrigger>
           {showBrandingTab && (
             <TabsTrigger value="branding">
-              {t("orgSettings.tabs.branding")}
+              <Paintbrush className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.branding")}
             </TabsTrigger>
           )}
           {showStagesTab && (
             <TabsTrigger value="stages">
-              {t("orgSettings.tabs.stages")}
+              <Workflow className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.stages")}
             </TabsTrigger>
           )}
           {showTemplatesTab && (
             <TabsTrigger value="templates">
-              {t("orgSettings.tabs.templates")}
+              <NotepadTextDashed className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.templates")}
             </TabsTrigger>
           )}
           {showSlaTab && (
-            <TabsTrigger value="sla">{t("orgSettings.tabs.sla")}</TabsTrigger>
+            <TabsTrigger value="sla">
+              <Siren className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.sla")}
+            </TabsTrigger>
           )}
           {showCustomFieldsTab && (
             <TabsTrigger value="customFields">
-              {t("orgSettings.tabs.customFields")}
+              <RectangleEllipsis className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.customFields")}
             </TabsTrigger>
           )}
           {showApiKeysTab && (
             <TabsTrigger value="apiKeys">
-              {t("orgSettings.tabs.apiKeys")}
+              <Key className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.apiKeys")}
             </TabsTrigger>
           )}
           {showExportTab && (
             <TabsTrigger value="export">
-              {t("orgSettings.tabs.export")}
+              <Download className="w-4 h-4 text-primary" /> {t("orgSettings.tabs.export")}
             </TabsTrigger>
           )}
         </TabsList>
