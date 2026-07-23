@@ -181,6 +181,22 @@ What this stack does automatically:
   - email: `admin@example.com`
   - password: `changeme`
 
+### First-time login (Docker local dev)
+
+By default, the compose stack runs with `AUTH_MODE=local`.
+
+1. Open `http://localhost:20999`
+2. On the login page, sign in with:
+   - Email: `admin@example.com`
+   - Password: `changeme`
+
+If you changed `LOCAL_DEV_USER_EMAIL` / `LOCAL_DEV_USER_PASSWORD` in
+`.env.docker`, use those values instead.
+
+If you switch to `AUTH_MODE=oidc` or `AUTH_MODE=replit_oidc`, the app will use
+OIDC login instead of local credentials, so you'll need a working OIDC provider
+configuration to sign in.
+
 ### Override auth mode/env in Docker
 
 You can use either:
