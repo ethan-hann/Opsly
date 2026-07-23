@@ -148,6 +148,8 @@ function useDarkMode(): boolean {
 
 /** Mini preview panel that shows buttons, badges, and an active sidebar item
  *  styled with the draft brand color — updates live as the picker moves. */
+const DEFAULT_BRANDING_PRIMARY_COLOR = "#0a7cf5";
+
 function BrandingPreview({ colorHex }: { colorHex: string }) {
   const { t } = useTranslation();
   const isDark = useDarkMode();
@@ -241,13 +243,13 @@ function BrandingCard() {
     useBranding();
 
   const [colorDraft, setColorDraft] = useState(
-    currentPrimaryColor ?? "#f59e0b",
+    currentPrimaryColor ?? DEFAULT_BRANDING_PRIMARY_COLOR,
   );
   const [logoUrlDraft, setLogoUrlDraft] = useState(currentLogoUrl ?? "");
 
   // Sync drafts when branding loads/changes from server
   useEffect(() => {
-    setColorDraft(currentPrimaryColor ?? "#f59e0b");
+    setColorDraft(currentPrimaryColor ?? DEFAULT_BRANDING_PRIMARY_COLOR);
     setLogoUrlDraft(currentLogoUrl ?? "");
   }, [currentPrimaryColor, currentLogoUrl]);
 
@@ -284,7 +286,7 @@ function BrandingCard() {
         onSuccess: () => {
           toast({ title: t("orgSettings.branding.colorResetSuccess") });
           queryClient.invalidateQueries({ queryKey: getGetMyOrgQueryKey() });
-          setColorDraft("#f59e0b");
+          setColorDraft(DEFAULT_BRANDING_PRIMARY_COLOR);
         },
       },
     );
@@ -337,10 +339,15 @@ function BrandingCard() {
               title={t("orgSettings.branding.colorPreview")}
             />
             {/* Revert to saved color if draft has drifted */}
-            {colorDraft !== (currentPrimaryColor ?? "#f59e0b") && (
+            {colorDraft !==
+              (currentPrimaryColor ?? DEFAULT_BRANDING_PRIMARY_COLOR) && (
               <button
                 type="button"
-                onClick={() => setColorDraft(currentPrimaryColor ?? "#f59e0b")}
+                onClick={() =>
+                  setColorDraft(
+                    currentPrimaryColor ?? DEFAULT_BRANDING_PRIMARY_COLOR,
+                  )
+                }
                 disabled={isPending}
                 className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors disabled:cursor-not-allowed"
                 title={t("orgSettings.branding.revertColor")}

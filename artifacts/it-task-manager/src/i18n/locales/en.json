@@ -827,7 +827,7 @@
       "livePreview": "Live preview",
       "noPermission": "Only members with the \"Manage org settings\" permission can edit branding.",
       "brandingSaved": "Branding saved",
-      "colorResetSuccess": "Color reset — default amber theme restored",
+      "colorResetSuccess": "Color reset — default theme restored",
       "logoRemoved": "Logo removed",
       "saveFailed": "Failed to save branding",
       "saveButton": "Save branding",
