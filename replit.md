@@ -45,6 +45,7 @@ DATABASE_URL=<your-db-url> pnpm --filter @workspace/db revoke-admin <email>
 ## Run & Operate
 
 - For full local setup and run instructions, see `LOCAL_DEV.md`.
+- For containerized local setup (web + API + Postgres), use `docker-compose.local.yml` (see `LOCAL_DEV.md`).
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages

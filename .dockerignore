@@ -1,0 +1,9 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+dist
+**/dist
+.pnpm-store
+.DS_Store
+*.log
