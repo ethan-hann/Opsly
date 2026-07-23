@@ -1,7 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, jsonb, pgTable, timestamp, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  jsonb,
+  pgTable,
+  timestamp,
+  uniqueIndex,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+// Session storage for all auth modes (OIDC + local credentials).
 export const sessionsTable = pgTable(
   'sessions',
   {
@@ -12,25 +20,41 @@ export const sessionsTable = pgTable(
   (table) => [index('IDX_session_expire').on(table.expire)],
 );
 
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const usersTable = pgTable('users', {
-  id: varchar('id')
-    .primaryKey()
-    .default(sql`gen_random_uuid()`),
-  email: varchar('email').unique(),
-  firstName: varchar('first_name'),
-  lastName: varchar('last_name'),
-  profileImageUrl: varchar('profile_image_url'),
-  /** When true, this user has instance-admin privileges across all orgs. */
-  isInstanceAdmin: boolean('is_instance_admin').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true })
-    .notNull()
-    .defaultNow()
-    .$onUpdate(() => new Date()),
-});
+export const usersTable = pgTable(
+  'users',
+  {
+    id: varchar('id')
+      .primaryKey()
+      .default(sql`gen_random_uuid()`),
+    email: varchar('email').unique(),
+    firstName: varchar('first_name'),
+    lastName: varchar('last_name'),
+    profileImageUrl: varchar('profile_image_url'),
+    /** 'oidc' for external providers, 'local' for DB credentials. */
+    authProvider: varchar('auth_provider', { length: 32 })
+      .notNull()
+      .default('oidc'),
+    /** External subject identifier when authProvider is 'oidc'. */
+    externalAuthId: varchar('external_auth_id'),
+    /** Scrypt hash for local accounts. */
+    passwordHash: varchar('password_hash'),
+    /** When true, this user has instance-admin privileges across all orgs. */
+    isInstanceAdmin: boolean('is_instance_admin').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    uniqueIndex('users_auth_provider_external_auth_id_idx').on(
+      table.authProvider,
+      table.externalAuthId,
+    ),
+  ],
+);
 
 export type UpsertUser = typeof usersTable.$inferInsert;
 export type User = typeof usersTable.$inferSelect;

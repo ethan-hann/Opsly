@@ -28,6 +28,8 @@ if (!basePath) {
   );
 }
 
+const apiProxyTarget = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8080';
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -91,6 +93,12 @@ export default defineConfig({
     strictPort: true,
     host: '0.0.0.0',
     allowedHosts: true,
+    proxy: {
+      '/api': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
     },

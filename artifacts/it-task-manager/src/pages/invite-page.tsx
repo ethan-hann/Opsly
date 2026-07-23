@@ -90,7 +90,7 @@ function DeclinedScreen() {
 export default function InvitePage() {
   const { t, i18n } = useTranslation();
   const { token } = useParams<{ token: string }>();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
   const { toast } = useToast();
   const [result, setResult] = useState<"accepted" | "declined" | null>(null);
 
@@ -165,12 +165,12 @@ export default function InvitePage() {
           <CardFooter className="flex flex-col gap-3">
             {!isAuthenticated ? (
               <>
-                <a
-                  href={`/api/login?returnTo=${encodeURIComponent(window.location.pathname)}`}
+                <Button
                   className="w-full"
+                  onClick={() => login(window.location.pathname)}
                 >
-                  <Button className="w-full">{t('auth.logIn')}</Button>
-                </a>
+                  {t('auth.logIn')}
+                </Button>
                 <p className="text-xs text-center text-muted-foreground">
                   {t('invite.redirectAfterSignIn')}
                 </p>
