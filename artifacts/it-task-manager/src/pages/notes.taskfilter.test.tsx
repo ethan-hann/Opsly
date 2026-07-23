@@ -11,8 +11,18 @@
  */
 
 import * as React from "react";
-import { vi, describe, it, expect } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+
+const fixtures = vi.hoisted(() => ({
+  search: "",
+  notes: [] as Array<{
+    id: number;
+    title: string;
+    content: string;
+    updatedAt: string;
+  }>,
+}));
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -40,7 +50,7 @@ const TASK_BETA = {
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
 vi.mock("@workspace/api-client-react", () => ({
-  useListNotes:       () => ({ data: [], refetch: vi.fn() }),
+  useListNotes:       () => ({ data: fixtures.notes, refetch: vi.fn() }),
   useCreateNote:      () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateNote:      () => ({ mutateAsync: vi.fn() }),
   useDeleteNote:      () => ({ mutateAsync: vi.fn() }),
@@ -50,7 +60,7 @@ vi.mock("@workspace/api-client-react", () => ({
 }));
 
 vi.mock("wouter", () => ({
-  useSearch:   () => "",
+  useSearch:   () => fixtures.search,
   useLocation: () => ["/notes", vi.fn()],
 }));
 
@@ -90,7 +100,9 @@ vi.mock("@/components/ui/command", () => ({
 // Stub heavy sub-components — none affect the filter state under test.
 vi.mock("@/components/notes/markdown-editor",  () => ({ MarkdownEditor: () => null }));
 vi.mock("@/components/notes/markdown-preview", () => ({ MarkdownPreview: () => null }));
-vi.mock("@/components/notes/note-card",        () => ({ NoteCard: () => null }));
+vi.mock("@/components/notes/note-card",        () => ({
+  NoteCard: ({ note }: { note: { title: string } }) => <div>{note.title}</div>,
+}));
 
 // AlertDialogs are never open (no note is selected / deleted).
 vi.mock("@/components/ui/alert-dialog", () => ({
@@ -139,6 +151,11 @@ function selectOption(label: string | RegExp) {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("Notes sidebar — task filter resets when project changes", () => {
+  beforeEach(() => {
+    fixtures.search = "";
+    fixtures.notes = [];
+  });
+
   it("resets the task filter when the new project does not contain the selected task", async () => {
     render(<NotesPage />);
 
@@ -169,6 +186,33 @@ describe("Notes sidebar — task filter resets when project changes", () => {
       // Task filter must revert to the "all tasks" placeholder.
       expect(sidebarComboboxes()[1]).toHaveTextContent("notes.allTasks");
       expect(sidebarComboboxes()[1]).not.toHaveTextContent("Task Alpha");
+    });
+  });
+
+  describe("Notes sidebar search query param", () => {
+    it("prefills search input from ?search= and filters visible notes", () => {
+      fixtures.search = "?search=alpha";
+      fixtures.notes = [
+        {
+          id: 1,
+          title: "Alpha note",
+          content: "matched content",
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          title: "Bravo note",
+          content: "different content",
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+
+      render(<NotesPage />);
+
+      const searchInput = screen.getByPlaceholderText("notes.searchNotes") as HTMLInputElement;
+      expect(searchInput.value).toBe("alpha");
+      expect(screen.getByText("Alpha note")).toBeInTheDocument();
+      expect(screen.queryByText("Bravo note")).not.toBeInTheDocument();
     });
   });
 
