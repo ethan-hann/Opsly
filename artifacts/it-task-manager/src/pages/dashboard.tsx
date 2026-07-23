@@ -87,8 +87,8 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100">{t('dashboard.title')}</h1>
-          <p className="text-stone-500 dark:text-stone-400 mt-1">{greeting}</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">{t('dashboard.title')}</h1>
+          <p className="text-muted-foreground mt-1">{greeting}</p>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/projects">
@@ -112,12 +112,12 @@ export default function Dashboard() {
         ) : summary ? (
           <>
             <Link href="/projects?status=active">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
+              <div className="bg-card rounded-2xl p-4 xl:p-6 border border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.activeProjects', { projects: term('projects') })}</p>
-                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">{summary.activeProjects}</p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.activeProjectsOutOf', { total: summary.totalProjects })}</p>
+                    <p className="text-xs xl:text-sm font-medium text-muted-foreground leading-tight">{t('dashboard.activeProjects', { projects: term('projects') })}</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-foreground mt-1.5">{summary.activeProjects}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1 hidden sm:block">{t('dashboard.activeProjectsOutOf', { total: summary.totalProjects })}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <Briefcase className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -127,14 +127,14 @@ export default function Dashboard() {
             </Link>
 
             <Link href="/tasks?stageType=open">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
+              <div className="bg-card rounded-2xl p-4 xl:p-6 border border-border shadow-sm hover:shadow-md hover:border-primary/30 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.openTasks', { tasks: term('tasks') })}</p>
-                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
+                    <p className="text-xs xl:text-sm font-medium text-muted-foreground leading-tight">{t('dashboard.openTasks', { tasks: term('tasks') })}</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-foreground mt-1.5">
                       {summary.tasksByStageType.open}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.openTasksRequires')}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1 hidden sm:block">{t('dashboard.openTasksRequires')}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-primary/10 text-primary group-hover:scale-110 transition-transform shrink-0">
                     <LayoutGrid className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -144,14 +144,14 @@ export default function Dashboard() {
             </Link>
 
             <Link href="/tasks?stageType=closed">
-              <div className="bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border border-stone-200 dark:border-stone-700 shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer h-full">
+              <div className="bg-card rounded-2xl p-4 xl:p-6 border border-border shadow-sm hover:shadow-md hover:border-emerald-200 dark:hover:border-emerald-700 transition-all group cursor-pointer h-full">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.closedTasks', { tasks: term('tasks') })}</p>
-                    <p className="text-2xl xl:text-3xl font-bold text-stone-800 dark:text-stone-100 mt-1.5">
+                    <p className="text-xs xl:text-sm font-medium text-muted-foreground leading-tight">{t('dashboard.closedTasks', { tasks: term('tasks') })}</p>
+                    <p className="text-2xl xl:text-3xl font-bold text-foreground mt-1.5">
                       {summary.tasksByStageType.closed}
                     </p>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">{t('dashboard.closedTasksResolved')}</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1 hidden sm:block">{t('dashboard.closedTasksResolved')}</p>
                   </div>
                   <div className="w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400 group-hover:scale-110 transition-transform shrink-0">
                     <CheckCircle2 className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -161,21 +161,21 @@ export default function Dashboard() {
             </Link>
 
             <Link href="/tasks?overdue=true">
-              <div className={`bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
+              <div className={`bg-card rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
                 summary.overdueCount > 0
-                  ? "border-orange-200 dark:border-orange-800 hover:border-orange-300 dark:hover:border-orange-700"
-                  : "border-stone-200 dark:border-stone-700 hover:border-primary/30"
+                  ? "border-rose-200 dark:border-rose-800 hover:border-rose-300 dark:hover:border-rose-700"
+                  : "border-border hover:border-primary/30"
               }`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.overdueTasks', { tasks: term('tasks') })}</p>
-                    <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${summary.overdueCount > 0 ? "text-orange-600 dark:text-orange-400" : "text-stone-800 dark:text-stone-100"}`}>
+                    <p className="text-xs xl:text-sm font-medium text-muted-foreground leading-tight">{t('dashboard.overdueTasks', { tasks: term('tasks') })}</p>
+                    <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${summary.overdueCount > 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}>
                       {summary.overdueCount}
                     </p>
                   </div>
                   <div className={`w-9 h-9 xl:w-12 xl:h-12 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shrink-0 ${
                     summary.overdueCount > 0
-                      ? "bg-orange-100 text-orange-500 dark:bg-orange-900/40 dark:text-orange-400"
+                      ? "bg-rose-100 text-rose-500 dark:bg-rose-900/40 dark:text-rose-400"
                       : "bg-primary/10 text-primary"
                   }`}>
                     <Clock className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -191,26 +191,26 @@ export default function Dashboard() {
           <Skeleton className="h-24 rounded-2xl" />
         ) : slaSummary ? (
           <Link href="/tasks?slaBreached=true">
-            <div className={`bg-white dark:bg-stone-900 rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
+            <div className={`bg-card rounded-2xl p-4 xl:p-6 border shadow-sm hover:shadow-md transition-all group cursor-pointer h-full ${
               slaSummary.complianceRate >= 90
                 ? "border-emerald-200 dark:border-emerald-800 hover:border-emerald-300 dark:hover:border-emerald-700"
                 : slaSummary.complianceRate >= 70
-                  ? "border-amber-200 dark:border-amber-800 hover:border-amber-300 dark:hover:border-amber-700"
+                  ? "border-yellow-200 dark:border-yellow-800 hover:border-yellow-300 dark:hover:border-yellow-700"
                   : "border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
             }`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-xs xl:text-sm font-medium text-stone-500 dark:text-stone-400 leading-tight">{t('dashboard.slaCompliance')}</p>
+                  <p className="text-xs xl:text-sm font-medium text-muted-foreground leading-tight">{t('dashboard.slaCompliance')}</p>
                   <p className={`text-2xl xl:text-3xl font-bold mt-1.5 ${
                     slaSummary.complianceRate >= 90
                       ? "text-emerald-600 dark:text-emerald-400"
                       : slaSummary.complianceRate >= 70
-                        ? "text-amber-600 dark:text-amber-400"
+                        ? "text-yellow-600 dark:text-yellow-400"
                         : "text-red-600 dark:text-red-400"
                   }`}>
                     {slaSummary.complianceRate}%
                   </p>
-                  <p className="text-xs text-stone-400 dark:text-stone-500 mt-1 hidden sm:block">
+                  <p className="text-xs text-muted-foreground/70 mt-1 hidden sm:block">
                     {slaSummary.totalTracked === 0
                       ? t('dashboard.noTrackedTasks')
                       : t('dashboard.breachedCount', { count: slaSummary.breachedCount, period: activePeriod.label })}
@@ -220,7 +220,7 @@ export default function Dashboard() {
                   slaSummary.complianceRate >= 90
                     ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
                     : slaSummary.complianceRate >= 70
-                      ? "bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400"
+                      ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/40 dark:text-yellow-400"
                       : "bg-red-100 text-red-500 dark:bg-red-900/40 dark:text-red-400"
                 }`}>
                   <ShieldCheck className="w-4 h-4 xl:w-6 xl:h-6" />
@@ -234,18 +234,18 @@ export default function Dashboard() {
       {/* SLA Compliance Detail Panel — always visible when data is loaded so the
            period selector remains accessible even when a period has zero tasks */}
       {(isLoadingSlaSummary || slaSummary) && (
-        <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
           {/* Header: title + segmented control always rendered */}
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-5">
             <div className="flex items-center gap-2 min-w-0">
-              <ShieldCheck className="w-5 h-5 text-stone-400 dark:text-stone-500 shrink-0" />
-              <h2 className="text-base font-semibold text-stone-800 dark:text-stone-100 truncate">
+              <ShieldCheck className="w-5 h-5 text-muted-foreground/60 shrink-0" />
+              <h2 className="text-base font-semibold text-foreground truncate">
                 {t('dashboard.slaCompliancePeriod', { period: activePeriod.heading })}
               </h2>
             </div>
             <div className="flex flex-wrap items-center gap-3 shrink-0">
               {/* Period segmented control — always visible */}
-              <div className="flex items-center rounded-lg border border-stone-200 dark:border-stone-700 overflow-hidden text-xs font-medium">
+              <div className="flex items-center rounded-lg border border-border overflow-hidden text-xs font-medium">
                 {SLA_PERIOD_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -254,7 +254,7 @@ export default function Dashboard() {
                     className={`px-3 py-1.5 transition-colors ${
                       slaPeriod === opt.value
                         ? "bg-primary text-primary-foreground"
-                        : "bg-white dark:bg-stone-900 text-stone-500 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+                        : "bg-card text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     {opt.label}
@@ -294,22 +294,22 @@ export default function Dashboard() {
                     isGood
                       ? "bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/40"
                       : isMid
-                        ? "bg-amber-50/60 dark:bg-amber-950/20 border-amber-100 dark:border-amber-900/40"
+                        ? "bg-yellow-50/60 dark:bg-yellow-950/20 border-yellow-100 dark:border-yellow-900/40"
                         : "bg-red-50/60 dark:bg-red-950/20 border-red-100 dark:border-red-900/40"
                   }`}>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-500 dark:text-stone-400 mb-2 capitalize">{p.priority}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 capitalize">{p.priority}</p>
                     <p className={`text-2xl font-bold ${
-                      isGood ? "text-emerald-600 dark:text-emerald-400" : isMid ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400"
+                      isGood ? "text-emerald-600 dark:text-emerald-400" : isMid ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
                     }`}>{p.complianceRate}%</p>
-                    <div className="mt-2 w-full h-1.5 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                    <div className="mt-2 w-full h-1.5 rounded-full bg-muted-foreground/20 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          isGood ? "bg-emerald-500" : isMid ? "bg-amber-500" : "bg-red-500"
+                          isGood ? "bg-emerald-500" : isMid ? "bg-yellow-500" : "bg-red-500"
                         }`}
                         style={{ width: `${p.complianceRate}%` }}
                       />
                     </div>
-                    <p className="text-xs text-stone-400 dark:text-stone-500 mt-2">
+                    <p className="text-xs text-muted-foreground/70 mt-2">
                       {p.breachedCount > 0 ? `${p.breachedCount} ${t('dashboard.breaches')}` : t('dashboard.noBreaches')} · {p.totalTracked} {t('common.total')}
                     </p>
                   </div>
@@ -334,7 +334,7 @@ export default function Dashboard() {
 
           {/* SLA Breached Tasks */}
           {slaBreachedTasks.length > 0 && (
-            <div className="bg-white dark:bg-stone-900 rounded-2xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden">
+            <div className="bg-card rounded-2xl border border-red-200 dark:border-red-900 shadow-sm overflow-hidden">
               <div className="px-6 py-5 border-b border-red-100 dark:border-red-900/60 flex items-center justify-between bg-red-50/40 dark:bg-red-950/20">
                 <div className="flex items-center gap-2">
                   <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
@@ -343,9 +343,9 @@ export default function Dashboard() {
                     {slaBreachedTasks.length}
                   </span>
                 </div>
-                <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.resolutionTimeExceeded')}</p>
+                <p className="text-sm text-muted-foreground/70">{t('dashboard.resolutionTimeExceeded')}</p>
               </div>
-              <div className="divide-y divide-stone-100 dark:divide-stone-800">
+              <div className="divide-y divide-border/60">
                 {slaBreachedTasks.slice(0, 5).map(task => (
                   <div key={task.id} className="p-5 hover:bg-red-50/30 dark:hover:bg-red-950/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start gap-4 min-w-0 flex-1">
@@ -354,11 +354,11 @@ export default function Dashboard() {
                       </div>
                       <div className="space-y-1 min-w-0">
                         <Link href={`/tasks/${task.id}`}>
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer truncate">
+                          <h3 className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer truncate">
                             {task.title}
                           </h3>
                         </Link>
-                        <div className="flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{task.projectName || t('common.unassigned')}</span>
                         </div>
                       </div>
@@ -380,13 +380,13 @@ export default function Dashboard() {
           )}
 
           {/* Attention Required */}
-          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm overflow-hidden">
-            <div className="px-6 py-5 border-b border-stone-100 dark:border-stone-800 flex items-center justify-between bg-rose-50/40 dark:bg-rose-950/20">
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-border/60 flex items-center justify-between bg-rose-50/40 dark:bg-rose-950/20">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
                 <h2 className="text-lg font-semibold text-rose-900 dark:text-rose-300">{t('dashboard.attentionRequired')}</h2>
               </div>
-              <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.overdueOrCritical')}</p>
+              <p className="text-sm text-muted-foreground/70">{t('dashboard.overdueOrCritical')}</p>
             </div>
 
             {isLoadingOverdue ? (
@@ -395,20 +395,20 @@ export default function Dashboard() {
                 <Skeleton className="h-14 w-full rounded-xl" />
               </div>
             ) : overdueTasks && overdueTasks.length > 0 ? (
-              <div className="divide-y divide-stone-100 dark:divide-stone-800">
+              <div className="divide-y divide-border/60">
                 {overdueTasks.slice(0, 5).map(task => (
-                  <div key={task.id} className="p-5 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div key={task.id} className="p-5 hover:bg-muted/40 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start gap-4 min-w-0 flex-1">
-                      <div className="mt-0.5 p-2 rounded-lg bg-orange-100 text-orange-600 dark:bg-orange-900/40 dark:text-orange-400 shrink-0">
+                      <div className="mt-0.5 p-2 rounded-lg bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400 shrink-0">
                         <Clock className="w-4 h-4" />
                       </div>
                       <div className="space-y-1 min-w-0">
                         <Link href={`/tasks/${task.id}`}>
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer truncate">
+                          <h3 className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer truncate">
                             {task.title}
                           </h3>
                         </Link>
-                        <div className="flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <span className="text-xs">{task.projectName || t('common.unassigned')}</span>
                           <span>·</span>
                           {task.dueDate ? (
@@ -417,7 +417,7 @@ export default function Dashboard() {
                               {t('dashboard.dueOn', { date: formatDate(task.dueDate, i18n.language) })}
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-xs font-medium">
+                            <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400 text-xs font-medium">
                               {t('dashboard.criticalPriority')}
                             </span>
                           )}
@@ -440,14 +440,14 @@ export default function Dashboard() {
           </div>
 
           {/* Active Projects */}
-          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6">
+          <div className="bg-card rounded-2xl border border-border shadow-sm p-6">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">{t('dashboard.activeProjectsSection', { projects: term('projects') })}</h2>
-                <p className="text-sm text-stone-400 dark:text-stone-500">{t('dashboard.ongoingStreams')}</p>
+                <h2 className="text-lg font-semibold text-foreground">{t('dashboard.activeProjectsSection', { projects: term('projects') })}</h2>
+                <p className="text-sm text-muted-foreground/70">{t('dashboard.ongoingStreams')}</p>
               </div>
               <Link href="/projects">
-                <button className="p-2 text-stone-400 hover:text-primary rounded-lg hover:bg-primary/5 transition-colors">
+                <button className="p-2 text-muted-foreground hover:text-primary rounded-lg hover:bg-primary/5 transition-colors">
                   <LayoutGrid className="w-5 h-5" />
                 </button>
               </Link>
@@ -466,26 +466,26 @@ export default function Dashboard() {
                     : 0;
                   return (
                     <Link key={project.id} href={`/projects/${project.id}`}>
-                      <div className="p-4 rounded-xl border border-stone-100 dark:border-stone-700/50 bg-stone-50/50 dark:bg-stone-800/30 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer group">
+                      <div className="p-4 rounded-xl border border-border/50 bg-muted/40 hover:bg-primary/5 hover:border-primary/20 transition-all cursor-pointer group">
                         <div className="flex justify-between items-start mb-3">
-                          <h3 className="font-medium text-stone-800 dark:text-stone-200 group-hover:text-primary transition-colors line-clamp-1">
+                          <h3 className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
                             {project.name}
                           </h3>
                           <PriorityBadge priority={project.priority} />
                         </div>
                         <div className="mb-3">
                           <div className="flex justify-between text-xs mb-1.5">
-                            <span className="text-stone-500 dark:text-stone-400 font-medium">{t('common.progress')}</span>
-                            <span className="text-stone-700 dark:text-stone-300 font-bold">{progress}%</span>
+                            <span className="text-muted-foreground font-medium">{t('common.progress')}</span>
+                            <span className="text-foreground font-bold">{progress}%</span>
                           </div>
-                          <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
+                          <div className="w-full h-2 bg-muted-foreground/20 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-primary rounded-full transition-all duration-500"
                               style={{ width: `${progress}%` }}
                             />
                           </div>
                         </div>
-                        <div className="flex items-center justify-between text-xs text-stone-400 dark:text-stone-500 pt-2.5 border-t border-stone-100 dark:border-stone-700/50">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground/70 pt-2.5 border-t border-border/50">
                           <span>{t('dashboard.tasksCount', { completed: project.completedTaskCount || 0, total: project.taskCount || 0, tasks: term('tasks').toLowerCase() })}</span>
                           <span>{progress}% {t('common.complete')}</span>
                         </div>
@@ -495,7 +495,7 @@ export default function Dashboard() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
+              <div className="text-center py-8 text-muted-foreground/70 text-sm">
                 {t('dashboard.noActiveProjects', { projects: term('projects').toLowerCase() })}
               </div>
             )}
@@ -504,10 +504,10 @@ export default function Dashboard() {
 
         {/* Activity Log */}
         <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 shadow-sm p-6 sticky top-8">
+          <div className="bg-card rounded-2xl border border-border shadow-sm p-6 sticky top-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-stone-800 dark:text-stone-100">{t('dashboard.activityLog')}</h2>
-              <Activity className="w-5 h-5 text-stone-400 dark:text-stone-500" />
+              <h2 className="text-lg font-semibold text-foreground">{t('dashboard.activityLog')}</h2>
+              <Activity className="w-5 h-5 text-muted-foreground/60" />
             </div>
 
             {isLoadingActivity ? (
@@ -523,7 +523,7 @@ export default function Dashboard() {
                 ))}
               </div>
             ) : activity && activity.length > 0 ? (
-              <div className="space-y-5 relative before:absolute before:inset-0 before:ml-[9px] before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-stone-200 before:via-stone-200 dark:before:from-stone-700 dark:before:via-stone-700 before:to-transparent">
+              <div className="space-y-5 relative before:absolute before:inset-0 before:ml-[9px] before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-border before:via-border before:to-transparent">
                 {activity.slice(0, 10).map((item) => {
                   const href = item.entityType === "project"
                     ? `/projects/${item.entityId}`
@@ -531,17 +531,17 @@ export default function Dashboard() {
                   return (
                     <div key={item.id} className="relative flex items-start gap-4">
                       <div className="absolute left-0 mt-1 flex items-center justify-center z-10">
-                        <div className="w-5 h-5 rounded-full border-4 border-white dark:border-stone-900 bg-primary shrink-0" />
+                        <div className="w-5 h-5 rounded-full border-4 border-card bg-primary shrink-0" />
                       </div>
                       <div className="ml-8 space-y-0.5">
-                        <p className="text-sm text-stone-600 dark:text-stone-400">
+                        <p className="text-sm text-muted-foreground">
                           <Link href={href}>
-                            <span className="font-medium text-stone-800 dark:text-stone-200 hover:text-primary transition-colors cursor-pointer">
+                            <span className="font-medium text-foreground hover:text-primary transition-colors cursor-pointer">
                               {item.title}
                             </span>
                           </Link>
                         </p>
-                        <span className="text-xs text-stone-400 dark:text-stone-500 font-medium">
+                        <span className="text-xs text-muted-foreground/70 font-medium">
                           {formatTimeAgo(item.createdAt, i18n.language)}
                         </span>
                       </div>
@@ -550,7 +550,7 @@ export default function Dashboard() {
                 })}
               </div>
             ) : (
-              <div className="text-center py-8 text-stone-400 dark:text-stone-500 text-sm">
+              <div className="text-center py-8 text-muted-foreground/70 text-sm">
                 {t('dashboard.noRecentActivity')}
               </div>
             )}
