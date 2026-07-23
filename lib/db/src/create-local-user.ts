@@ -17,10 +17,13 @@ function hashPassword(password: string): string {
 }
 
 async function main(): Promise<void> {
-  const email = process.argv[2]?.toLowerCase();
-  const password = process.argv[3];
-  const firstName = process.argv[4] ?? null;
-  const lastName = process.argv[5] ?? null;
+  const rawArgs = process.argv.slice(2);
+  const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+
+  const email = args[0]?.toLowerCase();
+  const password = args[1];
+  const firstName = args[2] ?? null;
+  const lastName = args[3] ?? null;
 
   if (!email || !password) {
     console.error(

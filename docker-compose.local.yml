@@ -46,7 +46,7 @@ services:
       pnpm --filter @workspace/db run push &&
       pnpm --filter @workspace/db run migrate:add-multi-auth-support &&
       if [ \"$$AUTH_MODE\" = \"local\" ] && [ -n \"$$LOCAL_DEV_USER_EMAIL\" ] && [ -n \"$$LOCAL_DEV_USER_PASSWORD\" ]; then
-        pnpm --filter @workspace/db run create-local-user -- \"$$LOCAL_DEV_USER_EMAIL\" \"$$LOCAL_DEV_USER_PASSWORD\" \"$$LOCAL_DEV_USER_FIRST_NAME\" \"$$LOCAL_DEV_USER_LAST_NAME\";
+        pnpm --filter @workspace/db run create-local-user \"$$LOCAL_DEV_USER_EMAIL\" \"$$LOCAL_DEV_USER_PASSWORD\" \"$$LOCAL_DEV_USER_FIRST_NAME\" \"$$LOCAL_DEV_USER_LAST_NAME\";
       fi &&
       pnpm --filter @workspace/api-server run build &&
       node --enable-source-maps artifacts/api-server/dist/index.mjs

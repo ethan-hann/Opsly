@@ -67,7 +67,7 @@ $env:AUTH_MODE = "local"
 Create a local user:
 
 ```powershell
-pnpm --filter @workspace/db run create-local-user -- admin@example.com changeme Admin User
+pnpm --filter @workspace/db run create-local-user admin@example.com changeme Admin User
 ```
 
 ### Option B: Replit OIDC
