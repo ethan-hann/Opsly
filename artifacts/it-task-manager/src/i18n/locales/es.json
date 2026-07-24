@@ -275,7 +275,12 @@
     "clearSelection": "Limpiar selección",
     "personalView": "Personal",
     "defaultIndicator": "· Predeterminado",
-    "clearCustomFieldFilter": "Limpiar filtro de campo personalizado"
+    "clearCustomFieldFilter": "Limpiar filtro de campo personalizado",
+    "bulkBlockedTitle": "Algunas tareas aún no se pueden cerrar",
+    "bulkBlockedDesc": "Estas tareas tienen dependencias principales abiertas. Cierre primero las tareas principales y vuelva a intentarlo.",
+    "bulkBlockedBy": "Bloqueada por tarea(s) principal(es) abierta(s):",
+    "bulkCloseParentsFirst": "Seleccionar principales para cerrar primero",
+    "bulkUpdateFailed": "Error en la actualización masiva"
   },
   "taskDetail": {
     "unwatchedTask": "Dejado de seguir",

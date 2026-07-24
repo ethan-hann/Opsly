@@ -766,12 +766,13 @@ router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), asy
       if (depsForBulk.length > 0) {
         const parentIds = [...new Set(depsForBulk.map((d) => d.dependsOnTaskId))];
         const parentRows = await db
-          .select({ id: tasksTable.id, status: tasksTable.status, orgTaskNumber: tasksTable.orgTaskNumber })
+          .select({ id: tasksTable.id, status: tasksTable.status, orgTaskNumber: tasksTable.orgTaskNumber, title: tasksTable.title })
           .from(tasksTable)
           .where(and(inArray(tasksTable.id, parentIds), eq(tasksTable.orgId, orgId)));
         const stagesMap = await getOrgStages(orgId);
 
-        const openParents = new Map<number, number[]>(); // taskId → [open parent orgTaskNumbers]
+        type ParentInfo = { id: number; orgTaskNumber: number; title: string };
+        const openParents = new Map<number, ParentInfo[]>(); // taskId → open parents
         for (const dep of depsForBulk) {
           const parent = parentRows.find((p) => p.id === dep.dependsOnTaskId);
           if (!parent) continue;
@@ -779,20 +780,25 @@ router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), asy
           const parentStage = !isNaN(parentStageId) ? stagesMap.get(parentStageId) : undefined;
           if (!parentStage || parentStage.type !== "closed") {
             if (!openParents.has(dep.taskId)) openParents.set(dep.taskId, []);
-            openParents.get(dep.taskId)!.push(parent.orgTaskNumber);
+            openParents.get(dep.taskId)!.push({ id: parent.id, orgTaskNumber: parent.orgTaskNumber, title: parent.title });
           }
         }
 
         if (openParents.size > 0) {
           const taskRows = await db
-            .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber })
+            .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber, title: tasksTable.title })
             .from(tasksTable)
             .where(and(inArray(tasksTable.id, [...openParents.keys()]), eq(tasksTable.orgId, orgId)));
-          const messages = taskRows.map((t) => {
-            const blockers = openParents.get(t.id) ?? [];
-            return `TSK-${t.orgTaskNumber} blocked by open parent(s): ${blockers.map((n) => `TSK-${n}`).join(", ")}`;
-          });
-          res.status(422).json({ error: "Some tasks are blocked by open dependencies", messages });
+          const blocked = taskRows.map((t) => ({
+            id: t.id,
+            orgTaskNumber: t.orgTaskNumber,
+            title: t.title,
+            openParents: openParents.get(t.id) ?? [],
+          }));
+          const messages = blocked.map((b) =>
+            `TSK-${b.orgTaskNumber} blocked by open parent(s): ${b.openParents.map((p) => `TSK-${p.orgTaskNumber}`).join(", ")}`,
+          );
+          res.status(422).json({ error: "Some tasks are blocked by open dependencies", messages, blocked });
           return;
         }
       }

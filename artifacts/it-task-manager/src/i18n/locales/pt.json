@@ -275,7 +275,12 @@
     "clearSelection": "Limpar seleção",
     "personalView": "Pessoal",
     "defaultIndicator": "· Padrão",
-    "clearCustomFieldFilter": "Limpar filtro de campo personalizado"
+    "clearCustomFieldFilter": "Limpar filtro de campo personalizado",
+    "bulkBlockedTitle": "Algumas tarefas ainda não podem ser fechadas",
+    "bulkBlockedDesc": "Estas tarefas têm dependências principais abertas. Feche primeiro as tarefas principais e tente novamente.",
+    "bulkBlockedBy": "Bloqueada por tarefa(s) principal(is) aberta(s):",
+    "bulkCloseParentsFirst": "Selecionar principais para fechar primeiro",
+    "bulkUpdateFailed": "Falha na atualização em massa"
   },
   "taskDetail": {
     "notFound": "Tarefa não encontrada",

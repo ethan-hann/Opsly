@@ -1,32 +1,14 @@
 modules = ["nodejs-24", "python-base-3.13", "postgresql-16"]
 
-[deployment]
-router = "application"
-deploymentTarget = "autoscale"
+    [deployment]
+    router = "application"
+    deploymentTarget = "autoscale"
 
-[deployment.postBuild]
-args = ["pnpm", "store", "prune"]
-env = { "CI" = "true" }
+    [deployment.postBuild]
+    args = ["pnpm", "store", "prune"]
+    env = { "CI" = "true" }
 
 [workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "api-server-tests"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "typecheck"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "orval-sync"
 
 [[workflows.workflow]]
 name = "api-server-tests"
@@ -61,13 +43,64 @@ args = "pnpm --filter @workspace/api-spec run codegen && git diff --exit-code li
 [workflows.workflow.metadata]
 isValidation = true
 
-[agent]
-stack = "PNPM_WORKSPACE"
-expertMode = true
+[[workflows.workflow]]
+name = "artifacts/api-server: API Server"
+author = "agent"
+mode = "sequential"
 
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 180000
+[workflows.workflow.metadata]
+outputType = "webview"
+artifactId = "3B4_FFSkEVBkAeYMFRJ2e"
 
-[nix]
-channel = "stable-25_05"
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/api-server run dev"
+cwd = "./artifacts/api-server"
+waitForPort = 8080
+ensurePreviewReachable = "/"
+router = "path"
+
+[workflows.workflow.tasks.env]
+PORT = "8080"
+
+[[workflows.workflow]]
+name = "artifacts/it-task-manager: web"
+author = "agent"
+mode = "sequential"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+artifactId = "artifacts/it-task-manager"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/it-task-manager run dev"
+cwd = "./artifacts/it-task-manager"
+waitForPort = 20999
+ensurePreviewReachable = "/"
+router = "path"
+
+[workflows.workflow.tasks.env]
+PORT = "20999"
+BASE_PATH = "/"
+
+[[workflows.workflow]]
+name = "Reset dev database"
+mode = "sequential"
+author = 10803541
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pnpm --filter @workspace/db run reset-dev --yes"
+
+    [agent]
+    stack = "PNPM_WORKSPACE"
+    expertMode = true
+
+    [postMerge]
+    path = "scripts/post-merge.sh"
+    timeoutMs = 180000
+
+    [nix]
+    channel = "stable-25_05"
+    

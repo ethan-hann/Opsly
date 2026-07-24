@@ -275,7 +275,12 @@
     "clearSelection": "مسح التحديد",
     "personalView": "شخصي",
     "defaultIndicator": "· الافتراضي",
-    "clearCustomFieldFilter": "مسح فلتر الحقل المخصص"
+    "clearCustomFieldFilter": "مسح فلتر الحقل المخصص",
+    "bulkBlockedTitle": "لا يمكن إغلاق بعض المهام بعد",
+    "bulkBlockedDesc": "هذه المهام لديها تبعيات رئيسية مفتوحة. أغلق المهام الرئيسية أولاً ثم حاول مرة أخرى.",
+    "bulkBlockedBy": "محظورة بسبب مهمة (مهام) رئيسية مفتوحة:",
+    "bulkCloseParentsFirst": "تحديد المهام الرئيسية لإغلاقها أولاً",
+    "bulkUpdateFailed": "فشل التحديث الجماعي"
   },
   "taskDetail": {
     "notFound": "المهمة غير موجودة",

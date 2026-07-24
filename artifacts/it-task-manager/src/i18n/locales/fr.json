@@ -275,7 +275,12 @@
     "clearSelection": "Effacer la sélection",
     "personalView": "Personnel",
     "defaultIndicator": "· Par défaut",
-    "clearCustomFieldFilter": "Effacer le filtre de champ personnalisé"
+    "clearCustomFieldFilter": "Effacer le filtre de champ personnalisé",
+    "bulkBlockedTitle": "Certaines tâches ne peuvent pas encore être fermées",
+    "bulkBlockedDesc": "Ces tâches ont des dépendances parentes ouvertes. Fermez d'abord les tâches parentes, puis réessayez.",
+    "bulkBlockedBy": "Bloquée par des tâche(s) parente(s) ouverte(s) :",
+    "bulkCloseParentsFirst": "Sélectionner les parentes à fermer d'abord",
+    "bulkUpdateFailed": "Échec de la mise à jour groupée"
   },
   "taskDetail": {
     "unwatchedTask": "Surveillance arrêtée",

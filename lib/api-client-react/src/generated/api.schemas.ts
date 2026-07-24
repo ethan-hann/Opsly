@@ -569,6 +569,34 @@ export interface BulkTaskPatchResult {
 }
 
 /**
+ * An open parent dependency blocking a task from being closed.
+ */
+export interface BulkCloseBlockedParent {
+  id: number;
+  orgTaskNumber: number;
+  title: string;
+}
+
+/**
+ * A task that could not be bulk-closed because of open parent dependencies.
+ */
+export interface BulkCloseBlockedTask {
+  id: number;
+  orgTaskNumber: number;
+  title: string;
+  openParents: BulkCloseBlockedParent[];
+}
+
+/**
+ * Error body returned when a bulk close is rejected due to open parent dependencies.
+ */
+export interface BulkCloseBlockedResult {
+  error: string;
+  messages: string[];
+  blocked: BulkCloseBlockedTask[];
+}
+
+/**
  * Payload for bulk-deleting multiple tasks.
  */
 export interface BulkTaskDeleteInput {

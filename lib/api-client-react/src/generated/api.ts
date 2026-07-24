@@ -26,6 +26,7 @@ import type {
   ApiKeyInput,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  BulkCloseBlockedResult,
   BulkTaskDeleteInput,
   BulkTaskDeleteResult,
   BulkTaskPatchInput,
@@ -2938,7 +2939,7 @@ export const bulkUpdateTasks = async (bulkTaskPatchInput: BulkTaskPatchInput, op
 
 
 
-export const getBulkUpdateTasksMutationOptions = <TError = ErrorType<void>,
+export const getBulkUpdateTasksMutationOptions = <TError = ErrorType<void | BulkCloseBlockedResult>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext> => {
 
@@ -2967,12 +2968,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type BulkUpdateTasksMutationResult = NonNullable<Awaited<ReturnType<typeof bulkUpdateTasks>>>
     export type BulkUpdateTasksMutationBody = BodyType<BulkTaskPatchInput>
-    export type BulkUpdateTasksMutationError = ErrorType<void>
+    export type BulkUpdateTasksMutationError = ErrorType<void | BulkCloseBlockedResult>
 
     /**
  * @summary Bulk update multiple tasks
  */
-export const useBulkUpdateTasks = <TError = ErrorType<void>,
+export const useBulkUpdateTasks = <TError = ErrorType<void | BulkCloseBlockedResult>,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof bulkUpdateTasks>>, TError,{data: BodyType<BulkTaskPatchInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof bulkUpdateTasks>>,

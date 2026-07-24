@@ -275,7 +275,12 @@
     "clearSelection": "Auswahl aufheben",
     "personalView": "Persönlich",
     "defaultIndicator": "· Standard",
-    "clearCustomFieldFilter": "Benutzerdefiniertes Feld-Filter löschen"
+    "clearCustomFieldFilter": "Benutzerdefiniertes Feld-Filter löschen",
+    "bulkBlockedTitle": "Einige Aufgaben können noch nicht geschlossen werden",
+    "bulkBlockedDesc": "Diese Aufgaben haben offene übergeordnete Abhängigkeiten. Schließen Sie zuerst die übergeordneten Aufgaben und versuchen Sie es erneut.",
+    "bulkBlockedBy": "Blockiert durch offene übergeordnete Aufgabe(n):",
+    "bulkCloseParentsFirst": "Übergeordnete zum Schließen auswählen",
+    "bulkUpdateFailed": "Massenaktualisierung fehlgeschlagen"
   },
   "taskDetail": {
     "notFound": "Aufgabe nicht gefunden",

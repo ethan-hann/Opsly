@@ -275,7 +275,12 @@
     "clearSelection": "清除选择",
     "personalView": "个人",
     "defaultIndicator": "· 默认",
-    "clearCustomFieldFilter": "清除自定义字段筛选"
+    "clearCustomFieldFilter": "清除自定义字段筛选",
+    "bulkBlockedTitle": "部分任务暂时无法关闭",
+    "bulkBlockedDesc": "这些任务存在未关闭的父级依赖。请先关闭父级任务，然后重试。",
+    "bulkBlockedBy": "被未关闭的父级任务阻止：",
+    "bulkCloseParentsFirst": "选择需先关闭的父级任务",
+    "bulkUpdateFailed": "批量更新失败"
   },
   "taskDetail": {
     "notFound": "未找到任务",

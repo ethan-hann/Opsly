@@ -1151,6 +1151,12 @@ paths:
           description: Validation error.
         "403":
           description: Missing edit_tasks permission.
+        "422":
+          description: One or more tasks are blocked from closing by open parent dependencies.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkCloseBlockedResult"
     delete:
       operationId: bulkDeleteTasks
       tags: [tasks]
@@ -3191,6 +3197,50 @@ components:
         updated:
           type: integer
           description: Number of tasks successfully updated.
+
+    BulkCloseBlockedParent:
+      description: An open parent dependency blocking a task from being closed.
+      type: object
+      required: [id, orgTaskNumber, title]
+      properties:
+        id:
+          type: integer
+        orgTaskNumber:
+          type: integer
+        title:
+          type: string
+
+    BulkCloseBlockedTask:
+      description: A task that could not be bulk-closed because of open parent dependencies.
+      type: object
+      required: [id, orgTaskNumber, title, openParents]
+      properties:
+        id:
+          type: integer
+        orgTaskNumber:
+          type: integer
+        title:
+          type: string
+        openParents:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkCloseBlockedParent"
+
+    BulkCloseBlockedResult:
+      description: Error body returned when a bulk close is rejected due to open parent dependencies.
+      type: object
+      required: [error, messages, blocked]
+      properties:
+        error:
+          type: string
+        messages:
+          type: array
+          items:
+            type: string
+        blocked:
+          type: array
+          items:
+            $ref: "#/components/schemas/BulkCloseBlockedTask"
 
     BulkTaskDeleteInput:
       description: Payload for bulk-deleting multiple tasks.

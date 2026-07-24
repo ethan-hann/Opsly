@@ -275,7 +275,12 @@
     "clearSelection": "選択をクリア",
     "personalView": "個人",
     "defaultIndicator": "· デフォルト",
-    "clearCustomFieldFilter": "カスタムフィールドフィルターをクリア"
+    "clearCustomFieldFilter": "カスタムフィールドフィルターをクリア",
+    "bulkBlockedTitle": "一部のタスクはまだクローズできません",
+    "bulkBlockedDesc": "これらのタスクには未完了の親依存関係があります。先に親タスクをクローズしてから再試行してください。",
+    "bulkBlockedBy": "未完了の親タスクによりブロック中:",
+    "bulkCloseParentsFirst": "先にクローズする親タスクを選択",
+    "bulkUpdateFailed": "一括更新に失敗しました"
   },
   "taskDetail": {
     "notFound": "タスクが見つかりません",

@@ -275,7 +275,12 @@
     "clearSelection": "Clear selection",
     "personalView": "Personal",
     "defaultIndicator": "· Default",
-    "clearCustomFieldFilter": "Clear custom field filter"
+    "clearCustomFieldFilter": "Clear custom field filter",
+    "bulkBlockedTitle": "Some tasks can't be closed yet",
+    "bulkBlockedDesc": "These tasks have open parent dependencies. Close the parents first, then try again.",
+    "bulkBlockedBy": "Blocked by open parent(s):",
+    "bulkCloseParentsFirst": "Select parents to close first",
+    "bulkUpdateFailed": "Bulk update failed"
   },
   "taskDetail": {
     "unwatchedTask": "Unwatched",
@@ -1457,7 +1462,7 @@
   "search": {
     "placeholder": "Search tasks, projects, notes…",
     "results": "Search results",
-    "viewAllIn": "View all results for \u201c{{query}}\u201d in {{term}}",
+    "viewAllIn": "View all results for “{{query}}” in {{term}}",
     "globalSearch": "Global search",
     "emptyPrompt": "Type to search across tasks, projects & notes"
   },

@@ -14,7 +14,15 @@ import {
 } from "@workspace/api-client-react";
 import { useTranslation } from 'react-i18next';
 import { useTerminology } from "@/context/terminology-context";
-import type { TaskTemplate } from "@workspace/api-client-react";
+import type { TaskTemplate, BulkCloseBlockedTask } from "@workspace/api-client-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Link, useSearch, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -60,6 +68,7 @@ import { useAuth } from "@workspace/replit-auth-web";
 import type { SavedView } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgContext } from "@/hooks/use-org-context";
+import { useToast } from "@/hooks/use-toast";
 import {
   getListTasksQueryKey,
   getListViewsQueryKey,
@@ -1159,7 +1168,30 @@ export default function TasksList() {
 
   // ─── Bulk action handlers ─────────────────────────────────────────────────
 
+  const [blockedClose, setBlockedClose] = useState<BulkCloseBlockedTask[] | null>(null);
+  const { toast } = useToast();
+
   const handleBulkUpdate = async (patch: {
+    status?: string;
+    priority?: string;
+    category?: string;
+    assignee?: string | null;
+  }) => {
+    try {
+      await doBulkUpdate(patch);
+    } catch (err: unknown) {
+      // ApiError exposes .status and .data directly (not .response.*)
+      const apiErr = err as { status?: number; data?: { blocked?: BulkCloseBlockedTask[] } };
+      if (apiErr?.status === 422 && Array.isArray(apiErr.data?.blocked) && apiErr.data.blocked.length > 0) {
+        setBlockedClose(apiErr.data.blocked);
+        return;
+      }
+      const msg = (apiErr as { data?: { error?: string } })?.data?.error;
+      toast({ title: msg ?? t('tasks.bulkUpdateFailed'), variant: "destructive" });
+    }
+  };
+
+  const doBulkUpdate = async (patch: {
     status?: string;
     priority?: string;
     category?: string;
@@ -1765,6 +1797,58 @@ export default function TasksList() {
         isPending={isBulkPending}
         stageOptions={stageStatusOptions}
       />
+
+      {/* Blocked bulk-close dialog */}
+      <Dialog open={blockedClose !== null} onOpenChange={(open) => { if (!open) setBlockedClose(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldAlert className="w-5 h-5 text-rose-500" />
+              {t('tasks.bulkBlockedTitle')}
+            </DialogTitle>
+            <DialogDescription>{t('tasks.bulkBlockedDesc')}</DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 overflow-y-auto space-y-3">
+            {(blockedClose ?? []).map((b) => (
+              <div key={b.id} className="rounded-lg border border-border p-3">
+                <p className="text-sm font-medium text-foreground">
+                  TSK-{b.orgTaskNumber} · {b.title}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1.5">{t('tasks.bulkBlockedBy')}</p>
+                <ul className="mt-1 space-y-1">
+                  {b.openParents.map((p) => (
+                    <li key={p.id}>
+                      <Link
+                        href={`/tasks/${p.id}`}
+                        className="text-sm text-primary hover:underline"
+                        onClick={() => setBlockedClose(null)}
+                      >
+                        TSK-{p.orgTaskNumber} · {p.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBlockedClose(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              onClick={() => {
+                const parentIds = new Set(
+                  (blockedClose ?? []).flatMap((b) => b.openParents.map((p) => p.id)),
+                );
+                setSelectedIds(parentIds);
+                setBlockedClose(null);
+              }}
+            >
+              {t('tasks.bulkCloseParentsFirst')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <NewTaskModal
         open={showNewTask}
