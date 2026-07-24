@@ -1944,6 +1944,25 @@ export const CreateTaskDependencyResponse = zod.object({
 
 
 /**
+ * Re-parents the dependency edge identified by the given ID: atomically removes the old edge and creates a new edge from the same dependent task to newDependsOnTaskId. Cycle detection runs before the move is committed (the old edge is ignored during the check). Returns 400 for self-links or cross-project moves, 404 if the edge is not found, 409 if the move would create a cycle. Requires `link_tasks` permission and `task_trees` feature.
+ * @summary Move a task dependency to a new parent
+ */
+export const MoveTaskDependencyParams = zod.object({
+  "id": zod.coerce.number().describe('ID of the dependency edge to move.')
+})
+
+export const MoveTaskDependencyBody = zod.object({
+  "newDependsOnTaskId": zod.number().describe('The new prerequisite task (parent) for the edge\'s dependent task.')
+}).describe('Request body for moving a task dependency edge to a new parent.')
+
+export const MoveTaskDependencyResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('The dependent task ID.'),
+  "dependsOnTaskId": zod.number().describe('The prerequisite task ID.')
+}).describe('A lightweight dependency edge record returned by the list endpoint.')
+
+
+/**
  * Removes the dependency edge identified by the given ID. Requires `link_tasks` permission and `task_trees` feature. Returns 204 on success.
  * @summary Remove a task dependency link
  */

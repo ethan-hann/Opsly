@@ -35,6 +35,10 @@ const DeleteDepParams = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+const MoveDepBody = z.object({
+  newDependsOnTaskId: z.number().int().positive(),
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
@@ -48,7 +52,9 @@ async function detectCycle(
   taskId: number,
   dependsOnTaskId: number,
   orgId: string,
+  excludeEdgeId?: number,
 ): Promise<number[] | null> {
+  const excludeId = excludeEdgeId ?? -1;
   // Use a recursive CTE to find all tasks reachable from dependsOnTaskId.
   // If taskId is reachable, adding the edge taskId→dependsOnTaskId would form a cycle.
   const result = await db.execute(sql`
@@ -57,13 +63,14 @@ async function detectCycle(
       -- We traverse: given node X, what nodes does X depend on?
       SELECT d.depends_on_task_id, ARRAY[d.task_id, d.depends_on_task_id]
       FROM task_dependencies d
-      WHERE d.task_id = ${dependsOnTaskId} AND d.org_id = ${orgId}
+      WHERE d.task_id = ${dependsOnTaskId} AND d.org_id = ${orgId} AND d.id <> ${excludeId}
       UNION ALL
       SELECT d.depends_on_task_id, r.path || d.depends_on_task_id
       FROM task_dependencies d
       JOIN reachable r ON d.task_id = r.task_id
       WHERE NOT d.depends_on_task_id = ANY(r.path)
         AND d.org_id = ${orgId}
+        AND d.id <> ${excludeId}
     )
     SELECT path FROM reachable WHERE task_id = ${taskId}
     LIMIT 1
@@ -245,6 +252,153 @@ router.post(
       taskId: edge.taskId,
       dependsOnTaskId: edge.dependsOnTaskId,
       ...parentWithStage,
+    });
+  },
+);
+
+// ─── PATCH /task-dependencies/:id — move an edge to a new parent ─────────────
+
+router.patch(
+  "/task-dependencies/:id",
+  requireOrgOrApiKey,
+  requireTaskTrees,
+  requirePermission("link_tasks"),
+  async (req, res): Promise<void> => {
+    const parsedParams = DeleteDepParams.safeParse(req.params);
+    if (!parsedParams.success) {
+      res.status(400).json({ error: "Invalid dependency ID" });
+      return;
+    }
+    const parsedBody = MoveDepBody.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(400).json({ error: "newDependsOnTaskId (integer) is required" });
+      return;
+    }
+
+    const orgId = req.orgId!;
+    const { id } = parsedParams.data;
+    const { newDependsOnTaskId } = parsedBody.data;
+
+    // Fetch the existing edge
+    const [edge] = await db
+      .select({
+        id: taskDependenciesTable.id,
+        taskId: taskDependenciesTable.taskId,
+        dependsOnTaskId: taskDependenciesTable.dependsOnTaskId,
+      })
+      .from(taskDependenciesTable)
+      .where(
+        and(
+          eq(taskDependenciesTable.id, id),
+          eq(taskDependenciesTable.orgId, orgId),
+        ),
+      )
+      .limit(1);
+
+    if (!edge) {
+      res.status(404).json({ error: "Dependency not found" });
+      return;
+    }
+
+    if (newDependsOnTaskId === edge.taskId) {
+      res.status(400).json({ error: "A task cannot depend on itself" });
+      return;
+    }
+
+    // No-op move
+    if (newDependsOnTaskId === edge.dependsOnTaskId) {
+      res.json(edge);
+      return;
+    }
+
+    // The new parent must exist in this org and share the child's project
+    const [childRow, newParentRow] = await Promise.all([
+      db
+        .select({ id: tasksTable.id, projectId: tasksTable.projectId })
+        .from(tasksTable)
+        .where(and(eq(tasksTable.id, edge.taskId), eq(tasksTable.orgId, orgId)))
+        .limit(1)
+        .then((r) => r[0]),
+      db
+        .select({ id: tasksTable.id, projectId: tasksTable.projectId })
+        .from(tasksTable)
+        .where(and(eq(tasksTable.id, newDependsOnTaskId), eq(tasksTable.orgId, orgId)))
+        .limit(1)
+        .then((r) => r[0]),
+    ]);
+
+    if (!childRow) {
+      res.status(400).json({ error: "Task not found in this organization" });
+      return;
+    }
+    if (!newParentRow) {
+      res.status(400).json({ error: "Parent task not found in this organization" });
+      return;
+    }
+    if (childRow.projectId == null || newParentRow.projectId == null) {
+      res.status(400).json({ error: "Both tasks must belong to a project to link them" });
+      return;
+    }
+    if (childRow.projectId !== newParentRow.projectId) {
+      res.status(400).json({ error: "Cross-project dependency linking is not supported" });
+      return;
+    }
+
+    // Cycle detection — pretend the old edge is already gone
+    const cyclePath = await detectCycle(edge.taskId, newDependsOnTaskId, orgId, edge.id);
+    if (cyclePath) {
+      const cycleTaskRows = await db
+        .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber })
+        .from(tasksTable)
+        .where(and(inArray(tasksTable.id, cyclePath), eq(tasksTable.orgId, orgId)));
+      const numMap = new Map(cycleTaskRows.map((r) => [r.id, r.orgTaskNumber]));
+      const cycleStr = cyclePath.map((tid) => `TSK-${numMap.get(tid) ?? tid}`).join(" → ");
+      res.status(409).json({
+        error: `Move would create a cycle: ${cycleStr}`,
+      });
+      return;
+    }
+
+    // Atomically delete the old edge and insert the new one
+    const moved = await db.transaction(async (tx) => {
+      await tx
+        .delete(taskDependenciesTable)
+        .where(
+          and(
+            eq(taskDependenciesTable.id, edge.id),
+            eq(taskDependenciesTable.orgId, orgId),
+          ),
+        );
+      const [inserted] = await tx
+        .insert(taskDependenciesTable)
+        .values({ orgId, taskId: edge.taskId, dependsOnTaskId: newDependsOnTaskId })
+        .onConflictDoNothing()
+        .returning();
+      if (inserted) return inserted;
+      // Edge to the new parent already existed — return it
+      const [existing] = await tx
+        .select()
+        .from(taskDependenciesTable)
+        .where(
+          and(
+            eq(taskDependenciesTable.taskId, edge.taskId),
+            eq(taskDependenciesTable.dependsOnTaskId, newDependsOnTaskId),
+            eq(taskDependenciesTable.orgId, orgId),
+          ),
+        )
+        .limit(1);
+      return existing ?? null;
+    });
+
+    if (!moved) {
+      res.status(500).json({ error: "Failed to move dependency" });
+      return;
+    }
+
+    res.json({
+      id: moved.id,
+      taskId: moved.taskId,
+      dependsOnTaskId: moved.dependsOnTaskId,
     });
   },
 );

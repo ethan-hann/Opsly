@@ -5,7 +5,7 @@ import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
   useListWorkflowStages, useGetTaskDependencies, useCreateTaskDependency,
-  useDeleteTaskDependency,
+  useDeleteTaskDependency, useMoveTaskDependency,
 } from "@workspace/api-client-react";
 import type { SlaPolicy } from "@workspace/api-client-react";
 import { ProjectPropertiesPanel } from "@/components/ui/project-properties-panel";
@@ -73,6 +73,20 @@ function TaskTreeTab({
       onError: (err: unknown) => {
         const apiErr = err as { status?: number; data?: { error?: string } };
         const msg = apiErr?.data?.error ?? "Failed to add dependency";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const moveDep = useMoveTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency moved" });
+        queryClient.invalidateQueries({ queryKey: ["getTaskDependencies", { projectId }] });
+      },
+      onError: (err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error ?? "Failed to move dependency";
         toast({ title: msg, variant: "destructive" });
       },
     },
@@ -158,6 +172,10 @@ function TaskTreeTab({
           onRemoveDependency={(_taskId, dependsOnId) => {
             const edge = edges.find((e) => e.taskId === _taskId && e.dependsOnTaskId === dependsOnId);
             if (edge) deleteDep.mutate({ id: edge.id });
+          }}
+          onMoveDependency={(taskId, oldParentId, newParentId) => {
+            const edge = edges.find((e) => e.taskId === taskId && e.dependsOnTaskId === oldParentId);
+            if (edge) moveDep.mutate({ id: edge.id, data: { newDependsOnTaskId: newParentId } });
           }}
         />
       </CardContent>

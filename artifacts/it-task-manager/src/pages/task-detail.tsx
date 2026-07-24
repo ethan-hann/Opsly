@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from "@/hooks/use-date-locale";
 import i18n from '@/i18n';
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, useCreateTaskDependency, useDeleteTaskDependency, useGetTaskDependencies, useListTasks, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, useCreateTaskDependency, useDeleteTaskDependency, useMoveTaskDependency, useGetTaskDependencies, useListTasks, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
@@ -1206,6 +1206,21 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     },
   });
 
+  const { mutate: moveDep } = useMoveTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency moved" });
+        queryClient.invalidateQueries({ queryKey: ["getTask", taskId] });
+        queryClient.invalidateQueries({ queryKey: ["getTaskDependencies"] });
+      },
+      onError: (err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error ?? "Failed to move dependency";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
   const commentMutation = useCreateComment({
     mutation: {
       onSuccess: () => {
@@ -1477,6 +1492,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               task={task}
               createDep={createDep}
               removeDep={removeDep}
+              moveDep={moveDep}
             />
           </FeatureGate>
 
@@ -1804,6 +1820,7 @@ function TaskDetailTreeSection({
   task,
   createDep,
   removeDep,
+  moveDep,
 }: {
   task: {
     id: number;
@@ -1819,6 +1836,7 @@ function TaskDetailTreeSection({
   };
   createDep: (args: { data: { taskId: number; dependsOnTaskId: number } }) => void;
   removeDep: (args: { id: number }) => void;
+  moveDep: (args: { id: number; data: { newDependsOnTaskId: number } }) => void;
 }) {
   const { t: term, tSingular } = useTerminology();
   const { hasPermission, isFeatureEnabled } = useOrgContext();
@@ -1958,6 +1976,13 @@ function TaskDetailTreeSection({
               (e) => e.taskId === childTaskId && e.dependsOnTaskId === dependsOnId,
             );
             if (edge) removeDep({ id: edge.id });
+          }}
+          onMoveDependency={(childTaskId, oldParentId, newParentId) => {
+            // Only real edges (with true DB ids) can be moved
+            const edge = realEdges.find(
+              (e) => e.taskId === childTaskId && e.dependsOnTaskId === oldParentId,
+            );
+            if (edge) moveDep({ id: edge.id, data: { newDependsOnTaskId: newParentId } });
           }}
         />
 

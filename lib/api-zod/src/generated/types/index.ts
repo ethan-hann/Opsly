@@ -132,6 +132,7 @@ export * from './taskCategory';
 export * from './taskCustomFields';
 export * from './taskDependencyEdge';
 export * from './taskDependencyInput';
+export * from './taskDependencyMoveInput';
 export * from './taskDependencyResponse';
 export * from './taskEvent';
 export * from './taskInput';

@@ -62,6 +62,12 @@ interface TaskTreeVisualizationProps {
   onAddDependency?: (taskId: number, dependsOnTaskId: number) => void;
   /** Called when the user removes a dependency edge via the × button */
   onRemoveDependency?: (taskId: number, dependsOnTaskId: number) => void;
+  /**
+   * Called when the user drags a node onto a new parent.
+   * taskId keeps its identity; the edge (taskId → oldParentId) becomes
+   * (taskId → newParentId).
+   */
+  onMoveDependency?: (taskId: number, oldParentId: number, newParentId: number) => void;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -313,6 +319,7 @@ export function TaskTreeVisualization({
   candidateTasks,
   onAddDependency,
   onRemoveDependency,
+  onMoveDependency,
 }: TaskTreeVisualizationProps) {
   const { hasPermission } = useOrgContext();
   const { t: term } = useTerminology();
@@ -324,6 +331,9 @@ export function TaskTreeVisualization({
 
   // Full-mode link form state
   const [showLinkForm, setShowLinkForm] = useState(false);
+
+  // Drag-and-drop re-parenting state (which node is being dragged, and from where)
+  const [dragState, setDragState] = useState<{ taskId: number; parentId: number } | null>(null);
 
   // Expand / Collapse all: bump treeKey to remount the tree with a new defaultExpanded.
   const [treeKey, setTreeKey] = useState(0);
@@ -378,6 +388,24 @@ export function TaskTreeVisualization({
 
   // Use the full childrenMap in both modes.
   const activeChildrenMap = childrenMap;
+
+  // Invalid drop targets for the current drag: the dragged node itself, its
+  // current parent (no-op), and every task that (transitively) depends on the
+  // dragged task — dropping onto those would create a cycle.
+  const invalidDropIds = useMemo(() => {
+    if (dragState == null) return new Set<number>();
+    const invalid = new Set<number>([dragState.taskId, dragState.parentId]);
+    // BFS down the "depends on dragged" subtree (childrenMap: parent → dependents)
+    const queue = [...(childrenMap.get(dragState.taskId) ?? [])];
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (!invalid.has(curr)) {
+        invalid.add(curr);
+        queue.push(...(childrenMap.get(curr) ?? []));
+      }
+    }
+    return invalid;
+  }, [dragState, childrenMap]);
 
   // Visible roots in focused mode: only roots that lead to the focused task
   const visibleRootIds = useMemo(() => {
@@ -532,6 +560,10 @@ export function TaskTreeVisualization({
               onRemoveDependency={onRemoveDependency}
               defaultExpanded={nodeDefaultExpanded}
               focusedTaskId={focusedTaskId}
+              onMoveDependency={onMoveDependency}
+              dragState={dragState}
+              onDragStateChange={setDragState}
+              invalidDropIds={invalidDropIds}
             />
           );
         })}

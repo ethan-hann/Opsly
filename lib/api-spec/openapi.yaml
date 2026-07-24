@@ -2049,6 +2049,45 @@ paths:
           description: Dependency would create a cycle.
 
   /task-dependencies/{id}:
+    patch:
+      operationId: moveTaskDependency
+      tags: [tasks]
+      summary: Move a task dependency to a new parent
+      description: >
+        Re-parents the dependency edge identified by the given ID: atomically
+        removes the old edge and creates a new edge from the same dependent task
+        to newDependsOnTaskId. Cycle detection runs before the move is committed
+        (the old edge is ignored during the check). Returns 400 for self-links or
+        cross-project moves, 404 if the edge is not found, 409 if the move would
+        create a cycle. Requires `link_tasks` permission and `task_trees` feature.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the dependency edge to move.
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDependencyMoveInput"
+      responses:
+        "200":
+          description: The moved dependency edge.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDependencyEdge"
+        "400":
+          description: Invalid input, self-link, or cross-project move.
+        "403":
+          description: Feature disabled or permission denied.
+        "404":
+          description: Dependency not found in this org.
+        "409":
+          description: Move would create a cycle.
     delete:
       operationId: deleteTaskDependency
       tags: [tasks]
@@ -5135,6 +5174,15 @@ components:
         dependsOnTaskId:
           type: integer
           description: The prerequisite task (parent) — must be completed before taskId.
+
+    TaskDependencyMoveInput:
+      description: Request body for moving a task dependency edge to a new parent.
+      type: object
+      required: [newDependsOnTaskId]
+      properties:
+        newDependsOnTaskId:
+          type: integer
+          description: The new prerequisite task (parent) for the edge's dependent task.
 
     TaskDependencyEdge:
       description: A lightweight dependency edge record returned by the list endpoint.

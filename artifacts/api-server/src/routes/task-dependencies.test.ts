@@ -196,6 +196,46 @@ describe("POST /api/task-dependencies", () => {
   });
 });
 
+describe("PATCH /api/task-dependencies/:id", () => {
+  beforeEach(() => {
+    mockState.hasLinkTasks = true;
+    mockState.taskTreesEnabled = true;
+  });
+
+  it("returns 403 when user lacks link_tasks permission", async () => {
+    mockState.hasLinkTasks = false;
+    const app = await buildApp();
+    const res = await request(app)
+      .patch("/api/task-dependencies/1")
+      .send({ newDependsOnTaskId: 3 });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 403 when task_trees feature is disabled", async () => {
+    mockState.taskTreesEnabled = false;
+    const app = await buildApp();
+    const res = await request(app)
+      .patch("/api/task-dependencies/1")
+      .send({ newDependsOnTaskId: 3 });
+    expect(res.status).toBe(403);
+  });
+
+  it("returns 400 when newDependsOnTaskId is missing", async () => {
+    const app = await buildApp();
+    const res = await request(app).patch("/api/task-dependencies/1").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 404 when the edge does not exist", async () => {
+    // db.select mock resolves to [] — edge lookup finds nothing
+    const app = await buildApp();
+    const res = await request(app)
+      .patch("/api/task-dependencies/999")
+      .send({ newDependsOnTaskId: 3 });
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("DELETE /api/task-dependencies/:id", () => {
   beforeEach(() => {
     mockState.hasLinkTasks = true;

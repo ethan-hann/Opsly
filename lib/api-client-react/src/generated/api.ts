@@ -96,6 +96,7 @@ import type {
   Task,
   TaskDependencyEdge,
   TaskDependencyInput,
+  TaskDependencyMoveInput,
   TaskDependencyResponse,
   TaskEvent,
   TaskInput,
@@ -5516,6 +5517,79 @@ export const useCreateTaskDependency = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getCreateTaskDependencyMutationOptions(options));
+    }
+
+export const getMoveTaskDependencyUrl = (id: number,) => {
+
+
+
+
+  return `/api/task-dependencies/${id}`
+}
+
+/**
+ * Re-parents the dependency edge identified by the given ID: atomically removes the old edge and creates a new edge from the same dependent task to newDependsOnTaskId. Cycle detection runs before the move is committed (the old edge is ignored during the check). Returns 400 for self-links or cross-project moves, 404 if the edge is not found, 409 if the move would create a cycle. Requires `link_tasks` permission and `task_trees` feature.
+ * @summary Move a task dependency to a new parent
+ */
+export const moveTaskDependency = async (id: number,
+    taskDependencyMoveInput: TaskDependencyMoveInput, options?: RequestInit): Promise<TaskDependencyEdge> => {
+
+  return customFetch<TaskDependencyEdge>(getMoveTaskDependencyUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskDependencyMoveInput)
+  }
+);}
+
+
+
+
+
+export const getMoveTaskDependencyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveTaskDependency>>, TError,{id: number;data: BodyType<TaskDependencyMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof moveTaskDependency>>, TError,{id: number;data: BodyType<TaskDependencyMoveInput>}, TContext> => {
+
+const mutationKey = ['moveTaskDependency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof moveTaskDependency>>, {id: number;data: BodyType<TaskDependencyMoveInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  moveTaskDependency(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MoveTaskDependencyMutationResult = NonNullable<Awaited<ReturnType<typeof moveTaskDependency>>>
+    export type MoveTaskDependencyMutationBody = BodyType<TaskDependencyMoveInput>
+    export type MoveTaskDependencyMutationError = ErrorType<void>
+
+    /**
+ * @summary Move a task dependency to a new parent
+ */
+export const useMoveTaskDependency = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof moveTaskDependency>>, TError,{id: number;data: BodyType<TaskDependencyMoveInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof moveTaskDependency>>,
+        TError,
+        {id: number;data: BodyType<TaskDependencyMoveInput>},
+        TContext
+      > => {
+      return useMutation(getMoveTaskDependencyMutationOptions(options));
     }
 
 export const getDeleteTaskDependencyUrl = (id: number,) => {

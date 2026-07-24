@@ -15,6 +15,7 @@ import {
   FileText,
   X,
   Check,
+  GripVertical,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,17 @@ interface TaskTreeNodeProps {
    * is highlighted wherever it appears in the tree (multi-parent / DAG trees).
    */
   focusedTaskId?: number;
+  /**
+   * Drag-and-drop re-parenting. When set (and the user has link_tasks), nodes
+   * with a parent edge get a drag handle and every node becomes a drop target.
+   */
+  onMoveDependency?: (taskId: number, oldParentId: number, newParentId: number) => void;
+  /** Currently dragged node, or null when no drag is in progress. */
+  dragState?: { taskId: number; parentId: number } | null;
+  /** Set/clear the drag state (owned by the visualization). */
+  onDragStateChange?: (state: { taskId: number; parentId: number } | null) => void;
+  /** Task IDs that are invalid drop targets for the current drag (would cycle, self, etc.). */
+  invalidDropIds?: Set<number>;
 }
 
 export function TaskTreeNode({
@@ -67,6 +79,10 @@ export function TaskTreeNode({
   parentTaskId,
   defaultExpanded = true,
   focusedTaskId,
+  onMoveDependency,
+  dragState,
+  onDragStateChange,
+  invalidDropIds,
 }: TaskTreeNodeProps) {
   const { hasPermission } = useOrgContext();
   const canLink = hasPermission("link_tasks");
@@ -81,6 +97,17 @@ export function TaskTreeNode({
   // where the focused task can appear at multiple positions in the same tree).
   const isFocusedNode = isFocused || (focusedTaskId !== undefined && item.id === focusedTaskId);
 
+  // ── Drag-and-drop re-parenting ──
+  const dndEnabled = canLink && !!onMoveDependency && !!onDragStateChange;
+  // A node can be dragged only when it has a parent edge (moving = re-pointing that edge)
+  const canDrag = dndEnabled && parentTaskId !== undefined;
+  const isDragging = dragState != null && dragState.taskId === item.id && dragState.parentId === parentTaskId;
+  // While a drag is active, is THIS node a valid drop target?
+  const dragActive = dndEnabled && dragState != null;
+  const isInvalidTarget = dragActive && (invalidDropIds?.has(item.id) ?? false);
+  const isValidTarget = dragActive && !isInvalidTarget && !isDragging;
+  const [dragOver, setDragOver] = useState(false);
+
   return (
     <div>
       {/* ── Node row ── */}
@@ -90,8 +117,60 @@ export function TaskTreeNode({
           "hover:bg-muted/50 transition-colors",
           isFocusedNode && "ring-1 ring-primary/60 bg-primary/5 font-semibold",
           isAncestor && !isFocusedNode && "bg-muted/20",
+          isDragging && "opacity-40",
+          dragOver && isValidTarget && "ring-2 ring-primary bg-primary/10",
+          dragOver && isInvalidTarget && "ring-2 ring-destructive bg-destructive/10 cursor-not-allowed",
         )}
+        data-testid={`tree-node-${item.id}`}
+        onDragOver={
+          dragActive
+            ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                e.dataTransfer.dropEffect = isValidTarget ? "move" : "none";
+                setDragOver(true);
+              }
+            : undefined
+        }
+        onDragLeave={dragActive ? () => setDragOver(false) : undefined}
+        onDrop={
+          dragActive
+            ? (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setDragOver(false);
+                const dragged = dragState!;
+                onDragStateChange!(null);
+                if (isValidTarget && onMoveDependency) {
+                  onMoveDependency(dragged.taskId, dragged.parentId, item.id);
+                }
+              }
+            : undefined
+        }
       >
+        {/* Drag handle — gated on link_tasks; only edges (nodes with a parent) can move */}
+        {canDrag && (
+          <span
+            draggable
+            role="button"
+            aria-label={`Drag to move TSK-${item.orgTaskNumber} to a new parent`}
+            title="Drag to a new parent"
+            data-testid={`drag-handle-${item.id}`}
+            className={cn(
+              "shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground",
+              "opacity-0 group-hover:opacity-100 transition-opacity -ml-1",
+              isDragging && "opacity-100",
+            )}
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = "move";
+              e.dataTransfer.setData("text/plain", String(item.id));
+              onDragStateChange!({ taskId: item.id, parentId: parentTaskId! });
+            }}
+            onDragEnd={() => onDragStateChange!(null)}
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </span>
+        )}
         {/* Expand / collapse chevron */}
         {hasChildren ? (
           <button
@@ -223,6 +302,10 @@ export function TaskTreeNode({
                     parentTaskId={item.id}
                     defaultExpanded={defaultExpanded}
                     focusedTaskId={focusedTaskId}
+                    onMoveDependency={onMoveDependency}
+                    dragState={dragState}
+                    onDragStateChange={onDragStateChange}
+                    invalidDropIds={invalidDropIds}
                   />
                 </div>
               </div>

@@ -2364,6 +2364,14 @@ export interface TaskDependencyInput {
 }
 
 /**
+ * Request body for moving a task dependency edge to a new parent.
+ */
+export interface TaskDependencyMoveInput {
+  /** The new prerequisite task (parent) for the edge's dependent task. */
+  newDependsOnTaskId: number;
+}
+
+/**
  * A lightweight dependency edge record returned by the list endpoint.
  */
 export interface TaskDependencyEdge {
