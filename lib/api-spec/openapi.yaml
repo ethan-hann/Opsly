@@ -1984,6 +1984,87 @@ paths:
         "409":
           description: Key already revoked.
 
+  /task-dependencies:
+    get:
+      operationId: getTaskDependencies
+      tags: [tasks]
+      summary: List all dependency edges for a project
+      description: >
+        Returns all task dependency edges for the specified project so the
+        frontend can build the complete project tree client-side in a single
+        request. Requires `view_tasks` permission and `task_trees` feature.
+      parameters:
+        - name: projectId
+          in: query
+          required: true
+          description: Project ID whose dependency edges to return.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Array of dependency edges.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TaskDependencyEdge"
+        "400":
+          description: Invalid or missing projectId, or project not found in this org.
+        "403":
+          description: Feature disabled or permission denied.
+    post:
+      operationId: createTaskDependency
+      tags: [tasks]
+      summary: Create a task dependency link
+      description: >
+        Links taskId as a dependent of dependsOnTaskId (taskId "depends on"
+        dependsOnTaskId). Both tasks must belong to the same project. Returns
+        400 for cross-project or self-links, 409 if the link would create a cycle.
+        Requires `link_tasks` permission and `task_trees` feature.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskDependencyInput"
+      responses:
+        "201":
+          description: Created dependency.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskDependencyResponse"
+        "400":
+          description: Invalid input, cross-project link, or self-link.
+        "403":
+          description: Feature disabled or permission denied.
+        "409":
+          description: Dependency would create a cycle.
+
+  /task-dependencies/{id}:
+    delete:
+      operationId: deleteTaskDependency
+      tags: [tasks]
+      summary: Remove a task dependency link
+      description: >
+        Removes the dependency edge identified by the given ID. Requires
+        `link_tasks` permission and `task_trees` feature. Returns 204 on success.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID of the dependency edge to remove.
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Dependency removed.
+        "403":
+          description: Feature disabled or permission denied.
+        "404":
+          description: Dependency not found in this org.
+
   /task-templates:
     get:
       operationId: listTaskTemplates
@@ -2960,6 +3041,21 @@ components:
         slaBreachedAt:
           type: ["string", "null"]
           description: ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.
+        autoCloseChildren:
+          type: boolean
+          description: >
+            When true, closing this task automatically closes all direct dependents
+            in the same transaction (requires close_tasks permission).
+        dependencies:
+          type: array
+          description: Tasks this task depends on (parent tasks that must be completed first).
+          items:
+            $ref: "#/components/schemas/TaskTreeItem"
+        dependents:
+          type: array
+          description: Tasks that depend on this task (child tasks blocked by this task).
+          items:
+            $ref: "#/components/schemas/TaskTreeItem"
 
     TaskInput:
       description: Fields required to create a new task.
@@ -3051,6 +3147,11 @@ components:
           description: >
             Merged update to custom field values. Only keys present in this object
             are written; omit the key to leave a field unchanged.
+        autoCloseChildren:
+          type: boolean
+          description: >
+            When true, closing this task also closes all direct dependents.
+            Requires close_tasks permission to set to true; edit_tasks suffices to set to false.
 
     BulkTaskPatchInput:
       description: Payload for bulk-updating multiple tasks.
@@ -3985,6 +4086,7 @@ components:
         - view_audit_log
         - manage_terminology
         - manage_reactions
+        - link_tasks
       properties:
         view_tasks:
           type: boolean
@@ -4037,6 +4139,11 @@ components:
           type: boolean
           description: >
             When true, the member can manage the org's emoji reaction palette.
+        link_tasks:
+          type: boolean
+          description: >
+            When true, the member can create and remove task dependency links
+            (requires task_trees feature to be enabled).
 
     Role:
       description: A named role within an organization with a set of permission flags.
@@ -4945,6 +5052,81 @@ components:
           type: integer
         name:
           type: string
+
+    TaskTreeItem:
+      description: Lightweight summary of a task used in dependency tree views.
+      type: object
+      required: [id, orgTaskNumber, title, stageName, isClosed]
+      properties:
+        id:
+          type: integer
+          description: Task primary key.
+        orgTaskNumber:
+          type: integer
+          description: Per-org sequential task number shown as TSK-##.
+        title:
+          type: string
+          description: Task title.
+        stageName:
+          type: string
+          description: Display name of the current workflow stage.
+        isClosed:
+          type: boolean
+          description: True when the task's stage type is "closed".
+
+    TaskDependencyInput:
+      description: Request body for creating a task dependency link.
+      type: object
+      required: [taskId, dependsOnTaskId]
+      properties:
+        taskId:
+          type: integer
+          description: The dependent task (child) — this task requires dependsOnTaskId to be completed first.
+        dependsOnTaskId:
+          type: integer
+          description: The prerequisite task (parent) — must be completed before taskId.
+
+    TaskDependencyEdge:
+      description: A lightweight dependency edge record returned by the list endpoint.
+      type: object
+      required: [id, taskId, dependsOnTaskId]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key.
+        taskId:
+          type: integer
+          description: The dependent task ID.
+        dependsOnTaskId:
+          type: integer
+          description: The prerequisite task ID.
+
+    TaskDependencyResponse:
+      description: A newly created task dependency with a summary of the parent task.
+      type: object
+      required: [id, taskId, dependsOnTaskId, orgTaskNumber, title, stageName, isClosed]
+      properties:
+        id:
+          type: integer
+          description: Auto-incremented primary key of the dependency row.
+        taskId:
+          type: integer
+          description: The dependent task ID.
+        dependsOnTaskId:
+          type: integer
+          description: The prerequisite task ID.
+        orgTaskNumber:
+          type: integer
+          description: Per-org sequential task number of the prerequisite task.
+        title:
+          type: string
+          description: Title of the prerequisite task.
+        stageName:
+          type: string
+          description: Stage name of the prerequisite task.
+        isClosed:
+          type: boolean
+          description: True when the prerequisite task's stage type is "closed".
 
     ReferenceSearchResults:
       description: Reference search results grouped by entity type.

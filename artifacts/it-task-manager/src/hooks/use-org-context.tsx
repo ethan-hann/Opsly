@@ -10,7 +10,8 @@ export type OrgFeatureKey =
   | "custom_fields"
   | "custom_statuses"
   | "sla_tracking"
-  | "branding";
+  | "branding"
+  | "task_trees";
 
 export type OrgFeatureState = "enabled" | "disabled" | "unsubscribed";
 

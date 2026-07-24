@@ -188,6 +188,10 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetDashboardSummaryQueryKey: () => ["dashboard"],
   onOrgSuspended: vi.fn(() => () => {}),
   useGetReferences: () => ({ data: { tasks: [], projects: [] }, isLoading: false }),
+  // Task dependency hooks
+  useGetTaskDependencies: () => ({ data: [] }),
+  useCreateTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // ---------------------------------------------------------------------------

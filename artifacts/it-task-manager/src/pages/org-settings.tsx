@@ -1659,6 +1659,10 @@ type PermKey = keyof RolePermissions;
 interface PermGroup {
   labelKey: string;
   keys: PermKey[];
+  /** When set, this group is only shown when the given feature is enabled. */
+  featureGate?: string;
+  /** Per-key feature gates: a key is hidden when its feature is disabled. */
+  keyGates?: Partial<Record<PermKey, string>>;
 }
 
 const PERM_GROUPS: PermGroup[] = [
@@ -1691,11 +1695,20 @@ const PERM_GROUPS: PermGroup[] = [
       "view_audit_log",
       "manage_terminology",
       "manage_reactions",
+      "link_tasks",
     ],
+    keyGates: {
+      manage_webhooks: "webhooks",
+      manage_api_keys: "api_keys",
+      manage_custom_fields: "custom_fields",
+      manage_workflow_stages: "custom_statuses",
+      manage_sla_policies: "sla_tracking",
+      link_tasks: "task_trees",
+    },
   },
 ];
 
-function getPermLabels(t: (k: string) => string): Record<PermKey, string> {
+function getPermLabels(t: (k: string, opts?: Record<string, string>) => string, task: string, tasks: string): Record<PermKey, string> {
   return {
     view_tasks: t("orgSettings.permissions.viewTasks"),
     create_tasks: t("orgSettings.permissions.createTasks"),
@@ -1717,6 +1730,7 @@ function getPermLabels(t: (k: string) => string): Record<PermKey, string> {
     view_audit_log: t("orgSettings.permissions.viewAuditLog"),
     manage_terminology: t("orgSettings.permissions.manageTerminology"),
     manage_reactions: t("orgSettings.permissions.manageReactions"),
+    link_tasks: t("orgSettings.permissions.linkTasks", { task, tasks }),
   };
 }
 
@@ -1899,7 +1913,9 @@ function RoleCard({
   onDuplicate,
 }: RoleCardProps) {
   const { t } = useTranslation();
+  const { t: term, tSingular } = useTerminology();
   const { toast } = useToast();
+  const { isFeatureEnabled } = useOrgContext();
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(role.name);
 
@@ -2137,33 +2153,38 @@ function RoleCard({
 
       {/* Permission groups */}
       <div className="space-y-3">
-        {PERM_GROUPS.map((group) => (
+        {PERM_GROUPS.filter((g) => !g.featureGate || isFeatureEnabled(g.featureGate as any)).map((group) => (
           <div key={group.labelKey}>
             <p className="text-xs font-medium text-muted-foreground mb-1.5">
-              {t(group.labelKey as any)}
+              {t(group.labelKey as any, { task: tSingular("tasks"), tasks: term("tasks") })}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              {group.keys.map((key) => {
-                const enabled = role.permissions[key];
-                const editable = canEdit && !isImmutable;
-                return (
-                  <div key={key} className="flex items-center gap-2">
-                    <Switch
-                      id={`${role.id}-${key}`}
-                      checked={enabled}
-                      onCheckedChange={(v) => handlePermToggle(key, v)}
-                      disabled={!editable || isUpdating}
-                      className="h-4 w-7 data-[state=checked]:bg-primary"
-                    />
-                    <Label
-                      htmlFor={`${role.id}-${key}`}
-                      className="text-xs text-muted-foreground cursor-pointer"
-                    >
-                      {getPermLabels(t)[key]}
-                    </Label>
-                  </div>
-                );
-              })}
+              {group.keys
+                .filter((key) => {
+                  const gate = group.keyGates?.[key];
+                  return !gate || isFeatureEnabled(gate as any);
+                })
+                .map((key) => {
+                  const enabled = role.permissions[key];
+                  const editable = canEdit && !isImmutable;
+                  return (
+                    <div key={key} className="flex items-center gap-2">
+                      <Switch
+                        id={`${role.id}-${key}`}
+                        checked={enabled}
+                        onCheckedChange={(v) => handlePermToggle(key, v)}
+                        disabled={!editable || isUpdating}
+                        className="h-4 w-7 data-[state=checked]:bg-primary"
+                      />
+                      <Label
+                        htmlFor={`${role.id}-${key}`}
+                        className="text-xs text-muted-foreground cursor-pointer"
+                      >
+                        {getPermLabels(t, tSingular("tasks"), term("tasks"))[key]}
+                      </Label>
+                    </div>
+                  );
+                })}
             </div>
           </div>
         ))}
@@ -4367,31 +4388,36 @@ export default function OrgSettings() {
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    {PERM_GROUPS.map((group) => (
+                    {PERM_GROUPS.filter((g) => !g.featureGate || isFeatureEnabled(g.featureGate as any)).map((group) => (
                       <div key={group.labelKey}>
                         <p className="text-xs font-medium text-muted-foreground mb-1.5">
-                          {t(group.labelKey as any)}
+                          {t(group.labelKey as any, { task: tSingular("tasks"), tasks: term("tasks") })}
                         </p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {group.keys.map((key) => (
-                            <div key={key} className="flex items-center gap-2">
-                              <Switch
-                                id={`new-role-${key}`}
-                                checked={newRolePermissions?.[key] ?? false}
-                                onCheckedChange={(v) =>
-                                  handleNewRolePermToggle(key, v)
-                                }
-                                disabled={isCreatingRoleReq}
-                                className="h-4 w-7 data-[state=checked]:bg-primary"
-                              />
-                              <Label
-                                htmlFor={`new-role-${key}`}
-                                className="text-xs text-muted-foreground cursor-pointer"
-                              >
-                                {getPermLabels(t)[key]}
-                              </Label>
-                            </div>
-                          ))}
+                          {group.keys
+                            .filter((key) => {
+                              const gate = group.keyGates?.[key];
+                              return !gate || isFeatureEnabled(gate as any);
+                            })
+                            .map((key) => (
+                              <div key={key} className="flex items-center gap-2">
+                                <Switch
+                                  id={`new-role-${key}`}
+                                  checked={newRolePermissions?.[key] ?? false}
+                                  onCheckedChange={(v) =>
+                                    handleNewRolePermToggle(key, v)
+                                  }
+                                  disabled={isCreatingRoleReq}
+                                  className="h-4 w-7 data-[state=checked]:bg-primary"
+                                />
+                                <Label
+                                  htmlFor={`new-role-${key}`}
+                                  className="text-xs text-muted-foreground cursor-pointer"
+                                >
+                                  {getPermLabels(t, tSingular("tasks"), term("tasks"))[key]}
+                                </Label>
+                              </div>
+                            ))}
                         </div>
                       </div>
                     ))}

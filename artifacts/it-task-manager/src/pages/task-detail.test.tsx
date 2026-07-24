@@ -79,6 +79,10 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetOverdueTasksQueryKey: () => ["overdue"],
   getGetDashboardSummaryQueryKey: () => ["dashboard"],
   useGetReferences: () => ({ data: { tasks: [], projects: [] }, isLoading: false }),
+  // Task dependency hooks
+  useGetTaskDependencies: () => ({ data: [] }),
+  useCreateTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@workspace/replit-auth-web", () => ({

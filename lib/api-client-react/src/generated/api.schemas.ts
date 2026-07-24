@@ -304,6 +304,22 @@ export const TaskCategory = {
 export type TaskCustomFields = { [key: string]: unknown };
 
 /**
+ * Lightweight summary of a task used in dependency tree views.
+ */
+export interface TaskTreeItem {
+  /** Task primary key. */
+  id: number;
+  /** Per-org sequential task number shown as TSK-##. */
+  orgTaskNumber: number;
+  /** Task title. */
+  title: string;
+  /** Display name of the current workflow stage. */
+  stageName: string;
+  /** True when the task's stage type is "closed". */
+  isClosed: boolean;
+}
+
+/**
  * An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org's active workflow stage details.
  */
 export interface Task {
@@ -367,6 +383,12 @@ export interface Task {
      * @nullable
      */
   slaBreachedAt?: string | null;
+  /** When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission). */
+  autoCloseChildren?: boolean;
+  /** Tasks this task depends on (parent tasks that must be completed first). */
+  dependencies?: TaskTreeItem[];
+  /** Tasks that depend on this task (child tasks blocked by this task). */
+  dependents?: TaskTreeItem[];
 }
 
 /**
@@ -490,6 +512,8 @@ export interface TaskUpdate {
   dueDate?: string | null;
   /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
   customFields?: TaskUpdateCustomFields;
+  /** When true, closing this task also closes all direct dependents. Requires close_tasks permission to set to true; edit_tasks suffices to set to false. */
+  autoCloseChildren?: boolean;
 }
 
 export type BulkTaskPatchInputPatchPriority = typeof BulkTaskPatchInputPatchPriority[keyof typeof BulkTaskPatchInputPatchPriority];
@@ -1085,6 +1109,8 @@ export interface RolePermissions {
   manage_terminology: boolean;
   /** When true, the member can manage the org's emoji reaction palette. */
   manage_reactions: boolean;
+  /** When true, the member can create and remove task dependency links (requires task_trees feature to be enabled). */
+  link_tasks: boolean;
 }
 
 /**
@@ -2300,6 +2326,48 @@ export interface ReferenceProjectResult {
 }
 
 /**
+ * Request body for creating a task dependency link.
+ */
+export interface TaskDependencyInput {
+  /** The dependent task (child) — this task requires dependsOnTaskId to be completed first. */
+  taskId: number;
+  /** The prerequisite task (parent) — must be completed before taskId. */
+  dependsOnTaskId: number;
+}
+
+/**
+ * A lightweight dependency edge record returned by the list endpoint.
+ */
+export interface TaskDependencyEdge {
+  /** Auto-incremented primary key. */
+  id: number;
+  /** The dependent task ID. */
+  taskId: number;
+  /** The prerequisite task ID. */
+  dependsOnTaskId: number;
+}
+
+/**
+ * A newly created task dependency with a summary of the parent task.
+ */
+export interface TaskDependencyResponse {
+  /** Auto-incremented primary key of the dependency row. */
+  id: number;
+  /** The dependent task ID. */
+  taskId: number;
+  /** The prerequisite task ID. */
+  dependsOnTaskId: number;
+  /** Per-org sequential task number of the prerequisite task. */
+  orgTaskNumber: number;
+  /** Title of the prerequisite task. */
+  title: string;
+  /** Stage name of the prerequisite task. */
+  stageName: string;
+  /** True when the prerequisite task's stage type is "closed". */
+  isClosed: boolean;
+}
+
+/**
  * Reference search results grouped by entity type.
  */
 export interface ReferenceSearchResults {
@@ -2500,6 +2568,13 @@ export type RemoveWorkflowStageParams = {
  * Stage ID to reassign existing tasks to before deleting this stage.
  */
 reassignTo?: number;
+};
+
+export type GetTaskDependenciesParams = {
+/**
+ * Project ID whose dependency edges to return.
+ */
+projectId: number;
 };
 
 export type GetOrgAuditLogParams = {

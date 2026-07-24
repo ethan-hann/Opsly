@@ -9,6 +9,7 @@ import type { TaskCategory } from './taskCategory';
 import type { TaskCustomFields } from './taskCustomFields';
 import type { TaskPriority } from './taskPriority';
 import type { TaskStageType } from './taskStageType';
+import type { TaskTreeItem } from './taskTreeItem';
 
 /**
  * An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org's active workflow stage details.
@@ -74,4 +75,10 @@ export interface Task {
      * @nullable
      */
   slaBreachedAt?: string | null;
+  /** When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission). */
+  autoCloseChildren?: boolean;
+  /** Tasks this task depends on (parent tasks that must be completed first). */
+  dependencies?: TaskTreeItem[];
+  /** Tasks that depend on this task (child tasks blocked by this task). */
+  dependents?: TaskTreeItem[];
 }

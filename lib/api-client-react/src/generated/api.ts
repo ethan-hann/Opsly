@@ -45,6 +45,7 @@ import type {
   GetDashboardSlaSummaryParams,
   GetOrgAuditLogParams,
   GetReferencesParams,
+  GetTaskDependenciesParams,
   GlobalSearchParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
@@ -92,6 +93,9 @@ import type {
   SlaPolicy,
   SlaSummary,
   Task,
+  TaskDependencyEdge,
+  TaskDependencyInput,
+  TaskDependencyResponse,
   TaskEvent,
   TaskInput,
   TaskTemplate,
@@ -5354,6 +5358,235 @@ export const useRevokeApiKey = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getRevokeApiKeyMutationOptions(options));
+    }
+
+export const getGetTaskDependenciesUrl = (params: GetTaskDependenciesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/task-dependencies?${stringifiedParams}` : `/api/task-dependencies`
+}
+
+/**
+ * Returns all task dependency edges for the specified project so the frontend can build the complete project tree client-side in a single request. Requires `view_tasks` permission and `task_trees` feature.
+ * @summary List all dependency edges for a project
+ */
+export const getTaskDependencies = async (params: GetTaskDependenciesParams, options?: RequestInit): Promise<TaskDependencyEdge[]> => {
+
+  return customFetch<TaskDependencyEdge[]>(getGetTaskDependenciesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTaskDependenciesQueryKey = (params?: GetTaskDependenciesParams,) => {
+    return [
+    `/api/task-dependencies`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTaskDependenciesQueryOptions = <TData = Awaited<ReturnType<typeof getTaskDependencies>>, TError = ErrorType<void>>(params: GetTaskDependenciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaskDependencies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTaskDependenciesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTaskDependencies>>> = ({ signal }) => getTaskDependencies(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTaskDependencies>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTaskDependenciesQueryResult = NonNullable<Awaited<ReturnType<typeof getTaskDependencies>>>
+export type GetTaskDependenciesQueryError = ErrorType<void>
+
+
+/**
+ * @summary List all dependency edges for a project
+ */
+
+export function useGetTaskDependencies<TData = Awaited<ReturnType<typeof getTaskDependencies>>, TError = ErrorType<void>>(
+ params: GetTaskDependenciesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTaskDependencies>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTaskDependenciesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateTaskDependencyUrl = () => {
+
+
+
+
+  return `/api/task-dependencies`
+}
+
+/**
+ * Links taskId as a dependent of dependsOnTaskId (taskId "depends on" dependsOnTaskId). Both tasks must belong to the same project. Returns 400 for cross-project or self-links, 409 if the link would create a cycle. Requires `link_tasks` permission and `task_trees` feature.
+ * @summary Create a task dependency link
+ */
+export const createTaskDependency = async (taskDependencyInput: TaskDependencyInput, options?: RequestInit): Promise<TaskDependencyResponse> => {
+
+  return customFetch<TaskDependencyResponse>(getCreateTaskDependencyUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(taskDependencyInput)
+  }
+);}
+
+
+
+
+
+export const getCreateTaskDependencyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskDependency>>, TError,{data: BodyType<TaskDependencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createTaskDependency>>, TError,{data: BodyType<TaskDependencyInput>}, TContext> => {
+
+const mutationKey = ['createTaskDependency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createTaskDependency>>, {data: BodyType<TaskDependencyInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createTaskDependency(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateTaskDependencyMutationResult = NonNullable<Awaited<ReturnType<typeof createTaskDependency>>>
+    export type CreateTaskDependencyMutationBody = BodyType<TaskDependencyInput>
+    export type CreateTaskDependencyMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a task dependency link
+ */
+export const useCreateTaskDependency = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createTaskDependency>>, TError,{data: BodyType<TaskDependencyInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createTaskDependency>>,
+        TError,
+        {data: BodyType<TaskDependencyInput>},
+        TContext
+      > => {
+      return useMutation(getCreateTaskDependencyMutationOptions(options));
+    }
+
+export const getDeleteTaskDependencyUrl = (id: number,) => {
+
+
+
+
+  return `/api/task-dependencies/${id}`
+}
+
+/**
+ * Removes the dependency edge identified by the given ID. Requires `link_tasks` permission and `task_trees` feature. Returns 204 on success.
+ * @summary Remove a task dependency link
+ */
+export const deleteTaskDependency = async (id: number, options?: RequestInit): Promise<void> => {
+
+  return customFetch<void>(getDeleteTaskDependencyUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteTaskDependencyMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTaskDependency>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteTaskDependency>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteTaskDependency'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteTaskDependency>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteTaskDependency(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteTaskDependencyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteTaskDependency>>>
+
+    export type DeleteTaskDependencyMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove a task dependency link
+ */
+export const useDeleteTaskDependency = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteTaskDependency>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteTaskDependency>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteTaskDependencyMutationOptions(options));
     }
 
 export const getListTaskTemplatesUrl = () => {

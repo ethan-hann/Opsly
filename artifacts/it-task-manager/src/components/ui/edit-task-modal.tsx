@@ -8,6 +8,8 @@ import {
   useListOrgMembers,
   useListCustomFieldDefinitions,
   useListWorkflowStages,
+  useListTasks,
+  useCreateTaskDependency,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -15,6 +17,9 @@ import {
   TaskInputCategory,
 } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { X } from "lucide-react";
 import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -87,8 +92,10 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const categoryOptions = getCategoryOptions(t);
   const queryClient = useQueryClient();
   const { mutate: updateTask, isPending } = useUpdateTask();
-  const { hasPermission } = useOrgContext();
+  const { hasPermission, isFeatureEnabled } = useOrgContext();
   const canClose = hasPermission('close_tasks');
+  const canLinkTasks = isFeatureEnabled("task_trees") && hasPermission("link_tasks");
+  const { mutate: createDep } = useCreateTaskDependency();
   const { data: projects } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
   const { data: customFields = [] } = useListCustomFieldDefinitions();
@@ -113,6 +120,16 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     (task.customFields as Record<string, unknown>) ?? {}
   );
+  const [selectedNewParentIds, setSelectedNewParentIds] = useState<number[]>([]);
+  const [depSearch, setDepSearch] = useState("");
+  const [depOpen, setDepOpen] = useState(false);
+
+  const numericProjectId = (task.projectId != null) ? task.projectId : undefined;
+  const depParams = numericProjectId ? { projectId: numericProjectId } : undefined;
+  const { data: projectTasks = [] } = useListTasks(
+    depParams,
+    { query: { enabled: canLinkTasks && !!numericProjectId, queryKey: getListTasksQueryKey(depParams) } },
+  );
 
   const handleOpenChange = (next: boolean) => {
     if (!next) {
@@ -127,6 +144,8 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
       setDueDate(task.dueDate ? task.dueDate.slice(0, 10) : "");
       setErrors({});
       setCustomFieldValues((task.customFields as Record<string, unknown>) ?? {});
+      setSelectedNewParentIds([]);
+      setDepSearch("");
     }
     onOpenChange(next);
   };
@@ -160,6 +179,10 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          // Link any newly-selected parent dependencies
+          for (const parentId of selectedNewParentIds) {
+            createDep({ data: { taskId: task.id, dependsOnTaskId: parentId } });
+          }
           toast({ title: t("taskDetail.editTask", { task: tSingular("tasks") }) });
           onOpenChange(false);
         },
@@ -287,6 +310,90 @@ export function EditTaskModal({ open, onOpenChange, task }: EditTaskModalProps) 
             values={customFieldValues}
             onChange={(id, value) => setCustomFieldValues(prev => ({ ...prev, [id]: value }))}
           />
+
+          {/* Dependency picker — only shown when task_trees is enabled and user can link */}
+          {canLinkTasks && numericProjectId && (
+            <div className="space-y-1">
+              <Label>Add parent {tSingular("tasks").toLowerCase()} dependencies</Label>
+              <Popover open={depOpen} onOpenChange={setDepOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full h-9 px-3 py-2 text-sm text-left border border-input rounded-md bg-background hover:bg-muted/40 flex items-center gap-2"
+                  >
+                    {selectedNewParentIds.length > 0 ? (
+                      <span className="flex gap-1 flex-wrap">
+                        {selectedNewParentIds.map((id) => {
+                          const t2 = projectTasks.find((t) => t.id === id);
+                          return (
+                            <Badge key={id} variant="secondary" className="text-xs">
+                              TSK-{t2?.orgTaskNumber ?? id}
+                              <button
+                                type="button"
+                                className="ml-1 hover:text-destructive"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedNewParentIds((prev) => prev.filter((pid) => pid !== id));
+                                }}
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </Badge>
+                          );
+                        })}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic">No new dependencies</span>
+                    )}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="start">
+                  <div className="p-2 border-b">
+                    <input
+                      className="w-full text-sm px-2 py-1 bg-transparent outline-none"
+                      placeholder="Search tasks…"
+                      value={depSearch}
+                      onChange={(e) => setDepSearch(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto">
+                    {projectTasks
+                      .filter(
+                        (t) =>
+                          t.id !== task.id &&
+                          t.stageType !== "closed" &&
+                          (depSearch === "" ||
+                            t.title.toLowerCase().includes(depSearch.toLowerCase()) ||
+                            String(t.orgTaskNumber).includes(depSearch)),
+                      )
+                      .map((t) => {
+                        const selected = selectedNewParentIds.includes(t.id);
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 ${selected ? "bg-primary/5" : ""}`}
+                            onClick={() => {
+                              setSelectedNewParentIds((prev) =>
+                                selected ? prev.filter((id) => id !== t.id) : [...prev, t.id],
+                              );
+                            }}
+                          >
+                            <span className="font-mono text-xs text-muted-foreground">TSK-{t.orgTaskNumber}</span>
+                            <span className="truncate">{t.title}</span>
+                            {selected && <span className="ml-auto text-primary text-xs">✓</span>}
+                          </button>
+                        );
+                      })}
+                    {projectTasks.filter((t) => t.id !== task.id && t.stageType !== "closed").length === 0 && (
+                      <p className="px-3 py-2 text-sm text-muted-foreground italic">No other open tasks in this project.</p>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>

@@ -1056,7 +1056,9 @@
       "manageSavedViews": "طرق العرض المحفوظة",
       "viewAuditLog": "سجل التدقيق",
       "manageTerminology": "إدارة المصطلحات",
-      "manageReactions": "إدارة لوحة التفاعلات"
+      "manageReactions": "إدارة لوحة التفاعلات",
+      "taskTrees": "أشجار {{tasks}}",
+      "linkTasks": "ربط {{tasks}}"
     }
   },
   "notificationPreferences": {

@@ -193,6 +193,7 @@ vi.mock("@workspace/db", () => {
     workflowStagesTable: {},
     customFieldDefinitionsTable: {},
     taskWatchersTable: {},
+    taskDependenciesTable: {},
     commentReactionsTable: {},
     notificationsTable: {},
     notificationPreferencesTable: {},
@@ -671,6 +672,8 @@ describe("Task isolation — GET /api/tasks/:id", () => {
     mockState.selectQueue.push([orgATask]); // task found
     mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
     mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
+    mockState.selectQueue.push([]); // depRows (dependency enrichment, Promise.all slot 1)
+    mockState.selectQueue.push([]); // dependentRows (dependency enrichment, Promise.all slot 2)
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");

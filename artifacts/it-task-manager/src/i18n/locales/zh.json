@@ -1056,7 +1056,9 @@
       "manageSavedViews": "保存的视图",
       "viewAuditLog": "审计日志",
       "manageTerminology": "管理术语",
-      "manageReactions": "管理反应面板"
+      "manageReactions": "管理反应面板",
+      "taskTrees": "{{tasks}}树",
+      "linkTasks": "链接{{tasks}}"
     }
   },
   "notificationPreferences": {

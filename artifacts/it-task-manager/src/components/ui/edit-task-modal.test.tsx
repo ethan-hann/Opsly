@@ -25,6 +25,7 @@ const mockHasPermission = vi.hoisted(() => vi.fn().mockReturnValue(true));
 vi.mock("@/hooks/use-org-context", () => ({
   useOrgContext: () => ({
     hasPermission: mockHasPermission,
+    isFeatureEnabled: () => false,
     isAdmin: false,
     isOwner: false,
     org: null,
@@ -45,12 +46,14 @@ const MOCK_STAGES = [
 vi.mock("@workspace/api-client-react", () => ({
   useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useListProjects: () => ({ data: [] }),
+  useListTasks: () => ({ data: [] }),
   useListOrgMembers: () => ({ data: [] }),
   useListCustomFieldDefinitions: () => ({ data: [] }),
   useListWorkflowStages: () => ({ data: MOCK_STAGES }),
   getListTasksQueryKey: () => ["listTasks"],
   getGetOverdueTasksQueryKey: () => ["getOverdueTasks"],
   getGetDashboardSummaryQueryKey: () => ["getDashboardSummary"],
+  useCreateTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 vi.mock("@/hooks/use-toast", () => ({

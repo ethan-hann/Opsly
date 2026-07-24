@@ -9,6 +9,8 @@ import {
   useListCustomFieldDefinitions,
   useListTaskTemplates,
   useListWorkflowStages,
+  useListTasks,
+  useCreateTaskDependency,
   getListTasksQueryKey,
   getGetOverdueTasksQueryKey,
   getGetDashboardSummaryQueryKey,
@@ -16,6 +18,7 @@ import {
   TaskInputCategory,
 } from "@workspace/api-client-react";
 import type { TaskTemplate } from "@workspace/api-client-react";
+import { useOrgContext } from "@/hooks/use-org-context";
 import { CustomFieldInputs } from "@/components/ui/custom-field-inputs";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -159,6 +162,9 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
   const { data: templates = [] } = useListTaskTemplates();
   const { data: stages = [] } = useListWorkflowStages();
   const activeStages = stages.filter((s) => !s.archivedAt);
+  const { isFeatureEnabled, hasPermission } = useOrgContext();
+  const canLinkTasks = isFeatureEnabled("task_trees") && hasPermission("link_tasks");
+  const { mutate: createDep } = useCreateTaskDependency();
 
   const memberEmails = new Set(
     members.map((m) => m.email?.toLowerCase()).filter(Boolean) as string[]
@@ -175,6 +181,17 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
   const [dueDate, setDueDate] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [selectedParentIds, setSelectedParentIds] = useState<number[]>([]);
+  const [depSearch, setDepSearch] = useState("");
+  const [depOpen, setDepOpen] = useState(false);
+
+  // Fetch tasks in selected project for dependency picker
+  const numericProjectId = projectId !== "none" ? Number(projectId) : undefined;
+  const depParams = numericProjectId ? { projectId: numericProjectId } : undefined;
+  const { data: projectTasks = [] } = useListTasks(
+    depParams,
+    { query: { enabled: canLinkTasks && !!numericProjectId, queryKey: getListTasksQueryKey(depParams) } },
+  );
 
   const { data: customFields = [] } = useListCustomFieldDefinitions();
 
@@ -223,6 +240,8 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
     setDueDate("");
     setErrors({});
     setCustomFieldValues({});
+    setSelectedParentIds([]);
+    setDepSearch("");
   };
 
   const validate = () => {
@@ -255,10 +274,14 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (newTask) => {
           queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
+          // Link selected parent dependencies
+          for (const parentId of selectedParentIds) {
+            createDep({ data: { taskId: newTask.id, dependsOnTaskId: parentId } });
+          }
           toast({ title: t("tasks.newTask", { task: tSingular("tasks") }), description: t("tasks.createdSuccess", { title: title.trim() }) });
           resetForm();
           onOpenChange(false);
@@ -395,6 +418,95 @@ export function NewTaskModal({ open, onOpenChange, initialProjectId, initialTemp
             values={customFieldValues}
             onChange={(id, value) => setCustomFieldValues(prev => ({ ...prev, [id]: value }))}
           />
+
+          {/* Dependency picker — shown when task_trees is enabled and user can link */}
+          {canLinkTasks && (
+            <div className="space-y-1">
+              <Label>Depends on (parent {tSingular("tasks").toLowerCase()})</Label>
+              {!numericProjectId ? (
+                <div className="w-full h-9 px-3 py-2 text-sm text-left border border-input rounded-md bg-muted/30 text-muted-foreground italic flex items-center">
+                  Select a project above to add dependencies
+                </div>
+              ) : (
+                <Popover open={depOpen} onOpenChange={setDepOpen}>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full h-9 px-3 py-2 text-sm text-left border border-input rounded-md bg-background hover:bg-muted/40 flex items-center gap-2"
+                    >
+                      {selectedParentIds.length > 0 ? (
+                        <span className="flex gap-1 flex-wrap">
+                          {selectedParentIds.map((id) => {
+                            const t2 = projectTasks.find((t) => t.id === id);
+                            return (
+                              <Badge key={id} variant="secondary" className="text-xs">
+                                TSK-{t2?.orgTaskNumber ?? id}
+                                <button
+                                  type="button"
+                                  className="ml-1 hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedParentIds((prev) => prev.filter((pid) => pid !== id));
+                                  }}
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </Badge>
+                            );
+                          })}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground italic">No dependencies</span>
+                      )}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="start">
+                    <div className="p-2 border-b">
+                      <input
+                        className="w-full text-sm px-2 py-1 bg-transparent outline-none"
+                        placeholder="Search tasks…"
+                        value={depSearch}
+                        onChange={(e) => setDepSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      {projectTasks
+                        .filter(
+                          (t) =>
+                            t.stageType !== "closed" &&
+                            (depSearch === "" ||
+                              t.title.toLowerCase().includes(depSearch.toLowerCase()) ||
+                              String(t.orgTaskNumber).includes(depSearch)),
+                        )
+                        .map((t) => {
+                          const selected = selectedParentIds.includes(t.id);
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 ${selected ? "bg-primary/5" : ""}`}
+                              onClick={() => {
+                                setSelectedParentIds((prev) =>
+                                  selected ? prev.filter((id) => id !== t.id) : [...prev, t.id],
+                                );
+                              }}
+                            >
+                              <span className="font-mono text-xs text-muted-foreground">TSK-{t.orgTaskNumber}</span>
+                              <span className="truncate">{t.title}</span>
+                              {selected && <span className="ml-auto text-primary text-xs">✓</span>}
+                            </button>
+                          );
+                        })}
+                      {projectTasks.filter((t) => t.stageType !== "closed").length === 0 && (
+                        <p className="px-3 py-2 text-sm text-muted-foreground italic">No open tasks in this project.</p>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
+          )}
 
           <DialogFooter className="pt-2">
             <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isPending}>

@@ -20,3 +20,4 @@ export * from "./project-sla-audit";
 export * from "./export-jobs";
 export * from "./org-terminology";
 export * from "./org-events";
+export * from "./task-dependencies";

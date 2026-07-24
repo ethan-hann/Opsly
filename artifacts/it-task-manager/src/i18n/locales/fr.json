@@ -1056,7 +1056,9 @@
       "manageSavedViews": "Vues enregistrées",
       "viewAuditLog": "Journal d'audit",
       "manageTerminology": "Gérer la terminologie",
-      "manageReactions": "Gérer la palette de réactions"
+      "manageReactions": "Gérer la palette de réactions",
+      "taskTrees": "Arbres de {{tasks}}",
+      "linkTasks": "Lier des {{tasks}}"
     }
   },
   "notificationPreferences": {

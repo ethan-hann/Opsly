@@ -34,4 +34,6 @@ export interface RolePermissions {
   manage_terminology: boolean;
   /** When true, the member can manage the org's emoji reaction palette. */
   manage_reactions: boolean;
+  /** When true, the member can create and remove task dependency links (requires task_trees feature to be enabled). */
+  link_tasks: boolean;
 }

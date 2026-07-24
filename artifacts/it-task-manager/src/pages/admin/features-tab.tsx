@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
-type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding";
+type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding" | "task_trees";
 
 interface AdminOrg {
   id: string;
@@ -54,6 +54,7 @@ function OrgFeaturePanel({ org }: { org: AdminOrg }) {
     { key: "custom_statuses", label: t('admin.features.featureCustomStatuses'), description: t('admin.features.featureCustomStatusesDesc') },
     { key: "sla_tracking", label: t('admin.features.featureSlaTracking'), description: t('admin.features.featureSlaTrackingDesc') },
     { key: "branding", label: t('admin.features.featureBranding'), description: t('admin.features.featureBrandingDesc') },
+    { key: "task_trees", label: "Task Trees", description: "Task dependency linking and hierarchy tree views" },
   ];
 
   const mutation = useMutation({

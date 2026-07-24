@@ -23,6 +23,7 @@ import adminRouter from "./admin";
 import unsubscribeRouter from "./unsubscribe";
 import auditLogRouter from "./audit-log";
 import referencesRouter from "./references";
+import taskDependenciesRouter from "./task-dependencies";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(adminRouter);
 router.use(unsubscribeRouter);
 router.use(auditLogRouter);
 router.use(referencesRouter);
+router.use(taskDependenciesRouter);
 
 export default router;

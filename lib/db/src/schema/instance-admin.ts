@@ -19,6 +19,7 @@ export const ORG_FEATURES = [
   'custom_statuses',
   'sla_tracking',
   'branding',
+  'task_trees',
 ] as const;
 
 export type OrgFeature = (typeof ORG_FEATURES)[number];

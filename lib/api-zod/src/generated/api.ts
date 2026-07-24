@@ -274,7 +274,22 @@ export const ListTasksResponseItem = zod.object({
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
-  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission).\n'),
+  "dependencies": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks this task depends on (parent tasks that must be completed first).'),
+  "dependents": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks that depend on this task (child tasks blocked by this task).')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 export const ListTasksResponse = zod.array(ListTasksResponseItem)
 
@@ -319,7 +334,22 @@ export const CreateTaskResponse = zod.object({
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
-  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission).\n'),
+  "dependencies": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks this task depends on (parent tasks that must be completed first).'),
+  "dependents": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks that depend on this task (child tasks blocked by this task).')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
@@ -352,7 +382,22 @@ export const GetTaskResponse = zod.object({
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
-  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission).\n'),
+  "dependencies": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks this task depends on (parent tasks that must be completed first).'),
+  "dependents": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks that depend on this task (child tasks blocked by this task).')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
@@ -376,7 +421,8 @@ export const UpdateTaskBody = zod.object({
   "category": zod.enum(['incident', 'change', 'maintenance', 'deployment', 'support', 'other']).optional().describe('New IT operational category.'),
   "assignee": zod.string().nullish().describe('Updated assignee email. Must match an org member. Pass `null` to unassign; omit to leave unchanged.\n'),
   "dueDate": zod.string().nullish().describe('Updated deadline in `YYYY-MM-DD` format. Pass `null` to clear.'),
-  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged.\n')
+  "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged.\n'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task also closes all direct dependents. Requires close_tasks permission to set to true; edit_tasks suffices to set to false.\n')
 }).describe('Partial update for an existing task. All fields are optional.')
 
 export const UpdateTaskResponse = zod.object({
@@ -400,7 +446,22 @@ export const UpdateTaskResponse = zod.object({
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
-  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission).\n'),
+  "dependencies": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks this task depends on (parent tasks that must be completed first).'),
+  "dependents": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks that depend on this task (child tasks blocked by this task).')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 
 
@@ -1033,7 +1094,22 @@ export const GetOverdueTasksResponseItem = zod.object({
   "customFields": zod.record(zod.string(), zod.unknown()).optional().describe('JSONB bag of custom field values keyed by field definition ID. Values are type-dependent: string for text\/date\/single_select, number for number, array of strings for multi_select.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the task was created.'),
   "updatedAt": zod.string().describe('ISO 8601 timestamp when the task was last updated.'),
-  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.')
+  "slaBreachedAt": zod.string().nullish().describe('ISO 8601 timestamp when a resolution SLA breach was first detected. Null until a breach occurs.'),
+  "autoCloseChildren": zod.boolean().optional().describe('When true, closing this task automatically closes all direct dependents in the same transaction (requires close_tasks permission).\n'),
+  "dependencies": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks this task depends on (parent tasks that must be completed first).'),
+  "dependents": zod.array(zod.object({
+  "id": zod.number().describe('Task primary key.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number shown as TSK-##.'),
+  "title": zod.string().describe('Task title.'),
+  "stageName": zod.string().describe('Display name of the current workflow stage.'),
+  "isClosed": zod.boolean().describe('True when the task\'s stage type is \"closed\".')
+}).describe('Lightweight summary of a task used in dependency tree views.')).optional().describe('Tasks that depend on this task (child tasks blocked by this task).')
 }).describe('An individual work item within an organization, optionally linked to a project. Enriched with the project name, number of comments, and the org\'s active workflow stage details.\n')
 export const GetOverdueTasksResponse = zod.array(GetOverdueTasksResponseItem)
 
@@ -1215,7 +1291,8 @@ export const CreateOrgResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1295,7 +1372,8 @@ export const GetMyOrgResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1437,7 +1515,8 @@ export const ListOrgMembersResponseItem = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1549,7 +1628,8 @@ export const AcceptOrgInvitationResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),zod.null()]).optional().describe('Full set of permission flags for the caller\'s role. Null when `org` is null.'),
   "features": zod.record(zod.string(), zod.enum(['enabled', 'disabled', 'unsubscribed']).describe('Activation state of an org feature flag. \'enabled\' = available (default); \'disabled\' = turned off by instance admin; \'unsubscribed\' = not included in org\'s plan (shows Upgrade prompt).\n')).optional().describe('Map of each org feature key to its current state. Keys absent from the map default to \'enabled\'. Only present when the user is a member of an org.\n'),
   "pendingInvitation": zod.union([zod.object({
@@ -1634,7 +1714,8 @@ export const UpdateOrgMemberRoleResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "joinedAt": zod.string().describe('ISO 8601 timestamp when the user joined the organization.'),
   "firstName": zod.string().nullish().describe('Member\'s given name. Null if not set in their profile.'),
@@ -1824,6 +1905,53 @@ export const RevokeApiKeyResponse = zod.object({
   "email": zod.string().nullish()
 }).nullable()
 }).describe('API key metadata (the raw key value is never returned after creation).')
+
+
+/**
+ * Returns all task dependency edges for the specified project so the frontend can build the complete project tree client-side in a single request. Requires `view_tasks` permission and `task_trees` feature.
+ * @summary List all dependency edges for a project
+ */
+export const GetTaskDependenciesQueryParams = zod.object({
+  "projectId": zod.coerce.number().describe('Project ID whose dependency edges to return.')
+})
+
+export const GetTaskDependenciesResponseItem = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key.'),
+  "taskId": zod.number().describe('The dependent task ID.'),
+  "dependsOnTaskId": zod.number().describe('The prerequisite task ID.')
+}).describe('A lightweight dependency edge record returned by the list endpoint.')
+export const GetTaskDependenciesResponse = zod.array(GetTaskDependenciesResponseItem)
+
+
+/**
+ * Links taskId as a dependent of dependsOnTaskId (taskId "depends on" dependsOnTaskId). Both tasks must belong to the same project. Returns 400 for cross-project or self-links, 409 if the link would create a cycle. Requires `link_tasks` permission and `task_trees` feature.
+ * @summary Create a task dependency link
+ */
+export const CreateTaskDependencyBody = zod.object({
+  "taskId": zod.number().describe('The dependent task (child) — this task requires dependsOnTaskId to be completed first.'),
+  "dependsOnTaskId": zod.number().describe('The prerequisite task (parent) — must be completed before taskId.')
+}).describe('Request body for creating a task dependency link.')
+
+export const CreateTaskDependencyResponse = zod.object({
+  "id": zod.number().describe('Auto-incremented primary key of the dependency row.'),
+  "taskId": zod.number().describe('The dependent task ID.'),
+  "dependsOnTaskId": zod.number().describe('The prerequisite task ID.'),
+  "orgTaskNumber": zod.number().describe('Per-org sequential task number of the prerequisite task.'),
+  "title": zod.string().describe('Title of the prerequisite task.'),
+  "stageName": zod.string().describe('Stage name of the prerequisite task.'),
+  "isClosed": zod.boolean().describe('True when the prerequisite task\'s stage type is \"closed\".')
+}).describe('A newly created task dependency with a summary of the parent task.')
+
+
+/**
+ * Removes the dependency edge identified by the given ID. Requires `link_tasks` permission and `task_trees` feature. Returns 204 on success.
+ * @summary Remove a task dependency link
+ */
+export const DeleteTaskDependencyParams = zod.object({
+  "id": zod.coerce.number().describe('ID of the dependency edge to remove.')
+})
+
+export const DeleteTaskDependencyResponse = zod.void()
 
 
 /**
@@ -2108,7 +2236,8 @@ export const ListRolesResponseItem = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -2145,7 +2274,8 @@ export const CreateRoleBody = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for creating a new custom role.')
 
@@ -2175,7 +2305,8 @@ export const CreateRoleResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')
@@ -2215,7 +2346,8 @@ export const UpdateRoleBody = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).optional().describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n')
 }).describe('Request body for updating a role\'s name and\/or permissions. Only provided fields are changed. The Owner built-in role cannot be modified.\n')
 
@@ -2245,7 +2377,8 @@ export const UpdateRoleResponse = zod.object({
   "manage_saved_views": zod.boolean(),
   "view_audit_log": zod.boolean(),
   "manage_terminology": zod.boolean().describe('When true, the member can rename user-facing labels (Projects, Tasks, Members, Workflows, Stages) via the Terminology settings.\n'),
-  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n')
+  "manage_reactions": zod.boolean().describe('When true, the member can manage the org\'s emoji reaction palette.\n'),
+  "link_tasks": zod.boolean().describe('When true, the member can create and remove task dependency links (requires task_trees feature to be enabled).\n')
 }).describe('Boolean permission flags for a role. Every key is present; `true` grants the permission, `false` denies it.\n'),
   "createdAt": zod.string().describe('ISO 8601 timestamp when the role was created.')
 }).describe('A named role within an organization with a set of permission flags.')

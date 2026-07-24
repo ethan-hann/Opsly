@@ -3,7 +3,7 @@ import { eq, sql, and, lt, lte, gte, or, isNull, isNotNull, asc, desc, inArray }
 import {
   db, tasksTable, projectsTable, commentsTable, orgMembersTable, usersTable,
   customFieldDefinitionsTable, taskEventsTable, slaPoliciesTable, workflowStagesTable,
-  taskWatchersTable,
+  taskWatchersTable, taskDependenciesTable,
 } from "@workspace/db";
 import {
   CreateTaskBody,
@@ -32,6 +32,7 @@ import {
   WatchingFilterParam,
 } from "@workspace/api-zod";
 import { requireOrgOrApiKey, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
+import { isOrgFeatureEnabled } from "../lib/org-features";
 import {
   dispatchTaskCreated,
   dispatchTaskUpdated,
@@ -654,7 +655,66 @@ router.get("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:read"), async (
 
   void detectAndMarkSlaBreaches([task], orgId, slaPolicies, stages);
 
-  const enriched = await buildTaskWithProject(task, orgId, stages);
+  // Enrich with dependency info
+  const [depRows, dependentRows] = await Promise.all([
+    // dependencies: tasks this task depends on (parent tasks)
+    db
+      .select({
+        id: taskDependenciesTable.id,
+        dependsOnTaskId: taskDependenciesTable.dependsOnTaskId,
+      })
+      .from(taskDependenciesTable)
+      .where(and(eq(taskDependenciesTable.taskId, task.id), eq(taskDependenciesTable.orgId, orgId))),
+    // dependents: tasks that depend on this task (child tasks)
+    db
+      .select({
+        id: taskDependenciesTable.id,
+        taskId: taskDependenciesTable.taskId,
+      })
+      .from(taskDependenciesTable)
+      .where(and(eq(taskDependenciesTable.dependsOnTaskId, task.id), eq(taskDependenciesTable.orgId, orgId))),
+  ]);
+
+  const depTaskIds = depRows.map((r) => r.dependsOnTaskId);
+  const dependentTaskIds = dependentRows.map((r) => r.taskId);
+
+  const [depTasks, dependentTasks] = await Promise.all([
+    depTaskIds.length > 0
+      ? db
+          .select()
+          .from(tasksTable)
+          .where(and(inArray(tasksTable.id, depTaskIds), eq(tasksTable.orgId, orgId)))
+      : Promise.resolve([] as typeof tasksTable.$inferSelect[]),
+    dependentTaskIds.length > 0
+      ? db
+          .select()
+          .from(tasksTable)
+          .where(and(inArray(tasksTable.id, dependentTaskIds), eq(tasksTable.orgId, orgId)))
+      : Promise.resolve([] as typeof tasksTable.$inferSelect[]),
+  ]);
+
+  const stagesForDeps = depTaskIds.length > 0 || dependentTaskIds.length > 0
+    ? stages
+    : new Map<number, StageRow>();
+
+  function toTreeItem(t: typeof tasksTable.$inferSelect) {
+    const sId = parseInt(t.status, 10);
+    const s = !isNaN(sId) ? stagesForDeps.get(sId) : undefined;
+    return {
+      id: t.id,
+      orgTaskNumber: t.orgTaskNumber,
+      title: t.title,
+      stageName: s?.name ?? t.status,
+      isClosed: s?.type === "closed",
+    };
+  }
+
+  const enriched = {
+    ...(await buildTaskWithProject(task, orgId, stages)),
+    autoCloseChildren: task.autoCloseChildren,
+    dependencies: depTasks.map(toTreeItem),
+    dependents: dependentTasks.map(toTreeItem),
+  };
   res.json(GetTaskResponse.parse(enriched));
 });
 
@@ -690,6 +750,52 @@ router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), asy
     if (stageResult.stage.type === "closed" && !hasPermission(req, "close_tasks")) {
       res.status(403).json({ error: "You do not have permission to close tasks" });
       return;
+    }
+
+    // Block bulk close when any task has open parents
+    if (stageResult.stage.type === "closed") {
+      // Fetch all dependency rows for the candidate IDs
+      const depsForBulk = await db
+        .select({
+          taskId: taskDependenciesTable.taskId,
+          dependsOnTaskId: taskDependenciesTable.dependsOnTaskId,
+        })
+        .from(taskDependenciesTable)
+        .where(and(inArray(taskDependenciesTable.taskId, ids), eq(taskDependenciesTable.orgId, orgId)));
+
+      if (depsForBulk.length > 0) {
+        const parentIds = [...new Set(depsForBulk.map((d) => d.dependsOnTaskId))];
+        const parentRows = await db
+          .select({ id: tasksTable.id, status: tasksTable.status, orgTaskNumber: tasksTable.orgTaskNumber })
+          .from(tasksTable)
+          .where(and(inArray(tasksTable.id, parentIds), eq(tasksTable.orgId, orgId)));
+        const stagesMap = await getOrgStages(orgId);
+
+        const openParents = new Map<number, number[]>(); // taskId → [open parent orgTaskNumbers]
+        for (const dep of depsForBulk) {
+          const parent = parentRows.find((p) => p.id === dep.dependsOnTaskId);
+          if (!parent) continue;
+          const parentStageId = parseInt(parent.status, 10);
+          const parentStage = !isNaN(parentStageId) ? stagesMap.get(parentStageId) : undefined;
+          if (!parentStage || parentStage.type !== "closed") {
+            if (!openParents.has(dep.taskId)) openParents.set(dep.taskId, []);
+            openParents.get(dep.taskId)!.push(parent.orgTaskNumber);
+          }
+        }
+
+        if (openParents.size > 0) {
+          const taskRows = await db
+            .select({ id: tasksTable.id, orgTaskNumber: tasksTable.orgTaskNumber })
+            .from(tasksTable)
+            .where(and(inArray(tasksTable.id, [...openParents.keys()]), eq(tasksTable.orgId, orgId)));
+          const messages = taskRows.map((t) => {
+            const blockers = openParents.get(t.id) ?? [];
+            return `TSK-${t.orgTaskNumber} blocked by open parent(s): ${blockers.map((n) => `TSK-${n}`).join(", ")}`;
+          });
+          res.status(422).json({ error: "Some tasks are blocked by open dependencies", messages });
+          return;
+        }
+      }
     }
   }
 
@@ -772,6 +878,7 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
   }
 
   // Validate and resolve the target stage (if status is being changed)
+  let resolvedNewStage: StageRow | undefined;
   if (parsed.data.status !== undefined) {
     const stageResult = await resolveStage(parsed.data.status, orgId);
     if (!stageResult.ok) {
@@ -781,6 +888,44 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
     // Moving to a closed stage requires close_tasks permission
     if (stageResult.stage.type === "closed" && !hasPermission(req, "close_tasks")) {
       res.status(403).json({ error: "You do not have permission to close tasks" });
+      return;
+    }
+    resolvedNewStage = stageResult.stage;
+
+    // Block if any parent is still open — skipped when task_trees feature is disabled
+    if (stageResult.stage.type === "closed" && (await isOrgFeatureEnabled(orgId, "task_trees"))) {
+      const parentDeps = await db
+        .select({ dependsOnTaskId: taskDependenciesTable.dependsOnTaskId })
+        .from(taskDependenciesTable)
+        .where(and(eq(taskDependenciesTable.taskId, params.data.id), eq(taskDependenciesTable.orgId, orgId)));
+
+      if (parentDeps.length > 0) {
+        const parentIds = parentDeps.map((d) => d.dependsOnTaskId);
+        const parentRows = await db
+          .select({ id: tasksTable.id, status: tasksTable.status, orgTaskNumber: tasksTable.orgTaskNumber })
+          .from(tasksTable)
+          .where(and(inArray(tasksTable.id, parentIds), eq(tasksTable.orgId, orgId)));
+        const stagesMap = await getOrgStages(orgId);
+        const openBlockers = parentRows.filter((p) => {
+          const stageId = parseInt(p.status, 10);
+          const stage = !isNaN(stageId) ? stagesMap.get(stageId) : undefined;
+          return !stage || stage.type !== "closed";
+        });
+        if (openBlockers.length > 0) {
+          const blockerNums = openBlockers.map((b) => `TSK-${b.orgTaskNumber}`).join(", ");
+          res.status(422).json({
+            error: `Blocked — ${openBlockers.length} open ${openBlockers.length === 1 ? "dependency" : "dependencies"} must be completed first: ${blockerNums}`,
+          });
+          return;
+        }
+      }
+    }
+  }
+
+  // Gate autoCloseChildren: setting to true requires close_tasks; false requires edit_tasks
+  if (parsed.data.autoCloseChildren !== undefined) {
+    if (parsed.data.autoCloseChildren === true && !hasPermission(req, "close_tasks")) {
+      res.status(403).json({ error: "close_tasks permission required to enable auto-close children" });
       return;
     }
   }
@@ -794,6 +939,7 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
       title: tasksTable.title,
       dueDate: tasksTable.dueDate,
       projectId: tasksTable.projectId,
+      autoCloseChildren: tasksTable.autoCloseChildren,
     })
     .from(tasksTable)
     .where(and(eq(tasksTable.id, params.data.id), eq(tasksTable.orgId, orgId)))
@@ -809,6 +955,30 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
     if (!valid) {
       res.status(400).json({ error: "Invalid projectId" });
       return;
+    }
+
+    // Prevent re-assigning a task to a different project when it has dependency links.
+    // Only checked when the project is actually changing.
+    if (parsed.data.projectId !== prev.projectId) {
+      const [depCheck] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(taskDependenciesTable)
+        .where(
+          and(
+            or(
+              eq(taskDependenciesTable.taskId, params.data.id),
+              eq(taskDependenciesTable.dependsOnTaskId, params.data.id),
+            ),
+            eq(taskDependenciesTable.orgId, orgId),
+          ),
+        );
+      if ((depCheck?.count ?? 0) > 0) {
+        res.status(400).json({
+          error:
+            "Cannot change project: this task has active dependencies. Remove all dependencies first.",
+        });
+        return;
+      }
     }
   }
 
@@ -923,6 +1093,67 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
         })),
       );
     }
+  }
+
+  // Auto-close cascade: if this task was just closed and autoCloseChildren is enabled,
+  // move all direct dependents (children) to the same closed stage in the same transaction.
+  const effectiveAutoClose = task.autoCloseChildren;
+  if (effectiveAutoClose && resolvedNewStage?.type === "closed" && hasPermission(req, "close_tasks")) {
+    const childDeps = await db
+      .select({ taskId: taskDependenciesTable.taskId })
+      .from(taskDependenciesTable)
+      .where(and(eq(taskDependenciesTable.dependsOnTaskId, task.id), eq(taskDependenciesTable.orgId, orgId)));
+
+    if (childDeps.length > 0) {
+      const childIds = childDeps.map((d) => d.taskId);
+      const childRows = await db
+        .select()
+        .from(tasksTable)
+        .where(and(inArray(tasksTable.id, childIds), eq(tasksTable.orgId, orgId)));
+
+      for (const child of childRows) {
+        const childStageId = parseInt(child.status, 10);
+        const childStage = !isNaN(childStageId) ? stagesMap.get(childStageId) : undefined;
+        if (!childStage || childStage.type !== "closed") {
+          // Move child to the same closed stage
+          const [updatedChild] = await db
+            .update(tasksTable)
+            .set({ status: String(resolvedNewStage.id) })
+            .where(and(eq(tasksTable.id, child.id), eq(tasksTable.orgId, orgId)))
+            .returning({ id: tasksTable.id, status: tasksTable.status });
+
+          if (updatedChild) {
+            // Audit event for the cascade — actorId null marks it as a system action,
+            // actorName distinguishes it from direct user edits in the History tab.
+            await db.insert(taskEventsTable).values({
+              taskId: child.id,
+              orgId,
+              actorId: null,
+              actorName: "System (auto-close)",
+              field: "status",
+              oldValue: stagesMap.get(parseInt(child.status, 10))?.name ?? child.status,
+              newValue: resolvedNewStage.name,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Emit audit event for autoCloseChildren toggle if it changed
+  if (
+    parsed.data.autoCloseChildren !== undefined &&
+    parsed.data.autoCloseChildren !== prev.autoCloseChildren
+  ) {
+    await db.insert(taskEventsTable).values({
+      taskId: task.id,
+      orgId,
+      actorId,
+      actorName: actorNameStr,
+      field: "autoCloseChildren",
+      oldValue: String(prev.autoCloseChildren),
+      newValue: String(task.autoCloseChildren),
+    });
   }
 
   const enriched = await buildTaskWithProject(task, orgId, stagesMap);

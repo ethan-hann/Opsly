@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from "@/hooks/use-date-locale";
 import i18n from '@/i18n';
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, useCreateTaskDependency, useDeleteTaskDependency, useGetTaskDependencies, useListTasks, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
@@ -14,7 +14,12 @@ import { SlaBadge } from "@/components/ui/sla-badge";
 import { FeatureGate } from "@/components/ui/feature-gate";
 import { formatDate, formatTimeAgo, cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, Pencil, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown } from "lucide-react";
+import { ArrowLeft, Clock, MessageSquare, Trash2, Edit, Pencil, User, Calendar as CalendarIcon, FolderGit2, AlertTriangle, Activity, History, Check, X, Tag, Eye, EyeOff, CornerDownRight, ChevronDown, GitBranch } from "lucide-react";
+import { TaskTreeVisualization } from "@/components/ui/task-tree-visualization";
+import type { TaskTreeItemData } from "@/components/ui/task-tree-node";
+import type { TaskDependencyEdgeData } from "@/components/ui/task-tree-visualization";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useGetTaskWatchers, useWatchTask, useUnwatchTask, type WatcherInfo } from "@/hooks/use-task-watchers";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1117,6 +1122,8 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { data: task, isLoading: isLoadingTask } = useGetTask(taskId, {
     query: { enabled: !!taskId, queryKey: ["getTask", taskId] }
   });
+  const { isFeatureEnabled } = useOrgContext();
+  const taskTreesEnabled = isFeatureEnabled("task_trees");
 
   const { data: stages = [] } = useListWorkflowStages();
 
@@ -1153,16 +1160,50 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
     mutation: {
       onSuccess: (data) => {
         toast({ title: t('taskDetail.taskUpdated') });
-        queryClient.setQueryData(["getTask", taskId], data);
+        // Merge PATCH response into the existing cache entry so enriched fields
+        // (dependencies, dependents) that PATCH doesn't return are preserved.
+        queryClient.setQueryData(["getTask", taskId], (old: unknown) =>
+          old && typeof old === "object" ? { ...(old as object), ...data } : data,
+        );
         queryClient.invalidateQueries({ queryKey: getListTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetOverdueTasksQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetDashboardSummaryQueryKey() });
         queryClient.invalidateQueries({ queryKey: ["listTaskEvents", taskId] });
       },
-      onError: () => {
-        toast({ title: t('taskDetail.failedUpdateTask'), variant: "destructive" });
+      onError: (err: unknown) => {
+        // ApiError exposes .status and .data directly (not .response.*)
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error;
+        toast({ title: msg ?? t('taskDetail.failedUpdateTask'), variant: "destructive" });
       }
     }
+  });
+
+  // Task dependency hooks for the Task Tree section
+  const { mutate: createDep } = useCreateTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency added" });
+        queryClient.invalidateQueries({ queryKey: ["getTask", taskId] });
+      },
+      onError: (err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error ?? "Failed to add dependency";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const { mutate: removeDep } = useDeleteTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency removed" });
+        queryClient.invalidateQueries({ queryKey: ["getTask", taskId] });
+      },
+      onError: () => {
+        toast({ title: "Failed to remove dependency", variant: "destructive" });
+      },
+    },
   });
 
   const commentMutation = useCreateComment({
@@ -1429,6 +1470,15 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Task Tree section */}
+          <FeatureGate feature="task_trees" compact>
+            <TaskDetailTreeSection
+              task={task}
+              createDep={createDep}
+              removeDep={removeDep}
+            />
+          </FeatureGate>
 
           {/* Activity — Discussion + History tabs */}
           <Card className="border-border shadow-sm">
@@ -1745,5 +1795,200 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Task Detail Tree Section ─────────────────────────────────────────────────
+
+function TaskDetailTreeSection({
+  task,
+  createDep,
+  removeDep,
+}: {
+  task: {
+    id: number;
+    orgTaskNumber: number;
+    title: string;
+    stageName?: string | null;
+    stageType?: string | null;
+    isClosed?: boolean;
+    projectId?: number | null;
+    dependencies?: Array<{ id: number; orgTaskNumber: number; title: string; stageName: string; isClosed: boolean }>;
+    dependents?: Array<{ id: number; orgTaskNumber: number; title: string; stageName: string; isClosed: boolean }>;
+    autoCloseChildren?: boolean;
+  };
+  createDep: (args: { data: { taskId: number; dependsOnTaskId: number } }) => void;
+  removeDep: (args: { id: number }) => void;
+}) {
+  const { t: term, tSingular } = useTerminology();
+  const { hasPermission, isFeatureEnabled } = useOrgContext();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const { mutate: updateTask } = useUpdateTask({
+    mutation: {
+      onSuccess: (data) => {
+        toast({ title: "Auto-close children setting updated" });
+        // Merge so dependencies/dependents from the enriched GET are preserved.
+        queryClient.setQueryData(["getTask", task.id], (old: unknown) =>
+          old && typeof old === "object" ? { ...(old as object), ...data } : data,
+        );
+      },
+      onError: () => {
+        toast({ title: "Failed to update setting", variant: "destructive" });
+      },
+    },
+  });
+
+  const canLinkTasks = isFeatureEnabled("task_trees") && hasPermission("link_tasks");
+  const canClose = hasPermission("close_tasks");
+
+  const deps = task.dependencies ?? [];
+  const dependents = task.dependents ?? [];
+
+  // Build task item list: all deps + dependents + self
+  const allItems: TaskTreeItemData[] = [
+    {
+      id: task.id,
+      orgTaskNumber: task.orgTaskNumber,
+      title: task.title,
+      stageName: task.stageName ?? "Unknown",
+      isClosed: task.stageType === "closed",
+    },
+    ...deps.map((d) => ({
+      id: d.id,
+      orgTaskNumber: d.orgTaskNumber,
+      title: d.title,
+      stageName: d.stageName,
+      isClosed: d.isClosed,
+    })),
+    ...dependents.map((d) => ({
+      id: d.id,
+      orgTaskNumber: d.orgTaskNumber,
+      title: d.title,
+      stageName: d.stageName,
+      isClosed: d.isClosed,
+    })),
+  ];
+
+  // Build edges: dependency edges (parent→this task) + dependent edges (this task→child)
+  const edges: TaskDependencyEdgeData[] = [
+    ...deps.map((d) => ({ id: d.id * 10000 + task.id, taskId: task.id, dependsOnTaskId: d.id })),
+    ...dependents.map((d) => ({ id: task.id * 10000 + d.id, taskId: d.id, dependsOnTaskId: task.id })),
+  ];
+
+  const openDepsCount = deps.filter((d) => !d.isClosed).length;
+
+  // Fetch all project tasks — needed for the dependency picker candidate pool
+  const { data: projectTasksRaw = [] } = useListTasks(
+    { projectId: task.projectId! },
+    { query: { enabled: !!task.projectId, queryKey: ["listTasks", { projectId: task.projectId }] } },
+  );
+  const candidateTasks: TaskTreeItemData[] = projectTasksRaw.map((t) => ({
+    id: t.id,
+    orgTaskNumber: t.orgTaskNumber,
+    title: t.title,
+    stageName: t.stageName ?? "Unknown",
+    isClosed: t.stageType === "closed",
+  }));
+
+  // Fetch real edge IDs for the whole project so remove works correctly
+  const depQueryParams = task.projectId ? { projectId: task.projectId } : { projectId: 0 };
+  const { data: projectEdges = [] } = useGetTaskDependencies(depQueryParams, {
+    query: {
+      enabled: !!task.projectId,
+      queryKey: ["getTaskDependencies", depQueryParams],
+    },
+  });
+
+  // Build a real edge map from the project's full edge list
+  const realEdges: TaskDependencyEdgeData[] = projectEdges
+    .filter((e) => e.taskId === task.id || e.dependsOnTaskId === task.id)
+    .map((e) => ({ id: e.id, taskId: e.taskId, dependsOnTaskId: e.dependsOnTaskId }));
+
+  const edgesForViz = realEdges.length > 0 ? realEdges : edges;
+
+  return (
+    <Card className="border-border shadow-sm" data-testid="task-tree-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <GitBranch className="w-4 h-4 text-muted-foreground" />
+          Task Tree
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Blocked banner */}
+        {openDepsCount > 0 && (
+          <div
+            data-testid="blocked-banner"
+            className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+          >
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Blocked — {openDepsCount} open{" "}
+              {openDepsCount === 1 ? tSingular("tasks").toLowerCase() : term("tasks").toLowerCase()}{" "}
+              must be completed first:{" "}
+              {deps
+                .filter((d) => !d.isClosed)
+                .map((d, i) => (
+                  <span key={d.id}>
+                    {i > 0 && ", "}
+                    <Link
+                      href={`/tasks/${d.id}`}
+                      className="font-mono underline underline-offset-2 hover:opacity-70"
+                    >
+                      TSK-{d.orgTaskNumber}
+                    </Link>
+                  </span>
+                ))}
+            </span>
+          </div>
+        )}
+
+        <TaskTreeVisualization
+          tasks={allItems}
+          edges={edgesForViz}
+          focusedTaskId={task.id}
+          candidateTasks={candidateTasks}
+          onAddDependency={(taskId, dependsOnTaskId) => {
+            createDep({ data: { taskId, dependsOnTaskId } });
+          }}
+          onRemoveDependency={(childTaskId, dependsOnId) => {
+            const edge = edgesForViz.find(
+              (e) => e.taskId === childTaskId && e.dependsOnTaskId === dependsOnId,
+            );
+            if (edge) removeDep({ id: edge.id });
+          }}
+        />
+
+        {/* View full tree link */}
+        {task.projectId && (
+          <div className="pt-1">
+            <Link
+              href={`/projects/${task.projectId}?tab=task-tree&focus=${task.id}`}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              View full tree →
+            </Link>
+          </div>
+        )}
+
+        {/* Auto-close children toggle */}
+        {canClose && (
+          <div className="flex items-center gap-3 pt-1 border-t border-border/60">
+            <Switch
+              id={`auto-close-${task.id}`}
+              checked={task.autoCloseChildren ?? false}
+              onCheckedChange={(checked) => {
+                updateTask({ id: task.id, data: { autoCloseChildren: checked } });
+              }}
+            />
+            <Label htmlFor={`auto-close-${task.id}`} className="text-sm cursor-pointer">
+              Auto-close children when this {tSingular("tasks").toLowerCase()} is closed
+            </Label>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

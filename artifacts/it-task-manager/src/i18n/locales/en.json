@@ -1056,7 +1056,9 @@
       "manageSavedViews": "Saved views",
       "viewAuditLog": "Audit log",
       "manageTerminology": "Manage terminology",
-      "manageReactions": "Manage reaction palette"
+      "manageReactions": "Manage reaction palette",
+      "taskTrees": "{{tasks}} Trees",
+      "linkTasks": "Link {{tasks}}"
     }
   },
   "notificationPreferences": {

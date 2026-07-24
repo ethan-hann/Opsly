@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, date, varchar, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, date, varchar, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { projectsTable } from "./projects";
@@ -24,6 +24,8 @@ export const tasksTable = pgTable("tasks", {
   slaBreachedAt: timestamp("sla_breached_at", { withTimezone: true }),
   /** Set once when the SLA warning webhook is first dispatched; null until then. */
   slaWarningSentAt: timestamp("sla_warning_sent_at", { withTimezone: true }),
+  /** When true, closing this task also closes all direct dependents in the same transaction. */
+  autoCloseChildren: boolean("auto_close_children").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

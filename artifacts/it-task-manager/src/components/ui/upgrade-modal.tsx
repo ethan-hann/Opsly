@@ -33,6 +33,7 @@ const FEATURE_LABELS: Record<OrgFeatureKey, string> = {
   custom_statuses: "Workflow Stages",
   sla_tracking: "SLA Tracking",
   branding: "Branding",
+  task_trees: "Task Trees",
 };
 
 const FEATURE_DESCRIPTIONS: Record<OrgFeatureKey, string> = {
@@ -50,6 +51,8 @@ const FEATURE_DESCRIPTIONS: Record<OrgFeatureKey, string> = {
     "Set response and resolution SLA policies per priority and get warned when tasks are at risk of breaching.",
   branding:
     "Apply a custom primary color and logo to white-label the app for your organization.",
+  task_trees:
+    "Model work hierarchies by linking tasks with parent dependencies and visualize the full project tree.",
 };
 
 // ─── UpgradeModal ─────────────────────────────────────────────────────────────

@@ -37,4 +37,6 @@ export interface TaskUpdate {
   dueDate?: string | null;
   /** Merged update to custom field values. Only keys present in this object are written; omit the key to leave a field unchanged. */
   customFields?: TaskUpdateCustomFields;
+  /** When true, closing this task also closes all direct dependents. Requires close_tasks permission to set to true; edit_tasks suffices to set to false. */
+  autoCloseChildren?: boolean;
 }

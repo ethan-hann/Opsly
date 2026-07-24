@@ -4,7 +4,8 @@ import { useTerminology } from "@/context/terminology-context";
 import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
-  useListWorkflowStages,
+  useListWorkflowStages, useGetTaskDependencies, useCreateTaskDependency,
+  useDeleteTaskDependency,
 } from "@workspace/api-client-react";
 import type { SlaPolicy } from "@workspace/api-client-react";
 import { ProjectPropertiesPanel } from "@/components/ui/project-properties-panel";
@@ -22,10 +23,15 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { InlineNotes } from "@/components/notes/inline-notes";
 import { MarkdownPreview } from "@/components/notes/markdown-preview";
 import { KanbanBoard } from "@/components/ui/kanban-board";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { useOrgContext } from "@/hooks/use-org-context";
+import { FeatureGate } from "@/components/ui/feature-gate";
+import { TaskTreeVisualization } from "@/components/ui/task-tree-visualization";
+import type { TaskTreeItemData } from "@/components/ui/task-tree-node";
+import type { TaskDependencyEdgeData } from "@/components/ui/task-tree-visualization";
+import { GitBranch } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +45,125 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
+
+// ─── TaskTreeTab ──────────────────────────────────────────────────────────────
+
+function TaskTreeTab({
+  projectId,
+  tasks,
+  focusedTaskId,
+  onClearFocus,
+}: {
+  projectId: number;
+  tasks: Array<{ id: number; orgTaskNumber: number; title: string; stageName?: string | null; stageType?: string | null }>;
+  focusedTaskId?: number;
+  /** Called when the user clicks "View full tree" to exit focused mode. */
+  onClearFocus?: () => void;
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: edgesRaw, isLoading: edgesLoading } = useGetTaskDependencies({ projectId });
+
+  const createDep = useCreateTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency added" });
+        queryClient.invalidateQueries({ queryKey: ["getTaskDependencies", { projectId }] });
+      },
+      onError: (err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error ?? "Failed to add dependency";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const deleteDep = useDeleteTaskDependency({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Dependency removed" });
+        queryClient.invalidateQueries({ queryKey: ["getTaskDependencies", { projectId }] });
+      },
+      onError: (err: unknown) => {
+        const apiErr = err as { status?: number; data?: { error?: string } };
+        const msg = apiErr?.data?.error ?? "Failed to remove dependency";
+        toast({ title: msg, variant: "destructive" });
+      },
+    },
+  });
+
+  const treeItems: TaskTreeItemData[] = tasks.map((t) => ({
+    id: t.id,
+    orgTaskNumber: t.orgTaskNumber,
+    title: t.title,
+    stageName: t.stageName ?? "Unknown",
+    isClosed: t.stageType === "closed",
+  }));
+
+  const edges: TaskDependencyEdgeData[] = (edgesRaw ?? []).map((e) => ({
+    id: e.id,
+    taskId: e.taskId,
+    dependsOnTaskId: e.dependsOnTaskId,
+  }));
+
+  if (edgesLoading) {
+    return (
+      <Card className="border-border/60 shadow-sm">
+        <CardContent className="p-6">
+          <div className="space-y-2">
+            <div className="h-8 bg-muted animate-pulse rounded" />
+            <div className="h-8 bg-muted animate-pulse rounded" />
+            <div className="h-8 bg-muted animate-pulse rounded" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-border/60 shadow-sm">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-base flex items-center gap-2">
+              <GitBranch className="w-4 h-4 text-muted-foreground" />
+              Task Tree
+            </CardTitle>
+            <CardDescription className="mt-1">
+              {focusedTaskId
+                ? "Showing the dependency tree focused on one task."
+                : "Full dependency tree for this project. Drag or use the controls to manage task dependencies."}
+            </CardDescription>
+          </div>
+          {/* When in focused mode, let the user return to the full project tree */}
+          {focusedTaskId != null && onClearFocus && (
+            <button
+              type="button"
+              onClick={onClearFocus}
+              className="shrink-0 text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors mt-0.5"
+            >
+              ← View full tree
+            </button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <TaskTreeVisualization
+          tasks={treeItems}
+          edges={edges}
+          focusedTaskId={focusedTaskId}
+          onAddDependency={(taskId, dependsOnTaskId) => {
+            createDep.mutate({ data: { taskId, dependsOnTaskId } });
+          }}
+          onRemoveDependency={(_taskId, dependsOnId) => {
+            const edge = edges.find((e) => e.taskId === _taskId && e.dependsOnTaskId === dependsOnId);
+            if (edge) deleteDep.mutate({ id: edge.id });
+          }}
+        />
+      </CardContent>
+    </Card>
+  );
+}
 
 // ─── SLA policy helpers ───────────────────────────────────────────────────────
 
@@ -443,16 +568,56 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const [layoutMode, setLayoutMode] = useState<"stacked" | "tabbed">(
     () => (localStorage.getItem("project-detail-layout-mode") as "stacked" | "tabbed") ?? "stacked",
   );
-  const [activeTab, setActiveTab] = useState("tasks");
+
+  // Read ?tab and ?focus query params once on mount to set initial state
+  const initialSearch = new URLSearchParams(searchString);
+  const initialTab = initialSearch.get("tab") ?? "tasks";
+  const initialFocus = initialSearch.get("focus") ? parseInt(initialSearch.get("focus")!, 10) : undefined;
+
+  const [activeTab, setActiveTab] = useState(layoutMode === "tabbed" ? initialTab : "tasks");
+  const [focusedTaskId, setFocusedTaskId] = useState<number | undefined>(initialFocus);
+
+  const { isFeatureEnabled } = useOrgContext();
+  const taskTreesEnabled = isFeatureEnabled("task_trees");
 
   useEffect(() => {
     localStorage.setItem("project-detail-view-mode", viewMode);
   }, [viewMode]);
 
+  // Track whether the layoutMode effect has fired at least once so we skip the
+  // initial mount and only reset activeTab when the user *manually* switches
+  // layout mode (which would override a URL-driven initial tab).
+  const layoutModeInitialized = useRef(false);
   useEffect(() => {
     localStorage.setItem("project-detail-layout-mode", layoutMode);
+    if (!layoutModeInitialized.current) {
+      layoutModeInitialized.current = true;
+      return;
+    }
     if (layoutMode === "tabbed") setActiveTab("tasks");
   }, [layoutMode]);
+
+  // When navigating here via "View full tree →", scroll to the relevant section
+  // so the user lands on the tree without manual scrolling.
+  // - Stacked layout: scroll to the task-tree card.
+  // - Tabbed layout: scroll to the top of the tab strip so the active tab is visible.
+  useEffect(() => {
+    if (initialTab !== "task-tree") return;
+    const timer = setTimeout(() => {
+      if (layoutMode === "tabbed") {
+        document.getElementById("project-tabs")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      } else {
+        document.getElementById("task-tree-section")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: project, isLoading: isLoadingProject } = useGetProject(projectId, {
     query: { enabled: !!projectId, queryKey: ["getProject", projectId] }
@@ -661,13 +826,19 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
           {/* ── Tabbed layout ─────────────────────────────────────────────────── */}
           {layoutMode === "tabbed" ? (
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <Tabs id="project-tabs" value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                 <TabsTrigger value="notes">{t('notes.title', 'Notes')}</TabsTrigger>
                 {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
                   <TabsTrigger value="sla">{t('projects.slaPolicies', 'SLA Policies')}</TabsTrigger>
                 )}
                 <TabsTrigger value="tasks">{tSingular("projects")} {term("tasks")}</TabsTrigger>
+                {taskTreesEnabled && (
+                  <TabsTrigger value="task-tree" data-testid="tab-task-tree">
+                    <GitBranch className="w-3.5 h-3.5 mr-1.5" />
+                    {term("tasks")} Tree
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="notes">
@@ -681,6 +852,17 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               {(hasPermission("manage_sla_policies") || hasPermission("view_audit_log")) && (
                 <TabsContent value="sla">
                   <ProjectSlaPoliciesCard projectId={projectId} />
+                </TabsContent>
+              )}
+
+              {taskTreesEnabled && (
+                <TabsContent value="task-tree">
+                  <TaskTreeTab
+                    projectId={projectId}
+                    tasks={tasks ?? []}
+                    focusedTaskId={focusedTaskId}
+                    onClearFocus={focusedTaskId != null ? () => setFocusedTaskId(undefined) : undefined}
+                  />
                 </TabsContent>
               )}
 
@@ -883,6 +1065,18 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                   </Card>
                 )}
               </div>
+
+              {/* Task Tree — always visible in stacked layout when feature is enabled */}
+              {taskTreesEnabled && (
+                <div id="task-tree-section">
+                  <TaskTreeTab
+                    projectId={projectId}
+                    tasks={tasks ?? []}
+                    focusedTaskId={focusedTaskId}
+                    onClearFocus={focusedTaskId != null ? () => setFocusedTaskId(undefined) : undefined}
+                  />
+                </div>
+              )}
             </>
           )}
       </div>

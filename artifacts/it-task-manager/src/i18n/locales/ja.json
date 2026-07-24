@@ -645,7 +645,7 @@
     "egLabelsSeverity": "例: labels.severity",
     "chooseField": "フィールドを選択…",
     "egWebhookName": "Datadogアラート",
-    "remapDesc1": "システムが異なるフィールド名を使用している場合、ここでマッピングしてください。例えば、ペイロードが重大度を",
+    "remapDesc1": "システムが異なるフィールド名を使用している場合、ここでマッピングしてください。例えば、ペ ��ロードが重大度を",
     "remapDesc2": "として送信する場合、",
     "remapDesc3": "にマッピングします。ペイロードのデフォルト値より优先されます。",
     "customFieldsPayloadDesc": "組織にカスタムフィールドがあります。ペイロードのキーをカスタムフィールドにマッピングして入力できます。",
@@ -1056,7 +1056,9 @@
       "manageSavedViews": "保存済みビュー",
       "viewAuditLog": "監査ログ",
       "manageTerminology": "用語を管理",
-      "manageReactions": "リアクションパレットを管理"
+      "manageReactions": "リアクションパレットを管理",
+      "taskTrees": "{{tasks}}ツリー",
+      "linkTasks": "{{tasks}}をリンク"
     }
   },
   "notificationPreferences": {

@@ -36,6 +36,7 @@ export const ALL_PERMISSIONS = [
   'view_audit_log',
   'manage_terminology',
   'manage_reactions',
+  'link_tasks',
 ] as const;
 
 export type PermissionKey = (typeof ALL_PERMISSIONS)[number];
@@ -62,6 +63,7 @@ export const OWNER_PERMISSIONS: RolePermissions = {
   view_audit_log: true,
   manage_terminology: true,
   manage_reactions: true,
+  link_tasks: true,
 };
 
 /**
@@ -92,6 +94,7 @@ export const ADMIN_PERMISSIONS: RolePermissions = {
   view_audit_log: true,
   manage_terminology: true,
   manage_reactions: true,
+  link_tasks: true,
 };
 
 export const MEMBER_PERMISSIONS: RolePermissions = {
@@ -115,6 +118,7 @@ export const MEMBER_PERMISSIONS: RolePermissions = {
   view_audit_log: false,
   manage_terminology: false,
   manage_reactions: false,
+  link_tasks: false,
 };
 
 // ─── Enums ────────────────────────────────────────────────────────────────────

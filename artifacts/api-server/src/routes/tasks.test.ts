@@ -92,6 +92,7 @@ vi.mock("@workspace/db", () => {
     taskEventsTable: {},
     slaPoliciesTable: {},
     taskWatchersTable: {},
+    taskDependenciesTable: {},
     sql: () => ({}),
     eq: () => ({}),
     and: () => ({}),
@@ -212,12 +213,15 @@ const VALID_TASK_BODY = {
 };
 
 // Push queue entries for GET /tasks/:id (task found, no projectId).
-// Order: task lookup → getOrgStages (Promise.all slot 1) → SLA policies (Promise.all slot 2) → comment count.
+// Order: task lookup → getOrgStages (Promise.all slot 1) → SLA policies (Promise.all slot 2) →
+//        depRows (Promise.all slot 1) → dependentRows (Promise.all slot 2) → comment count.
 function pushEnrichedTask(task = MOCK_TASK) {
   mockState.selectQueue.push([task]);
   mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
   mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
-  mockState.selectQueue.push([{ count: 0 }]);
+  mockState.selectQueue.push([]); // depRows (dependency enrichment, Promise.all slot 1)
+  mockState.selectQueue.push([]); // dependentRows (dependency enrichment, Promise.all slot 2)
+  mockState.selectQueue.push([{ count: 0 }]); // comment count in buildTaskWithProject
 }
 
 // ---------------------------------------------------------------------------
@@ -590,6 +594,8 @@ describe("GET /api/tasks/:id", () => {
     mockState.selectQueue.push([MOCK_TASK]); // task lookup
     mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
     mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
+    mockState.selectQueue.push([]); // depRows (dependency enrichment, Promise.all slot 1)
+    mockState.selectQueue.push([]); // dependentRows (dependency enrichment, Promise.all slot 2)
     mockState.selectQueue.push([{ count: 3 }]); // comment count
 
     const res = await request(buildApp()).get("/api/tasks/1");
@@ -617,6 +623,8 @@ describe("GET /api/tasks/:id", () => {
     mockState.selectQueue.push([taskWithProject]); // task lookup
     mockState.selectQueue.push([]); // getOrgStages (Promise.all slot 1)
     mockState.selectQueue.push([]); // SLA policies (Promise.all slot 2)
+    mockState.selectQueue.push([]); // depRows (dependency enrichment, Promise.all slot 1)
+    mockState.selectQueue.push([]); // dependentRows (dependency enrichment, Promise.all slot 2)
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project lookup
     mockState.selectQueue.push([{ count: 0 }]); // comment count
 
@@ -783,6 +791,7 @@ describe("PATCH /api/tasks/:id - validation", () => {
     const updated = { ...MOCK_TASK, projectId: 5 };
     mockState.selectQueue.push([{ status: "todo", assignee: null }]); // prev state
     mockState.selectQueue.push([{ id: 5 }]); // projectBelongsToOrg → found
+    mockState.selectQueue.push([{ count: 0 }]); // dep-check: no active dependencies
     mockState.updateResult = [updated];
     mockState.selectQueue.push([]); // getOrgStages (after update)
     mockState.selectQueue.push([{ name: "Infra Upgrade" }]); // project name
@@ -2157,11 +2166,13 @@ describe("GET /api/tasks/:id — stageType in response (#326)", () => {
 
   it("returns stageType: closed when the task stage has type=closed", async () => {
     const taskInClosedStage = { ...MOCK_TASK, status: "1" };
-    // GET /tasks/:id enrichment queue: task + getOrgStages + SLA policies + comment count
+    // GET /tasks/:id enrichment queue: task + getOrgStages + SLA policies + depRows + dependentRows + comment count
     mockState.selectQueue.push([taskInClosedStage]);         // task lookup
     mockState.selectQueue.push([CLOSED_STAGE]);               // getOrgStages → contains closed stage
     mockState.selectQueue.push([]);                           // SLA policies
-    mockState.selectQueue.push([{ count: 0 }]);              // comment count
+    mockState.selectQueue.push([]);                           // depRows (dependency enrichment)
+    mockState.selectQueue.push([]);                           // dependentRows (dependency enrichment)
+    mockState.selectQueue.push([{ count: 0 }]);              // comment count in buildTaskWithProject
 
     const res = await request(buildApp()).get("/api/tasks/1");
 
