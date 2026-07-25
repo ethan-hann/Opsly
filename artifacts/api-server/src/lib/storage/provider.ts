@@ -72,13 +72,9 @@ export function getStorageProvider(): StorageProvider {
     _provider = new S3StorageProvider();
   } else if (driver === "replit") {
     // Replit/GCS implementation — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { ReplitStorageProvider } = require("./replit") as typeof import("./replit");
     _provider = new ReplitStorageProvider();
   } else {
     // Default: local filesystem — writes to LOCAL_STORAGE_PATH (default ./data/exports/).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { LocalStorageProvider } = require("./local") as typeof import("./local");
     _provider = new LocalStorageProvider();
   }
 

@@ -13,6 +13,14 @@ export default defineConfig({
     // Exclude Playwright e2e tests — they run via `pnpm test:e2e`, not vitest.
     exclude: ["e2e/**", "**/node_modules/**"],
   },
+  server: {
+    deps: {
+      // idb-keyval is ESM-only. On Windows, Node's CommonJS loader rejects it
+      // with ERR_REQUIRE_ESM. Inlining it through Vite's transform pipeline
+      // avoids the native loader entirely and makes the package work in jsdom.
+      inline: ["idb-keyval"],
+    },
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "src"),

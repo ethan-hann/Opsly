@@ -105,6 +105,10 @@ vi.mock("@workspace/db", () => {
   };
 });
 
+vi.mock("../lib/log-org-event", () => ({
+  logOrgEvent: async () => undefined,
+}));
+
 vi.mock("drizzle-orm", () => ({
   eq: () => ({}),
   and: () => ({}),
