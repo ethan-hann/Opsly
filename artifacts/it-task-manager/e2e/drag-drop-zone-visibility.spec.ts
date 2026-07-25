@@ -159,6 +159,55 @@ test.describe("TaskTreeVisualization — TopLevelDropZone visibility during poin
     },
   );
 
+  // ── Test 3: Escape cancels the drag and removes the drop zone ─────────────
+  //
+  // When the user presses Escape (or the drag leaves the window) the browser
+  // cancels the drag and fires `dragend` on the source element without firing
+  // `drop` on any target.  The deferred setTimeout(0) in onDragEnd queues a
+  // dragState clear; once that clear runs the TopLevelDropZone must be removed.
+  //
+  // Sequence: dragstart → (zone mounts) → Escape key press → dragend fires
+  //           (no drop) → deferred clear runs → zone is detached.
+
+  test(
+    "pressing Escape during a drag cancels it and removes the drop zone from the DOM",
+    async ({ page }) => {
+      const HANDLE = '[data-testid="drag-handle-2"]';
+      const ZONE   = '[data-testid="top-level-drop-zone"]';
+
+      // PRECONDITION: no zone visible before any drag starts.
+      await expect(page.locator(ZONE)).not.toBeAttached();
+
+      // Start the drag gesture on Beta's handle.
+      await fireDragStart(page, HANDLE);
+      await flushDragStartTimer(page);
+
+      // Zone must appear once dragState is set.
+      await expect(page.locator(ZONE)).toBeVisible();
+
+      // Press Escape — in a real browser this fires a drag-cancel which in turn
+      // triggers `dragend` on the source element (without a preceding `drop`).
+      await page.keyboard.press("Escape");
+      // Also dispatch `dragend` explicitly: in this synthetic-event environment
+      // the keyboard event alone does not propagate through the browser's native
+      // drag-cancel path, so we replicate what the browser would fire.
+      await fireDragEnd(page, HANDLE);
+
+      // Allow the deferred setTimeout(0) inside onDragEnd to flush.  No drop
+      // event fired, so dragState must be cleared and the zone must be removed.
+      await flushDragStartTimer(page);
+
+      await expect(
+        page.locator(ZONE),
+        "drop zone must be removed after a cancelled drag (Escape)",
+      ).not.toBeAttached({ timeout: 3_000 });
+
+      // Confirm the tree itself is still intact — no full-page reload.
+      await expect(page.locator('[data-testid="tree-wrapper-1"]')).toBeAttached();
+      await expect(page.locator('[data-testid="tree-wrapper-2"]')).toBeAttached();
+    },
+  );
+
   // ── Test 2: Drop zone accepts a drop after dragEnd fires first (Firefox order)
   //
   // Explicitly re-creates the Firefox event order:

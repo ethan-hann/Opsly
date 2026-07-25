@@ -622,6 +622,73 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
     });
   });
 
+  // ── 9. Cancelled drag clears the drop zone (task #486) ───────────────────
+  //
+  // When the drag is cancelled (Escape key, pointer leaves the window, or the
+  // browser fires dragend without a preceding drop) the deferred setTimeout(0)
+  // in onDragEnd should clear dragState and remove the TopLevelDropZone.
+  //
+  // Failure mode before fix: if onDragEnd cleared state synchronously the zone
+  // would be gone before a Firefox-style delayed drop could land.  The deferred
+  // clear solves that, but we must confirm the zone IS eventually removed when
+  // no drop arrives at all.
+
+  describe("cancelled drag (no drop) clears the drop zone (task #486)", () => {
+    it("zone disappears after timers flush when dragend fires without a preceding drop", () => {
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+        />,
+      );
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      // Zone is visible once drag starts.
+      expect(screen.getByTestId("top-level-drop-zone")).toBeInTheDocument();
+
+      // Drag is cancelled (e.g. Escape key or pointer leaves window):
+      // dragEnd fires with no preceding drop event.
+      fireDragEnd(handleB);
+
+      // Zone must still be present immediately after dragEnd — the deferred
+      // clear (setTimeout 0) has not run yet and a late drop could still land.
+      expect(screen.getByTestId("top-level-drop-zone")).toBeInTheDocument();
+
+      // Flush the deferred setTimeout(0).  No drop fired, so dragState must
+      // now be null and the zone must be removed from the DOM.
+      act(() => { vi.runAllTimers(); });
+
+      expect(screen.queryByTestId("top-level-drop-zone")).not.toBeInTheDocument();
+    });
+
+    it("zone disappears for a root node drag that is cancelled without a drop", () => {
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[]}
+        />,
+      );
+
+      // Root node drag — zone shows as disabled ("already a top-level task").
+      const handleA = screen.getByTestId("drag-handle-1");
+      fireDragStart(handleA);
+      flushDragStart();
+
+      expect(screen.getByTestId("top-level-drop-zone")).toBeInTheDocument();
+
+      // Cancel the drag (no drop).
+      fireDragEnd(handleA);
+
+      // After timers flush the zone must be gone.
+      act(() => { vi.runAllTimers(); });
+
+      expect(screen.queryByTestId("top-level-drop-zone")).not.toBeInTheDocument();
+    });
+  });
+
   // ── 8. Firefox dragEnd-before-drop (task #478) ────────────────────────────
   //
   // Firefox fires dragend before drop on the drop target.  Without the deferred

@@ -66,7 +66,6 @@ vi.mock("@workspace/api-client-react", () => ({
   useGetProjectSLAPolicies: () => ({ data: [], isLoading: false, refetch: vi.fn() }),
   useGetSLAPolicies: () => ({ data: [], isLoading: false }),
   useUpsertProjectSLAPolicies: () => ({ mutate: vi.fn(), isPending: false }),
-  getListProjectsQueryKey: () => ["projects"],
 }));
 
 // ---------------------------------------------------------------------------
