@@ -4,23 +4,43 @@ import {
   GetCurrentAuthUserResponse,
   LogoutMobileSessionResponse,
 } from '@workspace/api-zod';
-import { db, usersTable } from '@workspace/db';
+import { and, eq } from 'drizzle-orm';
+import { db, invitationsTable, usersTable } from '@workspace/db';
 import { Router, type IRouter, type Request, type Response } from 'express';
 import * as oidc from 'openid-client';
+import { z } from 'zod';
 
 import {
   clearSession,
   createSession,
   deleteSession,
+  getAuthConfig,
+  getAuthMode,
+  getOidcAuthConfig,
   getOidcConfig,
   getSessionId,
-  ISSUER_URL,
+  isOidcAuthMode,
   SESSION_COOKIE,
   SESSION_TTL,
   type SessionData,
 } from '../lib/auth';
+import { hashLocalPassword, verifyLocalPassword } from '../lib/local-password';
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
+
+const localLoginBodySchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+  returnTo: z.string().optional(),
+});
+
+const localInviteRegistrationBodySchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
+  firstName: z.string().trim().min(1).max(120).optional(),
+  lastName: z.string().trim().min(1).max(120).optional(),
+  returnTo: z.string().optional(),
+});
 
 const router: IRouter = Router();
 
@@ -51,6 +71,13 @@ function setOidcCookie(res: Response, name: string, value: string) {
   });
 }
 
+function clearOidcCookies(res: Response) {
+  res.clearCookie('code_verifier', { path: '/' });
+  res.clearCookie('nonce', { path: '/' });
+  res.clearCookie('state', { path: '/' });
+  res.clearCookie('return_to', { path: '/' });
+}
+
 function getSafeReturnTo(value: unknown): string {
   if (
     typeof value !== 'string' ||
@@ -60,6 +87,13 @@ function getSafeReturnTo(value: unknown): string {
     return '/';
   }
   return value;
+}
+
+function getLocalLoginReturnTo(value: string): string {
+  if (value === '/') {
+    return '/';
+  }
+  return `/?returnTo=${encodeURIComponent(value)}`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -97,30 +131,88 @@ function getSafeErrorMetadata(error: unknown) {
   };
 }
 
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
-    email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
-  };
+async function upsertOidcUser(claims: Record<string, unknown>) {
+  const externalAuthId = claims.sub;
+  if (typeof externalAuthId !== 'string' || externalAuthId.length === 0) {
+    throw new Error('OIDC claims are missing a valid sub claim');
+  }
+
+  const email =
+    typeof claims.email === 'string' && claims.email.length > 0
+      ? claims.email.toLowerCase()
+      : null;
+  const firstName =
+    typeof claims.first_name === 'string' ? claims.first_name : null;
+  const lastName = typeof claims.last_name === 'string' ? claims.last_name : null;
+  const profileImageUrl =
+    (typeof claims.profile_image_url === 'string' &&
+      claims.profile_image_url.length > 0
+      ? claims.profile_image_url
+      : null) ??
+    (typeof claims.picture === 'string' && claims.picture.length > 0
+      ? claims.picture
+      : null);
+
+  if (email) {
+    const [existingByEmail] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
+
+    if (existingByEmail) {
+      const [updatedByEmail] = await db
+        .update(usersTable)
+        .set({
+          email,
+          firstName,
+          lastName,
+          profileImageUrl,
+          authProvider: 'oidc',
+          externalAuthId,
+          passwordHash: null,
+          updatedAt: new Date(),
+        })
+        .where(eq(usersTable.id, existingByEmail.id))
+        .returning();
+      return updatedByEmail;
+    }
+  }
 
   const [user] = await db
     .insert(usersTable)
-    .values(userData)
+    .values({
+      email,
+      firstName,
+      lastName,
+      profileImageUrl,
+      authProvider: 'oidc',
+      externalAuthId,
+      passwordHash: null,
+    })
     .onConflictDoUpdate({
-      target: usersTable.id,
+      target: [usersTable.authProvider, usersTable.externalAuthId],
       set: {
-        ...userData,
+        email,
+        firstName,
+        lastName,
+        profileImageUrl,
+        passwordHash: null,
         updatedAt: new Date(),
       },
     })
     .returning();
+
   return user;
 }
+
+router.get('/auth/config', (_req: Request, res: Response) => {
+  const config = getAuthConfig();
+  res.json({
+    mode: config.mode,
+    loginMethod: config.mode === 'local' ? 'password' : 'oidc',
+  });
+});
 
 router.get('/auth/user', (req: Request, res: Response) => {
   res.json(
@@ -131,10 +223,16 @@ router.get('/auth/user', (req: Request, res: Response) => {
 });
 
 router.get('/login', async (req: Request, res: Response) => {
+  const authMode = getAuthMode();
+  const returnTo = getSafeReturnTo(req.query.returnTo);
+
+  if (!isOidcAuthMode(authMode)) {
+    res.redirect(getLocalLoginReturnTo(returnTo));
+    return;
+  }
+
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const returnTo = getSafeReturnTo(req.query.returnTo);
 
   const state = oidc.randomState();
   const nonce = oidc.randomNonce();
@@ -159,9 +257,163 @@ router.get('/login', async (req: Request, res: Response) => {
   res.redirect(redirectTo.href);
 });
 
+router.post('/auth/local/login', async (req: Request, res: Response) => {
+  if (getAuthMode() !== 'local') {
+    res
+      .status(400)
+      .json({ error: 'Local login is disabled for the configured auth mode.' });
+    return;
+  }
+
+  const parsed = localLoginBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Missing or invalid required parameters' });
+    return;
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const { password, returnTo } = parsed.data;
+
+  const [user] = await db
+    .select()
+    .from(usersTable)
+    .where(and(eq(usersTable.email, email), eq(usersTable.authProvider, 'local')))
+    .limit(1);
+
+  if (!user?.passwordHash) {
+    res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+
+  const passwordMatches = await verifyLocalPassword(password, user.passwordHash);
+  if (!passwordMatches) {
+    res.status(401).json({ error: 'Invalid email or password' });
+    return;
+  }
+
+  const sessionData: SessionData = {
+    user: {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profileImageUrl: user.profileImageUrl,
+    },
+    authProvider: 'local',
+  };
+
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+  res.json({
+    user: sessionData.user,
+    returnTo: getSafeReturnTo(returnTo),
+  });
+});
+
+router.post('/auth/local/register-invite', async (req: Request, res: Response) => {
+  if (getAuthMode() !== 'local') {
+    res
+      .status(400)
+      .json({ error: 'Local registration is disabled for the configured auth mode.' });
+    return;
+  }
+
+  const parsed = localInviteRegistrationBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Missing or invalid required parameters' });
+    return;
+  }
+
+  const { token, password, returnTo } = parsed.data;
+  const firstName = parsed.data.firstName ?? null;
+  const lastName = parsed.data.lastName ?? null;
+
+  const [invitation] = await db
+    .select({
+      invitedEmail: invitationsTable.invitedEmail,
+      status: invitationsTable.status,
+      expiresAt: invitationsTable.expiresAt,
+    })
+    .from(invitationsTable)
+    .where(eq(invitationsTable.token, token))
+    .limit(1);
+
+  if (
+    !invitation ||
+    invitation.status !== 'pending' ||
+    invitation.expiresAt <= new Date()
+  ) {
+    res.status(404).json({ error: 'Invitation not found or expired' });
+    return;
+  }
+
+  if (!invitation.invitedEmail) {
+    res.status(400).json({ error: 'This invitation requires an existing account.' });
+    return;
+  }
+
+  const email = invitation.invitedEmail.toLowerCase();
+
+  const [existingUser] = await db
+    .select({
+      id: usersTable.id,
+    })
+    .from(usersTable)
+    .where(eq(usersTable.email, email))
+    .limit(1);
+
+  if (existingUser) {
+    res.status(409).json({ error: 'An account already exists for this email. Please sign in.' });
+    return;
+  }
+
+  const passwordHash = await hashLocalPassword(password);
+  const [user] = await db
+    .insert(usersTable)
+    .values({
+      email,
+      firstName,
+      lastName,
+      authProvider: 'local',
+      externalAuthId: null,
+      passwordHash,
+      profileImageUrl: null,
+    })
+    .returning({
+      id: usersTable.id,
+      email: usersTable.email,
+      firstName: usersTable.firstName,
+      lastName: usersTable.lastName,
+      profileImageUrl: usersTable.profileImageUrl,
+    });
+
+  if (!user) {
+    res.status(409).json({ error: 'An account already exists for this email. Please sign in.' });
+    return;
+  }
+
+  const sessionData: SessionData = {
+    user,
+    authProvider: 'local',
+  };
+
+  const sid = await createSession(sessionData);
+  setSessionCookie(res, sid);
+  res.status(201).json({
+    user: sessionData.user,
+    returnTo: getSafeReturnTo(returnTo),
+  });
+});
+
 // Query params are not validated because the OIDC provider may include
 // parameters not expressed in the schema.
 router.get('/callback', async (req: Request, res: Response) => {
+  const authMode = getAuthMode();
+  if (!isOidcAuthMode(authMode)) {
+    res.status(404).send('OIDC callback is disabled');
+    return;
+  }
+
   const config = await getOidcConfig();
   const callbackUrl = `${getOrigin(req)}/api/callback`;
 
@@ -187,16 +439,13 @@ router.get('/callback', async (req: Request, res: Response) => {
       idTokenExpected: true,
     });
   } catch {
+    clearOidcCookies(res);
     res.redirect('/api/login');
     return;
   }
 
   const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie('code_verifier', { path: '/' });
-  res.clearCookie('nonce', { path: '/' });
-  res.clearCookie('state', { path: '/' });
-  res.clearCookie('return_to', { path: '/' });
+  clearOidcCookies(res);
 
   const claims = tokens.claims();
   if (!claims) {
@@ -204,7 +453,7 @@ router.get('/callback', async (req: Request, res: Response) => {
     return;
   }
 
-  const dbUser = await upsertUser(claims as unknown as Record<string, unknown>);
+  const dbUser = await upsertOidcUser(claims as unknown as Record<string, unknown>);
 
   const now = Math.floor(Date.now() / 1000);
   const sessionData: SessionData = {
@@ -215,6 +464,7 @@ router.get('/callback', async (req: Request, res: Response) => {
       lastName: dbUser.lastName,
       profileImageUrl: dbUser.profileImageUrl,
     },
+    authProvider: 'oidc',
     access_token: tokens.access_token,
     refresh_token: tokens.refresh_token,
     expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
@@ -226,16 +476,23 @@ router.get('/callback', async (req: Request, res: Response) => {
 });
 
 router.get('/logout', async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
   const returnTo = getSafeReturnTo(req.query.returnTo);
-  const postLogoutRedirectUrl = new URL(returnTo, `${origin}/`).href;
-
   const sid = getSessionId(req);
   await clearSession(res, sid);
 
+  const authMode = getAuthMode();
+  if (!isOidcAuthMode(authMode)) {
+    res.redirect(returnTo);
+    return;
+  }
+
+  const config = await getOidcConfig();
+  const origin = getOrigin(req);
+  const postLogoutRedirectUrl = new URL(returnTo, `${origin}/`).href;
+  const oidcAuthConfig = getOidcAuthConfig();
+
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
+    client_id: oidcAuthConfig.clientId,
     post_logout_redirect_uri: postLogoutRedirectUrl,
   });
 
@@ -245,6 +502,13 @@ router.get('/logout', async (req: Request, res: Response) => {
 router.post(
   '/mobile-auth/token-exchange',
   async (req: Request, res: Response) => {
+    if (!isOidcAuthMode(getAuthMode())) {
+      res
+        .status(400)
+        .json({ error: 'OIDC token exchange is disabled for local auth mode' });
+      return;
+    }
+
     const parsed = ExchangeMobileAuthorizationCodeBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: 'Missing or invalid required parameters' });
@@ -255,11 +519,12 @@ router.post(
 
     try {
       const config = await getOidcConfig();
+      const oidcAuthConfig = getOidcAuthConfig();
 
       const callbackUrl = new URL(redirect_uri);
       callbackUrl.searchParams.set('code', code);
       callbackUrl.searchParams.set('state', state);
-      callbackUrl.searchParams.set('iss', ISSUER_URL);
+      callbackUrl.searchParams.set('iss', oidcAuthConfig.issuerUrl);
 
       const tokens = await oidc.authorizationCodeGrant(config, callbackUrl, {
         pkceCodeVerifier: code_verifier,
@@ -274,9 +539,7 @@ router.post(
         return;
       }
 
-      const dbUser = await upsertUser(
-        claims as unknown as Record<string, unknown>,
-      );
+      const dbUser = await upsertOidcUser(claims as unknown as Record<string, unknown>);
 
       const now = Math.floor(Date.now() / 1000);
       const sessionData: SessionData = {
@@ -287,6 +550,7 @@ router.post(
           lastName: dbUser.lastName,
           profileImageUrl: dbUser.profileImageUrl,
         },
+        authProvider: 'oidc',
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
         expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,

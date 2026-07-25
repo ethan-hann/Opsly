@@ -1005,7 +1005,7 @@
       "livePreview": "Aperçu en direct",
       "noPermission": "Seuls les membres avec la permission \"Gérer les paramètres org.\" peuvent modifier l'image de marque.",
       "brandingSaved": "Image de marque enregistrée",
-      "colorResetSuccess": "Couleur réinitialisée — thème ambre par défaut restauré",
+      "colorResetSuccess": "Couleur réinitialisée — thème par défaut restauré",
       "logoRemoved": "Logo supprimé",
       "saveFailed": "Échec de l'enregistrement de l'image de marque",
       "saveButton": "Enregistrer l'image de marque",

@@ -381,7 +381,7 @@ setInterval(async () => {
 }, 10 * 60 * 1000).unref();
 
 // ── POST /export ──────────────────────────────────────────────────────────────
-
+//TODO: Need to create new permission for data export and pass it anywhere `manage_org_settings` is currently used
 router.post("/export", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
   const orgId = req.orgId!;
 
