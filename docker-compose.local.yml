@@ -32,6 +32,8 @@ services:
       # AUTH_MODE: local | oidc  (default: local)
       AUTH_MODE: ${AUTH_MODE:-local}
       INSTANCE_ADMIN_TOKEN: ${INSTANCE_ADMIN_TOKEN:-local-dev-admin-token}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:-local-dev-secret-encryption-key}
+      SESSION_SECRET: ${SESSION_SECRET:-local-dev-session-secret}
       LOCAL_DEV_USER_EMAIL: ${LOCAL_DEV_USER_EMAIL:-admin@example.com}
       LOCAL_DEV_USER_PASSWORD: ${LOCAL_DEV_USER_PASSWORD:-changeme}
       LOCAL_DEV_USER_FIRST_NAME: ${LOCAL_DEV_USER_FIRST_NAME:-Local}

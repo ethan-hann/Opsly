@@ -280,6 +280,7 @@ docker compose -f docker-compose.local.yml down -v
 pnpm run typecheck
 pnpm --filter @workspace/api-server test
 pnpm --filter @workspace/it-task-manager test
+pnpm --filter @workspace/db run reset-dev --yes
 ```
 
 ## Common issues

@@ -17,6 +17,7 @@ const sendMailSpy = vi.hoisted(() => vi.fn().mockResolvedValue({ ok: true }));
 const isEmailConfiguredMock = vi.hoisted(() => vi.fn().mockReturnValue(false));
 const notifySlaBreachedSpy = vi.hoisted(() => vi.fn());
 const dispatchTaskSlaBreachedSpy = vi.hoisted(() => vi.fn());
+const loggerErrorSpy = vi.hoisted(() => vi.fn());
 
 // Queue-based DB select results consumed in call order
 const selectQueue = vi.hoisted(() => ({ items: [] as any[][] }));
@@ -92,7 +93,7 @@ vi.mock("./logger", () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),
-    error: vi.fn(),
+    error: loggerErrorSpy,
     debug: vi.fn(),
   },
 }));
@@ -146,6 +147,7 @@ function reset() {
   sendMailSpy.mockClear();
   notifySlaBreachedSpy.mockClear();
   dispatchTaskSlaBreachedSpy.mockClear();
+  loggerErrorSpy.mockClear();
   isEmailConfiguredMock.mockReturnValue(false);
 }
 
@@ -209,6 +211,29 @@ describe("detectAndMarkSlaBreaches — breach email delivery", () => {
     });
 
     expect(sendMailSpy).not.toHaveBeenCalled();
+  });
+
+  it("logs and swallows sendMail failures so background email errors do not crash callers", async () => {
+    isEmailConfiguredMock.mockReturnValue(true);
+    sendMailSpy.mockRejectedValueOnce(new Error("SMTP down"));
+
+    // Assignee lookup, then org name lookup for the email
+    selectQueue.items.push([{ userId: "user-a", email: "assignee@example.com" }]);
+    selectQueue.items.push([{ name: "Acme Corp" }]);
+
+    await detectAndMarkSlaBreaches([BASE_TASK] as any, "test-org", [POLICY] as any);
+
+    await vi.waitFor(() => {
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: expect.any(Error),
+          orgId: "test-org",
+          taskId: BASE_TASK.id,
+          recipient: "assignee@example.com",
+        }),
+        "Failed to send SLA breach email",
+      );
+    });
   });
 
   it("skips the assignee notification path when the task has no assignee", async () => {
