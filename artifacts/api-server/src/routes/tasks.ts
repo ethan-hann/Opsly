@@ -962,29 +962,32 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
       res.status(400).json({ error: "Invalid projectId" });
       return;
     }
+  }
 
-    // Prevent re-assigning a task to a different project when it has dependency links.
-    // Only checked when the project is actually changing.
-    if (parsed.data.projectId !== prev.projectId) {
-      const [depCheck] = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(taskDependenciesTable)
-        .where(
-          and(
-            or(
-              eq(taskDependenciesTable.taskId, params.data.id),
-              eq(taskDependenciesTable.dependsOnTaskId, params.data.id),
-            ),
-            eq(taskDependenciesTable.orgId, orgId),
+  // Prevent changing or removing the project assignment when the task has active
+  // dependencies — covers re-assign, unassign (null), and assign-to-different.
+  const projectIsChanging =
+    parsed.data.projectId !== undefined &&
+    (parsed.data.projectId ?? null) !== (prev.projectId ?? null);
+  if (projectIsChanging) {
+    const [depCheck] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(taskDependenciesTable)
+      .where(
+        and(
+          or(
+            eq(taskDependenciesTable.taskId, params.data.id),
+            eq(taskDependenciesTable.dependsOnTaskId, params.data.id),
           ),
-        );
-      if ((depCheck?.count ?? 0) > 0) {
-        res.status(400).json({
-          error:
-            "Cannot change project: this task has active dependencies. Remove all dependencies first.",
-        });
-        return;
-      }
+          eq(taskDependenciesTable.orgId, orgId),
+        ),
+      );
+    if ((depCheck?.count ?? 0) > 0) {
+      res.status(400).json({
+        error:
+          "Cannot change project: this task has active dependencies. Remove all dependencies first.",
+      });
+      return;
     }
   }
 

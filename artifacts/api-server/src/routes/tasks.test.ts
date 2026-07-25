@@ -804,6 +804,47 @@ describe("PATCH /api/tasks/:id - validation", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ projectId: 5 });
   });
+
+  it("returns 400 when unassigning project from a task with active dependencies", async () => {
+    // prev has a project; sending null should be blocked when deps exist
+    mockState.selectQueue.push([{ status: "todo", assignee: null, projectId: 5 }]); // prev state
+    mockState.selectQueue.push([{ count: 1 }]); // dep-check: 1 active dependency
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ projectId: null });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/dependencies/i) });
+  });
+
+  it("returns 200 when unassigning project from a task with no dependencies", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null, projectId: 5 }]); // prev state
+    mockState.selectQueue.push([{ count: 0 }]); // dep-check: no dependencies
+    mockState.updateResult = [{ ...MOCK_TASK, projectId: null }];
+    mockState.selectQueue.push([]); // getOrgStages (after update)
+    mockState.selectQueue.push([{ count: 0 }]); // comment count
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ projectId: null });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 1 });
+  });
+
+  it("returns 400 when re-assigning to a different project on a task with active dependencies", async () => {
+    mockState.selectQueue.push([{ status: "todo", assignee: null, projectId: 5 }]); // prev state
+    mockState.selectQueue.push([{ id: 7 }]); // projectBelongsToOrg → found
+    mockState.selectQueue.push([{ count: 1 }]); // dep-check: 1 active dependency
+
+    const res = await request(buildApp())
+      .patch("/api/tasks/1")
+      .send({ projectId: 7 });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ error: expect.stringMatching(/dependencies/i) });
+  });
 });
 
 // ---------------------------------------------------------------------------
