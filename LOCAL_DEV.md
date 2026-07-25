@@ -173,6 +173,11 @@ This pushes the DB schema and creates the default local admin user
 (`admin@example.com` / `changeme`). The `setup` script always uses these
 fixed defaults. To use different credentials, run the DB scripts directly:
 
+> **Safe to re-run.** `pnpm run setup` is idempotent — if the user already
+> exists it prints "already exists, skipping" and exits successfully. Run it
+> again after a `git pull`, a schema change, or any time you want to make sure
+> the workspace is fully initialized.
+
 ```sh
 # bash / sh
 pnpm --filter @workspace/db run push

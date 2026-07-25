@@ -36,23 +36,27 @@ async function main(): Promise<void> {
     throw new Error('DATABASE_URL must be set');
   }
 
-  const passwordHash = hashPassword(password);
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
   try {
+    // Check whether the user already exists before creating.
+    const existing = await pool.query<{ id: string; email: string }>(
+      `SELECT id, email FROM users WHERE email = $1`,
+      [email],
+    );
+
+    if (existing.rows.length > 0) {
+      const user = existing.rows[0]!;
+      console.log(`Local user already exists: ${user.email} (id: ${user.id}), skipping.`);
+      return;
+    }
+
+    const passwordHash = hashPassword(password);
+
     const { rows } = await pool.query<{ id: string; email: string }>(
       `
       INSERT INTO users (email, first_name, last_name, auth_provider, password_hash)
       VALUES ($1, $2, $3, 'local', $4)
-      ON CONFLICT (email)
-      DO UPDATE SET
-        first_name = EXCLUDED.first_name,
-        last_name = EXCLUDED.last_name,
-        auth_provider = 'local',
-        password_hash = EXCLUDED.password_hash,
-        external_auth_id = NULL,
-        profile_image_url = NULL,
-        updated_at = NOW()
       RETURNING id, email
       `,
       [email, firstName, lastName, passwordHash],
@@ -60,10 +64,10 @@ async function main(): Promise<void> {
 
     const user = rows[0];
     if (!user) {
-      throw new Error('Failed to create/update local user');
+      throw new Error('Failed to create local user');
     }
 
-    console.log(`Local user ready: ${user.email} (id: ${user.id})`);
+    console.log(`Local user created: ${user.email} (id: ${user.id})`);
   } finally {
     await pool.end();
   }
