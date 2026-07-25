@@ -46,9 +46,9 @@
     "migrate:add-comment-edited-at": "pnpm dlx tsx src/migrations/add-comment-edited-at.ts",
     "migrate:add-edit-comments-permission": "pnpm dlx tsx src/migrations/add-edit-comments-permission.ts",
     "migrate:add-multi-auth-support": "pnpm dlx tsx src/migrations/add-multi-auth-support.ts",
-    "make-admin": "pnpm dlx tsx src/make-admin.ts",
-    "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke",
-    "create-local-user": "pnpm dlx tsx src/create-local-user.ts",
+    "make-admin": "tsx src/make-admin.ts",
+    "revoke-admin": "tsx src/make-admin.ts --revoke",
+    "create-local-user": "tsx src/create-local-user.ts",
     "test": "vitest run"
   },
   "dependencies": {
@@ -56,6 +56,7 @@
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
     "pg": "^8.22.0",
+    "tsx": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
