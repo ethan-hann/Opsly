@@ -6,6 +6,8 @@ import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
 import { Link, useLocation, useSearch } from "wouter";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +27,7 @@ import { InlineNotes } from "@/components/notes/inline-notes";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef, useCallback, type ReactNode } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -268,6 +270,7 @@ function CommentNodeRenderer({
   isPostingReply,
   commentsQueryKey,
   members,
+  onEditDirtyChange,
 }: {
   node: CommentNode;
   taskId: number;
@@ -283,12 +286,23 @@ function CommentNodeRenderer({
   isPostingReply: boolean;
   commentsQueryKey: readonly unknown[];
   members: import("@workspace/api-client-react").OrgMemberInfo[];
+  onEditDirtyChange: (id: number, isDirty: boolean) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const [rootCollapsed, setRootCollapsed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState("");
   const queryClient = useQueryClient();
+
+  // Notify parent when this edit box becomes dirty or clean so the page-level
+  // navigation guard can block accidental navigation.
+  useEffect(() => {
+    const dirty = isEditing && editText.trim().length > 0;
+    onEditDirtyChange(node.id, dirty);
+    // On unmount clear any dirty flag this node registered.
+    return () => onEditDirtyChange(node.id, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, editText]);
   const { toast } = useToast();
 
   const { t: tComment, i18n: i18nComment } = useTranslation();
@@ -371,6 +385,7 @@ function CommentNodeRenderer({
             isPostingReply={isPostingReply}
             commentsQueryKey={commentsQueryKey}
             members={members}
+            onEditDirtyChange={onEditDirtyChange}
           />
         ))}
       </div>
@@ -598,6 +613,7 @@ function CommentNodeRenderer({
                 isPostingReply={isPostingReply}
                 commentsQueryKey={commentsQueryKey}
                 members={members}
+                onEditDirtyChange={onEditDirtyChange}
               />
             ))}
           </>
@@ -1091,10 +1107,33 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const dateFnsLocale = useDateLocale();
 
   const [commentText, setCommentText] = useState("");
+
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [replyingToId, setReplyingToId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
+
+  // Track dirty state of inline edit boxes inside CommentNodeRenderer.
+  // A ref map records the current dirty state per comment ID; a boolean state
+  // drives the guard so React re-renders when any editor becomes dirty/clean.
+  const editDirtyMapRef = useRef<Map<number, boolean>>(new Map());
+  const [hasAnyDirtyEdit, setHasAnyDirtyEdit] = useState(false);
+  const onEditDirtyChange = useCallback((id: number, dirty: boolean) => {
+    editDirtyMapRef.current.set(id, dirty);
+    const anyDirty = [...editDirtyMapRef.current.values()].some((v) => v);
+    setHasAnyDirtyEdit(anyDirty);
+  }, []);
+
+  // Guard: warn before navigating away with unsaved comment, reply, or edit text.
+  const commentIsDirty =
+    commentText.trim().length > 0 ||
+    replyText.trim().length > 0 ||
+    hasAnyDirtyEdit;
+  const {
+    dialogOpen: commentGuardOpen,
+    handleLeave: handleCommentLeave,
+    handleStay: handleCommentStay,
+  } = useUnsavedChangesGuard(commentIsDirty);
 
   // ── Watchers ──────────────────────────────────────────────────────────────
   const { data: watchersData } = useGetTaskWatchers(taskId);
@@ -1370,6 +1409,13 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      {/* Unsaved comment guard */}
+      <UnsavedChangesDialog
+        open={commentGuardOpen}
+        onLeave={handleCommentLeave}
+        onStay={handleCommentStay}
+      />
+
       {/* Navigation */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
         {fromSearch && (
@@ -1565,6 +1611,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                           isPostingReply={replyMutation.isPending}
                           commentsQueryKey={getListCommentsQueryKey(taskId)}
                           members={members}
+                          onEditDirtyChange={onEditDirtyChange}
                         />
                       ))}
                     </div>

@@ -23,6 +23,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 
 interface InlineNotesProps {
   projectId?: number;
@@ -36,6 +38,14 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newContent, setNewContent] = useState("");
+
+  // Guard: warn before navigating away with an unsaved note draft
+  const noteIsDirty = isCreating && newContent.trim().length > 0;
+  const {
+    dialogOpen: noteGuardOpen,
+    handleLeave: handleNoteLeave,
+    handleStay: handleNoteStay,
+  } = useUnsavedChangesGuard(noteIsDirty);
 
   const query =
     projectId !== undefined
@@ -80,6 +90,13 @@ export function InlineNotes({ projectId, taskId }: InlineNotesProps) {
 
   return (
     <div className="space-y-2">
+      {/* Unsaved note draft guard */}
+      <UnsavedChangesDialog
+        open={noteGuardOpen}
+        onLeave={handleNoteLeave}
+        onStay={handleNoteStay}
+      />
+
       {/* Header */}
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2 text-sm font-medium">
