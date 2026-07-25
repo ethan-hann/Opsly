@@ -1840,15 +1840,6 @@ export default function TasksList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <NewTaskModal
-        open={showNewTask}
-        onOpenChange={(open) => {
-          setShowNewTask(open);
-          if (!open) setTemplateForModal(undefined);
-        }}
-        initialTemplate={templateForModal}
-      />
     </div>
   );
 }
