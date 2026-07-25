@@ -30,6 +30,7 @@ export default defineConfig({
     viewport: { width: 393, height: 851 },
   },
   projects: [
+    // ── Touch-drag tests (existing) ──────────────────────────────────────────
     {
       name: "chromium-touch",
       use: {
@@ -38,6 +39,30 @@ export default defineConfig({
         // already sets hasTouch:true but we make it explicit here).
         hasTouch: true,
       },
+      // Only run the touch-specific spec on this project.
+      testMatch: "**/touch-drag-tree.spec.ts",
+    },
+
+    // ── Pointer-drag tests (drop-zone visibility, Chromium + Firefox) ────────
+    //
+    // The drag-drop-zone-visibility spec dispatches HTML DragEvents via
+    // page.evaluate so it does not require touch support.  Running it on both
+    // engines ensures the deferred-dragState-clear fix holds in each.
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        hasTouch: false,
+      },
+      testMatch: "**/drag-drop-zone-visibility.spec.ts",
+    },
+    {
+      name: "firefox",
+      use: {
+        ...devices["Desktop Firefox"],
+        hasTouch: false,
+      },
+      testMatch: "**/drag-drop-zone-visibility.spec.ts",
     },
   ],
   // Do NOT use webServer here: the dev server is already managed by the
