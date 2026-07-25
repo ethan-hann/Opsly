@@ -16,6 +16,9 @@
  */
 
 import { logger } from "../logger";
+import { LocalStorageProvider } from "./local";
+import { S3StorageProvider } from "./s3";
+import { ReplitStorageProvider } from "./replit";
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -46,6 +49,16 @@ export interface StorageProvider {
 let _provider: StorageProvider | undefined;
 
 /**
+ * Reset the cached provider singleton.
+ *
+ * Intended for use in unit tests only (clear the singleton between cases that
+ * each set a different STORAGE_DRIVER).  Not called in production code.
+ */
+export function _resetStorageProviderForTesting(): void {
+  _provider = undefined;
+}
+
+/**
  * Return the active StorageProvider singleton.
  * Instantiates on first call; subsequent calls return the cached instance.
  * Prefer calling initStorageProvider() at startup over calling this directly.
@@ -56,19 +69,12 @@ export function getStorageProvider(): StorageProvider {
   const driver = (process.env.STORAGE_DRIVER ?? "local").toLowerCase().trim();
 
   if (driver === "s3") {
-    // Lazy import to avoid bundling the SDK when it is not needed.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { S3StorageProvider } = require("./s3") as typeof import("./s3");
     _provider = new S3StorageProvider();
   } else if (driver === "replit") {
     // Replit/GCS implementation — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { ReplitStorageProvider } = require("./replit") as typeof import("./replit");
     _provider = new ReplitStorageProvider();
   } else {
     // Default: local filesystem — writes to LOCAL_STORAGE_PATH (default ./data/exports/).
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { LocalStorageProvider } = require("./local") as typeof import("./local");
     _provider = new LocalStorageProvider();
   }
 
