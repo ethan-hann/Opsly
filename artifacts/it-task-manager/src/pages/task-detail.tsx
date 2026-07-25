@@ -26,7 +26,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { EditTaskModal } from "@/components/ui/edit-task-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1092,7 +1091,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const dateFnsLocale = useDateLocale();
 
   const [commentText, setCommentText] = useState("");
-  const [editOpen, setEditOpen] = useState(false);
   const [dueDateOpen, setDueDateOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [replyingToId, setReplyingToId] = useState<number | null>(null);
@@ -1372,7 +1370,6 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
-      <EditTaskModal open={editOpen} onOpenChange={setEditOpen} task={task} />
       {/* Navigation */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
         {fromSearch && (
@@ -1425,7 +1422,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
                     )}
                   </Button>
                   {canEdit && (
-                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
+                    <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setLocation(`/tasks/${taskId}/edit`)}>
                       <Edit className="w-3.5 h-3.5" /> {t('taskDetail.editTask', { task: tSingular("tasks") })}
                     </Button>
                   )}

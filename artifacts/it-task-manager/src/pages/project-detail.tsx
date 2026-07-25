@@ -9,8 +9,6 @@ import {
 } from "@workspace/api-client-react";
 import type { SlaPolicy } from "@workspace/api-client-react";
 import { ProjectPropertiesPanel } from "@/components/ui/project-properties-panel";
-import { EditProjectModal } from "@/components/ui/edit-project-modal";
-import { NewTaskModal } from "@/components/ui/new-task-modal";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -578,8 +576,6 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   const { t: term, tSingular } = useTerminology();
   const { t, i18n } = useTranslation();
 
-  const [editOpen, setEditOpen] = useState(false);
-  const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "board">(
     () => (localStorage.getItem("project-detail-view-mode") as "list" | "board") ?? "list",
   );
@@ -672,8 +668,6 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <EditProjectModal open={editOpen} onOpenChange={setEditOpen} project={project} />
-      <NewTaskModal open={newTaskOpen} onOpenChange={setNewTaskOpen} initialProjectId={projectId} />
       {/* Header / Nav */}
       <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
         {fromSearch && (
@@ -739,7 +733,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
               </Button>
               {canManageProjects && (
                 <>
-                  <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setEditOpen(true)}>
+                  <Button variant="outline" size="sm" className="gap-2 text-xs" onClick={() => setLocation(`/projects/${projectId}/edit`)}>
                     <Edit className="w-3.5 h-3.5" /> {t('projects.editProject', { defaultValue: 'Edit {{project}}', project: tSingular("projects") })}
                   </Button>
                   <AlertDialog>
@@ -909,7 +903,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                       >
                         <Columns className="w-4 h-4" />
                       </Button>
-                      <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
+                      <Button size="sm" className="gap-2" onClick={() => setLocation(`/tasks/new?projectId=${projectId}`)}>
                         <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
                       </Button>
                     </div>
@@ -1017,7 +1011,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
                     >
                       <Columns className="w-4 h-4" />
                     </Button>
-                    <Button size="sm" className="gap-2" onClick={() => setNewTaskOpen(true)}>
+                    <Button size="sm" className="gap-2" onClick={() => setLocation(`/tasks/new?projectId=${projectId}`)}>
                       <Plus className="w-4 h-4" /> {t('tasks.newTask', { task: tSingular("tasks") })}
                     </Button>
                   </div>

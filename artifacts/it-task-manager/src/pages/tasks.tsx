@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useTranslation } from 'react-i18next';
 import { useTerminology } from "@/context/terminology-context";
-import type { TaskTemplate, BulkCloseBlockedTask } from "@workspace/api-client-react";
+import type { BulkCloseBlockedTask } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -57,7 +57,6 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { NewTaskModal } from "@/components/ui/new-task-modal";
 import { KanbanBoard } from "@/components/ui/kanban-board";
 import {
   Popover,
@@ -949,10 +948,6 @@ export default function TasksList() {
     { value: "other", label: t('tasks.categoryOther') },
   ];
   const [viewMode, setViewMode] = useState<"list" | "board">("list");
-  const [showNewTask, setShowNewTask] = useState(false);
-  const [templateForModal, setTemplateForModal] = useState<
-    TaskTemplate | undefined
-  >(undefined);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const defaultApplied = useRef(false);
 
@@ -1259,9 +1254,8 @@ export default function TasksList() {
                     <button
                       key={tmpl.id}
                       onClick={() => {
-                        setTemplateForModal(tmpl);
                         setShowTemplatePicker(false);
-                        setShowNewTask(true);
+                        setLocation(`/tasks/new?templateId=${tmpl.id}`);
                       }}
                       className="w-full text-left px-3 py-2 text-xs rounded-sm hover:bg-muted transition-colors"
                     >
@@ -1278,10 +1272,7 @@ export default function TasksList() {
           <Button
             className="gap-2"
             data-testid="button-create-task"
-            onClick={() => {
-              setTemplateForModal(undefined);
-              setShowNewTask(true);
-            }}
+            onClick={() => setLocation("/tasks/new")}
           >
             <Plus className="w-4 h-4" />
             {t('tasks.newTask', { task: ts("tasks") })}
@@ -1850,14 +1841,6 @@ export default function TasksList() {
         </DialogContent>
       </Dialog>
 
-      <NewTaskModal
-        open={showNewTask}
-        onOpenChange={(open) => {
-          setShowNewTask(open);
-          if (!open) setTemplateForModal(undefined);
-        }}
-        initialTemplate={templateForModal}
-      />
     </div>
   );
 }

@@ -21,8 +21,12 @@ import { BrandingProvider } from '@/context/branding-context';
 import Dashboard from '@/pages/dashboard';
 import ProjectsList from '@/pages/projects';
 import ProjectDetail from '@/pages/project-detail';
+import ProjectNewPage from '@/pages/project-new';
+import ProjectEditPage from '@/pages/project-edit';
 import TasksList from '@/pages/tasks';
 import TaskDetail from '@/pages/task-detail';
+import TaskNewPage from '@/pages/task-new';
+import TaskEditPage from '@/pages/task-edit';
 import NotesPage from '@/pages/notes';
 import LoginPage from '@/pages/login';
 import OrgOnboarding from '@/pages/org-onboarding';
@@ -109,8 +113,12 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/projects" component={ProjectsList} />
+        <Route path="/projects/new" component={ProjectNewPage} />
+        <Route path="/projects/:id/edit" component={ProjectEditPage} />
         <Route path="/projects/:id" component={ProjectDetail} />
         <Route path="/tasks" component={TasksList} />
+        <Route path="/tasks/new" component={TaskNewPage} />
+        <Route path="/tasks/:id/edit" component={TaskEditPage} />
         <Route path="/tasks/:id" component={TaskDetail} />
         <Route path="/notes" component={NotesPage} />
         <Route path="/org/settings" component={OrgSettings} />

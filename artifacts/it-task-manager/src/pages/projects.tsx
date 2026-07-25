@@ -8,13 +8,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, FolderGit2, Calendar, X, Shield } from "lucide-react";
 import { StatusBadge, PriorityBadge } from "@/components/ui/status-badge";
 import { formatDate } from "@/lib/utils";
-import { NewProjectModal } from "@/components/ui/new-project-modal";
 import { useTerminology } from "@/context/terminology-context";
 import { useTranslation } from "react-i18next";
 
 export default function ProjectsList() {
   const { data: projects, isLoading } = useListProjects();
-  const [showNewProject, setShowNewProject] = useState(false);
   const { hasPermission } = useOrgContext();
   const canManageProjects = hasPermission('manage_projects');
   const { t: term, ts } = useTerminology();
@@ -44,7 +42,7 @@ export default function ProjectsList() {
           <p className="text-muted-foreground mt-1">{t('projects.subtitle')}</p>
         </div>
         {canManageProjects && (
-          <Button className="gap-2" data-testid="button-create-project" onClick={() => setShowNewProject(true)}>
+          <Button className="gap-2" data-testid="button-create-project" onClick={() => setLocation("/projects/new")}>
             <Plus className="w-4 h-4" />
             {t("projects.newProject", { project: ts("projects") })}
           </Button>
@@ -142,7 +140,7 @@ export default function ProjectsList() {
                 {t("common.clear")}
               </Button>
             ) : canManageProjects ? (
-              <Button variant="outline" className="gap-2" onClick={() => setShowNewProject(true)}>
+              <Button variant="outline" className="gap-2" onClick={() => setLocation("/projects/new")}>
                 <Plus className="w-4 h-4" />
                 {t("projects.createProject", { project: ts("projects") })}
               </Button>
@@ -151,7 +149,6 @@ export default function ProjectsList() {
         )}
       </div>
 
-      <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
     </div>
   );
 }

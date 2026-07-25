@@ -80,9 +80,13 @@ export function getAuthMode(): AuthMode {
   return getAuthConfig().mode;
 }
 
+function isOidcAuthConfig(config: AuthConfig): config is OidcAuthConfig {
+  return isOidcAuthMode(config.mode);
+}
+
 export function getOidcAuthConfig(): OidcAuthConfig {
   const config = getAuthConfig();
-  if (!isOidcAuthMode(config.mode)) {
+  if (!isOidcAuthConfig(config)) {
     throw new Error('OIDC config requested while AUTH_MODE is local');
   }
   if (!config.issuerUrl || !config.clientId) {
