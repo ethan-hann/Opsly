@@ -13,8 +13,10 @@ import {
 } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { toast } from "@/hooks/use-toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Breadcrumb,
@@ -70,7 +72,14 @@ export default function ProjectEditPage({
   const [dueDate, setDueDate] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Initialize form when project loads
+  // Unsaved-changes guard
+  const [isDirty, setIsDirty] = useState(false);
+  const { dialogOpen, handleLeave, handleStay, allowNextNavigation } =
+    useUnsavedChangesGuard(isDirty);
+
+  const markDirty = () => setIsDirty(true);
+
+  // Initialize form when project loads (programmatic — does not mark dirty)
   useEffect(() => {
     if (project && !initialized) {
       setName(project.name);
@@ -111,6 +120,8 @@ export default function ProjectEditPage({
           queryClient.setQueryData(["getProject", projectId], data);
           queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
           toast({ title: t("projects.updated") });
+          // Clear guard before navigating away after a successful save
+          allowNextNavigation();
           setLocation(`/projects/${projectId}`);
         },
         onError: () => {
@@ -157,6 +168,13 @@ export default function ProjectEditPage({
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
+      {/* Unsaved-changes confirmation dialog */}
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onLeave={handleLeave}
+        onStay={handleStay}
+      />
+
       {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
@@ -209,9 +227,9 @@ export default function ProjectEditPage({
             <TabsContent value="basic-info" className="mt-0">
               <ProjectFormBasicInfo
                 name={name}
-                onNameChange={setName}
+                onNameChange={(v) => { setName(v); markDirty(); }}
                 description={description}
-                onDescriptionChange={setDescription}
+                onDescriptionChange={(v) => { setDescription(v); markDirty(); }}
                 nameError={errors.name}
                 onNameErrorChange={(e) =>
                   setErrors((prev) => ({ ...prev, name: e }))
@@ -223,16 +241,16 @@ export default function ProjectEditPage({
             <TabsContent value="status-priority" className="mt-0">
               <ProjectFormStatusPriority
                 status={status}
-                onStatusChange={setStatus}
+                onStatusChange={(v) => { setStatus(v); markDirty(); }}
                 priority={priority}
-                onPriorityChange={setPriority}
+                onPriorityChange={(v) => { setPriority(v); markDirty(); }}
               />
             </TabsContent>
 
             <TabsContent value="due-date" className="mt-0">
               <ProjectFormDueDate
                 dueDate={dueDate}
-                onDueDateChange={setDueDate}
+                onDueDateChange={(v) => { setDueDate(v); markDirty(); }}
               />
             </TabsContent>
           </div>
@@ -243,7 +261,11 @@ export default function ProjectEditPage({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setLocation(`/projects/${projectId}`)}
+            onClick={() => {
+              // Cancel is intentional — bypass the guard
+              allowNextNavigation();
+              setLocation(`/projects/${projectId}`);
+            }}
             disabled={isPending}
           >
             {t("common.cancel")}

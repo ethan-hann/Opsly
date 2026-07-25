@@ -19,7 +19,9 @@ import {
 } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { toast } from "@/hooks/use-toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Breadcrumb,
@@ -84,14 +86,22 @@ export default function TaskNewPage() {
   >({});
   const [selectedParentIds, setSelectedParentIds] = useState<number[]>([]);
 
-  // Default status to first active stage
+  // Unsaved-changes guard
+  const [isDirty, setIsDirty] = useState(false);
+  const { dialogOpen, handleLeave, handleStay, allowNextNavigation } =
+    useUnsavedChangesGuard(isDirty);
+
+  const markDirty = () => setIsDirty(true);
+
+  // Default status to first active stage (programmatic — does not mark dirty)
   useEffect(() => {
     if (activeStages.length > 0 && !status) {
       setStatus(String(activeStages[0].id));
     }
   }, [activeStages, status]);
 
-  // Apply template from URL param once templates are loaded
+  // Apply template from URL param once templates are loaded (marks dirty —
+  // the user deliberately chose a template and has work worth preserving)
   const [templateApplied, setTemplateApplied] = useState(false);
   useEffect(() => {
     if (!templateApplied && templateId && templates.length > 0) {
@@ -101,6 +111,7 @@ export default function TaskNewPage() {
         if (tmpl.defaultDescription) setDescription(tmpl.defaultDescription);
         setPriority(tmpl.defaultPriority as TaskInputPriority);
         setCategory(tmpl.defaultCategory as TaskInputCategory);
+        setIsDirty(true);
       }
       setTemplateApplied(true);
     }
@@ -160,6 +171,8 @@ export default function TaskNewPage() {
             title: t("tasks.newTask", { task: ts("tasks") }),
             description: t("tasks.createdSuccess", { title: title.trim() }),
           });
+          // Clear guard before navigating away after a successful save
+          allowNextNavigation();
           setLocation("/tasks");
         },
         onError: () => {
@@ -175,6 +188,13 @@ export default function TaskNewPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
+      {/* Unsaved-changes confirmation dialog */}
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onLeave={handleLeave}
+        onStay={handleStay}
+      />
+
       {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
@@ -243,9 +263,9 @@ export default function TaskNewPage() {
             <TabsContent value="basic-info" className="mt-0">
               <TaskFormBasicInfo
                 title={title}
-                onTitleChange={setTitle}
+                onTitleChange={(v) => { setTitle(v); markDirty(); }}
                 description={description}
-                onDescriptionChange={setDescription}
+                onDescriptionChange={(v) => { setDescription(v); markDirty(); }}
                 titleError={errors.title}
                 onTitleErrorChange={(e) =>
                   setErrors((prev) => ({ ...prev, title: e }))
@@ -257,7 +277,7 @@ export default function TaskNewPage() {
             <TabsContent value="associations" className="mt-0">
               <TaskFormAssociations
                 projectId={projectId}
-                onProjectIdChange={setProjectId}
+                onProjectIdChange={(v) => { setProjectId(v); markDirty(); }}
                 projects={projects}
                 disabled={!!initialProjectId}
               />
@@ -266,11 +286,11 @@ export default function TaskNewPage() {
             <TabsContent value="status-priority" className="mt-0">
               <TaskFormStatusPriority
                 status={status}
-                onStatusChange={setStatus}
+                onStatusChange={(v) => { setStatus(v); markDirty(); }}
                 priority={priority}
-                onPriorityChange={setPriority}
+                onPriorityChange={(v) => { setPriority(v); markDirty(); }}
                 category={category}
-                onCategoryChange={setCategory}
+                onCategoryChange={(v) => { setCategory(v); markDirty(); }}
                 stages={stages}
               />
             </TabsContent>
@@ -278,9 +298,9 @@ export default function TaskNewPage() {
             <TabsContent value="assignee-due" className="mt-0">
               <TaskFormAssigneeDueDate
                 assignee={assignee}
-                onAssigneeChange={setAssignee}
+                onAssigneeChange={(v) => { setAssignee(v); markDirty(); }}
                 dueDate={dueDate}
-                onDueDateChange={setDueDate}
+                onDueDateChange={(v) => { setDueDate(v); markDirty(); }}
                 assigneeError={errors.assignee}
                 onAssigneeErrorChange={(e) =>
                   setErrors((prev) => ({ ...prev, assignee: e }))
@@ -292,9 +312,10 @@ export default function TaskNewPage() {
               <TaskFormCustomFields
                 fields={customFields}
                 values={customFieldValues}
-                onChange={(id, value) =>
-                  setCustomFieldValues((prev) => ({ ...prev, [id]: value }))
-                }
+                onChange={(id, value) => {
+                  setCustomFieldValues((prev) => ({ ...prev, [id]: value }));
+                  markDirty();
+                }}
               />
             </TabsContent>
 
@@ -303,7 +324,7 @@ export default function TaskNewPage() {
                 <TaskFormDependencies
                   projectId={numericProjectId}
                   selectedParentIds={selectedParentIds}
-                  onSelectionChange={setSelectedParentIds}
+                  onSelectionChange={(v) => { setSelectedParentIds(v); markDirty(); }}
                 />
               </TabsContent>
             )}
@@ -315,7 +336,11 @@ export default function TaskNewPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setLocation("/tasks")}
+            onClick={() => {
+              // Cancel is intentional — bypass the guard
+              allowNextNavigation();
+              setLocation("/tasks");
+            }}
             disabled={isPending}
           >
             {t("common.cancel")}

@@ -22,8 +22,10 @@ import {
 } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { toast } from "@/hooks/use-toast";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { UnsavedChangesDialog } from "@/components/ui/unsaved-changes-dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Breadcrumb,
@@ -91,7 +93,14 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
   // not against a live query value that may have changed between seed and save.
   const baselineEdgesRef = useRef<Array<{ id: number; taskId: number; dependsOnTaskId: number }>>([]);
 
-  // Initialize form fields when task loads
+  // Unsaved-changes guard
+  const [isDirty, setIsDirty] = useState(false);
+  const { dialogOpen, handleLeave, handleStay, allowNextNavigation } =
+    useUnsavedChangesGuard(isDirty);
+
+  const markDirty = () => setIsDirty(true);
+
+  // Initialize form fields when task loads (programmatic — does not mark dirty)
   useEffect(() => {
     if (task && !initialized) {
       setTitle(task.title);
@@ -217,6 +226,8 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
           toast({
             title: t("taskDetail.editTask", { task: tSingular("tasks") }),
           });
+          // Clear guard before navigating away after a successful save
+          allowNextNavigation();
           setLocation(`/tasks/${taskId}`);
         },
         onError: () => {
@@ -260,6 +271,13 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
+      {/* Unsaved-changes confirmation dialog */}
+      <UnsavedChangesDialog
+        open={dialogOpen}
+        onLeave={handleLeave}
+        onStay={handleStay}
+      />
+
       {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
@@ -329,9 +347,9 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
             <TabsContent value="basic-info" className="mt-0">
               <TaskFormBasicInfo
                 title={title}
-                onTitleChange={setTitle}
+                onTitleChange={(v) => { setTitle(v); markDirty(); }}
                 description={description}
-                onDescriptionChange={setDescription}
+                onDescriptionChange={(v) => { setDescription(v); markDirty(); }}
                 titleError={errors.title}
                 onTitleErrorChange={(e) =>
                   setErrors((prev) => ({ ...prev, title: e }))
@@ -343,7 +361,7 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
             <TabsContent value="associations" className="mt-0">
               <TaskFormAssociations
                 projectId={projectId}
-                onProjectIdChange={setProjectId}
+                onProjectIdChange={(v) => { setProjectId(v); markDirty(); }}
                 projects={projects}
               />
             </TabsContent>
@@ -351,11 +369,11 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
             <TabsContent value="status-priority" className="mt-0">
               <TaskFormStatusPriority
                 status={status}
-                onStatusChange={setStatus}
+                onStatusChange={(v) => { setStatus(v); markDirty(); }}
                 priority={priority}
-                onPriorityChange={setPriority}
+                onPriorityChange={(v) => { setPriority(v); markDirty(); }}
                 category={category}
-                onCategoryChange={setCategory}
+                onCategoryChange={(v) => { setCategory(v); markDirty(); }}
                 stages={stages}
                 readOnly={statusReadOnly}
                 statusDisplayName={task.stageName ?? undefined}
@@ -366,9 +384,9 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
             <TabsContent value="assignee-due" className="mt-0">
               <TaskFormAssigneeDueDate
                 assignee={assignee}
-                onAssigneeChange={setAssignee}
+                onAssigneeChange={(v) => { setAssignee(v); markDirty(); }}
                 dueDate={dueDate}
-                onDueDateChange={setDueDate}
+                onDueDateChange={(v) => { setDueDate(v); markDirty(); }}
                 assigneeError={errors.assignee}
                 onAssigneeErrorChange={(e) =>
                   setErrors((prev) => ({ ...prev, assignee: e }))
@@ -380,9 +398,10 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
               <TaskFormCustomFields
                 fields={customFields}
                 values={customFieldValues}
-                onChange={(id, value) =>
-                  setCustomFieldValues((prev) => ({ ...prev, [id]: value }))
-                }
+                onChange={(id, value) => {
+                  setCustomFieldValues((prev) => ({ ...prev, [id]: value }));
+                  markDirty();
+                }}
               />
             </TabsContent>
 
@@ -391,7 +410,7 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
                 <TaskFormDependencies
                   projectId={numericProjectId}
                   selectedParentIds={selectedParentIds}
-                  onSelectionChange={setSelectedParentIds}
+                  onSelectionChange={(v) => { setSelectedParentIds(v); markDirty(); }}
                   excludeTaskId={taskId}
                 />
               </TabsContent>
@@ -404,7 +423,11 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setLocation(`/tasks/${taskId}`)}
+            onClick={() => {
+              // Cancel is intentional — bypass the guard
+              allowNextNavigation();
+              setLocation(`/tasks/${taskId}`);
+            }}
             disabled={isPending}
           >
             {t("common.cancel")}
