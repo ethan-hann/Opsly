@@ -59,9 +59,15 @@ const PREFIX = process.env.STORAGE_PREFIX ?? "exports/";
 export class LocalStorageProvider implements StorageProvider {
   /** Resolve a logical key to an absolute filesystem path. */
   private filePath(key: string): string {
-    // Sanitize to prevent path traversal: strip leading slashes, resolve
-    // against the base dir, and verify the result stays inside it.
-    const relative = path.normalize(path.join(PREFIX, key)).replace(/^(\.\.[/\\])+/, "");
+    // Reject any key whose path segments contain "..".  Silent sanitisation
+    // (stripping leading "../" sequences) hides the bad input from callers and
+    // auditors: the DB row would store the original key while the file lands at
+    // a different path, making round-trips appear to work while masking the
+    // traversal attempt entirely.
+    if (key.split(/[/\\]/).some((part) => part === "..")) {
+      throw new Error(`Path traversal detected for key: ${key}`);
+    }
+    const relative = path.normalize(path.join(PREFIX, key));
     const full = path.join(getBaseDir(), relative);
     const base = path.resolve(getBaseDir());
     if (!full.startsWith(base + path.sep) && full !== base) {

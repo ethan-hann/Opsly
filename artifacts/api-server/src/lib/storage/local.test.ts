@@ -141,26 +141,29 @@ describe("LocalStorageProvider", () => {
 
   // ── path-traversal rejection ──────────────────────────────────────────────
   //
-  // The filePath() guard works as follows:
-  //   1. path.join(PREFIX, key) is normalised (resolves `..` segments).
-  //   2. Leading `../` sequences are stripped by the regex.
-  //   3. If the final resolved path still escapes the base directory the
-  //      method throws.  This happens when the normalised form after PREFIX
-  //      contraction lands at ".." (e.g. key="../.." → join gives ".." once
-  //      the single "exports" level is consumed, and ".." is not stripped
-  //      because it lacks a trailing slash).
+  // filePath() rejects any key whose path segments contain "..".  It throws
+  // before performing any normalisation, so keys that would have been silently
+  // rerouted to an unexpected location (e.g. "../../../etc/data" → "data") are
+  // caught immediately.  The check splits on "/" and "\" and rejects any
+  // segment that equals "..".
+
+  it("throws for a simple traversal key that previously would have been silently rerouted", () => {
+    // Without the early guard, "../../../etc/data" was stripped to "data" and
+    // stored at an unexpected path.  Now it must throw outright.
+    expect(() => {
+      (provider as unknown as { filePath(k: string): string }).filePath(
+        "../../../etc/data",
+      );
+    }).toThrow(/Path traversal detected/);
+  });
 
   it("throws on a key that escapes the base directory after prefix contraction", () => {
-    // "exports/" + "../.." normalises to ".."; the strip regex leaves ".." as-is
-    // (no trailing slash), so path.join(base, "..") resolves to the parent dir.
     expect(() => {
       (provider as unknown as { filePath(k: string): string }).filePath("../..");
     }).toThrow(/Path traversal detected/);
   });
 
-  it("throws on a deeper traversal that still escapes after prefix contraction", () => {
-    // "exports/" + "../../.." normalises to "../.."; strip removes leading "../"
-    // portion leaving ".."; path.join(base, "..") still escapes.
+  it("throws on a deeper traversal", () => {
     expect(() => {
       (provider as unknown as { filePath(k: string): string }).filePath(
         "../../..",
@@ -168,8 +171,7 @@ describe("LocalStorageProvider", () => {
     }).toThrow(/Path traversal detected/);
   });
 
-  it("throws when a safe-looking sub-path contains enough `..` segments to escape", () => {
-    // "exports/" + "a/../../.." normalises to ".."; still escapes the base dir.
+  it("throws when a safe-looking sub-path contains `..` segments", () => {
     expect(() => {
       (provider as unknown as { filePath(k: string): string }).filePath(
         "a/../../..",
