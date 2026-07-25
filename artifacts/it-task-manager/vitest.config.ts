@@ -10,6 +10,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // Exclude Playwright e2e tests — they run via `pnpm test:e2e`, not vitest.
+    exclude: ["e2e/**", "**/node_modules/**"],
   },
   resolve: {
     alias: {

@@ -652,7 +652,7 @@ export function TaskTreeVisualization({
   const draggedTask = dragState != null ? tasks.find((t) => t.id === dragState.taskId) : null;
 
   return (
-    <div ref={containerRef} className="space-y-2">
+    <div ref={containerRef} className="space-y-2" data-testid="task-tree-container">
       {/* ── Floating touch-drag label — follows the finger ── */}
       {touchPos != null && draggedTask != null && (
         <div

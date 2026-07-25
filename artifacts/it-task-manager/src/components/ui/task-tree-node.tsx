@@ -126,7 +126,7 @@ export function TaskTreeNode({
   const [dragOver, setDragOver] = useState(false);
 
   return (
-    <div>
+    <div data-testid={`tree-wrapper-${item.id}`}>
       {/* ── Node row ── */}
       <div
         className={cn(

@@ -558,6 +558,68 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
       expect(screen.getByTestId("tree-node-1")).toBeInTheDocument();
       expect(screen.getByTestId("tree-node-2")).toBeInTheDocument();
     });
+
+    it("calls onAddDependency and re-renders root node as child when touch ends on a sibling node", async () => {
+      const onAdd = vi.fn();
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B, TASK_C]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+          onAddDependency={onAdd}
+        />,
+      );
+
+      // PRECONDITION: Gamma (id:3) starts as a root — its tree-wrapper-3 is NOT
+      // inside tree-wrapper-1.  Use tree-wrapper-* (the outer container) because
+      // it wraps both the row and the children subtree — this is the only element
+      // that proves nesting.  tree-node-* is the inner row div; children render
+      // in a sibling container after it, so row.contains(child-row) is always false.
+      const wrapperA_before = screen.getByTestId("tree-wrapper-1");
+      const wrapperC_before = screen.getByTestId("tree-wrapper-3");
+      expect(wrapperA_before.contains(wrapperC_before)).toBe(false);
+
+      // Gamma (id:3) starts as a root; we touch-drag it onto Alpha (tree-node-1).
+      const handleC = screen.getByTestId("drag-handle-3");
+      fireEvent.touchStart(handleC);
+
+      // Drop zone appears (dragState is set for a root node → shows zone).
+      screen.getByTestId("top-level-drop-zone");
+
+      // Resolve the drop onto Alpha's tree-node row.
+      const nodeA = screen.getByTestId("tree-node-1");
+      const original = document.elementFromPoint;
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        writable: true,
+        value: () => nodeA,
+      });
+
+      const container = nodeA.closest("[data-testid='task-tree-container']") as HTMLElement;
+      await act(async () => {
+        fireEvent.touchEnd(container, {
+          changedTouches: [{ clientX: 50, clientY: 50 }],
+        });
+      });
+
+      if (original === undefined) {
+        // @ts-expect-error — restoring to JSDOM's native undefined state
+        delete document.elementFromPoint;
+      } else {
+        document.elementFromPoint = original;
+      }
+
+      // onAddDependency should be called: Gamma (3) depends on Alpha (1).
+      expect(onAdd).toHaveBeenCalledTimes(1);
+      expect(onAdd).toHaveBeenCalledWith(3, 1);
+
+      // POSTCONDITION: Gamma's tree-wrapper-3 must now be inside tree-wrapper-1.
+      const wrapperA_after = screen.getByTestId("tree-wrapper-1");
+      const wrapperC_after = screen.getByTestId("tree-wrapper-3");
+      expect(
+        wrapperA_after.contains(wrapperC_after),
+        "tree-wrapper-1 should contain tree-wrapper-3 after Gamma is made a child of Alpha",
+      ).toBe(true);
+    });
   });
 
   // ── 8. Firefox dragEnd-before-drop (task #478) ────────────────────────────

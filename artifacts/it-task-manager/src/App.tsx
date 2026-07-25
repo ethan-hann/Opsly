@@ -1,3 +1,4 @@
+import React, { useEffect, Suspense } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/query-client';
 import { Toaster } from '@/components/ui/toaster';
@@ -6,7 +7,6 @@ import NotFound from '@/pages/not-found';
 import AdminConsolePage from '@/pages/admin/index';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
 import { useAuth } from '@workspace/replit-auth-web';
-import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ThemeProvider } from '@/components/theme-provider';
@@ -40,6 +40,10 @@ import UnsubscribePage from '@/pages/unsubscribe';
 import { NotificationPreferencesPage } from '@/pages/notification-preferences';
 import AuditLogPage from '@/pages/audit-log';
 import type { PendingInvitation } from '@workspace/api-client-react';
+// Dev-only: lazy-import so the fixture page is tree-shaken from production builds.
+const DevTestTreePage = import.meta.env.DEV
+  ? React.lazy(() => import('@/pages/dev-test-tree'))
+  : null;
 import { useOrgContext } from '@/hooks/use-org-context';
 import type { OrgFeatureKey } from '@/hooks/use-org-context';
 import { UpgradeBanner } from '@/components/ui/upgrade-modal';
@@ -173,6 +177,14 @@ function App() {
                 {/* Instance admin console - has its own auth check via /api/admin/me */}
                 <Route path="/admin" component={AdminConsolePage} />
                 <Route path="/admin/:rest*" component={AdminConsolePage} />
+                {/* Dev-only: touch-drag fixture for e2e tests (no auth required) */}
+                {DevTestTreePage && (
+                  <Route path="/dev-test/tree">
+                    <Suspense fallback={null}>
+                      <DevTestTreePage />
+                    </Suspense>
+                  </Route>
+                )}
                 <Route>
                   <AuthGuard>
                     <OrgAwareApp />
