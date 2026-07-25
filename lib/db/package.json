@@ -48,7 +48,8 @@
     "migrate:add-multi-auth-support": "pnpm dlx tsx src/migrations/add-multi-auth-support.ts",
     "make-admin": "pnpm dlx tsx src/make-admin.ts",
     "revoke-admin": "pnpm dlx tsx src/make-admin.ts --revoke",
-    "create-local-user": "pnpm dlx tsx src/create-local-user.ts"
+    "create-local-user": "pnpm dlx tsx src/create-local-user.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",
@@ -59,6 +60,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@types/pg": "^8.20.0",
-    "drizzle-kit": "^0.31.10"
+    "drizzle-kit": "^0.31.10",
+    "vitest": "^4.1.10"
   }
 }
