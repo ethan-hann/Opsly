@@ -1,8 +1,15 @@
 /**
  * LocalStorageProvider — StorageProvider backed by the local filesystem.
  *
- * Intended for local development and Docker dev stacks.  Not suitable for
- * production (no redundancy, no signed URLs, single-node only).
+ * Suitable for:
+ *   - Local development and Docker dev stacks
+ *   - Single-server production self-hosting (VPS, on-premises hardware)
+ *
+ * Not suitable for:
+ *   - Multi-node / horizontally-scaled deployments (no shared filesystem)
+ *   - High-availability setups requiring redundancy or signed URLs
+ *   For those use cases, set STORAGE_DRIVER=s3 with any S3-compatible backend
+ *   (AWS S3, MinIO, Cloudflare R2, etc.).
  *
  * Environment variables:
  *   LOCAL_STORAGE_PATH — base directory for stored files (default: ./data/exports/)
