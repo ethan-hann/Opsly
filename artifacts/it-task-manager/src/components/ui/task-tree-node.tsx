@@ -190,13 +190,20 @@ export function TaskTreeNode({
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", String(item.id));
-              onDragStateChange!({ taskId: item.id, parentId: thisParentId });
+              // Defer the React state update by one tick.  Calling setState
+              // synchronously inside dragstart triggers a re-render that
+              // mutates the DOM under the dragged element, causing browsers
+              // (especially inside iframes) to immediately cancel the drag.
+              const taskId = item.id;
+              const parentId = thisParentId;
+              setTimeout(() => {
+                onDragStateChange!({ taskId, parentId });
+              }, 0);
             }}
             onDragEnd={() => onDragStateChange!(null)}
-            onTouchStart={(e) => {
-              // Prevent the page from scrolling when the user touches the drag handle
-              e.preventDefault();
-              e.stopPropagation();
+            onTouchStart={() => {
+              // Activate touch-drag state; scroll prevention is handled by
+              // the container's non-passive touchmove listener.
               onDragStateChange!({ taskId: item.id, parentId: thisParentId });
             }}
           >
