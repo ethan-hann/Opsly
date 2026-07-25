@@ -1,6 +1,6 @@
 # Proposed Tasks — Review Index
 
-126 of 129 proposed tasks exported (3 could not be discovered via search).
+143 of 143 proposed tasks exported.
 
 | File | Ref | Title |
 |------|-----|-------|
@@ -130,3 +130,19 @@
 | [0462-api-server-query-performance-improvements.md](./0462-api-server-query-performance-improvements.md) | #462 | API server query performance improvements |
 | [0472-confirm-dragging-a-root-task-onto-a-node-and-back-to-top-lev.md](./0472-confirm-dragging-a-root-task-onto-a-node-and-back-to-top-lev.md) | #472 | Confirm dragging a root task onto a node and back to top level reflects in the tree without a page refresh |
 | [0473-prevent-the-top-level-drop-zone-from-disappearing-mid-drag-w.md](./0473-prevent-the-top-level-drop-zone-from-disappearing-mid-drag-w.md) | #473 | Prevent the top-level drop zone from disappearing mid-drag when the pointer briefly leaves a node |
+| [0479-confirm-the-unsaved-comment-prompt-appears-and-clears-corre.md](./0479-confirm-the-unsaved-comment-prompt-appears-and-clears-corre.md) | #479 | Confirm the unsaved-comment prompt appears and clears correctly in end-to-end navigation |
+| [0481-confirm-touch-drag-still-shows-visual-feedback-highlight-and.md](./0481-confirm-touch-drag-still-shows-visual-feedback-highlight-and.md) | #481 | Confirm touch-drag still shows visual feedback (highlight + floating label) while the finger moves |
+| [0482-ensure-playwright-system-library-dependencies-survive-env-reb.md](./0482-ensure-playwright-system-library-dependencies-survive-env-reb.md) | #482 | Ensure Playwright system library dependencies survive environment rebuilds |
+| [0483-confirm-re-parenting-a-task-with-multiple-parents-moves-only.md](./0483-confirm-re-parenting-a-task-with-multiple-parents-moves-only.md) | #483 | Confirm re-parenting a task with multiple parents moves only the dragged edge |
+| [0484-prevent-the-tree-from-showing-a-stale-structure-if-re-parenti.md](./0484-prevent-the-tree-from-showing-a-stale-structure-if-re-parenti.md) | #484 | Prevent the tree from showing a stale structure if re-parenting fails on the server |
+| [0503-confirm-exports-don-t-silently-fail-when-the-gcs-bucket-id-is.md](./0503-confirm-exports-don-t-silently-fail-when-the-gcs-bucket-id-is.md) | #503 | Confirm exports don't silently fail when the GCS bucket ID is missing at startup |
+| [0504-confirm-the-localstorageprovider-unit-tests-pass-so-storage-co.md](./0504-confirm-the-localstorageprovider-unit-tests-pass-so-storage-co.md) | #504 | Confirm the LocalStorageProvider unit tests pass so storage coverage doesn't have a broken baseline |
+| [0505-confirm-export-keys-are-validated-before-reaching-storage-so-t.md](./0505-confirm-export-keys-are-validated-before-reaching-storage-so-t.md) | #505 | Confirm export keys are validated before reaching storage so traversal attempts surface a clear API error |
+| [0506-fix-the-pre-existing-provider-test-ts-failures-so-storage-driv.md](./0506-fix-the-pre-existing-provider-test-ts-failures-so-storage-driv.md) | #506 | Fix the pre-existing provider.test.ts failures so storage driver tests aren't silently broken |
+| [0508-confirm-the-docker-image-builds-and-runs-correctly-on-arm64-ho.md](./0508-confirm-the-docker-image-builds-and-runs-correctly-on-arm64-ho.md) | #508 | Confirm the Docker image builds and runs correctly on ARM64 hosts (AWS Graviton, Raspberry Pi) |
+| [0509-catch-a-broken-production-docker-build-before-it-reaches-self-.md](./0509-catch-a-broken-production-docker-build-before-it-reaches-self-.md) | #509 | Catch a broken production Docker build before it reaches self-hosters |
+| [0510-confirm-the-production-image-starts-and-applies-the-db-schema-.md](./0510-confirm-the-production-image-starts-and-applies-the-db-schema-.md) | #510 | Confirm the production image starts and applies the DB schema with only production deps installed |
+| [0511-shrink-the-docker-image-further-by-pruning-dev-only-packages-f.md](./0511-shrink-the-docker-image-further-by-pruning-dev-only-packages-f.md) | #511 | Shrink the Docker image further by pruning dev-only packages from the pnpm store before copying it to the runner |
+| [0512-let-self-hosters-verify-a-backup-is-valid-before-relying-on-it.md](./0512-let-self-hosters-verify-a-backup-is-valid-before-relying-on-it.md) | #512 | Let self-hosters verify a backup is valid before relying on it for disaster recovery |
+| [0513-prevent-a-missed-backup-from-going-unnoticed-for-days.md](./0513-prevent-a-missed-backup-from-going-unnoticed-for-days.md) | #513 | Prevent a missed backup from going unnoticed for days |
+| [0514-confirm-make-admin-exits-with-an-error-when-the-email-doesn-t-.md](./0514-confirm-make-admin-exits-with-an-error-when-the-email-doesn-t-.md) | #514 | Confirm make-admin exits with an error when the email doesn't exist in the database |
