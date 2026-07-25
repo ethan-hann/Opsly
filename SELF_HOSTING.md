@@ -536,6 +536,30 @@ Settings saved through the UI are encrypted at rest using `SECRET_ENCRYPTION_KEY
 
 ## Upgrade procedure
 
+Use the upgrade helper script for a one-command upgrade with an automatic
+pre-upgrade backup and health-check verification:
+
+```sh
+./scripts/selfhost/upgrade.sh
+# With a custom env file:
+./scripts/selfhost/upgrade.sh --env-file /etc/opsly/.env.production
+```
+
+The script takes a backup before upgrading, pulls the latest image/code,
+rebuilds and restarts the stack, then polls `/api/healthz` until the API is
+healthy. If the health check fails, it prints the restore command to roll back.
+
+To skip the automatic backup (for example, when you have already backed up
+manually):
+
+```sh
+./scripts/selfhost/upgrade.sh --skip-backup
+```
+
+### Manual upgrade steps
+
+If you prefer to run each step yourself:
+
 1. **Pull the latest image or code:**
 
    ```sh
@@ -579,25 +603,61 @@ driver and managed Postgres.
 | PostgreSQL database | `opsly-postgres-data` volume | `pg_dump` (see below) |
 | Export files | `opsly-exports` volume | Volume backup or S3 versioning |
 
-### Database backup
+### One-command backup and restore
+
+Use the helper scripts in `scripts/selfhost/` to back up and restore with a
+single command.
+
+**Back up:**
 
 ```sh
-# Dump to a compressed file
-docker compose --env-file .env.production exec db \
+./scripts/selfhost/backup.sh
+# With a custom env file:
+./scripts/selfhost/backup.sh --env-file /etc/opsly/.env.production
+```
+
+This saves a timestamped backup to `./backups/YYYYMMDD-HHMMSS/` containing:
+- `opsly-db.sql.gz` — compressed pg_dump of the database
+- `exports.tar.gz` — tarball of the opsly-exports Docker volume (skipped when
+  `STORAGE_DRIVER=s3`)
+
+**Restore:**
+
+```sh
+./scripts/selfhost/restore.sh ./backups/20260725-143000
+# With a custom env file:
+./scripts/selfhost/restore.sh ./backups/20260725-143000 --env-file /etc/opsly/.env.production
+```
+
+The restore script prompts for confirmation before overwriting data, drops and
+recreates the database from the dump, restores the exports volume, then
+restarts the stack.
+
+**Schedule daily backups with cron:**
+
+```sh
+# Run at 02:00 every day, keep the last 30 days of backups
+0 2 * * * cd /opt/opsly && ./scripts/selfhost/backup.sh >> /var/log/opsly-backup.log 2>&1
+0 3 * * * find /opt/opsly/backups -maxdepth 1 -type d -mtime +30 -exec rm -rf {} +
+```
+
+Retain at least 7 daily and 4 weekly backups. Ship the `./backups/` directory
+to S3 or another off-site store using `aws s3 sync`, `rclone`, or `restic`.
+
+### Manual backup commands
+
+If you prefer to run the steps individually:
+
+```sh
+# Dump the database to a compressed file
+docker compose --env-file .env.production exec -T db \
   pg_dump -U opsly opsly | gzip > opsly-backup-$(date +%Y%m%d).sql.gz
 
 # Restore from a dump
 gunzip -c opsly-backup-20260101.sql.gz | \
   docker compose --env-file .env.production exec -T db \
   psql -U opsly opsly
-```
 
-Schedule daily backups with cron and ship them to S3 or another off-site
-store. Retain at least 7 daily and 4 weekly backups.
-
-### Export volume backup
-
-```sh
 # Tar the exports volume
 docker run --rm \
   -v opsly_opsly-exports:/source:ro \
