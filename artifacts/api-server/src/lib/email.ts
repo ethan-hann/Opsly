@@ -399,6 +399,31 @@ export function buildSlaBreachEmail(opts: {
 }
 
 /**
+ * Build the password reset HTML email.
+ */
+export function buildPasswordResetEmail(opts: {
+  resetLink: string;
+}): string {
+  const resetLink = escapeHtml(opts.resetLink);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><style>${STYLES}</style></head>
+<body>
+<div class="wrapper">
+  <div class="header"><h1>Opsly</h1></div>
+  <div class="body">
+    <h2>Reset your password</h2>
+    <p>We received a request to reset the password for your Opsly account. Click the button below to choose a new password.</p>
+    <a class="cta" href="${resetLink}">Reset password</a>
+    <p style="color:#6b7280;font-size:13px;">This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email — your password will not change.</p>
+  </div>
+  <div class="footer">Opsly · This is an automated message.</div>
+</div>
+</body>
+</html>`;
+}
+
+/**
  * Build the notification digest HTML email.
  */
 export function buildDigestEmail(opts: {
