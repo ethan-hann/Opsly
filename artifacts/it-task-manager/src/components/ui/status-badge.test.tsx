@@ -53,13 +53,14 @@ describe("StatusBadge — colored stage badge", () => {
 
   it("falls back to the legacy label when stageColor is absent", () => {
     // stageName alone is not enough — both must be present for the colored path.
-    // formatBadgeLabel("open") returns "open" (CSS text-transform handles display).
+    // t('common.open') returns "Open"; match case-insensitively so the assertion
+    // is resilient to future terminology changes.
     render(<StatusBadge status="open" stageName="Open" />);
-    expect(screen.getByText("open")).toBeInTheDocument();
+    expect(screen.getByText(/^open$/i)).toBeInTheDocument();
   });
 
   it("falls back to the legacy label when stageName is absent", () => {
     render(<StatusBadge status="open" stageColor="#10b981" />);
-    expect(screen.getByText("open")).toBeInTheDocument();
+    expect(screen.getByText(/^open$/i)).toBeInTheDocument();
   });
 });

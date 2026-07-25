@@ -19,6 +19,15 @@ vi.mock("sonner", () => ({
   },
 }));
 
+// draft-notes uses idb-keyval (IndexedDB), which is not available in JSDOM.
+// The offline-banner calls flushDraftNotes() directly, so we stub it out.
+vi.mock("@/lib/draft-notes", () => ({
+  flushDraftNotes: vi.fn().mockResolvedValue([]),
+  saveDraft: vi.fn().mockResolvedValue(undefined),
+  loadDrafts: vi.fn().mockResolvedValue([]),
+  deleteDraft: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { useNetworkStatus } from "@/hooks/use-network-status";
 import { useOfflineQueue } from "@/hooks/use-offline-queue";
 

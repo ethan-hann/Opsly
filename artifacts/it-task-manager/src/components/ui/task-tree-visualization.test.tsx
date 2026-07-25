@@ -31,6 +31,13 @@ vi.mock("wouter", () => ({
   ),
 }));
 
+vi.mock("@/context/terminology-context", () => ({
+  useTerminology: () => ({
+    t: (key: string) => key,
+    tSingular: (key: string) => key,
+  }),
+}));
+
 import { TaskTreeVisualization } from "./task-tree-visualization.js";
 import type { TaskTreeItemData } from "./task-tree-node.js";
 import type { TaskDependencyEdgeData } from "./task-tree-visualization.js";
@@ -75,9 +82,10 @@ describe("TaskTreeVisualization", () => {
     expect(screen.getByText("Root task")).toBeInTheDocument();
   });
 
-  it("renders Add dependency button in full mode when user has link_tasks", () => {
+  it("renders Link tasks button in full mode when user has link_tasks", () => {
+    // Full mode uses the "Link tasks" form; "Add dependency" is focused-mode only.
     renderViz();
-    expect(screen.getByText(/add dependency/i)).toBeInTheDocument();
+    expect(screen.getByText(/link tasks/i)).toBeInTheDocument();
   });
 
   it("does not render Add dependency button when user lacks link_tasks", () => {
