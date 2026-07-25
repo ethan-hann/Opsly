@@ -200,7 +200,16 @@ export function TaskTreeNode({
                 onDragStateChange!({ taskId, parentId });
               }, 0);
             }}
-            onDragEnd={() => onDragStateChange!(null)}
+            onDragEnd={() => {
+              // Defer clearing drag state by one tick.  In some browsers
+              // (notably Firefox) dragEnd can fire before the drop event, which
+              // would unmount the TopLevelDropZone before it receives the drop.
+              // setTimeout(0) queues the clear after any pending drop event has
+              // already had a chance to execute (and to call onDragStateChange
+              // itself), so the zone stays visible until the gesture is fully
+              // resolved.
+              setTimeout(() => onDragStateChange!(null), 0);
+            }}
             onTouchStart={() => {
               // Activate touch-drag state; scroll prevention is handled by
               // the container's non-passive touchmove listener.
