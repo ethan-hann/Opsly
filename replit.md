@@ -44,12 +44,33 @@ DATABASE_URL=<your-db-url> pnpm --filter @workspace/db revoke-admin <email>
 
 ## Run & Operate
 
+- For full local setup and run instructions, see `LOCAL_DEV.md`.
+- For containerized local setup (web + API + Postgres), use `docker-compose.local.yml` (see `LOCAL_DEV.md`).
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env: `DATABASE_URL` — Postgres connection string
+
+## Authentication modes
+
+Set `AUTH_MODE` to one of:
+
+- `replit_oidc` (default)
+  - Required: `REPL_ID`
+  - Optional: `ISSUER_URL` (defaults to `https://replit.com/oidc`)
+- `oidc` (generic provider)
+  - Required: `OIDC_ISSUER_URL`, `OIDC_CLIENT_ID`
+  - Optional: `OIDC_CLIENT_SECRET`
+- `local` (database-backed email/password)
+  - No OIDC env required
+  - Create/update local users with:
+    - `DATABASE_URL=... pnpm --filter @workspace/db create-local-user <email> <password> [firstName] [lastName]`
+
+Apply the DB changes for multi-auth support:
+
+- `DATABASE_URL=... pnpm --filter @workspace/db migrate:add-multi-auth-support`
 
 ## Stack
 

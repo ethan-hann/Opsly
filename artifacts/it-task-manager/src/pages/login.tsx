@@ -1,12 +1,25 @@
 import { useAuth } from '@workspace/replit-auth-web';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Activity, Shield, Zap, BarChart3, MessageSquareText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { LanguagePicker } from '@/components/ui/language-picker';
+import { type FormEvent, useMemo, useState } from 'react';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginMethod, loginWithPassword } = useAuth();
   const { t } = useTranslation();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const returnTo = useMemo(() => {
+    if (typeof window === 'undefined') return undefined;
+    const value = new URLSearchParams(window.location.search).get('returnTo');
+    return value && value.startsWith('/') && !value.startsWith('//')
+      ? value
+      : undefined;
+  }, []);
 
   const features = [
     { icon: Shield, labelKey: 'auth.incidentTracking', descKey: 'auth.incidentTrackingDesc' },
@@ -14,6 +27,22 @@ export default function LoginPage() {
     { icon: BarChart3, labelKey: 'auth.projectVisibility', descKey: 'auth.projectVisibilityDesc' },
     { icon: MessageSquareText, labelKey: 'auth.teamCoordination', descKey: 'auth.teamCoordinationDesc' },
   ] as const;
+
+  async function handleLocalLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const result = await loginWithPassword(email, password, returnTo);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      window.location.href = returnTo ?? import.meta.env.BASE_URL;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -75,14 +104,47 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-4">
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={login}
-              data-testid="button-login"
-            >
-              {t('auth.logIn')}
-            </Button>
+            {loginMethod === 'password' ? (
+              <form className="space-y-3" onSubmit={handleLocalLogin}>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder={t('auth.emailPlaceholder')}
+                  autoComplete="email"
+                  required
+                />
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder={t('auth.passwordPlaceholder')}
+                  autoComplete="current-password"
+                  required
+                />
+                {error ? (
+                  <p className="text-xs text-destructive">{error}</p>
+                ) : null}
+                <Button
+                  className="w-full"
+                  size="lg"
+                  type="submit"
+                  data-testid="button-login"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? t('auth.signingIn') : t('auth.logIn')}
+                </Button>
+              </form>
+            ) : (
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={() => login(returnTo)}
+                data-testid="button-login"
+              >
+                {t('auth.logIn')}
+              </Button>
+            )}
             <p className="text-xs text-center text-muted-foreground">
               {t('auth.authSecure')}
             </p>
