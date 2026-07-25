@@ -108,7 +108,7 @@ services:
           memory: 1G
     command: >
       sh -c "
-      pnpm --filter @workspace/db run push &&
+      node_modules/.bin/drizzle-kit push --config lib/db/drizzle.config.ts &&
       if [ \"$$AUTH_MODE\" = \"local\" ] && [ -n \"$$BOOTSTRAP_ADMIN_EMAIL\" ] && [ -n \"$$BOOTSTRAP_ADMIN_PASSWORD\" ]; then
         pnpm --filter @workspace/db run create-local-user \"$$BOOTSTRAP_ADMIN_EMAIL\" \"$$BOOTSTRAP_ADMIN_PASSWORD\" \"$$BOOTSTRAP_ADMIN_FIRST_NAME\" \"$$BOOTSTRAP_ADMIN_LAST_NAME\";
         pnpm --filter @workspace/db run make-admin \"$$BOOTSTRAP_ADMIN_EMAIL\";

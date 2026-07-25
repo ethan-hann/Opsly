@@ -122,4 +122,4 @@ EXPOSE 8080
 
 # Default command: push DB schema (idempotent) then start the API server.
 # The compose file overrides this command to add bootstrap-user creation.
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push && node --enable-source-maps artifacts/api-server/dist/index.mjs"]
+CMD ["sh", "-c", "node_modules/.bin/drizzle-kit push --config lib/db/drizzle.config.ts && node --enable-source-maps artifacts/api-server/dist/index.mjs"]
