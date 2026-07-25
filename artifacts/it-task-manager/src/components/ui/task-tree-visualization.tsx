@@ -13,8 +13,8 @@
  * the picker isn't limited to the tiny focused-task neighbourhood.
  */
 
-import { useState, useMemo } from "react";
-import { Plus, GitBranch, Link2 } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Plus, GitBranch, Link2, ArrowUpToLine, GripVertical } from "lucide-react";
 import { TaskTreeNode } from "./task-tree-node";
 import type { TaskTreeItemData } from "./task-tree-node";
 import { Button } from "@/components/ui/button";
@@ -86,6 +86,66 @@ function computeAncestors(
     }
   }
   return ancestors;
+}
+
+// ─── "Top Level" drop zone — appears during any drag ─────────────────────────
+
+function TopLevelDropZone({
+  dragState,
+  onDragStateChange,
+  onRemoveDependency,
+}: {
+  dragState: { taskId: number; parentId: number | null } | null;
+  onDragStateChange: (state: { taskId: number; parentId: number | null } | null) => void;
+  onRemoveDependency?: (taskId: number, dependsOnTaskId: number) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+
+  if (dragState == null) return null;
+
+  // Only useful when the dragged node has a parent edge to remove.
+  const canAccept = dragState.parentId !== null && !!onRemoveDependency;
+
+  return (
+    <div
+      role="region"
+      aria-label="Drop here to make this a top-level task"
+      data-testid="top-level-drop-zone"
+      className={cn(
+        "flex items-center gap-2 rounded-md border-2 border-dashed px-3 py-2 text-xs transition-colors",
+        canAccept
+          ? dragOver
+            ? "border-primary bg-primary/10 text-primary"
+            : "border-muted-foreground/40 text-muted-foreground hover:border-muted-foreground/60"
+          : "border-muted-foreground/20 text-muted-foreground/40 cursor-not-allowed",
+      )}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = canAccept ? "move" : "none";
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setDragOver(false);
+        if (canAccept && dragState.parentId !== null) {
+          onRemoveDependency!(dragState.taskId, dragState.parentId);
+        }
+        onDragStateChange(null);
+      }}
+    >
+      <ArrowUpToLine className="w-3.5 h-3.5 shrink-0" />
+      <span>
+        {canAccept
+          ? "Drop here to move to top level"
+          : dragState.parentId === null
+          ? "Already a top-level task"
+          : "Drop here to move to top level"}
+      </span>
+    </div>
+  );
 }
 
 // ─── Single-task dependency picker (focused mode) ────────────────────────────
@@ -332,8 +392,16 @@ export function TaskTreeVisualization({
   // Full-mode link form state
   const [showLinkForm, setShowLinkForm] = useState(false);
 
-  // Drag-and-drop re-parenting state (which node is being dragged, and from where)
-  const [dragState, setDragState] = useState<{ taskId: number; parentId: number } | null>(null);
+  // Drag-and-drop state.
+  // parentId is null when the dragged node is a root task (no existing edge).
+  const [dragState, setDragState] = useState<{ taskId: number; parentId: number | null } | null>(null);
+
+  // Touch drag: floating label position (follows the finger)
+  const [touchPos, setTouchPos] = useState<{ x: number; y: number } | null>(null);
+
+  // Refs so that non-React (native DOM) event handlers can read latest values.
+  const dragStateRef = useRef(dragState);
+  useEffect(() => { dragStateRef.current = dragState; }, [dragState]);
 
   // Expand / Collapse all: bump treeKey to remount the tree with a new defaultExpanded.
   const [treeKey, setTreeKey] = useState(0);
@@ -362,8 +430,7 @@ export function TaskTreeVisualization({
         existingParents.push(edge.dependsOnTaskId);
         parentMap.set(edge.taskId, existingParents);
       }
-      // Sort all children lists by ID so sibling order is deterministic regardless
-      // of API response order.
+      // Sort all children lists by ID so sibling order is deterministic.
       for (const [, childIds] of childrenMap) {
         childIds.sort((a, b) => a - b);
       }
@@ -379,10 +446,6 @@ export function TaskTreeVisualization({
           ? computeAncestors(focusedTaskId, parentMap)
           : new Set<number>();
 
-      // The full childrenMap is used in both full mode and focused mode.
-      // Full mode shows the complete DAG: tasks with multiple parents appear
-      // under EACH parent (intentional — the project tree is a dependency graph
-      // overview, not a deduplicated hierarchy).
       return { childrenMap, parentMap, allItems, rootIds, ancestorIds };
     }, [tasks, edges, focusedTaskId]);
 
@@ -390,12 +453,16 @@ export function TaskTreeVisualization({
   const activeChildrenMap = childrenMap;
 
   // Invalid drop targets for the current drag: the dragged node itself, its
-  // current parent (no-op), and every task that (transitively) depends on the
-  // dragged task — dropping onto those would create a cycle.
+  // current parent (no-op move), and every task that (transitively) depends on
+  // the dragged task — dropping onto those would create a cycle.
   const invalidDropIds = useMemo(() => {
     if (dragState == null) return new Set<number>();
-    const invalid = new Set<number>([dragState.taskId, dragState.parentId]);
-    // BFS down the "depends on dragged" subtree (childrenMap: parent → dependents)
+    const invalid = new Set<number>([dragState.taskId]);
+    // Exclude current parent only when the dragged node has one (non-root drag).
+    if (dragState.parentId !== null) {
+      invalid.add(dragState.parentId);
+    }
+    // BFS down the "depends on dragged" subtree to find all descendants.
     const queue = [...(childrenMap.get(dragState.taskId) ?? [])];
     while (queue.length > 0) {
       const curr = queue.shift()!;
@@ -407,6 +474,136 @@ export function TaskTreeVisualization({
     return invalid;
   }, [dragState, childrenMap]);
 
+  // Keep a ref to invalidDropIds so native touch handlers can read it.
+  const invalidDropIdsRef = useRef(invalidDropIds);
+  useEffect(() => { invalidDropIdsRef.current = invalidDropIds; }, [invalidDropIds]);
+
+  // ── Touch drag-and-drop (native events required for passive:false touchmove) ──
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Track which element we last highlighted during a touch drag so we can un-highlight it.
+  const lastTouchHighlight = useRef<HTMLElement | null>(null);
+
+  function clearTouchHighlight() {
+    if (lastTouchHighlight.current) {
+      lastTouchHighlight.current.style.outline = "";
+      lastTouchHighlight.current.style.borderRadius = "";
+      lastTouchHighlight.current.style.backgroundColor = "";
+      lastTouchHighlight.current = null;
+    }
+  }
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    function handleTouchMove(e: TouchEvent) {
+      if (dragStateRef.current == null) return;
+      // Prevent the page from scrolling while a drag is in progress.
+      e.preventDefault();
+
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      // Update floating label position via React state (batched; fine for 60fps).
+      setTouchPos({ x: touch.clientX, y: touch.clientY });
+
+      // Highlight the node under the finger using direct DOM manipulation to
+      // avoid prop-drilling the hover ID through the recursive tree.
+      clearTouchHighlight();
+
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (!el) return;
+
+      const nodeEl = (el.closest('[data-testid^="tree-node-"]') as HTMLElement | null);
+      const zoneEl = (el.closest('[data-testid="top-level-drop-zone"]') as HTMLElement | null);
+
+      if (nodeEl) {
+        const testId = nodeEl.getAttribute("data-testid") ?? "";
+        const targetId = parseInt(testId.replace("tree-node-", ""), 10);
+        const ds = dragStateRef.current;
+        const invalid = invalidDropIdsRef.current;
+        const isValid = !invalid.has(targetId) && ds != null && targetId !== ds.taskId;
+        nodeEl.style.outline = isValid
+          ? "2px solid hsl(var(--primary))"
+          : "2px solid hsl(var(--destructive))";
+        nodeEl.style.borderRadius = "6px";
+        nodeEl.style.backgroundColor = isValid
+          ? "color-mix(in srgb, hsl(var(--primary)) 10%, transparent)"
+          : "color-mix(in srgb, hsl(var(--destructive)) 10%, transparent)";
+        lastTouchHighlight.current = nodeEl;
+      } else if (zoneEl) {
+        const ds = dragStateRef.current;
+        if (ds?.parentId !== null) {
+          zoneEl.style.outline = "2px solid hsl(var(--primary))";
+          zoneEl.style.borderRadius = "6px";
+          zoneEl.style.backgroundColor = "color-mix(in srgb, hsl(var(--primary)) 10%, transparent)";
+          lastTouchHighlight.current = zoneEl as HTMLElement;
+        }
+      }
+    }
+
+    function handleTouchEnd(e: TouchEvent) {
+      const ds = dragStateRef.current;
+      clearTouchHighlight();
+      setTouchPos(null);
+
+      if (ds == null) return;
+
+      const touch = e.changedTouches[0];
+      if (!touch) {
+        setDragState(null);
+        return;
+      }
+
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+
+      if (el) {
+        // Check top-level drop zone
+        const zoneEl = el.closest('[data-testid="top-level-drop-zone"]');
+        if (zoneEl && ds.parentId !== null && onRemoveDependency) {
+          onRemoveDependency(ds.taskId, ds.parentId);
+          setDragState(null);
+          return;
+        }
+
+        // Check tree node
+        const nodeEl = el.closest('[data-testid^="tree-node-"]');
+        if (nodeEl) {
+          const testId = nodeEl.getAttribute("data-testid") ?? "";
+          const targetId = parseInt(testId.replace("tree-node-", ""), 10);
+          const invalid = invalidDropIdsRef.current;
+          if (!isNaN(targetId) && !invalid.has(targetId)) {
+            if (ds.parentId === null) {
+              onAddDependency?.(ds.taskId, targetId);
+            } else {
+              onMoveDependency?.(ds.taskId, ds.parentId, targetId);
+            }
+          }
+        }
+      }
+
+      setDragState(null);
+    }
+
+    // touchmove must be non-passive so we can call preventDefault.
+    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchend", handleTouchEnd);
+    // Cancel drag if touch is interrupted (e.g. incoming call).
+    container.addEventListener("touchcancel", () => {
+      clearTouchHighlight();
+      setTouchPos(null);
+      setDragState(null);
+    });
+
+    return () => {
+      container.removeEventListener("touchmove", handleTouchMove);
+      container.removeEventListener("touchend", handleTouchEnd);
+      container.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onAddDependency, onMoveDependency, onRemoveDependency]);
+
   // Visible roots in focused mode: only roots that lead to the focused task
   const visibleRootIds = useMemo(() => {
     if (focusedTaskId == null) return rootIds;
@@ -416,10 +613,9 @@ export function TaskTreeVisualization({
   }, [rootIds, focusedTaskId, ancestorIds]);
 
   // ── Candidate pool for pickers ──
-  // Use candidateTasks (all project tasks) when provided; fall back to tasks.
   const pool = candidateTasks ?? tasks;
 
-  // Focused-mode: candidates for "Add dependency" (parents for the focused task)
+  // Focused-mode: candidates for "Add dependency"
   const existingParentIds = new Set(
     edges
       .filter((e) => e.taskId === focusedTaskId)
@@ -448,8 +644,34 @@ export function TaskTreeVisualization({
   const renderRoots = focusedTaskId == null ? rootIds : visibleRootIds;
   const hasTree = edges.length > 0;
 
+  // Show the top-level drop zone and floating label whenever a drag is active
+  // and the user has link_tasks permission.
+  const showTopLevelZone = dragState != null && canLink && !!onRemoveDependency;
+
+  // Find the dragged task's display info for the floating label.
+  const draggedTask = dragState != null ? tasks.find((t) => t.id === dragState.taskId) : null;
+
   return (
-    <div className="space-y-2">
+    <div ref={containerRef} className="space-y-2">
+      {/* ── Floating touch-drag label — follows the finger ── */}
+      {touchPos != null && draggedTask != null && (
+        <div
+          aria-hidden
+          className="fixed z-50 pointer-events-none flex items-center gap-1.5 rounded-md bg-popover border border-border shadow-lg px-2.5 py-1.5 text-xs font-medium"
+          style={{
+            left: touchPos.x + 16,
+            top: touchPos.y - 16,
+            maxWidth: 220,
+          }}
+        >
+          <GripVertical className="w-3 h-3 shrink-0 text-muted-foreground" />
+          <span className="font-mono text-muted-foreground shrink-0">
+            TSK-{draggedTask.orgTaskNumber}
+          </span>
+          <span className="truncate">{draggedTask.title}</span>
+        </div>
+      )}
+
       {/* ── Toolbar: Link tasks (full mode) + Expand/Collapse all ── */}
       {hasTree && (
         <div className="flex items-center gap-2">
@@ -475,7 +697,7 @@ export function TaskTreeVisualization({
               </Button>
             )
           )}
-          {/* Expand / Collapse all — always shown when there is a tree */}
+          {/* Expand / Collapse all */}
           <div className="ml-auto flex items-center gap-0.5 text-[11px] text-muted-foreground">
             <button
               type="button"
@@ -529,12 +751,16 @@ export function TaskTreeVisualization({
         </p>
       )}
 
+      {/* ── "Top Level" drop zone — visible during any drag ── */}
+      {showTopLevelZone && (
+        <TopLevelDropZone
+          dragState={dragState}
+          onDragStateChange={setDragState}
+          onRemoveDependency={onRemoveDependency}
+        />
+      )}
+
       {/* ── Tree nodes ── */}
-      {/*
-        key={treeKey} remounts the whole tree when the user clicks Expand/Collapse all,
-        forcing every TaskTreeNode to reinitialise its local `expanded` state from
-        `defaultExpanded`.
-      */}
       <div key={treeKey} className="space-y-0.5">
         {renderRoots.map((rootId) => {
           const rootItem = allItems.get(rootId);
@@ -542,8 +768,6 @@ export function TaskTreeVisualization({
           const rootChildren = (activeChildrenMap.get(rootId) ?? [])
             .map((id) => allItems.get(id)!)
             .filter(Boolean);
-          // defaultExpanded from global override, otherwise: expand all in full mode
-          // and expand only ancestor branches + focused task in focused mode.
           const nodeDefaultExpanded = globalDefaultExpanded !== null
             ? globalDefaultExpanded
             : (focusedTaskId == null || ancestorIds.has(rootId) || rootId === focusedTaskId);
@@ -561,6 +785,7 @@ export function TaskTreeVisualization({
               defaultExpanded={nodeDefaultExpanded}
               focusedTaskId={focusedTaskId}
               onMoveDependency={onMoveDependency}
+              onCreateDependency={onAddDependency}
               dragState={dragState}
               onDragStateChange={setDragState}
               invalidDropIds={invalidDropIds}

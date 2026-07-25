@@ -55,14 +55,22 @@ interface TaskTreeNodeProps {
    */
   focusedTaskId?: number;
   /**
-   * Drag-and-drop re-parenting. When set (and the user has link_tasks), nodes
-   * with a parent edge get a drag handle and every node becomes a drop target.
+   * Drag-and-drop re-parenting. Called when a node that already has a parent
+   * edge is dropped onto a new parent (moves the existing edge).
    */
   onMoveDependency?: (taskId: number, oldParentId: number, newParentId: number) => void;
-  /** Currently dragged node, or null when no drag is in progress. */
-  dragState?: { taskId: number; parentId: number } | null;
+  /**
+   * Drag-and-drop edge creation. Called when a root node (no parent) is
+   * dropped onto another node, creating a new dependency edge.
+   */
+  onCreateDependency?: (taskId: number, newParentId: number) => void;
+  /**
+   * Currently dragged node, or null when no drag is in progress.
+   * parentId is null when the dragged node is a root (has no existing edge).
+   */
+  dragState?: { taskId: number; parentId: number | null } | null;
   /** Set/clear the drag state (owned by the visualization). */
-  onDragStateChange?: (state: { taskId: number; parentId: number } | null) => void;
+  onDragStateChange?: (state: { taskId: number; parentId: number | null } | null) => void;
   /** Task IDs that are invalid drop targets for the current drag (would cycle, self, etc.). */
   invalidDropIds?: Set<number>;
 }
@@ -80,6 +88,7 @@ export function TaskTreeNode({
   defaultExpanded = true,
   focusedTaskId,
   onMoveDependency,
+  onCreateDependency,
   dragState,
   onDragStateChange,
   invalidDropIds,
@@ -97,11 +106,19 @@ export function TaskTreeNode({
   // where the focused task can appear at multiple positions in the same tree).
   const isFocusedNode = isFocused || (focusedTaskId !== undefined && item.id === focusedTaskId);
 
-  // ── Drag-and-drop re-parenting ──
-  const dndEnabled = canLink && !!onMoveDependency && !!onDragStateChange;
-  // A node can be dragged only when it has a parent edge (moving = re-pointing that edge)
-  const canDrag = dndEnabled && parentTaskId !== undefined;
-  const isDragging = dragState != null && dragState.taskId === item.id && dragState.parentId === parentTaskId;
+  // ── Drag-and-drop re-parenting / edge creation ──
+  const dndEnabled = canLink && !!(onMoveDependency || onCreateDependency) && !!onDragStateChange;
+  // Any node can be dragged when DnD is enabled (root nodes create new edges;
+  // nodes with a parent move their existing edge).
+  const canDrag = dndEnabled;
+  // This specific tree instance of the node is "dragging" when the drag state
+  // matches both the task ID and the parent context (null for root nodes).
+  const thisParentId = parentTaskId ?? null;
+  const isDragging =
+    dragState != null &&
+    dragState.taskId === item.id &&
+    dragState.parentId === thisParentId;
+
   // While a drag is active, is THIS node a valid drop target?
   const dragActive = dndEnabled && dragState != null;
   const isInvalidTarget = dragActive && (invalidDropIds?.has(item.id) ?? false);
@@ -141,32 +158,47 @@ export function TaskTreeNode({
                 setDragOver(false);
                 const dragged = dragState!;
                 onDragStateChange!(null);
-                if (isValidTarget && onMoveDependency) {
-                  onMoveDependency(dragged.taskId, dragged.parentId, item.id);
+                if (isValidTarget) {
+                  if (dragged.parentId === null) {
+                    // Root node dropped onto a new parent → create a new edge
+                    onCreateDependency?.(dragged.taskId, item.id);
+                  } else {
+                    // Non-root node dropped onto a new parent → move existing edge
+                    onMoveDependency?.(dragged.taskId, dragged.parentId, item.id);
+                  }
                 }
               }
             : undefined
         }
       >
-        {/* Drag handle — gated on link_tasks; only edges (nodes with a parent) can move */}
+        {/* Drag handle — always visible on touch devices, hover-revealed on pointer devices */}
         {canDrag && (
           <span
             draggable
             role="button"
             aria-label={`Drag to move TSK-${item.orgTaskNumber} to a new parent`}
-            title="Drag to a new parent"
+            title={parentTaskId !== undefined ? "Drag to a new parent" : "Drag to add a parent"}
             data-testid={`drag-handle-${item.id}`}
             className={cn(
               "shrink-0 cursor-grab active:cursor-grabbing text-muted-foreground/60 hover:text-foreground",
-              "opacity-0 group-hover:opacity-100 transition-opacity -ml-1",
+              // On pointer devices: hidden until hover. On touch devices: always visible.
+              "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-60 transition-opacity -ml-1",
+              // Larger touch target on coarse-pointer (touch) devices
+              "[@media(pointer:coarse)]:p-2 [@media(pointer:coarse)]:-m-2",
               isDragging && "opacity-100",
             )}
             onDragStart={(e) => {
               e.dataTransfer.effectAllowed = "move";
               e.dataTransfer.setData("text/plain", String(item.id));
-              onDragStateChange!({ taskId: item.id, parentId: parentTaskId! });
+              onDragStateChange!({ taskId: item.id, parentId: thisParentId });
             }}
             onDragEnd={() => onDragStateChange!(null)}
+            onTouchStart={(e) => {
+              // Prevent the page from scrolling when the user touches the drag handle
+              e.preventDefault();
+              e.stopPropagation();
+              onDragStateChange!({ taskId: item.id, parentId: thisParentId });
+            }}
           >
             <GripVertical className="w-3.5 h-3.5" />
           </span>
@@ -267,7 +299,7 @@ export function TaskTreeNode({
           ) : (
             <button
               type="button"
-              className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-1"
+              className="shrink-0 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-60 transition-opacity text-muted-foreground hover:text-destructive ml-1"
               onClick={() => setConfirmingRemove(true)}
               title="Remove dependency"
               aria-label="Remove dependency"
@@ -303,6 +335,7 @@ export function TaskTreeNode({
                     defaultExpanded={defaultExpanded}
                     focusedTaskId={focusedTaskId}
                     onMoveDependency={onMoveDependency}
+                    onCreateDependency={onCreateDependency}
                     dragState={dragState}
                     onDragStateChange={onDragStateChange}
                     invalidDropIds={invalidDropIds}
