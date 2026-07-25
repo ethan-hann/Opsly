@@ -29,7 +29,7 @@ services:
       NODE_ENV: development
       PORT: 8080
       DATABASE_URL: postgresql://postgres:postgres@db:5432/opsly
-      # AUTH_MODE: local | oidc | replit_oidc  (default: local)
+      # AUTH_MODE: local | oidc  (default: local)
       AUTH_MODE: ${AUTH_MODE:-local}
       INSTANCE_ADMIN_TOKEN: ${INSTANCE_ADMIN_TOKEN:-local-dev-admin-token}
       LOCAL_DEV_USER_EMAIL: ${LOCAL_DEV_USER_EMAIL:-admin@example.com}
@@ -37,12 +37,10 @@ services:
       LOCAL_DEV_USER_FIRST_NAME: ${LOCAL_DEV_USER_FIRST_NAME:-Local}
       LOCAL_DEV_USER_LAST_NAME: ${LOCAL_DEV_USER_LAST_NAME:-Admin}
       LOCAL_DEV_USER_INSTANCE_ADMIN: ${LOCAL_DEV_USER_INSTANCE_ADMIN:-true}
-      REPL_ID: ${REPL_ID:-}
-      ISSUER_URL: ${ISSUER_URL:-https://replit.com/oidc}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
-      # STORAGE_DRIVER: local | s3 | replit  (default: local — writes to /data/exports inside container)
+      # STORAGE_DRIVER: local | s3  (default: local — writes to /data/exports inside container)
       STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       LOCAL_STORAGE_PATH: /data/exports
     ports:

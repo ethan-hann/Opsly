@@ -9,6 +9,31 @@ options for distributed/HA deployments.
 
 ---
 
+## Architecture
+
+The stack is three containers managed by Docker Compose:
+
+```
+Internet → reverse proxy (Caddy / Nginx, TLS)
+               │
+               ▼
+          web:80  (nginx — serves static assets, proxies /api/*)
+               │
+               ▼
+          api:8080  (Node.js API server)
+               │
+               ▼
+          db:5432  (PostgreSQL 16)
+```
+
+- **web** — nginx serving the pre-built Vite/React bundle. Every `/api/*`
+  request is forwarded to the api container over the internal Docker network.
+  This is the only container your reverse proxy talks to.
+- **api** — the Express API server. It never touches the internet directly.
+- **db** — Postgres. Only the api container can reach it.
+
+---
+
 ## Contents
 
 1. [System requirements](#system-requirements)
@@ -93,13 +118,15 @@ docker compose --env-file .env.production up -d --build
 
 The first start:
 1. Boots Postgres and waits for it to be healthy
-2. Pushes the database schema (idempotent — safe to run on every start)
+2. Runs `drizzle-kit push` to apply the database schema (idempotent)
 3. Creates the bootstrap admin user if `BOOTSTRAP_ADMIN_EMAIL` is set
-4. Starts the API server on port 8080 (bound to `127.0.0.1` by default)
+4. Starts the API server (internal only, not exposed to the internet)
+5. Starts the nginx web container on port 3000 (bound to `127.0.0.1` by default)
 
 ### 5. Set up Caddy (reverse proxy + TLS)
 
 See the [Reverse proxy](#reverse-proxy) section for Caddy and Nginx examples.
+Point your reverse proxy at **port 3000** (the web container), not 8080.
 
 ### 6. Sign in
 
@@ -185,8 +212,10 @@ Values saved through the UI are encrypted at rest using `SECRET_ENCRYPTION_KEY`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `BIND_ADDRESS` | `127.0.0.1` | Change to `0.0.0.0` only if there is no reverse proxy |
-| `HOST_PORT` | `8080` | Host port the API listens on |
+| `WEB_BIND_ADDRESS` | `127.0.0.1` | Bind address for the web (nginx) container — point your reverse proxy here |
+| `WEB_HOST_PORT` | `3000` | Host port exposed by the web container |
+| `BIND_ADDRESS` | `127.0.0.1` | Bind address for the API container — internal only; no need to expose publicly |
+| `HOST_PORT` | `8080` | Host port exposed by the API container |
 
 ---
 
@@ -322,6 +351,10 @@ migration steps are required during upgrades.
 The API server binds to `127.0.0.1:8080` by default. A reverse proxy handles
 TLS termination and routes HTTPS traffic to the container.
 
+The web container (nginx) is the public entry point — it serves the frontend
+and proxies `/api/*` to the API. Point your reverse proxy at **port 3000**
+(or whichever port you set as `WEB_HOST_PORT`).
+
 ### Caddy (recommended — automatic TLS)
 
 Install Caddy: https://caddyserver.com/docs/install
@@ -330,7 +363,7 @@ Create `/etc/caddy/Caddyfile`:
 
 ```caddyfile
 your-domain.com {
-    reverse_proxy localhost:8080 {
+    reverse_proxy localhost:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
@@ -346,7 +379,8 @@ sudo systemctl reload caddy
 ```
 
 Caddy automatically provisions and renews a Let's Encrypt TLS certificate.
-WebSocket connections are proxied transparently — no extra configuration needed.
+SSE (real-time notifications) and WebSocket connections are proxied
+transparently — no extra configuration needed.
 
 ### Nginx
 
@@ -369,7 +403,7 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
-    # WebSocket support
+    # WebSocket / SSE upgrade passthrough.
     proxy_http_version  1.1;
     proxy_set_header    Upgrade $http_upgrade;
     proxy_set_header    Connection "upgrade";
@@ -379,12 +413,14 @@ server {
     proxy_set_header    X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header    X-Forwarded-Proto $scheme;
 
-    # Increase timeout for long-running export jobs
-    proxy_read_timeout  300s;
-    proxy_send_timeout  300s;
+    # Increase timeout for long-running export jobs and SSE streams.
+    proxy_read_timeout  3600s;
+    proxy_send_timeout  3600s;
 
+    # Forward everything to the web container (nginx serves the UI
+    # and proxies /api/* internally to the API container).
     location / {
-        proxy_pass http://127.0.0.1:8080;
+        proxy_pass http://127.0.0.1:3000;
     }
 }
 ```
@@ -578,5 +614,6 @@ generally more reliable than manual `pg_dump` scripts.
 | `POSTGRES_PASSWORD is required` | Set `POSTGRES_PASSWORD` in your env file |
 | DB health check keeps failing | Check disk space; Postgres needs free space to start |
 | `/api/healthz` returns 502 | The API container hasn't started yet — check `docker compose logs api` |
+| Browser shows blank page or 502 | The web container is waiting for the API — check `docker compose logs web`; the API health check must pass before the web container starts |
 | Export download fails | Check `STORAGE_DRIVER` and that the exports volume is mounted; for S3, verify credentials |
 | Can't sign in after OIDC setup | Verify the redirect URI registered with your IdP matches `https://your-domain.com/api/auth/oidc/callback` |

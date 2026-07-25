@@ -116,6 +116,30 @@ services:
       node --enable-source-maps artifacts/api-server/dist/index.mjs
       "
 
+  web:
+    image: ${OPSLY_WEB_IMAGE:-opsly-web:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: opsly-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_HOST_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
 volumes:
   opsly-postgres-data:
     driver: local

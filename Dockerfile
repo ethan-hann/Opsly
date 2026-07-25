@@ -18,14 +18,17 @@ WORKDIR /app
 
 ENV PNPM_HOME="/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
+# Use a fixed store path so the runner stage can copy and reuse it.
+ENV PNPM_STORE_PATH="/pnpm/store"
 
 RUN corepack enable
 
 # Copy only the files that affect dependency resolution so source-code changes
 # don't bust this expensive layer.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY scripts/package.json ./scripts/
+COPY scripts/package.json scripts/preinstall.js ./scripts/
 COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/it-task-manager/package.json ./artifacts/it-task-manager/
 COPY lib/api-client-react/package.json ./lib/api-client-react/
 COPY lib/api-spec/package.json ./lib/api-spec/
 COPY lib/api-zod/package.json ./lib/api-zod/
@@ -53,12 +56,21 @@ WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="${PNPM_HOME}:${PATH}"
 ENV NODE_ENV=production
+# Reuse the same fixed store path from the deps stage so pnpm can find cached
+# packages without hitting the network on every container start.
+ENV PNPM_STORE_PATH="/pnpm/store"
+# Tell pnpm it's running in CI so it doesn't require a TTY to confirm module-purge operations.
+ENV CI=true
 
 RUN corepack enable
 
 # Install wget for the Docker health check (not present in slim images).
 RUN apt-get update && apt-get install -y --no-install-recommends wget && \
     rm -rf /var/lib/apt/lists/*
+
+# Copy the pnpm content-addressable store so runtime pnpm commands (drizzle
+# push, bootstrap user) don't need to re-download packages from the network.
+COPY --from=builder /pnpm/store /pnpm/store
 
 # Copy the compiled bundle.
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
@@ -80,14 +92,13 @@ COPY --from=builder /app/scripts/package.json ./scripts/
 
 # Copy compiled/source for workspace packages needed at startup.
 COPY --from=builder /app/lib/db ./lib/db
-COPY --from=builder /app/lib/api-zod/dist ./lib/api-zod/dist
 COPY --from=builder /app/scripts ./scripts
 
 # Run as a non-root user for security.
 RUN groupadd --gid 1001 opsly && \
     useradd --uid 1001 --gid opsly --shell /bin/bash --create-home opsly && \
     mkdir -p /data/exports && \
-    chown -R opsly:opsly /data /app
+    chown -R opsly:opsly /data /app /pnpm
 
 USER opsly
 

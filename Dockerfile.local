@@ -14,7 +14,7 @@ RUN corepack enable
 # Source files are deliberately excluded so that code changes do not bust the
 # install cache.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY scripts/package.json ./scripts/
+COPY scripts/package.json scripts/preinstall.js ./scripts/
 COPY artifacts/api-server/package.json ./artifacts/api-server/
 COPY artifacts/it-task-manager/package.json ./artifacts/it-task-manager/
 COPY lib/api-client-react/package.json ./lib/api-client-react/

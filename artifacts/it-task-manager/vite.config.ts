@@ -39,6 +39,9 @@ export default defineConfig({
         enabled: false,
       },
       workbox: {
+        // Main bundle exceeds the 2 MiB default; raise the limit so it is
+        // included in the precache manifest and served offline.
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {

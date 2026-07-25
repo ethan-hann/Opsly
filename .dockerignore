@@ -1,5 +1,9 @@
 .git
 .gitignore
+.local
+.agents
+.replit
+.ssh
 node_modules
 **/node_modules
 dist
@@ -7,3 +11,6 @@ dist
 .pnpm-store
 .DS_Store
 *.log
+attached_assets
+task-review
+screenshots
