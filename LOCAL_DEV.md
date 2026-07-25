@@ -1,5 +1,9 @@
 # Local Development Guide
 
+> **Going to production?** See [SELF_HOSTING.md](SELF_HOSTING.md) for the
+> production Docker Compose, environment variable reference, reverse proxy
+> examples, and upgrade procedure.
+
 Run the full app stack locally using either Docker (recommended, zero config) or
 a native Node + pnpm setup.
 

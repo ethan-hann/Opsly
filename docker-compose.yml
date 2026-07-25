@@ -1,0 +1,123 @@
+# docker-compose.yml — Production compose for Opsly self-hosted deployments.
+#
+# Usage:
+#   cp .env.production.example .env.production
+#   # Edit .env.production with your real values
+#   docker compose --env-file .env.production up -d
+#
+# See SELF_HOSTING.md for the full setup guide.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: opsly-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-opsly}
+      POSTGRES_USER: ${POSTGRES_USER:-opsly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - opsly-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-opsly} -d ${POSTGRES_DB:-opsly}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    # Do NOT expose port 5432 to the host in production.
+    # The API container connects over the internal Docker network.
+
+  api:
+    image: ${OPSLY_IMAGE:-opsly-api:latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opsly-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+
+      # ── Database ────────────────────────────────────────────────────────────
+      DATABASE_URL: postgresql://${POSTGRES_USER:-opsly}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:-opsly}
+
+      # ── Auth ────────────────────────────────────────────────────────────────
+      AUTH_MODE: ${AUTH_MODE:-local}
+
+      # Generic OIDC (AUTH_MODE=oidc)
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+
+      # ── Security ────────────────────────────────────────────────────────────
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?SECRET_ENCRYPTION_KEY is required}
+      INSTANCE_ADMIN_TOKEN: ${INSTANCE_ADMIN_TOKEN:?INSTANCE_ADMIN_TOKEN is required}
+
+      # ── Storage ─────────────────────────────────────────────────────────────
+      # local | s3
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      LOCAL_STORAGE_PATH: /data/exports
+
+      # S3-compatible storage (STORAGE_DRIVER=s3)
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      STORAGE_PREFIX: ${STORAGE_PREFIX:-exports/}
+
+      # ── Email / SMTP ────────────────────────────────────────────────────────
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-Opsly <noreply@example.com>}
+
+      # ── First-run bootstrap (AUTH_MODE=local only) ──────────────────────────
+      # If set, an admin user is created on first startup if it doesn't exist.
+      # Remove or leave blank after the first startup to disable auto-creation.
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      BOOTSTRAP_ADMIN_FIRST_NAME: ${BOOTSTRAP_ADMIN_FIRST_NAME:-Admin}
+      BOOTSTRAP_ADMIN_LAST_NAME: ${BOOTSTRAP_ADMIN_LAST_NAME:-User}
+
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-8080}:8080"
+    volumes:
+      - opsly-exports:/data/exports
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+    command: >
+      sh -c "
+      pnpm --filter @workspace/db run push &&
+      if [ \"$$AUTH_MODE\" = \"local\" ] && [ -n \"$$BOOTSTRAP_ADMIN_EMAIL\" ] && [ -n \"$$BOOTSTRAP_ADMIN_PASSWORD\" ]; then
+        pnpm --filter @workspace/db run create-local-user \"$$BOOTSTRAP_ADMIN_EMAIL\" \"$$BOOTSTRAP_ADMIN_PASSWORD\" \"$$BOOTSTRAP_ADMIN_FIRST_NAME\" \"$$BOOTSTRAP_ADMIN_LAST_NAME\";
+        pnpm --filter @workspace/db run make-admin \"$$BOOTSTRAP_ADMIN_EMAIL\";
+      fi &&
+      node --enable-source-maps artifacts/api-server/dist/index.mjs
+      "
+
+volumes:
+  opsly-postgres-data:
+    driver: local
+  opsly-exports:
+    driver: local
