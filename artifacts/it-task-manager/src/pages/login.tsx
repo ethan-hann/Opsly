@@ -134,6 +134,14 @@ export default function LoginPage() {
                 >
                   {isSubmitting ? t('auth.signingIn') : t('auth.logIn')}
                 </Button>
+                <div className="text-center">
+                  <a
+                    href={`${import.meta.env.BASE_URL.replace(/\/$/, '')}/forgot-password`}
+                    className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-4 transition-colors"
+                  >
+                    {t('auth.forgotPassword')}
+                  </a>
+                </div>
               </form>
             ) : (
               <Button

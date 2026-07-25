@@ -37,6 +37,8 @@ import WebhookInboundEditPage from '@/pages/webhook-inbound-edit';
 import WebhookOutboundEditPage from '@/pages/webhook-outbound-edit';
 import InvitePage from '@/pages/invite-page';
 import UnsubscribePage from '@/pages/unsubscribe';
+import ForgotPasswordPage from '@/pages/forgot-password';
+import ResetPasswordPage from '@/pages/reset-password';
 import { NotificationPreferencesPage } from '@/pages/notification-preferences';
 import AuditLogPage from '@/pages/audit-log';
 import type { PendingInvitation } from '@workspace/api-client-react';
@@ -174,6 +176,9 @@ function App() {
                 <Route path="/invite/:token" component={InvitePage} />
                 {/* One-click unsubscribe - no login required; token is proof of identity */}
                 <Route path="/unsubscribe" component={UnsubscribePage} />
+                {/* Password reset flow - no login required; token is in the query string */}
+                <Route path="/forgot-password" component={ForgotPasswordPage} />
+                <Route path="/reset-password" component={ResetPasswordPage} />
                 {/* Instance admin console - has its own auth check via /api/admin/me */}
                 <Route path="/admin" component={AdminConsolePage} />
                 <Route path="/admin/:rest*" component={AdminConsolePage} />

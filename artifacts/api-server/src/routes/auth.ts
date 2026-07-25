@@ -4,10 +4,11 @@ import {
   GetCurrentAuthUserResponse,
   LogoutMobileSessionResponse,
 } from '@workspace/api-zod';
-import { and, eq } from 'drizzle-orm';
-import { db, invitationsTable, usersTable } from '@workspace/db';
+import { and, eq, isNull } from 'drizzle-orm';
+import { db, invitationsTable, usersTable, passwordResetsTable } from '@workspace/db';
 import { Router, type IRouter, type Request, type Response } from 'express';
 import * as oidc from 'openid-client';
+import crypto from 'crypto';
 import { z } from 'zod';
 
 import {
@@ -25,6 +26,7 @@ import {
   type SessionData,
 } from '../lib/auth';
 import { hashLocalPassword, verifyLocalPassword } from '../lib/local-password';
+import { buildPasswordResetEmail, sendMail } from '../lib/email';
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
@@ -571,6 +573,114 @@ router.post('/mobile-auth/logout', async (req: Request, res: Response) => {
     await deleteSession(sid);
   }
   res.json(LogoutMobileSessionResponse.parse({ success: true }));
+});
+
+const localForgotPasswordBodySchema = z.object({
+  email: z.string().email(),
+});
+
+const localResetPasswordBodySchema = z.object({
+  token: z.string().min(1),
+  password: z.string().min(8),
+});
+
+router.post('/auth/local/forgot-password', async (req: Request, res: Response) => {
+  if (getAuthMode() !== 'local') {
+    res
+      .status(400)
+      .json({ error: 'Local auth is disabled for the configured auth mode.' });
+    return;
+  }
+
+  const parsed = localForgotPasswordBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Missing or invalid required parameters' });
+    return;
+  }
+
+  const email = parsed.data.email.toLowerCase();
+
+  const [user] = await db
+    .select({ id: usersTable.id, email: usersTable.email })
+    .from(usersTable)
+    .where(and(eq(usersTable.email, email), eq(usersTable.authProvider, 'local')))
+    .limit(1);
+
+  // Always generate a token to keep timing indistinguishable for unknown emails.
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  if (user) {
+    // Invalidate any previous unconsumed tokens for this user.
+    await db
+      .delete(passwordResetsTable)
+      .where(
+        and(
+          eq(passwordResetsTable.userId, user.id),
+          isNull(passwordResetsTable.consumedAt),
+        ),
+      );
+
+    await db.insert(passwordResetsTable).values({
+      userId: user.id,
+      token,
+      expiresAt,
+    });
+
+    const appUrl = process.env['APP_URL'] ?? '';
+    const resetLink = `${appUrl}/reset-password?token=${token}`;
+    await sendMail({
+      to: user.email!,
+      subject: 'Reset your Opsly password',
+      html: buildPasswordResetEmail({ resetLink }),
+    });
+  }
+
+  res.json({
+    message: 'If an account exists for this email, a reset link has been sent.',
+  });
+});
+
+router.post('/auth/local/reset-password', async (req: Request, res: Response) => {
+  if (getAuthMode() !== 'local') {
+    res
+      .status(400)
+      .json({ error: 'Local auth is disabled for the configured auth mode.' });
+    return;
+  }
+
+  const parsed = localResetPasswordBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Missing or invalid required parameters' });
+    return;
+  }
+
+  const { token, password } = parsed.data;
+
+  const [resetRow] = await db
+    .select()
+    .from(passwordResetsTable)
+    .where(eq(passwordResetsTable.token, token))
+    .limit(1);
+
+  if (!resetRow || resetRow.consumedAt !== null || resetRow.expiresAt <= new Date()) {
+    res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+    return;
+  }
+
+  const passwordHash = await hashLocalPassword(password);
+
+  await db
+    .update(usersTable)
+    .set({ passwordHash, updatedAt: new Date() })
+    .where(eq(usersTable.id, resetRow.userId));
+
+  await db
+    .update(passwordResetsTable)
+    .set({ consumedAt: new Date() })
+    .where(eq(passwordResetsTable.id, resetRow.id));
+
+  res.json({ message: 'Password updated successfully.' });
 });
 
 export default router;
