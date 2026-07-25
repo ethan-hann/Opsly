@@ -1,9 +1,14 @@
 /**
  * Waits for the API server to be ready before the frontend dev server starts.
- * Polls GET http://localhost:8080/api/healthz until it returns 200.
+ * Polls GET <API_INTERNAL_URL>/api/healthz until it returns 200.
+ *
+ * API_INTERNAL_URL defaults to http://localhost:8080 for native dev.
+ * Docker Compose sets it to http://api:8080 so the web container can reach
+ * the api container over the Docker network (localhost doesn't cross containers).
  */
 
-const API_URL = "http://localhost:8080/api/healthz";
+const base = (process.env.API_INTERNAL_URL ?? "http://localhost:8080").replace(/\/$/, "");
+const API_URL = `${base}/api/healthz`;
 const POLL_MS = 500;
 const TIMEOUT_MS = 60_000;
 

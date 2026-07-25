@@ -72,6 +72,9 @@ services:
       PORT: 20999
       BASE_PATH: /
       API_PROXY_TARGET: http://api:8080
+      # Tells wait-for-api.mjs to poll the api container, not localhost,
+      # because containers don't share a loopback interface.
+      API_INTERNAL_URL: http://api:8080
     ports:
       - "20999:20999"
     command: pnpm --filter @workspace/it-task-manager run dev
