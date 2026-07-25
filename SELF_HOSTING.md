@@ -66,6 +66,18 @@ A single $6/month VPS (1 vCPU, 1 GB RAM) is sufficient for teams of up to ~50
 users. Scale up RAM before CPU — the Postgres query planner benefits most from
 memory.
 
+### Docker image size
+
+The production API image (`opsly-api`) is approximately **250–300 MB** compressed.
+The runner stage installs only production dependencies — build tools (TypeScript,
+Vite, esbuild, vitest, `@types/*` packages) are excluded — so the image is
+significantly smaller than a full-dependency build. You can verify the size after
+building with:
+
+```sh
+docker image ls opsly-api
+```
+
 ---
 
 ## Quick start (single VPS)

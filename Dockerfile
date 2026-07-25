@@ -47,8 +47,10 @@ COPY . .
 RUN pnpm --filter @workspace/api-server run build
 
 # ── Stage 3: runtime ───────────────────────────────────────────────────────────
-# Slim image: only the compiled bundle and the workspace packages needed at
-# runtime (drizzle schema push, db scripts, esbuild binary).
+# Slim image: only the compiled bundle and a production-only node_modules.
+# devDependencies (TypeScript, Vite, esbuild, vitest, @types/* packages, etc.)
+# are excluded — only the packages needed to run the API and apply the DB
+# schema at startup are installed.
 FROM node:24-bookworm-slim AS runner
 
 WORKDIR /app
@@ -75,20 +77,31 @@ COPY --from=builder /pnpm/store /pnpm/store
 # Copy the compiled bundle.
 COPY --from=builder /app/artifacts/api-server/dist ./artifacts/api-server/dist
 
-# Copy the workspace packages needed at runtime: node_modules (includes drizzle,
-# the DB schema, and pnpm itself), workspace manifests, and the pnpm binary.
-COPY --from=builder /app/node_modules ./node_modules
+# Copy workspace manifests needed by pnpm install --prod.
+# pnpm-workspace.yaml globs artifacts/* and lib/* so every package
+# that appears in the workspace must have a package.json present,
+# even if it has no production dependencies.
 COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/package.json ./
 
 # Copy package manifests for every workspace package so pnpm filter works.
 COPY --from=builder /app/artifacts/api-server/package.json ./artifacts/api-server/
+COPY --from=builder /app/artifacts/it-task-manager/package.json ./artifacts/it-task-manager/
 COPY --from=builder /app/lib/db/package.json ./lib/db/
 COPY --from=builder /app/lib/api-zod/package.json ./lib/api-zod/
 COPY --from=builder /app/lib/api-client-react/package.json ./lib/api-client-react/
 COPY --from=builder /app/lib/api-spec/package.json ./lib/api-spec/
 COPY --from=builder /app/lib/replit-auth-web/package.json ./lib/replit-auth-web/
 COPY --from=builder /app/scripts/package.json ./scripts/
+# preinstall.js is the workspace preinstall hook referenced in the root
+# package.json; pnpm runs it before install and fails if it is missing.
+COPY --from=builder /app/scripts/preinstall.js ./scripts/
+
+# Install production dependencies only (excludes devDependencies such as
+# TypeScript, Vite, esbuild, vitest, and all @types/* packages).
+# --prefer-offline tells pnpm to use the store copy before hitting the network.
+RUN pnpm install --prod --frozen-lockfile --prefer-offline
 
 # Copy compiled/source for workspace packages needed at startup.
 COPY --from=builder /app/lib/db ./lib/db
