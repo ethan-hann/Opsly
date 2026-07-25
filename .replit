@@ -94,4 +94,9 @@ BASE_PATH = "/"
 
     [nix]
     channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+AUTH_MODE = "replit_oidc"
     
