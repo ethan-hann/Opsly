@@ -15,6 +15,7 @@ a native Node + pnpm setup.
 docker compose -f docker-compose.local.yml up --build
 ```
 
+
 Open **http://localhost:20999** and sign in with `admin@example.com` / `changeme`.
 
 To customise env vars, copy the example file first:
@@ -181,6 +182,7 @@ fixed defaults. To use different credentials, run the DB scripts directly:
 > exists it prints "already exists, skipping" and exits successfully. Run it
 > again after a `git pull`, a schema change, or any time you want to make sure
 > the workspace is fully initialized.
+
 
 ```sh
 # bash / sh

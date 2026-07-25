@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useTranslation } from 'react-i18next';
 import { useTerminology } from "@/context/terminology-context";
-import type { BulkCloseBlockedTask } from "@workspace/api-client-react";
+import type { TaskTemplate, BulkCloseBlockedTask } from "@workspace/api-client-react";
 import {
   Dialog,
   DialogContent,
@@ -1841,6 +1841,14 @@ export default function TasksList() {
         </DialogContent>
       </Dialog>
 
+      <NewTaskModal
+        open={showNewTask}
+        onOpenChange={(open) => {
+          setShowNewTask(open);
+          if (!open) setTemplateForModal(undefined);
+        }}
+        initialTemplate={templateForModal}
+      />
     </div>
   );
 }
