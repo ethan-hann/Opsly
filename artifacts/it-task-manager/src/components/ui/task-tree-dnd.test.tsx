@@ -9,10 +9,23 @@
  *  3. Cycle prevention: dragging a parent onto one of its descendants fires no
  *     callback and the tree is unchanged.
  *  4. Self-drop prevention: dragging a node onto its own row is ignored.
+ *  5. Permission gate: drag handles hidden when user lacks link_tasks.
+ *  6. Re-parenting (task #476): dragging a child from one parent to another
+ *     calls onMoveDependency and updates the tree without a page refresh.
+ *  7. Touch-drag → root (task #477): touchstart + touchend on the top-level
+ *     zone calls onRemoveDependency and re-renders the task as a root.
+ *  8. Firefox dragEnd-before-drop (task #478): dragEnd fires before drop but the
+ *     top-level zone stays visible until the drop resolves (deferred clear).
+ *
+ * Timer note: onDragStart defers the dragState update via setTimeout(0) so that
+ * the React re-render does not cancel the browser's drag gesture.  Tests must
+ * therefore flush timers with `act(() => vi.runAllTimers())` after fireDragStart.
+ * vi.useFakeTimers() / vi.useRealTimers() are managed per-suite via beforeEach /
+ * afterEach so the timer isolation is tight.
  */
 
-import { vi, describe, it, expect, beforeEach } from "vitest";
-import { render, screen, fireEvent, createEvent, within, act } from "@testing-library/react";
+import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, createEvent, act } from "@testing-library/react";
 import React, { useState } from "react";
 
 // ─── Module mocks ─────────────────────────────────────────────────────────────
@@ -51,12 +64,6 @@ import type { TaskDependencyEdgeData } from "./task-tree-visualization.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * A small DataTransfer stub that satisfies the handlers in TaskTreeNode:
- *   e.dataTransfer.effectAllowed = "move";
- *   e.dataTransfer.setData(…);
- *   e.dataTransfer.dropEffect = …;
- */
 function makeDataTransfer() {
   return {
     effectAllowed: "none" as string,
@@ -66,43 +73,39 @@ function makeDataTransfer() {
   };
 }
 
-/** Fire a dragstart event on `el`, attaching a stub DataTransfer. */
 function fireDragStart(el: HTMLElement) {
   const event = createEvent.dragStart(el);
-  Object.defineProperty(event, "dataTransfer", {
-    value: makeDataTransfer(),
-    writable: true,
-  });
+  Object.defineProperty(event, "dataTransfer", { value: makeDataTransfer(), writable: true });
   fireEvent(el, event);
 }
 
-/** Fire a dragover event on `el`, attaching a stub DataTransfer. */
 function fireDragOver(el: HTMLElement) {
   const event = createEvent.dragOver(el);
-  Object.defineProperty(event, "dataTransfer", {
-    value: makeDataTransfer(),
-    writable: true,
-  });
+  Object.defineProperty(event, "dataTransfer", { value: makeDataTransfer(), writable: true });
   fireEvent(el, event);
 }
 
-/** Fire a drop event on `el`, attaching a stub DataTransfer. */
+function fireDragEnd(el: HTMLElement) {
+  fireEvent.dragEnd(el);
+}
+
 function fireDrop(el: HTMLElement) {
   const event = createEvent.drop(el);
-  Object.defineProperty(event, "dataTransfer", {
-    value: makeDataTransfer(),
-    writable: true,
-  });
+  Object.defineProperty(event, "dataTransfer", { value: makeDataTransfer(), writable: true });
   fireEvent(el, event);
+}
+
+/**
+ * Flush the deferred dragState update that onDragStart schedules via
+ * setTimeout(0).  Must be called inside act() so React processes the state
+ * change before assertions run.
+ */
+function flushDragStart() {
+  act(() => { vi.runAllTimers(); });
 }
 
 // ─── Controlled wrapper ───────────────────────────────────────────────────────
 
-/**
- * Wraps TaskTreeVisualization and manages tasks + edges in local state so we
- * can observe the tree re-rendering after dependency callbacks fire (simulating
- * what the real page does when the server confirms a change).
- */
 function ControlledTree({
   initialTasks,
   initialEdges,
@@ -121,20 +124,13 @@ function ControlledTree({
 
   function handleAdd(taskId: number, dependsOnTaskId: number) {
     onAddDependency?.(taskId, dependsOnTaskId);
-    // Simulate optimistic update: add the new edge immediately.
-    setEdges((prev) => [
-      ...prev,
-      { id: Date.now(), taskId, dependsOnTaskId },
-    ]);
+    setEdges((prev) => [...prev, { id: Date.now(), taskId, dependsOnTaskId }]);
   }
 
   function handleRemove(taskId: number, dependsOnTaskId: number) {
     onRemoveDependency?.(taskId, dependsOnTaskId);
-    // Simulate optimistic update: remove the edge immediately.
     setEdges((prev) =>
-      prev.filter(
-        (e) => !(e.taskId === taskId && e.dependsOnTaskId === dependsOnTaskId),
-      ),
+      prev.filter((e) => !(e.taskId === taskId && e.dependsOnTaskId === dependsOnTaskId)),
     );
   }
 
@@ -163,7 +159,7 @@ function ControlledTree({
 // ─── Fixtures ─────────────────────────────────────────────────────────────────
 
 const TASK_A: TaskTreeItemData = { id: 1, orgTaskNumber: 1, title: "Task Alpha", stageName: "Open", isClosed: false };
-const TASK_B: TaskTreeItemData = { id: 2, orgTaskNumber: 2, title: "Task Beta", stageName: "Open", isClosed: false };
+const TASK_B: TaskTreeItemData = { id: 2, orgTaskNumber: 2, title: "Task Beta",  stageName: "Open", isClosed: false };
 const TASK_C: TaskTreeItemData = { id: 3, orgTaskNumber: 3, title: "Task Gamma", stageName: "Open", isClosed: false };
 const TASK_D: TaskTreeItemData = { id: 4, orgTaskNumber: 4, title: "Task Delta", stageName: "Open", isClosed: false };
 
@@ -171,9 +167,14 @@ const TASK_D: TaskTreeItemData = { id: 4, orgTaskNumber: 4, title: "Task Delta",
 
 describe("TaskTreeVisualization — drag-and-drop", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     mockHasPermission.mockReset();
     mockHasPermission.mockReturnValue(true);
     mockIsFeatureEnabled.mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // ── 1. Root drag → create edge ─────────────────────────────────────────────
@@ -181,7 +182,6 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
   describe("root drag → drop onto another node", () => {
     it("calls onAddDependency with (draggedId, targetId)", () => {
       const onAdd = vi.fn();
-      // Both tasks are roots (no edges).
       render(
         <ControlledTree
           initialTasks={[TASK_A, TASK_B]}
@@ -190,12 +190,10 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
         />,
       );
 
-      // Drag handle for Task A (root → parentId is null at drag time)
       const handleA = screen.getByTestId("drag-handle-1");
       fireDragStart(handleA);
+      flushDragStart();
 
-      // After drag start the visualization sets dragState; the drop handlers
-      // are now wired up on every tree node.
       const nodeB = screen.getByTestId("tree-node-2");
       fireDragOver(nodeB);
       fireDrop(nodeB);
@@ -212,29 +210,21 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
         />,
       );
 
-      // Before drag: both tasks are at the root level.
       expect(screen.getByText("Task Alpha")).toBeInTheDocument();
       expect(screen.getByText("Task Beta")).toBeInTheDocument();
 
       const handleA = screen.getByTestId("drag-handle-1");
       fireDragStart(handleA);
+      flushDragStart();
 
       const nodeB = screen.getByTestId("tree-node-2");
       fireDragOver(nodeB);
 
-      await act(async () => {
-        fireDrop(nodeB);
-      });
+      await act(async () => { fireDrop(nodeB); });
 
-      // After the optimistic update in ControlledTree, Task A should now be
-      // nested under Task B.  The tree-node for A should still be in the DOM.
       expect(screen.getByTestId("tree-node-1")).toBeInTheDocument();
-      // Task B row should now have a folder icon (it gained a child).
-      // Task A's root row should no longer be a separate top-level entry.
-      // Verify the structure: Task A's node is now nested inside B's subtree.
       const nodeBEl = screen.getByTestId("tree-node-2");
       const nodeAEl = screen.getByTestId("tree-node-1");
-      // nodeA should appear after nodeB in the DOM (it is a child).
       expect(
         nodeBEl.compareDocumentPosition(nodeAEl) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
@@ -246,7 +236,6 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
   describe("non-root drag → drop onto Top Level zone", () => {
     it("calls onRemoveDependency with (taskId, parentId)", () => {
       const onRemove = vi.fn();
-      // B depends on A (A is parent of B).
       render(
         <ControlledTree
           initialTasks={[TASK_A, TASK_B]}
@@ -255,11 +244,10 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
         />,
       );
 
-      // Drag handle for Task B (has parentId = 1).
       const handleB = screen.getByTestId("drag-handle-2");
       fireDragStart(handleB);
+      flushDragStart();
 
-      // Top Level drop zone should now be visible.
       const zone = screen.getByTestId("top-level-drop-zone");
       fireDragOver(zone);
       fireDrop(zone);
@@ -269,7 +257,6 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
     });
 
     it("top-level zone is not shown when dragging a root node (already top-level)", () => {
-      // A is a root; dragging a root should not show a meaningful top-level zone.
       render(
         <ControlledTree
           initialTasks={[TASK_A, TASK_B]}
@@ -279,8 +266,8 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
 
       const handleA = screen.getByTestId("drag-handle-1");
       fireDragStart(handleA);
+      flushDragStart();
 
-      // The zone renders but signals "Already a top-level task".
       const zone = screen.getByTestId("top-level-drop-zone");
       expect(zone).toBeInTheDocument();
       expect(zone).toHaveTextContent(/already a top-level task/i);
@@ -294,23 +281,18 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
         />,
       );
 
-      // Before drag: B is a child of A.
       expect(screen.getByTestId("tree-node-1")).toBeInTheDocument();
       expect(screen.getByTestId("tree-node-2")).toBeInTheDocument();
 
       const handleB = screen.getByTestId("drag-handle-2");
       fireDragStart(handleB);
+      flushDragStart();
 
       const zone = screen.getByTestId("top-level-drop-zone");
       fireDragOver(zone);
 
-      await act(async () => {
-        fireDrop(zone);
-      });
+      await act(async () => { fireDrop(zone); });
 
-      // After remove, both A and B should be independent root nodes.
-      // Verify both tree nodes are rendered at the root level by checking
-      // they are both direct siblings in the root container.
       expect(screen.getByTestId("tree-node-1")).toBeInTheDocument();
       expect(screen.getByTestId("tree-node-2")).toBeInTheDocument();
     });
@@ -321,23 +303,21 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
   describe("cycle prevention", () => {
     it("does not call onAddDependency when dropping a root ancestor onto its own descendant", () => {
       const onAdd = vi.fn();
-      // A → B → C (A is grandparent of C)
       render(
         <ControlledTree
           initialTasks={[TASK_A, TASK_B, TASK_C]}
           initialEdges={[
-            { id: 1, taskId: 2, dependsOnTaskId: 1 }, // A is parent of B
-            { id: 2, taskId: 3, dependsOnTaskId: 2 }, // B is parent of C
+            { id: 1, taskId: 2, dependsOnTaskId: 1 },
+            { id: 2, taskId: 3, dependsOnTaskId: 2 },
           ]}
           onAddDependency={onAdd}
         />,
       );
 
-      // Drag A (the root); its descendants B and C must be invalid drop targets.
       const handleA = screen.getByTestId("drag-handle-1");
       fireDragStart(handleA);
+      flushDragStart();
 
-      // Try to drop onto C (a descendant of A → would create a cycle).
       const nodeC = screen.getByTestId("tree-node-3");
       fireDragOver(nodeC);
       fireDrop(nodeC);
@@ -347,23 +327,21 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
 
     it("does not call onMoveDependency when a node is dropped onto one of its own children", () => {
       const onMove = vi.fn();
-      // A → B, A → C (B and C are siblings under A)
-      // B also has a child D.
       render(
         <ControlledTree
           initialTasks={[TASK_A, TASK_B, TASK_C, TASK_D]}
           initialEdges={[
-            { id: 1, taskId: 2, dependsOnTaskId: 1 }, // A is parent of B
-            { id: 2, taskId: 3, dependsOnTaskId: 1 }, // A is parent of C
-            { id: 3, taskId: 4, dependsOnTaskId: 2 }, // B is parent of D
+            { id: 1, taskId: 2, dependsOnTaskId: 1 },
+            { id: 2, taskId: 3, dependsOnTaskId: 1 },
+            { id: 3, taskId: 4, dependsOnTaskId: 2 },
           ]}
           onMoveDependency={onMove}
         />,
       );
 
-      // Drag B (parent=A). D is a descendant of B → dropping B onto D creates a cycle.
       const handleB = screen.getByTestId("drag-handle-2");
       fireDragStart(handleB);
+      flushDragStart();
 
       const nodeD = screen.getByTestId("tree-node-4");
       fireDragOver(nodeD);
@@ -388,8 +366,8 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
 
       const handleA = screen.getByTestId("drag-handle-1");
       fireDragStart(handleA);
+      flushDragStart();
 
-      // Drop A onto itself.
       const nodeA = screen.getByTestId("tree-node-1");
       fireDragOver(nodeA);
       fireDrop(nodeA);
@@ -412,6 +390,237 @@ describe("TaskTreeVisualization — drag-and-drop", () => {
 
       expect(screen.queryByTestId("drag-handle-1")).not.toBeInTheDocument();
       expect(screen.queryByTestId("drag-handle-2")).not.toBeInTheDocument();
+    });
+  });
+
+  // ── 6. Re-parenting (task #476) ──────────────────────────────────────────
+  //
+  // A child task dragged from its current parent and dropped onto a different
+  // parent node must:
+  //   a) call onMoveDependency(taskId, oldParentId, newParentId)
+  //   b) reflect the new position in the tree immediately (no page refresh)
+
+  describe("re-parenting a child to a different parent (task #476)", () => {
+    it("calls onMoveDependency(childId, oldParentId, newParentId) when dropped on a new parent", () => {
+      const onMove = vi.fn();
+      // Tree: A→B (B is a child of A), C is a root.
+      // We will re-parent B from A to C.
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B, TASK_C]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+          onMoveDependency={onMove}
+        />,
+      );
+
+      // B has parentId = 1 (A) at drag time.
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      // Drop onto C (tree-node-3), which is a valid new parent.
+      const nodeC = screen.getByTestId("tree-node-3");
+      fireDragOver(nodeC);
+      fireDrop(nodeC);
+
+      expect(onMove).toHaveBeenCalledTimes(1);
+      expect(onMove).toHaveBeenCalledWith(2, 1, 3);
+    });
+
+    it("does not call onMoveDependency when dropped back onto the current parent (no-op)", () => {
+      const onMove = vi.fn();
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+          onMoveDependency={onMove}
+        />,
+      );
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      // Drop B back onto A — the current parent is in the invalid-drop set.
+      const nodeA = screen.getByTestId("tree-node-1");
+      fireDragOver(nodeA);
+      fireDrop(nodeA);
+
+      expect(onMove).not.toHaveBeenCalled();
+    });
+
+    it("reflects the re-parenting in the tree without a page refresh", async () => {
+      // Tree: A→B (B is a child of A), C is a root.
+      // After re-parenting B→C: B should appear under C, not under A.
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B, TASK_C]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+        />,
+      );
+
+      // Before: B (tree-node-2) follows A (tree-node-1) in DOM.
+      const nodeBBefore = screen.getByTestId("tree-node-2");
+      const nodeAEl = screen.getByTestId("tree-node-1");
+      expect(
+        nodeAEl.compareDocumentPosition(nodeBBefore) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      const nodeC = screen.getByTestId("tree-node-3");
+      fireDragOver(nodeC);
+      await act(async () => { fireDrop(nodeC); });
+
+      // After optimistic update: B (tree-node-2) should follow C (tree-node-3)
+      // in the DOM, meaning it is now nested under C.
+      const nodeCEl = screen.getByTestId("tree-node-3");
+      const nodeBAfter = screen.getByTestId("tree-node-2");
+      expect(
+        nodeCEl.compareDocumentPosition(nodeBAfter) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+  });
+
+  // ── 7. Touch-drag → root (task #477) ──────────────────────────────────────
+  //
+  // On touch devices the drag is initiated by onTouchStart (which sets dragState
+  // synchronously — no setTimeout) and resolved by a native touchend listener on
+  // the container.  The listener calls document.elementFromPoint to identify the
+  // drop target.  We mock elementFromPoint so JSDOM can resolve it.
+
+  describe("touch-drag promotes a child task to root (task #477)", () => {
+    it("shows the top-level drop zone after touchstart on a non-root drag handle", () => {
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+        />,
+      );
+
+      // Before touch: no drag → zone is not rendered.
+      expect(screen.queryByTestId("top-level-drop-zone")).not.toBeInTheDocument();
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireEvent.touchStart(handleB);
+
+      // dragState is now set → zone should appear.
+      expect(screen.getByTestId("top-level-drop-zone")).toBeInTheDocument();
+    });
+
+    it("calls onRemoveDependency and re-renders task as root when touch ends on the drop zone", async () => {
+      const onRemove = vi.fn();
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+          onRemoveDependency={onRemove}
+        />,
+      );
+
+      // Initiate touch drag on B's handle (sets dragState synchronously).
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireEvent.touchStart(handleB);
+
+      // The top-level drop zone is now visible.
+      const zone = screen.getByTestId("top-level-drop-zone");
+
+      // JSDOM does not implement elementFromPoint, so we define it directly.
+      // The container's native touchend handler calls it to resolve the drop target.
+      const original = document.elementFromPoint;
+      Object.defineProperty(document, "elementFromPoint", {
+        configurable: true,
+        writable: true,
+        value: () => zone,
+      });
+
+      const container = zone.closest(".space-y-2") as HTMLElement;
+      await act(async () => {
+        fireEvent.touchEnd(container, {
+          changedTouches: [{ clientX: 100, clientY: 200 }],
+        });
+      });
+
+      // Restore original (undefined in JSDOM; just delete the override).
+      if (original === undefined) {
+        // @ts-expect-error — restoring to JSDOM's native undefined state
+        delete document.elementFromPoint;
+      } else {
+        document.elementFromPoint = original;
+      }
+
+      expect(onRemove).toHaveBeenCalledTimes(1);
+      expect(onRemove).toHaveBeenCalledWith(2, 1);
+
+      // After the optimistic remove both A and B are root nodes.
+      expect(screen.getByTestId("tree-node-1")).toBeInTheDocument();
+      expect(screen.getByTestId("tree-node-2")).toBeInTheDocument();
+    });
+  });
+
+  // ── 8. Firefox dragEnd-before-drop (task #478) ────────────────────────────
+  //
+  // Firefox fires dragend before drop on the drop target.  Without the deferred
+  // clear, onDragEnd would call setDragState(null) immediately, unmounting the
+  // TopLevelDropZone before the drop event fires.  The fix (setTimeout(0) in
+  // onDragEnd) queues the clear after the drop, so the zone stays alive long
+  // enough to accept the drop.
+
+  describe("drop zone stays visible until drop resolves — Firefox dragEnd-before-drop (task #478)", () => {
+    it("top-level zone remains in the DOM after dragEnd fires but before timers flush", () => {
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+        />,
+      );
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      // Zone is visible once drag starts.
+      const zone = screen.getByTestId("top-level-drop-zone");
+      expect(zone).toBeInTheDocument();
+
+      // Firefox fires dragEnd before drop on the drop target.
+      // Without the deferred clear the zone would vanish here.
+      fireDragEnd(handleB);
+
+      // Timer has NOT been flushed yet — zone must still be present so the
+      // pending drop can still land on it.
+      expect(screen.getByTestId("top-level-drop-zone")).toBeInTheDocument();
+    });
+
+    it("calls onRemoveDependency when drop fires after dragEnd (Firefox order)", () => {
+      const onRemove = vi.fn();
+      render(
+        <ControlledTree
+          initialTasks={[TASK_A, TASK_B]}
+          initialEdges={[{ id: 1, taskId: 2, dependsOnTaskId: 1 }]}
+          onRemoveDependency={onRemove}
+        />,
+      );
+
+      const handleB = screen.getByTestId("drag-handle-2");
+      fireDragStart(handleB);
+      flushDragStart();
+
+      const zone = screen.getByTestId("top-level-drop-zone");
+
+      // Simulate Firefox event order: dragend fires first, then drop.
+      fireDragEnd(handleB);   // queues a deferred clear — zone still visible
+      fireDragOver(zone);
+      fireDrop(zone);         // drop resolves before the deferred clear runs
+
+      expect(onRemove).toHaveBeenCalledTimes(1);
+      expect(onRemove).toHaveBeenCalledWith(2, 1);
+
+      // Now flush the deferred clear — zone should disappear.
+      act(() => { vi.runAllTimers(); });
+      expect(screen.queryByTestId("top-level-drop-zone")).not.toBeInTheDocument();
     });
   });
 });
