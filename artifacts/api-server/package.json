@@ -21,7 +21,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "google-auth-library": "^10.9.0",
-    "js-yaml": "^5.2.1",
+    "js-yaml": "^5.2.2",
     "nodemailer": "^9.0.3",
     "openid-client": "^6.8.4",
     "pino": "^9.14.0",
