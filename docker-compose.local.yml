@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.local
+      target: runtime
     container_name: opsly-api
     depends_on:
       db:
@@ -28,6 +29,7 @@ services:
       NODE_ENV: development
       PORT: 8080
       DATABASE_URL: postgresql://postgres:postgres@db:5432/opsly
+      # AUTH_MODE: local | oidc | replit_oidc  (default: local)
       AUTH_MODE: ${AUTH_MODE:-local}
       INSTANCE_ADMIN_TOKEN: ${INSTANCE_ADMIN_TOKEN:-local-dev-admin-token}
       LOCAL_DEV_USER_EMAIL: ${LOCAL_DEV_USER_EMAIL:-admin@example.com}
@@ -40,19 +42,22 @@ services:
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      # STORAGE_DRIVER: local | s3 | replit  (default: local — writes to /data/exports inside container)
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      LOCAL_STORAGE_PATH: /data/exports
     ports:
       - "8080:8080"
+    volumes:
+      - opsly-exports:/data/exports
     command: >
       sh -c "
       pnpm --filter @workspace/db run push &&
-      pnpm --filter @workspace/db run migrate:add-multi-auth-support &&
       if [ \"$$AUTH_MODE\" = \"local\" ] && [ -n \"$$LOCAL_DEV_USER_EMAIL\" ] && [ -n \"$$LOCAL_DEV_USER_PASSWORD\" ]; then
         pnpm --filter @workspace/db run create-local-user \"$$LOCAL_DEV_USER_EMAIL\" \"$$LOCAL_DEV_USER_PASSWORD\" \"$$LOCAL_DEV_USER_FIRST_NAME\" \"$$LOCAL_DEV_USER_LAST_NAME\";
         if [ \"$$LOCAL_DEV_USER_INSTANCE_ADMIN\" = \"true\" ]; then
           pnpm --filter @workspace/db run make-admin \"$$LOCAL_DEV_USER_EMAIL\";
         fi;
       fi &&
-      pnpm --filter @workspace/api-server run build &&
       node --enable-source-maps artifacts/api-server/dist/index.mjs
       "
 
@@ -60,6 +65,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.local
+      target: runtime
     container_name: opsly-web
     depends_on:
       - api
@@ -74,3 +80,4 @@ services:
 
 volumes:
   opsly-postgres-data:
+  opsly-exports:

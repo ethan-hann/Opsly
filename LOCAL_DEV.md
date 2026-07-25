@@ -1,246 +1,282 @@
 # Local Development Guide
 
-This guide is for running the app locally on Windows (PowerShell), including:
+Run the full app stack locally using either Docker (recommended, zero config) or
+a native Node + pnpm setup.
 
-- API server
-- Web app (Vite frontend)
-- PostgreSQL database
-- Auth configuration (Replit OIDC, generic OIDC, or local DB login)
+## Quick start
 
-You can run locally in two ways:
+### Docker (one command)
 
-- Native local workflow (Node + pnpm + local Postgres)
-- Docker workflow (app + Postgres via `docker compose`)
+```sh
+docker compose -f docker-compose.local.yml up --build
+```
 
-## 1) Prerequisites
+Open **http://localhost:20999** and sign in with `admin@example.com` / `changeme`.
+
+To customise env vars, copy the example file first:
+
+```sh
+cp .env.example .env
+# edit .env as needed
+docker compose -f docker-compose.local.yml up --build
+```
+
+Docker Compose reads `.env` automatically — no `--env-file` flag required.
+
+### Native dev (two commands)
+
+```sh
+# One-time setup: push DB schema and create default local user
+pnpm run setup
+
+# Start API + frontend together
+pnpm run dev
+```
+
+Or with the shell wrapper (sources `.env` automatically):
+
+```sh
+# bash / sh
+./scripts/dev.sh --setup   # first run only
+./scripts/dev.sh
+
+# PowerShell
+./scripts/dev.ps1 -Setup   # first run only
+./scripts/dev.ps1
+```
+
+Open **http://localhost:20999** and sign in with `admin@example.com` / `changeme`.
+
+---
+
+## Prerequisites
 
 - Node.js 24.x
-- pnpm installed globally
-- PostgreSQL 16+ running locally (or a reachable Postgres instance)
+- pnpm installed globally (`npm install -g pnpm` or `corepack enable && corepack prepare pnpm@latest --activate`)
+- PostgreSQL 16+ running locally (or use the Docker stack above)
 
-## 2) Install dependencies
+## Environment variables
 
-From repository root:
+Copy `.env.example` to `.env` and adjust as needed.  All variables have
+sensible defaults for local development; no changes are required to get started.
 
-```powershell
+```sh
+# bash / sh
+cp .env.example .env
+
+# PowerShell
+Copy-Item .env.example .env
+```
+
+Key variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/opsly` | Postgres connection string |
+| `AUTH_MODE` | `local` | `local` \| `oidc` \| `replit_oidc` |
+| `STORAGE_DRIVER` | `local` | `local` \| `s3` \| `replit` |
+| `LOCAL_STORAGE_PATH` | `./data/exports` | Directory for export files (local driver) |
+| `INSTANCE_ADMIN_TOKEN` | `local-dev-admin-token` | Static bearer token for instance-admin access |
+
+## Auth modes
+
+The default is **local** (email/password). To switch:
+
+### Local login (default)
+
+No extra config needed. The setup step creates `admin@example.com` / `changeme`.
+
+```sh
+# bash / sh
+export AUTH_MODE=local
+
+# PowerShell
+$env:AUTH_MODE = "local"
+```
+
+### Replit OIDC
+
+```sh
+# bash / sh
+export AUTH_MODE=replit_oidc
+export REPL_ID="<your-repl-id>"
+# export ISSUER_URL="https://replit.com/oidc"  # optional
+
+# PowerShell
+$env:AUTH_MODE = "replit_oidc"
+$env:REPL_ID = "<your-repl-id>"
+```
+
+### Generic OIDC
+
+```sh
+# bash / sh
+export AUTH_MODE=oidc
+export OIDC_ISSUER_URL="https://your-issuer.example.com"
+export OIDC_CLIENT_ID="<client-id>"
+# export OIDC_CLIENT_SECRET="<client-secret>"  # if required
+
+# PowerShell
+$env:AUTH_MODE = "oidc"
+$env:OIDC_ISSUER_URL = "https://your-issuer.example.com"
+$env:OIDC_CLIENT_ID = "<client-id>"
+```
+
+## Storage
+
+Export files are stored locally by default (`STORAGE_DRIVER=local`), written to
+`./data/exports/` (or `LOCAL_STORAGE_PATH`). No cloud bucket is needed for local
+or Docker dev.
+
+To use S3-compatible storage, set `STORAGE_DRIVER=s3` and fill in the `S3_*`
+variables in `.env`.
+
+## Native dev: step by step
+
+### 1. Install dependencies
+
+```sh
 pnpm install --frozen-lockfile
 ```
 
 If pnpm asks for build approvals:
 
-```powershell
+```sh
 pnpm approve-builds
 ```
 
 Approve `esbuild` (and any other expected workspace build dependency).
 
-## 3) Database setup
+### 2. Start Postgres
 
-Set your DB URL in the current shell:
+Use the Docker-only Postgres service if you don't have a local instance:
 
-```powershell
+```sh
+docker compose -f docker-compose.local.yml up db -d
+```
+
+Or point `DATABASE_URL` at any reachable Postgres 16+ instance.
+
+### 3. First-time setup
+
+```sh
+# bash / sh
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/opsly"
+pnpm run setup
+
+# PowerShell
 $env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/opsly"
+pnpm run setup
 ```
 
-Push schema:
+This pushes the DB schema and creates the default local admin user
+(`admin@example.com` / `changeme`). The `setup` script always uses these
+fixed defaults. To use different credentials, run the DB scripts directly:
 
-```powershell
+```sh
+# bash / sh
 pnpm --filter @workspace/db run push
+pnpm --filter @workspace/db run create-local-user your@email.com yourpass First Last
+pnpm --filter @workspace/db run make-admin your@email.com
+
+# PowerShell (same commands)
 ```
 
-Apply multi-auth migration:
+### 4. Start the dev servers
 
-```powershell
-pnpm --filter @workspace/db run migrate:add-multi-auth-support
+```sh
+# bash / sh
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/opsly"
+pnpm run dev
+
+# PowerShell
+$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/opsly"
+pnpm run dev
 ```
 
-## 4) Choose auth mode
+`pnpm run dev` starts the API server (`:8080`) and Vite frontend (`:20999`)
+concurrently in a single terminal.
 
-Set one of the following before starting the API server.
+### 5. Open the app
 
-### Option A: Local login (easiest for local dev)
-
-```powershell
-$env:AUTH_MODE = "local"
+```
+http://localhost:20999
 ```
 
-Create a local user:
+Sign in with `admin@example.com` / `changeme` (or whatever you set in `.env`).
 
-```powershell
-pnpm --filter @workspace/db run create-local-user admin@example.com changeme Admin User
-```
+## Docker: details
 
-### Option B: Replit OIDC
+Services started by `docker compose -f docker-compose.local.yml up --build`:
 
-```powershell
-$env:AUTH_MODE = "replit_oidc"
-$env:REPL_ID = "<your-repl-id>"
-# Optional:
-# $env:ISSUER_URL = "https://replit.com/oidc"
-```
+| Service | URL |
+|---|---|
+| Frontend (Vite dev) | http://localhost:20999 |
+| API server | http://localhost:8080/api |
+| Postgres | localhost:5432 (db: `opsly`, user/pass: `postgres`) |
 
-### Option C: Generic OIDC
+What the stack does automatically on first start:
 
-```powershell
+1. Starts Postgres
+2. Pushes the DB schema (`pnpm --filter @workspace/db run push`)
+3. Creates the default local user (`admin@example.com` / `changeme`)
+4. Promotes that user to instance admin
+
+Export files are persisted in the `opsly-exports` named Docker volume, mounted
+at `/data/exports` inside the API container.
+
+### Override auth mode in Docker
+
+Inline (one-off):
+
+```sh
+# bash / sh
+AUTH_MODE=oidc \
+  OIDC_ISSUER_URL=https://your-issuer.example.com \
+  OIDC_CLIENT_ID=your-client-id \
+  docker compose -f docker-compose.local.yml up --build
+
+# PowerShell
 $env:AUTH_MODE = "oidc"
 $env:OIDC_ISSUER_URL = "https://your-issuer.example.com"
-$env:OIDC_CLIENT_ID = "<client-id>"
-# Optional:
-# $env:OIDC_CLIENT_SECRET = "<client-secret>"
+$env:OIDC_CLIENT_ID = "your-client-id"
+docker compose -f docker-compose.local.yml up --build
 ```
 
-## 5) Start API server (Terminal 1)
+Via `.env` (recommended for repeat use):
 
-The API requires `PORT`. For local parity with artifact config:
-
-```powershell
-$env:PORT = "8080"
-$env:NODE_ENV = "development"
-pnpm --filter @workspace/api-server run build
-node --enable-source-maps artifacts\api-server\dist\index.mjs
+```sh
+cp .env.example .env
+# set AUTH_MODE=oidc and the OIDC_* vars in .env
+docker compose -f docker-compose.local.yml up --build
 ```
 
-Notes:
+### Stop and clean up
 
-- `STORAGE_DRIVER` defaults to `replit`. Missing bucket config is non-fatal in development (export features disabled).
-- You can set `INSTANCE_ADMIN_TOKEN` if you need static instance-admin access:
+```sh
+# bash / sh
+docker compose -f docker-compose.local.yml down      # stop services, keep volumes
+docker compose -f docker-compose.local.yml down -v   # also remove DB + export volumes
 
-```powershell
-$env:INSTANCE_ADMIN_TOKEN = "<long-random-token>"
+# PowerShell
+docker compose -f docker-compose.local.yml down
+docker compose -f docker-compose.local.yml down -v
 ```
 
-## 6) Start frontend (Terminal 2)
+## Useful commands
 
-```powershell
-$env:PORT = "20999"
-$env:BASE_PATH = "/"
-# Optional if your API runs elsewhere:
-# $env:API_PROXY_TARGET = "http://127.0.0.1:8080"
-pnpm --filter @workspace/it-task-manager run dev
-```
-
-Open:
-
-```text
-http://localhost:20999/
-```
-
-The Vite dev server proxies `/api/*` requests to `API_PROXY_TARGET` (default `http://127.0.0.1:8080`).
-
-## 7) Useful validation commands
-
-```powershell
+```sh
 pnpm run typecheck
 pnpm --filter @workspace/api-server test
 pnpm --filter @workspace/it-task-manager test
 ```
 
-## 8) Common issues
+## Common issues
 
-- `ERR_PNPM_IGNORED_BUILDS`: run `pnpm approve-builds`.
-- `PORT environment variable is required`: set `PORT` in each terminal before start.
-- `BASE_PATH environment variable is required`: set `$env:BASE_PATH = "/"` for frontend.
-- OIDC login errors in local mode: ensure `$env:AUTH_MODE = "local"` and create a local user.
-
-## 9) Docker local stack (optional)
-
-If you prefer containerized local dev with Postgres included:
-
-### Prerequisites
-
-- Docker Desktop
-- Docker Compose v2 (`docker compose`)
-
-### Start everything
-
-From repository root:
-
-```powershell
-docker compose -f docker-compose.local.yml up --build
-```
-
-Or with an env file:
-
-```powershell
-Copy-Item .env.docker.example .env.docker
-# edit .env.docker as needed
-docker compose --env-file .env.docker -f docker-compose.local.yml up --build
-```
-
-Services:
-
-- Web: `http://localhost:20999`
-- API: `http://localhost:8080/api`
-- Postgres: `localhost:5432` (db: `opsly`, user: `postgres`, password: `postgres`)
-
-What this stack does automatically:
-
-- Starts Postgres
-- Runs DB schema push + `migrate:add-multi-auth-support`
-- Creates a default local user in local auth mode:
-  - email: `admin@example.com`
-  - password: `changeme`
-- Promotes that default local user to instance admin (so `/admin` is available)
-
-### First-time login (Docker local dev)
-
-By default, the compose stack runs with `AUTH_MODE=local`.
-
-1. Open `http://localhost:20999`
-2. On the login page, sign in with:
-   - Email: `admin@example.com`
-   - Password: `changeme`
-
-If you changed `LOCAL_DEV_USER_EMAIL` / `LOCAL_DEV_USER_PASSWORD` in
-`.env.docker`, use those values instead.
-
-In local auth mode, invited users who do not have accounts yet can open their
-invite link and create an account directly from the invite page before
-accepting the invitation. The account email is always taken from the invitation
-and cannot be changed on that page.
-
-By default, that local user is also granted instance-admin privileges. If you
-set `LOCAL_DEV_USER_INSTANCE_ADMIN=false`, `/admin` will be denied unless you
-configure another admin path.
-
-If you switch to `AUTH_MODE=oidc` or `AUTH_MODE=replit_oidc`, the app will use
-OIDC login instead of local credentials, so you'll need a working OIDC provider
-configuration to sign in.
-
-### Override auth mode/env in Docker
-
-You can use either:
-
-- inline env vars (quick one-off), or
-- `.env.docker` (recommended for repeat use)
-
-Inline example:
-
-```powershell
-$env:AUTH_MODE = "oidc"
-$env:OIDC_ISSUER_URL = "https://your-issuer.example.com"
-$env:OIDC_CLIENT_ID = "your-client-id"
-$env:OIDC_CLIENT_SECRET = "your-client-secret"
-docker compose -f docker-compose.local.yml up --build
-```
-
-`.env.docker` example:
-
-```text
-AUTH_MODE=oidc
-OIDC_ISSUER_URL=https://your-issuer.example.com
-OIDC_CLIENT_ID=your-client-id
-OIDC_CLIENT_SECRET=your-client-secret
-```
-
-### Stop and clean up
-
-```powershell
-docker compose -f docker-compose.local.yml down
-```
-
-Remove DB volume too:
-
-```powershell
-docker compose -f docker-compose.local.yml down -v
-```
+| Symptom | Fix |
+|---|---|
+| `ERR_PNPM_IGNORED_BUILDS` | Run `pnpm approve-builds` and approve `esbuild` |
+| `PORT environment variable is required` | Set `PORT` before starting the server manually, or use `pnpm run dev` which sets it automatically |
+| `BASE_PATH environment variable is required` | Use `pnpm run dev` or set `BASE_PATH=/` before starting the frontend |
+| Login fails in local mode | Ensure `AUTH_MODE=local` and run the setup step to create a local user |
+| Export download fails | Check `STORAGE_DRIVER=local` and that `LOCAL_STORAGE_PATH` is writable |

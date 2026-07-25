@@ -6,13 +6,17 @@
     "preinstall": "node scripts/preinstall.js",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build --force",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "setup": "pnpm --filter @workspace/db run push && pnpm --filter @workspace/db run create-local-user admin@example.com changeme Local Admin && pnpm --filter @workspace/db run make-admin admin@example.com",
+    "dev": "concurrently --names \"api,web\" --prefix-colors \"cyan,magenta\" \"cross-env PORT=8080 pnpm --filter @workspace/api-server run dev\" \"cross-env PORT=20999 BASE_PATH=/ pnpm --filter @workspace/it-task-manager run dev\""
   },
   "private": true,
   "dependencies": {
     "@replit/connectors-sdk": "^0.4.1"
   },
   "devDependencies": {
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
     "prettier": "^3.9.5",
     "typescript": "~5.9.3"
   },

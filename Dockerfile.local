@@ -1,4 +1,7 @@
-FROM node:24-bookworm-slim
+# ── Stage 1: install dependencies ──────────────────────────────────────────────
+# This layer is cached as long as the lockfile and workspace manifests do not
+# change, making repeat `docker compose up --build` fast.
+FROM node:24-bookworm-slim AS deps
 
 WORKDIR /app
 
@@ -7,6 +10,33 @@ ENV PATH="${PNPM_HOME}:${PATH}"
 
 RUN corepack enable
 
-COPY . .
+# Copy only the files that affect dependency resolution.
+# Source files are deliberately excluded so that code changes do not bust the
+# install cache.
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY scripts/package.json ./scripts/
+COPY artifacts/api-server/package.json ./artifacts/api-server/
+COPY artifacts/it-task-manager/package.json ./artifacts/it-task-manager/
+COPY lib/api-client-react/package.json ./lib/api-client-react/
+COPY lib/api-spec/package.json ./lib/api-spec/
+COPY lib/api-zod/package.json ./lib/api-zod/
+COPY lib/db/package.json ./lib/db/
+COPY lib/replit-auth-web/package.json ./lib/replit-auth-web/
 
 RUN pnpm install --frozen-lockfile
+
+# ── Stage 2: build ─────────────────────────────────────────────────────────────
+FROM deps AS builder
+
+# Copy all source now that node_modules are in place.
+COPY . .
+
+# Build the API server (esbuild bundle → artifacts/api-server/dist/index.mjs).
+RUN pnpm --filter @workspace/api-server run build
+
+# ── Runtime ────────────────────────────────────────────────────────────────────
+# Final image inherits the builder stage so both the pre-built API bundle and
+# the full node_modules (needed by the Vite dev server) are available.
+FROM builder AS runtime
+
+WORKDIR /app

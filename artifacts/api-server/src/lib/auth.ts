@@ -35,10 +35,10 @@ let oidcConfig: client.Configuration | null = null;
 let cachedAuthConfig: AuthConfig | null = null;
 
 function parseAuthMode(raw: string | undefined): AuthMode {
-  if (!raw || raw === 'replit_oidc') return 'replit_oidc';
-  if (raw === 'oidc' || raw === 'local') return raw;
+  if (!raw) return 'local';
+  if (raw === 'replit_oidc' || raw === 'oidc' || raw === 'local') return raw;
   throw new Error(
-    `Invalid AUTH_MODE "${raw}". Expected one of: replit_oidc, oidc, local.`,
+    `Invalid AUTH_MODE "${raw}". Expected one of: local, oidc, replit_oidc.`,
   );
 }
 

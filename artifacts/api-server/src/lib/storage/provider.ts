@@ -1,9 +1,10 @@
 /**
  * StorageProvider — pluggable object-storage abstraction.
  *
- * Two concrete implementations are provided:
- *  - ReplitStorageProvider  (STORAGE_DRIVER=replit, default on Replit)
- *  - S3StorageProvider      (STORAGE_DRIVER=s3, any S3-compatible endpoint)
+ * Three concrete implementations are provided:
+ *  - LocalStorageProvider   (STORAGE_DRIVER=local, default when unset — writes to ./data/exports/)
+ *  - ReplitStorageProvider  (STORAGE_DRIVER=replit — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID)
+ *  - S3StorageProvider      (STORAGE_DRIVER=s3 — any S3-compatible endpoint)
  *
  * The active implementation is chosen by the STORAGE_DRIVER environment
  * variable at server startup.
@@ -52,18 +53,23 @@ let _provider: StorageProvider | undefined;
 export function getStorageProvider(): StorageProvider {
   if (_provider) return _provider;
 
-  const driver = (process.env.STORAGE_DRIVER ?? "replit").toLowerCase().trim();
+  const driver = (process.env.STORAGE_DRIVER ?? "local").toLowerCase().trim();
 
   if (driver === "s3") {
     // Lazy import to avoid bundling the SDK when it is not needed.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { S3StorageProvider } = require("./s3") as typeof import("./s3");
     _provider = new S3StorageProvider();
-  } else {
-    // Default to the Replit/GCS implementation.
+  } else if (driver === "replit") {
+    // Replit/GCS implementation — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { ReplitStorageProvider } = require("./replit") as typeof import("./replit");
     _provider = new ReplitStorageProvider();
+  } else {
+    // Default: local filesystem — writes to LOCAL_STORAGE_PATH (default ./data/exports/).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { LocalStorageProvider } = require("./local") as typeof import("./local");
+    _provider = new LocalStorageProvider();
   }
 
   return _provider;
@@ -90,7 +96,7 @@ function varStatus(name: string): { name: string; status: "set" | "missing" } {
  * Call once from index.ts before app.listen().
  */
 export function initStorageProvider(): void {
-  const driver = (process.env.STORAGE_DRIVER ?? "replit").toLowerCase().trim();
+  const driver = (process.env.STORAGE_DRIVER ?? "local").toLowerCase().trim();
   // In development, missing storage config is non-fatal — export operations
   // will fail at runtime with a clear error, which is acceptable when running
   // without a provisioned storage bucket.  In production, exit immediately so
@@ -142,8 +148,7 @@ export function initStorageProvider(): void {
       logger.fatal({ err, driver: "s3" }, "Storage driver failed to initialize");
       process.exit(1);
     }
-  } else {
-    // replit driver (default)
+  } else if (driver === "replit") {
     const required = (["DEFAULT_OBJECT_STORAGE_BUCKET_ID"] as const).map(varStatus);
     const missing = required.filter((v) => v.status === "missing");
 
@@ -177,6 +182,23 @@ export function initStorageProvider(): void {
       );
     } catch (err) {
       logger.fatal({ err, driver: "replit" }, "Storage driver failed to initialize");
+      process.exit(1);
+    }
+  } else {
+    // local driver (default) — writes to LOCAL_STORAGE_PATH (default: ./data/exports/).
+    // No required env vars; always succeeds.
+    try {
+      getStorageProvider();
+      logger.info(
+        {
+          driver: "local",
+          path: process.env.LOCAL_STORAGE_PATH ?? "./data/exports",
+          prefix: process.env.STORAGE_PREFIX ?? "exports/",
+        },
+        "Storage driver ready",
+      );
+    } catch (err) {
+      logger.fatal({ err, driver: "local" }, "Storage driver failed to initialize");
       process.exit(1);
     }
   }
