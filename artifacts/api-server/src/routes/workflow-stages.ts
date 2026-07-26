@@ -46,6 +46,7 @@ router.get("/workflow-stages", requireOrg, requireCustomStatusesFeature, async (
     a.position !== b.position ? a.position - b.position : a.id - b.id,
   );
 
+  res.setHeader("Cache-Control", "private, max-age=30");
   res.json(ListWorkflowStagesResponse.parse(stages.map(serializeStage)));
 });
 

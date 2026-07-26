@@ -155,59 +155,57 @@ function cfEventDescription(field: string, oldValue: string | null, newValue: st
 router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
 
-  const recentTasks = await db
-    .select({
-      id: tasksTable.id,
-      title: tasksTable.title,
-      createdAt: tasksTable.createdAt,
-    })
-    .from(tasksTable)
-    .where(eq(tasksTable.orgId, orgId))
-    .orderBy(sql`${tasksTable.createdAt} desc`)
-    .limit(5);
-
-  const recentComments = await db
-    .select({
-      id: commentsTable.id,
-      content: commentsTable.content,
-      taskId: commentsTable.taskId,
-      taskTitle: tasksTable.title,
-      createdAt: commentsTable.createdAt,
-    })
-    .from(commentsTable)
-    .innerJoin(tasksTable, eq(commentsTable.taskId, tasksTable.id))
-    .where(eq(tasksTable.orgId, orgId))
-    .orderBy(sql`${commentsTable.createdAt} desc`)
-    .limit(5);
-
-  const recentProjects = await db
-    .select({
-      id: projectsTable.id,
-      name: projectsTable.name,
-      createdAt: projectsTable.createdAt,
-    })
-    .from(projectsTable)
-    .where(eq(projectsTable.orgId, orgId))
-    .orderBy(sql`${projectsTable.createdAt} desc`)
-    .limit(5);
-
-  // Custom-field changes stored in task_events with "cf:<fieldName>" field prefix.
-  const recentCfEvents = await db
-    .select({
-      id: taskEventsTable.id,
-      field: taskEventsTable.field,
-      oldValue: taskEventsTable.oldValue,
-      newValue: taskEventsTable.newValue,
-      taskId: taskEventsTable.taskId,
-      taskTitle: tasksTable.title,
-      createdAt: taskEventsTable.createdAt,
-    })
-    .from(taskEventsTable)
-    .innerJoin(tasksTable, eq(taskEventsTable.taskId, tasksTable.id))
-    .where(and(eq(taskEventsTable.orgId, orgId), like(taskEventsTable.field, "cf:%")))
-    .orderBy(sql`${taskEventsTable.createdAt} desc`)
-    .limit(5);
-
+  const [recentTasks, recentComments, recentProjects, recentCfEvents] = await Promise.all([
+    db
+      .select({
+        id: tasksTable.id,
+        title: tasksTable.title,
+        createdAt: tasksTable.createdAt,
+      })
+      .from(tasksTable)
+      .where(eq(tasksTable.orgId, orgId))
+      .orderBy(sql`${tasksTable.createdAt} desc`)
+      .limit(5),
+    db
+      .select({
+        id: commentsTable.id,
+        content: commentsTable.content,
+        taskId: commentsTable.taskId,
+        taskTitle: tasksTable.title,
+        createdAt: commentsTable.createdAt,
+      })
+      .from(commentsTable)
+      .innerJoin(tasksTable, eq(commentsTable.taskId, tasksTable.id))
+      .where(eq(tasksTable.orgId, orgId))
+      .orderBy(sql`${commentsTable.createdAt} desc`)
+      .limit(5),
+    db
+      .select({
+        id: projectsTable.id,
+        name: projectsTable.name,
+        createdAt: projectsTable.createdAt,
+      })
+      .from(projectsTable)
+      .where(eq(projectsTable.orgId, orgId))
+      .orderBy(sql`${projectsTable.createdAt} desc`)
+      .limit(5),
+    // Custom-field changes stored in task_events with "cf:<fieldName>" field prefix.
+    db
+      .select({
+        id: taskEventsTable.id,
+        field: taskEventsTable.field,
+        oldValue: taskEventsTable.oldValue,
+        newValue: taskEventsTable.newValue,
+        taskId: taskEventsTable.taskId,
+        taskTitle: tasksTable.title,
+        createdAt: taskEventsTable.createdAt,
+      })
+      .from(taskEventsTable)
+      .innerJoin(tasksTable, eq(taskEventsTable.taskId, tasksTable.id))
+      .where(and(eq(taskEventsTable.orgId, orgId), like(taskEventsTable.field, "cf:%")))
+      .orderBy(sql`${taskEventsTable.createdAt} desc`)
+      .limit(5),
+  ]);
   const taskItems = recentTasks.map((t) => ({
     id: t.id,
     type: "task_created",

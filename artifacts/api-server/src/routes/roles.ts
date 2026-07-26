@@ -73,6 +73,7 @@ router.get('/roles', requireOrg, async (req, res): Promise<void> => {
     return a.name.localeCompare(b.name);
   });
 
+  res.setHeader("Cache-Control", "private, max-age=30");
   res.json(roles.map(serializeRole));
 });
 
