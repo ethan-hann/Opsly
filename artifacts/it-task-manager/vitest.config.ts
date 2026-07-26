@@ -15,19 +15,18 @@ export default defineConfig({
   },
   server: {
     deps: {
-      // These packages are ESM-only. On Windows, vitest's jsdom environment
-      // loads them via Node's CommonJS loader and gets ERR_REQUIRE_ESM.
-      // Inlining them routes the import through Vite's transform pipeline
+      // idb-keyval is ESM-only. On Windows, Node's CommonJS loader rejects it
+      // with ERR_REQUIRE_ESM when test code imports it through Vite's module
+      // graph. Inlining it routes the import through Vite's transform pipeline
       // instead, which produces a CJS-compatible module for the test runner.
       //
-      // idb-keyval     — imported directly by app code
-      // @exodus/bytes  — imported by html-encoding-sniffer (jsdom dep); the
-      //                  /encoding-lite.js subpath is what actually throws, so
-      //                  matching the package root covers all subpaths
-      // html-encoding-sniffer — jsdom dep that does the require(); inlining it
-      //                         ensures its own require() of @exodus/bytes goes
-      //                         through Vite rather than the native loader
-      inline: ["idb-keyval", "@exodus/bytes", "html-encoding-sniffer"],
+      // Note: html-encoding-sniffer@6 / @exodus/bytes have a similar problem
+      // but it manifests at the forks-worker startup level (jsdom initializing),
+      // before Vite's module system is active. server.deps.inline cannot reach
+      // that level. That crash is fixed by the pnpm patch in
+      // patches/@exodus__bytes@1.15.1.patch which adds a "require" condition
+      // to @exodus/bytes's exports map, routing CJS callers to encoding-lite.cjs.
+      inline: ["idb-keyval"],
     },
   },
   resolve: {
