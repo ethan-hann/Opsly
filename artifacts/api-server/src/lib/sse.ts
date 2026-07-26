@@ -11,15 +11,20 @@
 
 import type { Response } from 'express';
 
-const connections = new Map<string, Response>();
+type SseConnection = {
+  res: Response;
+  orgId: string;
+};
 
-export function registerSSE(userId: string, res: Response): void {
+const connections = new Map<string, SseConnection>();
+
+export function registerSSE(userId: string, orgId: string, res: Response): void {
   // Close any stale connection for this user (e.g. page refresh without clean close)
   const existing = connections.get(userId);
   if (existing) {
-    try { existing.end(); } catch { /* already closed */ }
+    try { existing.res.end(); } catch { /* already closed */ }
   }
-  connections.set(userId, res);
+  connections.set(userId, { res, orgId });
 }
 
 export function unregisterSSE(userId: string): void {
@@ -31,12 +36,25 @@ export function unregisterSSE(userId: string): void {
  * Silently drops if the user has no open connection.
  */
 export function pushEvent(userId: string, event: string, data: unknown = {}): void {
-  const res = connections.get(userId);
-  if (!res) return;
+  const connection = connections.get(userId);
+  if (!connection) return;
   try {
-    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    connection.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   } catch {
-    // Connection died — clean up so the stale entry doesn't linger
+    // Connection died - clean up so the stale entry doesn't linger
     connections.delete(userId);
+  }
+}
+
+export function broadcastToOrg(orgId: string, event: string, data: unknown = {}): void {
+  for (const [userId, connection] of connections.entries()) {
+    if (connection.orgId !== orgId) continue;
+
+    try {
+      connection.res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    } catch {
+      // Connection died - clean up so the stale entry doesn't linger
+      connections.delete(userId);
+    }
   }
 }

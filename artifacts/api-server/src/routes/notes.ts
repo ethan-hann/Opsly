@@ -15,8 +15,9 @@ import {
   DeleteNoteParams,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
-import { addSseClient, broadcastNoteChange } from "../lib/notes-sse";
+import { addSseClient } from "../lib/notes-sse";
 import { dispatchNoteCreated, dispatchNoteUpdated, dispatchNoteDeleted } from "../lib/webhook-dispatcher";
+import { broadcastToOrg } from "../lib/sse";
 
 const router = Router();
 
@@ -188,7 +189,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .values({ ...body.data, orgId, createdBy: userId })
     .returning();
 
-  broadcastNoteChange(orgId);
+  broadcastToOrg(orgId, "notes-changed", {});
   dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note), serializeNote(note, userId));
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
@@ -310,7 +311,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   const newEffectiveProjectId = await resolveEffectiveProjectId(note);
   const serialized = serializeNote(note, userId);
 
-  broadcastNoteChange(orgId);
+  broadcastToOrg(orgId, "notes-changed", {});
 
   // If the note moved between projects, also notify project-specific webhooks
   // watching the old project so they learn the note left their scope.
@@ -355,7 +356,7 @@ router.delete("/notes/:id", requireOrg, async (req, res) => {
     .delete(notesTable)
     .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
-  broadcastNoteChange(req.orgId!);
+  broadcastToOrg(req.orgId!, "notes-changed", {});
   dispatchNoteDeleted(req.orgId!, await resolveEffectiveProjectId(existing), serializeNote(existing, userId));
   return res.sendStatus(204);
 });

@@ -14,6 +14,7 @@ import { AppLayout } from '@/components/layout/app-layout';
 import { OrgGuard } from '@/hooks/org-guard';
 import { GlobalSearchProvider } from '@/hooks/use-global-search';
 import { SseProvider } from '@/hooks/use-sse';
+import { useOrgSync } from '@/hooks/use-org-sync';
 import { GlobalSearchPalette } from '@/components/global-search-palette';
 import { TerminologyProvider } from '@/context/terminology-context';
 import { BrandingProvider } from '@/context/branding-context';
@@ -51,6 +52,11 @@ import type { OrgFeatureKey } from '@/hooks/use-org-context';
 import { UpgradeBanner } from '@/components/ui/upgrade-modal';
 
 
+function OrgSyncMount() {
+  useOrgSync();
+  return null;
+}
+
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useAuth();
   const { t } = useTranslation();
@@ -70,7 +76,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return <LoginPage />;
   }
 
-  return <SseProvider>{children}</SseProvider>;
+  return <SseProvider><OrgSyncMount />{children}</SseProvider>;
 }
 
 /**

@@ -21,6 +21,7 @@ import { requireOrgOrApiKey, requireScope, hasPermission, requireOrg } from "../
 import { dispatchTaskCommented } from "../lib/webhook-dispatcher";
 import { resolveCustomFieldNames } from "../lib/resolve-custom-fields";
 import { notifyCommentAdded, notifyMentions, notifyCommentReply } from "../lib/notifications";
+import { broadcastToOrg } from "../lib/sse";
 
 const router: IRouter = Router();
 
@@ -324,6 +325,7 @@ router.post("/tasks/:id/comments", requireOrgOrApiKey, requireScope("comments:wr
     }
   })();
 
+  broadcastToOrg(orgId, "comment-changed", { taskId: params.data.id });
   res.status(201).json(CreateCommentResponse.parse(serializedComment));
 });
 
@@ -407,6 +409,7 @@ router.patch("/comments/:id", requireOrgOrApiKey, requireScope("comments:write")
     reactions: reactionsMap.get(updated.id) ?? [],
   };
 
+  broadcastToOrg(orgId, "comment-changed", { taskId: updated.taskId });
   res.json(UpdateCommentResponse.parse(serialized));
 });
 
@@ -424,7 +427,7 @@ router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"
   // Fetch comment; exclude already-soft-deleted rows so they appear as 404
   // (idempotent from the caller's perspective).
   const [comment] = await db
-    .select({ id: commentsTable.id, userId: commentsTable.userId })
+    .select({ id: commentsTable.id, userId: commentsTable.userId, taskId: commentsTable.taskId })
     .from(commentsTable)
     .where(
       and(
@@ -473,6 +476,7 @@ router.delete("/comments/:id", requireOrgOrApiKey, requireScope("comments:write"
     res.status(404).json({ error: "Comment not found" });
     return;
   }
+  broadcastToOrg(orgId, "comment-changed", { taskId: comment.taskId });
   res.sendStatus(204);
 });
 
@@ -500,7 +504,7 @@ router.post(
 
     // Verify comment belongs to the org
     const [comment] = await db
-      .select({ id: commentsTable.id })
+      .select({ id: commentsTable.id, taskId: commentsTable.taskId })
       .from(commentsTable)
       .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
       .limit(1);
@@ -534,6 +538,7 @@ router.post(
       })
       .onConflictDoNothing();
 
+    broadcastToOrg(orgId, "reaction-changed", { taskId: comment.taskId });
     res.json({ ok: true });
   },
 );
@@ -555,7 +560,7 @@ router.delete(
 
     // Verify comment belongs to the org
     const [comment] = await db
-      .select({ id: commentsTable.id })
+      .select({ id: commentsTable.id, taskId: commentsTable.taskId })
       .from(commentsTable)
       .where(and(eq(commentsTable.id, params.data.id), eq(commentsTable.orgId, orgId)))
       .limit(1);
@@ -580,6 +585,7 @@ router.delete(
         ),
       );
 
+    broadcastToOrg(orgId, "reaction-changed", { taskId: comment.taskId });
     res.json({ ok: true });
   },
 );

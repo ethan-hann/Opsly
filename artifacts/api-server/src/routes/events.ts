@@ -21,7 +21,7 @@ router.get('/events', requireOrg, (req, res) => {
   res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
-  registerSSE(userId, res);
+  registerSSE(userId, req.orgId!, res);
 
   // Send a comment-style heartbeat every 25 s to keep proxies from timing out
   const heartbeat = setInterval(() => {
