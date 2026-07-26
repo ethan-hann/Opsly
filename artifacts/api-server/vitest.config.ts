@@ -165,5 +165,16 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Exclude live-database integration tests when no DATABASE_URL is set.
+    // These suites require a real PostgreSQL connection; they crash at import
+    // time (lib/db throws synchronously) before their own describeIf skip
+    // logic can run.  The CI environment provides DATABASE_URL; local dev
+    // without a DB can still run every other test suite.
+    exclude: process.env.DATABASE_URL
+      ? []
+      : [
+          "src/**/*-db.test.ts",
+          "src/routes/task-events-index.test.ts",
+        ],
   },
 });

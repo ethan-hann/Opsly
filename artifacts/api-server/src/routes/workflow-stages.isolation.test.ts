@@ -31,6 +31,10 @@ const mockState = vi.hoisted(() => ({
 // ---------------------------------------------------------------------------
 // Mock org-features — always enabled so feature flags don't interfere
 // ---------------------------------------------------------------------------
+vi.mock("../lib/log-org-event", () => ({
+  logOrgEvent: async () => undefined,
+}));
+
 vi.mock("../lib/org-features", () => ({
   requireOrgFeature: () => (_req: any, _res: any, next: any) => next(),
   isOrgFeatureEnabled: async () => true,

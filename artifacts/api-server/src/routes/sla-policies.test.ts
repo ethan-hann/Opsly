@@ -40,6 +40,10 @@ const mockState = vi.hoisted(() => {
 // ---------------------------------------------------------------------------
 // Mock @workspace/db
 // ---------------------------------------------------------------------------
+vi.mock("../lib/log-org-event", () => ({
+  logOrgEvent: async () => undefined,
+}));
+
 vi.mock("@workspace/db", () => {
   function makeChain(result: any[]): any {
     const chain: any = {

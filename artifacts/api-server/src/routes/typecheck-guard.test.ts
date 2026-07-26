@@ -26,7 +26,13 @@ import { tmpdir } from "node:os";
 // pnpm sets cwd to the package root (artifacts/api-server) when running tests.
 // Two levels up is the monorepo root.
 const repoRoot = resolve(process.cwd(), "../..");
-const tscBin   = join(repoRoot, "node_modules/.bin/tsc");
+// On Windows pnpm creates a .cmd shim; the bare "tsc" path does not exist as
+// a directly executable file and spawnSync returns status:null (ENOENT).
+const tscBin = join(
+  repoRoot,
+  "node_modules/.bin",
+  process.platform === "win32" ? "tsc.cmd" : "tsc",
+);
 
 /** Write a minimal tsconfig that resolves @workspace/api-zod via the built dist. */
 function writeTsconfig(dir: string): void {

@@ -9,7 +9,17 @@
  *  - buildInviteEmail: the org name, inviter name, and accept link are present
  */
 
-import { describe, it, expect } from "vitest";
+import { vi, describe, it, expect } from "vitest";
+
+// email.ts imports `db` from @workspace/db at module level (for the SMTP DB
+// override feature).  Mock the package so the module can be imported without
+// DATABASE_URL — the functions under test are pure HTML builders that never
+// touch the database.
+vi.mock("@workspace/db", () => ({
+  db: {},
+  instanceSmtpConfigTable: {},
+}));
+
 import { buildInviteEmail, buildSlaBreachEmail, buildDigestEmail, escapeHtml } from "./email.js";
 
 describe("buildInviteEmail", () => {

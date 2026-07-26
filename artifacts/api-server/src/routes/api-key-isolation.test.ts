@@ -68,6 +68,10 @@ const mockState = vi.hoisted(() => ({
 // @workspace/api-zod — passthrough (isolation tests verify org scoping, not
 // schema validation)
 // ---------------------------------------------------------------------------
+vi.mock("../lib/log-org-event", () => ({
+  logOrgEvent: async () => undefined,
+}));
+
 vi.mock("@workspace/api-zod", () => {
   const p = {
     parse: (x: any) => x,
