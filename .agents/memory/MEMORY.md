@@ -16,3 +16,4 @@
 - [Secret encryption](secret-encryption.md) — all DB-stored credentials use encrypt()/decrypt() in lib/encryption.ts (AES-256-GCM, SECRET_ENCRYPTION_KEY); columns end in _encrypted; API responses expose hasPassword only.
 - [Mermaid securityLevel antiscript broken](mermaid-security-level.md) — mermaid 11 removed antiscript; use "loose" instead or every diagram silently fails.
 - [MDEditor token chip rendering](mdedit-token-rendering.md) — remarkPreprocessTokens plugin + explicit preprocessContent() both required; MDEditor overrides previewOptions.source so plugin is the only MDEditor hook.
+- [Test coverage gate and resilient mocks](test-mock-resilience.md) — CI enforces per-package coverage floors (vitest.config thresholds); mock shared modules with importOriginal spread so new exports never silently break tests.

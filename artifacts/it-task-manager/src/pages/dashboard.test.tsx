@@ -71,7 +71,10 @@ vi.mock("@/lib/sla", () => ({
 // ---------------------------------------------------------------------------
 // API hooks
 // ---------------------------------------------------------------------------
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => ({
+  // Spread the real module so query-key generators (and any future export)
+  // stay available; override only the hooks below.
+  ...(await importOriginal<typeof import("@workspace/api-client-react")>()),
   useGetDashboardSummary: () => ({ data: MOCK_SUMMARY, isLoading: false }),
   useGetRecentActivity: () => ({ data: [], isLoading: false }),
   useGetOverdueTasks: () => ({ data: [MOCK_TASK], isLoading: false }),

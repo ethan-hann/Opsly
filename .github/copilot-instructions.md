@@ -99,3 +99,9 @@ Per package (use `--filter`, e.g. `pnpm --filter @workspace/api-server run test`
 - Before finishing, run the relevant `typecheck`/`test` for the packages you touched,
   and for any schema change run the drizzle push / post-merge steps above — not just a
   compile.
+- **New or changed behavior ships with tests in the same diff.** api-server and
+  it-task-manager enforce a per-package coverage floor (`vitest.config.ts` thresholds);
+  run `pnpm --filter <pkg> run test:coverage` and add tests until it passes — CI fails
+  the build otherwise. When mocking a shared module, spread the real one via
+  `importOriginal` and override only what you control, so adding an export never breaks
+  the mock. See `.agents/memory/test-mock-resilience.md`.

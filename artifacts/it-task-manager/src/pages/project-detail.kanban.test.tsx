@@ -45,7 +45,10 @@ const mockStages = [
   { id: 1, name: "Open", color: "#3b82f6", archivedAt: null, position: 0, stageType: "open" },
 ];
 
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => ({
+  // Spread the real module so query-key generators (and any future export)
+  // stay available; override only the hooks below.
+  ...(await importOriginal<typeof import("@workspace/api-client-react")>()),
   useGetProject: () => ({
     data: {
       id: 99, name: "Test Project", description: null, status: "active",

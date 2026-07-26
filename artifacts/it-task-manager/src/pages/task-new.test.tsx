@@ -30,7 +30,10 @@ vi.mock("wouter", () => ({
 }));
 
 // ── API mock ─────────────────────────────────────────────────────────────────
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => ({
+  // Spread the real module so query-key generators (and any future export)
+  // are always present; override only the hooks the test needs to control.
+  ...(await importOriginal<typeof import("@workspace/api-client-react")>()),
   useCreateTask: () => ({
     mutate: (...args: unknown[]) => mockCreateTaskMutate(...args),
     isPending: mockIsPending,

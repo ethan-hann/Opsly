@@ -55,6 +55,8 @@ Plain-language description of what to build and why, self-contained (don't assum
  
 ## Acceptance Criteria
 Concrete, checkable list of what "done" looks like. Prefer behavior ("a user can X and sees Y") over vague quality statements. Where a new piece of data or an endpoint should follow the shape of something that already exists, say so explicitly by name and file path rather than describing the shape from scratch — Codex should be pointed at the precedent, not left to reinvent it.
+
+**Always include tests as an explicit acceptance criterion.** Name the behavior that must be covered ("unit test asserting DELETE /x returns 204 and logs the event") and point at the nearest existing test file as the precedent. New or changed behavior ships with tests in the same diff — CI enforces a per-package coverage floor (`vitest.config.ts` thresholds), so uncovered new code fails the build. When a change adds an export to a shared module that tests mock (e.g. `lib/sse`, `@workspace/api-client-react`), the criteria must say to keep the mocks resilient — see [[test-mock-resilience]].
  
 ## Relevant Files / Paths
 Specific files, modules, or directories Codex will likely need to touch or reference, based on what you found exploring the codebase in Step 2. If you're not certain a path is correct, say "likely" rather than stating it as fact.
