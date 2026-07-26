@@ -47,13 +47,8 @@ export function useOrgSync() {
   }, [invalidateByPrefix]);
 
   const handleNotesChanged = useCallback(() => {
-    queryClient.invalidateQueries({
-      predicate: (query) => {
-        const first = query.queryKey[0];
-        return typeof first === "string" && first.startsWith("/notes");
-      },
-    });
-  }, [queryClient]);
+    invalidateByPrefix("/api/notes");
+  }, [invalidateByPrefix]);
 
   useSseEvent("task-changed", handleTaskChanged);
   useSseEvent("comment-changed", handleTaskScopedCommentChange);
