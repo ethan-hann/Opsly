@@ -53,9 +53,11 @@ export default function TaskEditPage({ params }: { params: { id: string } }) {
   const { mutate: updateTask, isPending } = useUpdateTask();
   const { data: projects = [] } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
-  const { data: stages = [] } = useListWorkflowStages();
-  const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { isFeatureEnabled, hasPermission } = useOrgContext();
+  const { data: stages = [] } = useListWorkflowStages({
+    query: { enabled: isFeatureEnabled("custom_statuses") },
+  });
+  const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { mutate: createDep } = useCreateTaskDependency();
   const { mutate: deleteDep } = useDeleteTaskDependency();
   const canClose = hasPermission("close_tasks");

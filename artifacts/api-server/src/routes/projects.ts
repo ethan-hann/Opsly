@@ -104,6 +104,10 @@ router.get("/projects", requireOrgOrApiKey, requireScope("projects:read"), async
 });
 
 router.post("/projects", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_projects")) {
+    res.status(403).json({ error: "Permission required: manage_projects" });
+    return;
+  }
   const parsed = CreateProjectBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -171,6 +175,10 @@ router.get("/projects/:id", requireOrgOrApiKey, requireScope("projects:read"), a
 });
 
 router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_projects")) {
+    res.status(403).json({ error: "Permission required: manage_projects" });
+    return;
+  }
   const params = UpdateProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -222,6 +230,10 @@ router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write")
 });
 
 router.delete("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_projects")) {
+    res.status(403).json({ error: "Permission required: manage_projects" });
+    return;
+  }
   const params = DeleteProjectParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });

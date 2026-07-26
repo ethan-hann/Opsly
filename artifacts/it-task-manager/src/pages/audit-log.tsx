@@ -105,6 +105,7 @@ export default function AuditLogPage() {
 function AuditLogContent() {
   const { t } = useTranslation();
   const { from, to, actor, category, setFilter, clearFilters } = useAuditFilters();
+  const { hasPermission } = useOrgContext();
 
   // allEvents accumulates across Load More presses.
   const [allEvents, setAllEvents] = useState<AuditEvent[]>([]);
@@ -126,7 +127,12 @@ function AuditLogContent() {
     limit: 50,
   };
 
-  const { data, isLoading, isError, refetch, isFetching } = useGetOrgAuditLog(queryParams);
+  const { data, isLoading, isError, refetch, isFetching } = useGetOrgAuditLog(
+    queryParams,
+    {
+      query: { enabled: hasPermission("view_audit_log") },
+    },
+  );
 
   // When filter params change, reset accumulated events and cursor.
   useEffect(() => {

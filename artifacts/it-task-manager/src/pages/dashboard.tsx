@@ -25,6 +25,7 @@ import { getSlaStatus } from "@/lib/sla";
 import { formatTimeAgo, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useOrgContext } from "@/hooks/use-org-context";
 
 type SlaPeriod = "7d" | "30d" | "90d" | "all";
 
@@ -40,6 +41,7 @@ export default function Dashboard() {
   const { t: term } = useTerminology();
   const { t, i18n } = useTranslation();
   const [slaPeriod, setSlaPeriod] = useState<SlaPeriod>("30d");
+  const { isFeatureEnabled } = useOrgContext();
 
   const { data: summary, isLoading: isLoadingSummary } = useGetDashboardSummary({
     query: { queryKey: getGetDashboardSummaryQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
@@ -53,10 +55,12 @@ export default function Dashboard() {
   const { data: projects, isLoading: isLoadingProjects } = useListProjects({
     query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
-  const { data: slaPolicies } = useGetSLAPolicies();
+  const { data: slaPolicies } = useGetSLAPolicies({
+    query: { enabled: isFeatureEnabled("sla_tracking") },
+  });
   const { data: slaSummary, isLoading: isLoadingSlaSummary } = useGetDashboardSlaSummary(
     { period: slaPeriod },
-    { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: slaPeriod }), refetchInterval: 30_000, refetchOnWindowFocus: true } },
+    { query: { queryKey: getGetDashboardSlaSummaryQueryKey({ period: slaPeriod }), refetchInterval: 30_000, refetchOnWindowFocus: true, enabled: isFeatureEnabled("sla_tracking") } },
   );
 
   const SLA_PERIOD_OPTIONS = SLA_PERIOD_KEYS.map(k => ({

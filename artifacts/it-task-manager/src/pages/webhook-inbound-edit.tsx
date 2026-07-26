@@ -47,6 +47,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useOrgContext } from "@/hooks/use-org-context";
 import {
   ArrowLeft,
   Braces,
@@ -434,12 +435,15 @@ export default function WebhookInboundEditPage({
   const VISIBILITY_OPTIONS = getVisibilityOptions(t);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isFeatureEnabled } = useOrgContext();
 
   const isNew = params.id === "new";
   const hookId = isNew ? null : parseInt(params.id, 10);
 
   // Load the list (scoped to the user's org by the server) and find the target hook.
-  const { data: hooks = [], isLoading: isLoadingList } = useListInboundWebhooks();
+  const { data: hooks = [], isLoading: isLoadingList } = useListInboundWebhooks({
+    query: { enabled: isFeatureEnabled("webhooks") },
+  });
   const existing: InboundWebhook | undefined = hookId
     ? hooks.find((h) => h.id === hookId)
     : undefined;

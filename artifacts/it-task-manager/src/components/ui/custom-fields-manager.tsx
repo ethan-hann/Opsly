@@ -39,6 +39,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { GripVertical, Plus, Trash2, Check, X, Settings2, Flame, Undo2, ExternalLink } from "lucide-react";
+
+const EMPTY_FIELDS: CustomFieldDefinition[] = [];
 import { Link } from "wouter";
 import {
   DndContext,
@@ -541,7 +543,7 @@ export function CustomFieldsManager() {
   const [showAddForm, setShowAddForm] = useState(false);
 
   // Fetch all fields including soft-deleted so we can show the purge section
-  const { data: allFields = [], isLoading } = useListCustomFieldDefinitions(
+  const { data: allFields = EMPTY_FIELDS, isLoading } = useListCustomFieldDefinitions(
     { includeSoftDeleted: true },
   );
 

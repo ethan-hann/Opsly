@@ -15,7 +15,7 @@ import {
   RestoreCustomFieldDefinitionResponse,
   ReorderCustomFieldDefinitionsBody,
 } from "@workspace/api-zod";
-import { requireOrg, requireAdmin } from "../middlewares/requireOrgMiddleware";
+import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
 import { logOrgEvent } from "../lib/log-org-event";
 
@@ -60,7 +60,7 @@ router.get("/custom-fields", requireOrg, requireCustomFieldsFeature, async (req,
 });
 
 /** POST /custom-fields — create a new field definition (admin only) */
-router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const parsed = CreateCustomFieldDefinitionBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -102,7 +102,7 @@ router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requireAdm
 });
 
 /** PATCH /custom-fields/:id — update a field definition (admin only) */
-router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = UpdateCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -316,7 +316,7 @@ router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requi
 });
 
 /** DELETE /custom-fields/:id — soft-delete a field definition (admin only) */
-router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = DeleteCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -357,7 +357,7 @@ router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requ
 });
 
 /** POST /custom-fields/:id/restore — un-soft-delete a field (admin only) */
-router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = RestoreCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -387,7 +387,7 @@ router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature
 });
 
 /** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (admin only) */
-router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = PurgeCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -494,7 +494,7 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
 });
 
 /** POST /custom-fields/reorder — reorder field definitions (admin only) */
-router.post("/custom-fields/reorder", requireOrg, requireCustomFieldsFeature, requireAdmin, async (req, res): Promise<void> => {
+router.post("/custom-fields/reorder", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const parsed = ReorderCustomFieldDefinitionsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
