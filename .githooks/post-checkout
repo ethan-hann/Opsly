@@ -1,0 +1,38 @@
+#!/bin/sh
+# Auto-install dependencies after checkouts and worktree creation.
+#
+# Git fires post-checkout with:
+#   $1 = ref of previous HEAD
+#   $2 = ref of new HEAD
+#   $3 = 1 for a branch checkout (incl. `git worktree add`), 0 for a file checkout
+#
+# We only care about branch checkouts. The hook cd's into the top level of
+# whichever working tree triggered it, so it does the right thing whether it
+# runs from the main clone or a fresh worktree.
+
+[ "$3" = "1" ] || exit 0
+
+root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+cd "$root" || exit 0
+
+# Only workspaces with a lockfile (the monorepo root) need installing.
+[ -f pnpm-lock.yaml ] || exit 0
+
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "post-checkout: pnpm not on PATH; skipping auto-install." >&2
+  exit 0
+fi
+
+# Skip when node_modules already matches the current lockfile.
+stamp="node_modules/.lockfile-stamp"
+current="$(git hash-object pnpm-lock.yaml 2>/dev/null)"
+if [ -d node_modules ] && [ "$current" = "$(cat "$stamp" 2>/dev/null)" ]; then
+  exit 0
+fi
+
+echo "post-checkout: installing workspace dependencies (pnpm install)…"
+if pnpm install --frozen-lockfile; then
+  printf '%s' "$current" > "$stamp"
+else
+  echo "post-checkout: 'pnpm install --frozen-lockfile' failed; run 'pnpm install' manually." >&2
+fi

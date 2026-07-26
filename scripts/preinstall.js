@@ -2,10 +2,17 @@
 // Removes stray lockfiles and enforces pnpm as the package manager.
 // ESM because scripts/package.json sets "type": "module".
 import { unlinkSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 
 for (const f of ['package-lock.json', 'yarn.lock']) {
   try { unlinkSync(f); } catch (_) {}
 }
+
+// Point git at our committed hooks so new worktrees/branches auto-install deps.
+// Idempotent; shared across all worktrees via the common git config.
+try {
+  execSync('git config core.hooksPath .githooks', { stdio: 'ignore' });
+} catch (_) {}
 
 const agent = process.env.npm_config_user_agent || '';
 if (!agent.startsWith('pnpm/')) {
