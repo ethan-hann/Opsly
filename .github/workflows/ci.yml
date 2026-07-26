@@ -38,13 +38,17 @@ jobs:
       # vitest.config.ts keys off DATABASE_URL to decide whether to run the
       # live-DB suites; drizzle push-force reads it too.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/opsly_test
+      # The frontend's vite.config.ts throws unless PORT and BASE_PATH are set,
+      # even for a production build. Values mirror Dockerfile.frontend.
+      PORT: "3000"
+      BASE_PATH: /
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -58,7 +62,7 @@ jobs:
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}

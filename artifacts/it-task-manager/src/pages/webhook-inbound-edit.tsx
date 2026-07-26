@@ -442,7 +442,7 @@ export default function WebhookInboundEditPage({
 
   // Load the list (scoped to the user's org by the server) and find the target hook.
   const { data: hooks = [], isLoading: isLoadingList } = useListInboundWebhooks({
-    query: { enabled: isFeatureEnabled("webhooks") },
+    query: { queryKey: getListInboundWebhooksQueryKey(), enabled: isFeatureEnabled("webhooks") },
   });
   const existing: InboundWebhook | undefined = hookId
     ? hooks.find((h) => h.id === hookId)

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from "wouter";
-import { useGetOrgAuditLog, type AuditEvent } from "@workspace/api-client-react";
+import { useGetOrgAuditLog, getGetOrgAuditLogQueryKey, type AuditEvent } from "@workspace/api-client-react";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,7 @@ function AuditLogContent() {
   const { data, isLoading, isError, refetch, isFetching } = useGetOrgAuditLog(
     queryParams,
     {
-      query: { enabled: hasPermission("view_audit_log") },
+      query: { queryKey: getGetOrgAuditLogQueryKey(queryParams), enabled: hasPermission("view_audit_log") },
     },
   );
 

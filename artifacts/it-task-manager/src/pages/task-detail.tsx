@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useDateLocale } from "@/hooks/use-date-locale";
 import i18n from '@/i18n';
-import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, useListWorkflowStages, useCreateTaskDependency, useDeleteTaskDependency, useMoveTaskDependency, useGetTaskDependencies, useListTasks, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
+import { useGetTask, useUpdateTask, useDeleteTask, useListComments, useCreateComment, useDeleteComment, useUpdateComment, useListProjects, useListCustomFieldDefinitions, useListTaskEvents, useListOrgMembers, useGetSLAPolicies, getGetSLAPoliciesQueryKey, useListWorkflowStages, getListWorkflowStagesQueryKey, useCreateTaskDependency, useDeleteTaskDependency, useMoveTaskDependency, useGetTaskDependencies, useListTasks, getListTasksQueryKey, getGetOverdueTasksQueryKey, getGetDashboardSummaryQueryKey, getListCommentsQueryKey } from "@workspace/api-client-react";
 import { MarkdownEditor } from "@/components/notes/markdown-editor";
 import { useTerminology } from "@/context/terminology-context";
 import type { OrgMemberInfo, CustomFieldDefinition } from "@workspace/api-client-react";
@@ -1163,7 +1163,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const taskTreesEnabled = isFeatureEnabled("task_trees");
 
   const { data: stages = [] } = useListWorkflowStages({
-    query: { enabled: isFeatureEnabled("custom_statuses") },
+    query: { queryKey: getListWorkflowStagesQueryKey(), enabled: isFeatureEnabled("custom_statuses") },
   });
 
   const { data: comments, isLoading: isLoadingComments } = useListComments(taskId, {
@@ -1300,7 +1300,7 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
   const { data: members = [] } = useListOrgMembers();
   const { data: slaPolicies } = useGetSLAPolicies({
-    query: { enabled: isFeatureEnabled("sla_tracking") },
+    query: { queryKey: getGetSLAPoliciesQueryKey(), enabled: isFeatureEnabled("sla_tracking") },
   });
 
   // Gate all inline editing on edit_tasks permission

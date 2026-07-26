@@ -486,10 +486,10 @@ function InboundTab({
   const qc = useQueryClient();
   const { isFeatureEnabled } = useOrgContext();
   const { data: hooks = [] } = useListInboundWebhooks({
-    query: { enabled: isFeatureEnabled("webhooks") },
+    query: { queryKey: getListInboundWebhooksQueryKey(), enabled: isFeatureEnabled("webhooks") },
   });
   const { data: outboundHooks = [] } = useListOutboundWebhooks({
-    query: { enabled: isFeatureEnabled("webhooks") },
+    query: { queryKey: getListOutboundWebhooksQueryKey(), enabled: isFeatureEnabled("webhooks") },
   });
   const [search, setSearch] = useState("");
 
@@ -661,7 +661,7 @@ function OutboundTab({
   const qc = useQueryClient();
   const { isFeatureEnabled } = useOrgContext();
   const { data: hooks = [] } = useListOutboundWebhooks({
-    query: { enabled: isFeatureEnabled("webhooks") },
+    query: { queryKey: getListOutboundWebhooksQueryKey(), enabled: isFeatureEnabled("webhooks") },
   });
   const [search, setSearch] = useState("");
 

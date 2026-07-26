@@ -66,11 +66,21 @@ apply:
 - **api-server validation uses `@workspace/api-zod`**, not raw `zod` schemas, and
   `zod` must be a real `package.json` dependency of a package that imports it (esbuild
   bundles api-server — the workspace catalog alone isn't enough).
-- **Generated code is a pipeline, not source you hand-edit.** If you touch the API
-  surface, regenerate rather than editing `lib/api-zod` / `api-client-react` `dist` or
-  `index.ts` by hand — orval appends to `index.ts` on every run and `pre-codegen.mjs`
-  resets them. After regenerating, the generated packages' `dist` may need an explicit
-  rebuild (`api-client-react` and `api-zod` aren't picked up by incremental root tsc).
+- **Generated code is a pipeline, not source you hand-edit.** `lib/api-zod` and
+  `lib/api-client-react` are generated from `lib/api-spec/openapi.yaml` by orval. If you
+  touch the API surface, edit `openapi.yaml` and run the codegen sync from the repo root
+  — never hand-edit the generated `dist` or `index.ts` (orval appends to `index.ts` on
+  every run):
+
+  ```bash
+  pnpm --filter @workspace/api-spec run codegen
+  ```
+
+  This runs `pre-codegen → orval → post-codegen → workspace typecheck` and emits the
+  types the rest of the repo compiles against. **Run it before typechecking** — a
+  typecheck against stale generated output fails with phantom "has no exported member"
+  errors, not real ones. `post-codegen.mjs` rewrites/dedupes the generated `index.ts`
+  files, so don't hand-fix them.
 - **After schema changes, a drizzle push + api-server rebuild/restart is required**
   before routes work — a merged feature can 500 until then. Backfill migrations
   (e.g. NULLs blocking a new NOT NULL) stay manual.

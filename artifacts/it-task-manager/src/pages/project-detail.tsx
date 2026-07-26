@@ -4,6 +4,7 @@ import { useTerminology } from "@/context/terminology-context";
 import {
   useGetProject, useListTasks, useDeleteProject, getListProjectsQueryKey,
   useGetProjectSLAPolicies, useUpsertProjectSLAPolicies, useGetSLAPolicies,
+  getGetSLAPoliciesQueryKey, getListWorkflowStagesQueryKey,
   useListWorkflowStages, useGetTaskDependencies, useCreateTaskDependency,
   useDeleteTaskDependency, useMoveTaskDependency,
 } from "@workspace/api-client-react";
@@ -266,7 +267,7 @@ function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { data: projectPolicies, isLoading: isLoadingProject, refetch: refetchProject } =
     useGetProjectSLAPolicies(projectId);
   const { data: orgPolicies, isLoading: isLoadingOrg } = useGetSLAPolicies({
-    query: { enabled: isFeatureEnabled("sla_tracking") },
+    query: { queryKey: getGetSLAPoliciesQueryKey(), enabled: isFeatureEnabled("sla_tracking") },
   });
 
   const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(null);
@@ -647,7 +648,7 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
   });
 
   const { data: stages = [] } = useListWorkflowStages({
-    query: { enabled: isFeatureEnabled("custom_statuses") },
+    query: { queryKey: getListWorkflowStagesQueryKey(), enabled: isFeatureEnabled("custom_statuses") },
   });
 
   const deleteMutation = useDeleteProject({

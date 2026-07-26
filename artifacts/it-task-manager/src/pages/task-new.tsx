@@ -9,6 +9,7 @@ import {
   useListOrgMembers,
   useListCustomFieldDefinitions,
   useListWorkflowStages,
+  getListWorkflowStagesQueryKey,
   useListTaskTemplates,
   useCreateTaskDependency,
   getListTasksQueryKey,
@@ -51,7 +52,7 @@ export default function TaskNewPage() {
   const { data: members = [] } = useListOrgMembers();
   const { isFeatureEnabled, hasPermission } = useOrgContext();
   const { data: stages = [] } = useListWorkflowStages({
-    query: { enabled: isFeatureEnabled("custom_statuses") },
+    query: { queryKey: getListWorkflowStagesQueryKey(), enabled: isFeatureEnabled("custom_statuses") },
   });
   const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { mutate: createDep } = useCreateTaskDependency();

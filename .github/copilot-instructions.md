@@ -33,12 +33,21 @@ describes the implementation workflow when working from a `planning/<slug>/` bun
   Any package a route imports directly (`zod`, `uuid`, …) must be a real dependency in
   `artifacts/api-server/package.json` — esbuild bundles from the package's own
   `node_modules`, so the workspace catalog alone isn't enough. Then run `pnpm install`.
-- **Generated code is a pipeline, not source to hand-edit.** If you change the API
-  surface, edit `lib/api-spec/openapi.yaml` and regenerate — never hand-edit the `dist`
-  or `index.ts` of `lib/api-zod` / `lib/api-client-react` (orval appends to `index.ts`
-  on every run; `pre-codegen.mjs` resets them). After regenerating, those two generated
-  packages' `dist` often needs an explicit rebuild — incremental root `tsc` doesn't pick
-  them up. See `api-server-build-quirks.md`, `orval-index-append.md`,
+- **Generated code is a pipeline, not source to hand-edit.** `lib/api-zod` and
+  `lib/api-client-react` are generated from `lib/api-spec/openapi.yaml` by orval. If you
+  change the API surface, edit `openapi.yaml` and **run the codegen sync** — never
+  hand-edit the generated `dist` or `index.ts` (orval appends to `index.ts` on every
+  run). Run from the repo root:
+
+  ```bash
+  pnpm --filter @workspace/api-spec run codegen
+  ```
+
+  This runs `pre-codegen → orval → post-codegen → workspace typecheck`. It **must run
+  before typechecking passes** — the rest of the repo depends on the types it emits, so
+  a `typecheck` on stale generated output will report phantom "has no exported member"
+  errors. `post-codegen.mjs` already rewrites/dedupes the generated `index.ts` files, so
+  you don't hand-fix them. See `orval-index-append.md`, `api-server-build-quirks.md`,
   `api-client-react-dist-rebuild.md`.
 - **After a schema change**, a `drizzle push` + api-server rebuild/restart is required
   before new routes work (a merged feature can 500 until then). Backfill migrations
@@ -58,6 +67,10 @@ pnpm install            # install (respects the release-age guard)
 pnpm dev                # run api-server + frontend together
 pnpm typecheck          # workspace typecheck
 pnpm build              # typecheck + build all packages
+
+pnpm --filter @workspace/api-spec run codegen   # sync generated api-zod / api-client-react
+                                                 # from openapi.yaml (required after any
+                                                 # API-surface change, before typecheck)
 ```
 
 Per package (use `--filter`, e.g. `pnpm --filter @workspace/api-server run test`):
@@ -74,6 +87,9 @@ Per package (use `--filter`, e.g. `pnpm --filter @workspace/api-server run test`
   files, and don't build follow-on features that weren't asked for.
 - If a spec is genuinely ambiguous or a named path doesn't exist, stop and ask rather
   than papering over it.
+- **After any change to the API surface (`lib/api-spec/openapi.yaml`), run the codegen
+  sync** (`pnpm --filter @workspace/api-spec run codegen`) before you typecheck —
+  otherwise the generated types are stale and typecheck fails with phantom errors.
 - Before finishing, run the relevant `typecheck`/`test` for the packages you touched,
-  and for any schema or API-surface change run the codegen/post-merge steps above — not
-  just a compile.
+  and for any schema change run the drizzle push / post-merge steps above — not just a
+  compile.

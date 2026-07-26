@@ -214,7 +214,7 @@ export default function WebhookOutboundEditPage({
   const hookId = isNew ? null : parseInt(params.id, 10);
 
   const { data: hooks = [], isLoading: isLoadingList } = useListOutboundWebhooks({
-    query: { enabled: isFeatureEnabled("webhooks") },
+    query: { queryKey: getListOutboundWebhooksQueryKey(), enabled: isFeatureEnabled("webhooks") },
   });
   const existing: OutboundWebhook | undefined = hookId
     ? hooks.find((h) => h.id === hookId)

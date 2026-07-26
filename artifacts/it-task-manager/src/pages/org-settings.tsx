@@ -30,6 +30,7 @@ import {
   useCreateApiKey,
   useRevokeApiKey,
   getListApiKeysQueryKey,
+  getListOrgInvitationsQueryKey,
   usePatchOrgTerminology,
   useUpdateOrgBranding,
   getGetMyOrgQueryKey,
@@ -1044,7 +1045,7 @@ function ApiKeysCard() {
 
   const { isOwner } = useOrgContext();
   const { data: keys = [], refetch: refetchKeys } = useListApiKeys({
-    query: { enabled: isOwner },
+    query: { queryKey: getListApiKeysQueryKey(), enabled: isOwner },
   });
 
   const { mutate: createKey, isPending: isSubmitting } = useCreateApiKey({
@@ -3645,7 +3646,7 @@ export default function OrgSettings() {
   const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
   const { data: invitations = [], refetch: refetchInvitations } =
     useListOrgInvitations({
-      query: { enabled: hasPermission("manage_members") },
+      query: { queryKey: getListOrgInvitationsQueryKey(), enabled: hasPermission("manage_members") },
     });
   const { data: roles = [], refetch: refetchRoles } = useListRoles();
 

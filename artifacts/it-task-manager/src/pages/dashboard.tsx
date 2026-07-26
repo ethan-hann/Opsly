@@ -12,6 +12,7 @@ import {
   useListProjects,
   getListProjectsQueryKey,
   useGetSLAPolicies,
+  getGetSLAPoliciesQueryKey,
   useGetDashboardSlaSummary,
   getGetDashboardSlaSummaryQueryKey,
 } from "@workspace/api-client-react";
@@ -56,7 +57,7 @@ export default function Dashboard() {
     query: { queryKey: getListProjectsQueryKey(), refetchInterval: 30_000, refetchOnWindowFocus: true },
   });
   const { data: slaPolicies } = useGetSLAPolicies({
-    query: { enabled: isFeatureEnabled("sla_tracking") },
+    query: { queryKey: getGetSLAPoliciesQueryKey(), enabled: isFeatureEnabled("sla_tracking") },
   });
   const { data: slaSummary, isLoading: isLoadingSlaSummary } = useGetDashboardSlaSummary(
     { period: slaPeriod },

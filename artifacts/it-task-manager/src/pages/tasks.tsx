@@ -6,10 +6,12 @@ import {
   useUpdateView,
   useDeleteView,
   useGetSLAPolicies,
+  getGetSLAPoliciesQueryKey,
   useListTaskTemplates,
   useBulkUpdateTasks,
   useBulkDeleteTasks,
   useListWorkflowStages,
+  getListWorkflowStagesQueryKey,
   useListCustomFieldDefinitions,
 } from "@workspace/api-client-react";
 import { useTranslation } from 'react-i18next';
@@ -1017,10 +1019,10 @@ export default function TasksList() {
   const { data: views } = useListViews();
   const { hasPermission, isFeatureEnabled } = useOrgContext();
   const { data: slaPolicies } = useGetSLAPolicies({
-    query: { enabled: isFeatureEnabled("sla_tracking") },
+    query: { queryKey: getGetSLAPoliciesQueryKey(), enabled: isFeatureEnabled("sla_tracking") },
   });
   const { data: stages = [] } = useListWorkflowStages({
-    query: { enabled: isFeatureEnabled("custom_statuses") },
+    query: { queryKey: getListWorkflowStagesQueryKey(), enabled: isFeatureEnabled("custom_statuses") },
   });
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
 
