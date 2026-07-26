@@ -85,6 +85,8 @@ vi.mock("@workspace/api-client-react", () => ({
   useDeleteTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
   useMoveTaskDependency: () => ({ mutate: vi.fn(), isPending: false }),
   useListTasks: () => ({ data: [] }),
+  getGetSLAPoliciesQueryKey: () => ["slaPolicies"],
+  getListWorkflowStagesQueryKey: () => ["listWorkflowStages"],
 }));
 
 vi.mock("@workspace/replit-auth-web", () => ({

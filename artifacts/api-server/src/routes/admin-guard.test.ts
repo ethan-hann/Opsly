@@ -176,7 +176,10 @@ vi.mock("../lib/email", () => ({
 }));
 
 vi.mock("../lib/sse", () => ({
+  registerSSE: () => undefined,
+  unregisterSSE: () => undefined,
   pushEvent: () => undefined,
+  broadcastToOrg: () => undefined,
 }));
 
 vi.mock("../lib/workflow-stages", () => ({

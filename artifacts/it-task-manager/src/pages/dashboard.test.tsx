@@ -107,6 +107,14 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetOverdueTasksQueryKey: () => ["overdueTasks"],
   getListProjectsQueryKey: () => ["projects"],
   getGetDashboardSlaSummaryQueryKey: () => ["dashboardSlaSummary"],
+  getGetSLAPoliciesQueryKey: () => ["slaPolicies"],
+}));
+
+vi.mock("@/hooks/use-org-context", () => ({
+  useOrgContext: () => ({
+    isFeatureEnabled: () => true,
+    hasPermission: () => true,
+  }),
 }));
 
 // ---------------------------------------------------------------------------

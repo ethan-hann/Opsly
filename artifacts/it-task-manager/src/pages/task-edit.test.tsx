@@ -73,6 +73,7 @@ vi.mock("@workspace/api-client-react", () => ({
   getGetOverdueTasksQueryKey: () => ["getOverdueTasks"],
   getGetDashboardSummaryQueryKey: () => ["getDashboardSummary"],
   getGetTaskDependenciesQueryKey: () => ["getTaskDependencies"],
+  getListWorkflowStagesQueryKey: () => ["listWorkflowStages"],
 }));
 
 vi.mock("@/hooks/use-org-context", () => ({
