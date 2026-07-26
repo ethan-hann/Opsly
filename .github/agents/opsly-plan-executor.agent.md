@@ -29,13 +29,16 @@ A planning bundle lives under `planning/<feature-slug>/` and contains two files:
 
 ## Environment: bootstrap before you verify
 
-Your worktree runs in the Copilot sandbox provisioned by
-`.github/workflows/copilot-setup-steps.yml`: `pnpm` (installed via npm), all workspace
-`node_modules`, a live Postgres with the schema already pushed, and the frontend build
-env (`PORT`, `BASE_PATH`) are in place. Use `pnpm` directly.
+`.github/workflows/copilot-setup-steps.yml` provisions the **toolchain only**: Node 24
+and `pnpm` (installed via npm) are on PATH. It does **not** run `pnpm install`, and there
+is **no database** by default. So the first thing you do in a fresh worktree is install:
 
-If a run ever lands somewhere `pnpm` is missing (setup-steps didn't apply — e.g. a run
-that started before this file reached the default branch), **recover, don't surrender**:
+```bash
+pnpm install --frozen-lockfile
+```
+
+If `pnpm` is somehow missing (setup-steps didn't apply — e.g. a run that started before
+this file reached the default branch), **recover, don't surrender**:
 
 1. `npm install -g pnpm@10.34.5` — do **not** use `corepack`; its signature check
    fails in this sandbox ("key/signature mismatch"), which is a dead end, not a retry.
@@ -52,12 +55,15 @@ to hand back to the reviewer.
    `pnpm --filter @workspace/api-spec run codegen` — **before** any typecheck, or you get
    phantom "has no exported member" errors from stale generated types
    (`.agents/memory/orval-codegen-command.md`).
-3. **Only if you changed the Drizzle schema:** `pnpm --filter @workspace/db run push-force`
-   (`.agents/memory/post-merge-procedure.md`).
-4. `pnpm --filter @workspace/api-server run build` and `pnpm --filter <pkg> run typecheck`.
-5. `pnpm --filter <pkg> run test` for the packages you changed. The DB integration suites
-   use the Postgres from setup-steps; where no DB is reachable they auto-skip, so a green
-   run without a DB is not proof those suites passed — say so.
+3. `pnpm --filter <pkg> run typecheck` and `pnpm --filter @workspace/api-server run build`.
+   The **frontend** build needs env vars or `vite.config.ts` throws — prefix it:
+   `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/it-task-manager run build`.
+4. `pnpm --filter <pkg> run test` for the packages you changed. The DB integration suites
+   need a reachable Postgres and a `DATABASE_URL`; the sandbox has neither by default, so
+   those suites **auto-skip** — a green run is not proof they passed, so say so. If a
+   change needs DB verification, note it as a follow-up rather than claiming it's covered.
+5. **Only if you changed the Drizzle schema** and a DB is available:
+   `pnpm --filter @workspace/db run push-force` (`.agents/memory/post-merge-procedure.md`).
 
 ## Startup: locate and read the bundle
 
