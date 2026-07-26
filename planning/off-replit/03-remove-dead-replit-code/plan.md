@@ -1,0 +1,30 @@
+# 03 — Remove Dead Replit Code
+
+> Part of the [Off-Replit program](../roadmap.md). Depends on **02** (`.replit` already deleted). Low risk — all removals are of code/config that is unused or Replit-only-gated.
+
+## Problem / Goal
+
+With CI moved off Replit, several Replit-specific artifacts are now pure dead weight. Remove them to shrink the dependency surface, the supply-chain exclusion list, and the docs.
+
+## Scope
+
+**In scope — remove:**
+- **`@replit/connectors-sdk`** — a root `package.json` dependency with **zero usages** anywhere in `artifacts/` or `lib/` (confirmed by grep). Dead. Remove from `package.json` and re-run `pnpm install`.
+- **Replit Vite dev plugins** — `@replit/vite-plugin-runtime-error-modal`, `@replit/vite-plugin-cartographer`, `@replit/vite-plugin-dev-banner`. In `artifacts/it-task-manager/vite.config.ts` they are dynamically imported only when `process.env.NODE_ENV !== 'production' && !!process.env.REPL_ID?.trim()` — i.e. only ever loaded inside Replit. Remove the guarded plugin block, the three `catalog:` entries in `pnpm-workspace.yaml`, and any devDependency references to them.
+- **`minimumReleaseAgeExclude` cruft** in `pnpm-workspace.yaml` — the `- '@replit/*'` and `- stripe-replit-sync` entries (the latter only matters if `stripe-replit-sync` is otherwise unreferenced — verify before removing). These exist only to fast-track Replit-published packages we're removing.
+- **`replit.md`** and **`replit.nix`** — Replit-specific project doc and Nix env. `replit.md` contains generic "first-time setup" notes (instance-admin token, etc.) that may be worth preserving elsewhere — see open questions.
+
+**Out of scope:**
+- `ReplitStorageProvider` → **Plan 04**.
+- `replit_oidc` auth mode / `@workspace/replit-auth-web` rename → **Plan 05**.
+
+## Open Questions / Risks
+
+- **`replit.md` has reusable content.** Its "First-time setup" section (instance-admin bootstrap via `INSTANCE_ADMIN_TOKEN` or a local admin user) is genuinely useful and not Replit-specific. Decision: fold that content into `README.md` (or a `SELF_HOSTING`/`docs/` file) before deleting `replit.md`, rather than losing it. Confirm with Ethan where it should live.
+- **`stripe-replit-sync`** — confirm it isn't referenced anywhere (deps, code, catalog) before pulling its `minimumReleaseAgeExclude` entry; if it's genuinely unused, note whether it's also a dependency that should be removed.
+- **Vite config after removal** — ensure `vite.config.ts` still has a valid `plugins` array (the block is a spread of a conditional array; removing it must not leave a dangling `...(...)` or a syntax error). The dev banner/error-modal loss has no functional impact off Replit.
+- Low blast radius overall, but re-run `pnpm install`, `pnpm run typecheck`, and the frontend build to confirm nothing referenced the removed catalog entries.
+
+## Codex prompt
+
+Generated when this plan reaches the top of the queue (after 02 lands), so it reflects the then-current `pnpm-workspace.yaml` and `vite.config.ts`.
