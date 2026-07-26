@@ -50,11 +50,18 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          # Repo requires Node 24 (engines ">=24", .nvmrc, preinstall.js guard).
+          node-version: 24
+          # We install pnpm ourselves below. When package.json declares
+          # `packageManager: pnpm@…`, setup-node's cache auto-detection would run
+          # `pnpm store path` before pnpm exists and fail ("Unable to locate
+          # executable file: pnpm"); disabling it avoids that ordering trap.
+          package-manager-cache: false
 
       - name: Install pnpm
-        # Pinned to the lockfile's version; installed via npm to avoid the
-        # corepack signature-verification bug.
+        # Via npm (not corepack — its signature check is unreliable), and with an
+        # explicit version so this works whether or not package.json carries a
+        # `packageManager` field (it does on Node-24 branches, not yet on main).
         run: npm install -g pnpm@10.34.5
 
       - name: Locate pnpm store
