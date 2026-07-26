@@ -1162,7 +1162,9 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { isFeatureEnabled } = useOrgContext();
   const taskTreesEnabled = isFeatureEnabled("task_trees");
 
-  const { data: stages = [] } = useListWorkflowStages();
+  const { data: stages = [] } = useListWorkflowStages({
+    query: { enabled: isFeatureEnabled("custom_statuses") },
+  });
 
   const { data: comments, isLoading: isLoadingComments } = useListComments(taskId, {
     query: { enabled: !!taskId, queryKey: getListCommentsQueryKey(taskId) }
@@ -1297,7 +1299,9 @@ export default function TaskDetail({ params }: { params: { id: string } }) {
   const { data: projects = [] } = useListProjects();
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
   const { data: members = [] } = useListOrgMembers();
-  const { data: slaPolicies } = useGetSLAPolicies();
+  const { data: slaPolicies } = useGetSLAPolicies({
+    query: { enabled: isFeatureEnabled("sla_tracking") },
+  });
 
   // Gate all inline editing on edit_tasks permission
   const canEdit = hasPermission('edit_tasks');

@@ -1042,7 +1042,10 @@ function ApiKeysCard() {
     expiresAt: "",
   });
 
-  const { data: keys = [], refetch: refetchKeys } = useListApiKeys();
+  const { isOwner } = useOrgContext();
+  const { data: keys = [], refetch: refetchKeys } = useListApiKeys({
+    query: { enabled: isOwner },
+  });
 
   const { mutate: createKey, isPending: isSubmitting } = useCreateApiKey({
     mutation: {
@@ -3641,7 +3644,9 @@ export default function OrgSettings() {
   // ── Members ─────────────────────────────────────────────────────────────────
   const { data: members = [], refetch: refetchMembers } = useListOrgMembers();
   const { data: invitations = [], refetch: refetchInvitations } =
-    useListOrgInvitations();
+    useListOrgInvitations({
+      query: { enabled: hasPermission("manage_members") },
+    });
   const { data: roles = [], refetch: refetchRoles } = useListRoles();
 
   const canManageMembers = hasPermission("manage_members");

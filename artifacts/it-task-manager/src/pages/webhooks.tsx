@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
+import { useOrgContext } from "@/hooks/use-org-context";
 import {
   Webhook,
   Plus,
@@ -483,8 +484,13 @@ function InboundTab({
   const { toast } = useToast();
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: hooks = [] } = useListInboundWebhooks();
-  const { data: outboundHooks = [] } = useListOutboundWebhooks();
+  const { isFeatureEnabled } = useOrgContext();
+  const { data: hooks = [] } = useListInboundWebhooks({
+    query: { enabled: isFeatureEnabled("webhooks") },
+  });
+  const { data: outboundHooks = [] } = useListOutboundWebhooks({
+    query: { enabled: isFeatureEnabled("webhooks") },
+  });
   const [search, setSearch] = useState("");
 
   const { data: activity = {} } = useQuery<Record<number, HookActivity>>({
@@ -653,7 +659,10 @@ function OutboundTab({
   const { toast } = useToast();
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: hooks = [] } = useListOutboundWebhooks();
+  const { isFeatureEnabled } = useOrgContext();
+  const { data: hooks = [] } = useListOutboundWebhooks({
+    query: { enabled: isFeatureEnabled("webhooks") },
+  });
   const [search, setSearch] = useState("");
 
   const filtered = search.trim()

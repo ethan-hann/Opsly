@@ -193,7 +193,7 @@ interface SlaAuditEntry {
   createdAt: string;
 }
 
-function useSlaAuditHistory(projectId: number) {
+function useSlaAuditHistory(projectId: number, enabled: boolean) {
   return useQuery<SlaAuditEntry[]>({
     queryKey: ["project-sla-audit", projectId],
     queryFn: async () => {
@@ -259,20 +259,25 @@ function displayToMinutes(v: string): number | null {
 function ProjectSlaPoliciesCard({ projectId }: { projectId: number }) {
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
-  const { hasPermission } = useOrgContext();
+  const { hasPermission, isFeatureEnabled } = useOrgContext();
   const canManagePolicies = hasPermission("manage_sla_policies");
   const canViewHistory = hasPermission("view_audit_log") || canManagePolicies;
 
   const { data: projectPolicies, isLoading: isLoadingProject, refetch: refetchProject } =
     useGetProjectSLAPolicies(projectId);
-  const { data: orgPolicies, isLoading: isLoadingOrg } = useGetSLAPolicies();
+  const { data: orgPolicies, isLoading: isLoadingOrg } = useGetSLAPolicies({
+    query: { enabled: isFeatureEnabled("sla_tracking") },
+  });
 
   const [draft, setDraft] = useState<Record<PriorityLevel, PolicyDraft> | null>(null);
   const [editing, setEditing] = useState(false);
   const [isReverting, setIsReverting] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  const { data: auditHistory, isLoading: isLoadingHistory } = useSlaAuditHistory(projectId);
+  const { data: auditHistory, isLoading: isLoadingHistory } = useSlaAuditHistory(
+    projectId,
+    canViewHistory,
+  );
 
   const isLoading = isLoadingProject || isLoadingOrg;
 
@@ -641,7 +646,9 @@ export default function ProjectDetail({ params }: { params: { id: string } }) {
     query: { enabled: !!projectId, queryKey: ["listTasks", { projectId }] }
   });
 
-  const { data: stages = [] } = useListWorkflowStages();
+  const { data: stages = [] } = useListWorkflowStages({
+    query: { enabled: isFeatureEnabled("custom_statuses") },
+  });
 
   const deleteMutation = useDeleteProject({
     mutation: {

@@ -26,6 +26,7 @@ const mockState = vi.hoisted(() => ({
   insertResult: [] as any[],
   updateResult: [] as any[],
   deleteResult: [] as any[],
+  permissions: { manage_webhooks: true } as Record<string, boolean>,
 }));
 
 // ---------------------------------------------------------------------------
@@ -126,11 +127,13 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   requireOrgOrApiKey: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: currentUserId };
+    req.orgPermissions = mockState.permissions;
     next();
   },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
     req.user = { id: currentUserId };
+    req.orgPermissions = mockState.permissions;
     next();
   },
 }));
@@ -205,6 +208,7 @@ beforeEach(() => {
   mockState.insertResult = [];
   mockState.updateResult = [];
   mockState.deleteResult = [];
+  mockState.permissions = { manage_webhooks: true };
   currentUserId = "user-owner";
 });
 
@@ -1094,5 +1098,28 @@ describe("POST /webhooks/outbound — rejects unrecognized event types (#216, #2
       });
 
     expect(res.status).toBe(201);
+  });
+});
+
+describe("manage_webhooks permission gate", () => {
+  beforeEach(() => {
+    mockState.permissions = { manage_webhooks: false };
+  });
+
+  it("returns 403 for write endpoints when caller lacks manage_webhooks", async () => {
+    const responses = await Promise.all([
+      request(buildApp()).post("/api/webhooks/inbound").send({ name: "Inbound" }),
+      request(buildApp()).patch("/api/webhooks/inbound/1").send({}),
+      request(buildApp()).delete("/api/webhooks/inbound/1"),
+      request(buildApp()).post("/api/webhooks/inbound/1/rotate-secret").send({}),
+      request(buildApp()).post("/api/webhooks/outbound").send({ name: "Outbound" }),
+      request(buildApp()).patch("/api/webhooks/outbound/1").send({}),
+      request(buildApp()).delete("/api/webhooks/outbound/1"),
+    ]);
+
+    for (const res of responses) {
+      expect(res.status).toBe(403);
+      expect(res.body.error).toContain("manage_webhooks");
+    }
   });
 });

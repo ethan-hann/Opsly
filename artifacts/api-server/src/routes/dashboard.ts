@@ -7,8 +7,10 @@ import {
   GetDashboardSlaSummaryResponse,
 } from "@workspace/api-zod";
 import { requireOrg } from "../middlewares/requireOrgMiddleware";
+import { requireOrgFeature } from "../lib/org-features";
 
 const router: IRouter = Router();
+const requireSlaTrackingFeature = requireOrgFeature("sla_tracking");
 
 /**
  * Safe cast expression: only converts task.status to int when it is a
@@ -251,7 +253,7 @@ router.get("/dashboard/activity", requireOrg, async (req, res): Promise<void> =>
 
 const VALID_PERIODS = new Set(["7d", "30d", "90d", "all"]);
 
-router.get("/dashboard/sla-summary", requireOrg, async (req, res): Promise<void> => {
+router.get("/dashboard/sla-summary", requireOrg, requireSlaTrackingFeature, async (req, res): Promise<void> => {
   const orgId = req.orgId!;
   const rawPeriod = req.query.period as string | undefined;
   const period = rawPeriod ?? "30d";

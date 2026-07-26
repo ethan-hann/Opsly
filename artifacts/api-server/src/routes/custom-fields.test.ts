@@ -125,12 +125,20 @@ vi.mock("../lib/log-org-event", () => ({
 
 vi.mock("../middlewares/requireOrgMiddleware", () => ({
   hasPermission: (req: any, key: string) => req.orgPermissions?.[key] ?? false,
+  requirePermission: (key: string) => (req: any, res: any, next: any) => {
+    if (!req.orgPermissions?.[key]) {
+      res.status(403).json({ error: `Missing required permission: ${key}` });
+      return;
+    }
+    next();
+  },
   requireScope: () => (_req: any, _res: any, next: any) => next(),
   requireOrgOrApiKey: (req: any, _res: any, next: any) => {
     req.orgId = mockState.orgId;
     req.user = { id: "user-1", email: "user@example.com" };
     req.orgPermissions = {
       manage_projects: mockState.isAdmin,
+      manage_custom_fields: mockState.isAdmin,
     };
     next();
   },
@@ -139,6 +147,7 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
     req.user = { id: "user-1", email: "user@example.com" };
     req.orgPermissions = {
       manage_projects: mockState.isAdmin,
+      manage_custom_fields: mockState.isAdmin,
     };
     next();
   },

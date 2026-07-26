@@ -1015,8 +1015,13 @@ export default function TasksList() {
   );
   const { data: members } = useListOrgMembers();
   const { data: views } = useListViews();
-  const { data: slaPolicies } = useGetSLAPolicies();
-  const { data: stages = [] } = useListWorkflowStages();
+  const { hasPermission, isFeatureEnabled } = useOrgContext();
+  const { data: slaPolicies } = useGetSLAPolicies({
+    query: { enabled: isFeatureEnabled("sla_tracking") },
+  });
+  const { data: stages = [] } = useListWorkflowStages({
+    query: { enabled: isFeatureEnabled("custom_statuses") },
+  });
   const { data: customFieldDefs = [] } = useListCustomFieldDefinitions();
 
   // Build dynamic status options from org stages
@@ -1027,7 +1032,6 @@ export default function TasksList() {
 
   const bulkUpdate = useBulkUpdateTasks();
   const bulkDelete = useBulkDeleteTasks();
-  const { hasPermission } = useOrgContext();
 
   // Default view loading: on mount, if no filters in URL, apply the user's default view
   useEffect(() => {

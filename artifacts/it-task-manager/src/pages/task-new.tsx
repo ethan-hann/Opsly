@@ -49,9 +49,11 @@ export default function TaskNewPage() {
   const { mutate: createTask, isPending } = useCreateTask();
   const { data: projects = [] } = useListProjects();
   const { data: members = [] } = useListOrgMembers();
-  const { data: stages = [] } = useListWorkflowStages();
-  const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { isFeatureEnabled, hasPermission } = useOrgContext();
+  const { data: stages = [] } = useListWorkflowStages({
+    query: { enabled: isFeatureEnabled("custom_statuses") },
+  });
+  const { data: customFields = [] } = useListCustomFieldDefinitions();
   const { mutate: createDep } = useCreateTaskDependency();
 
   const activeStages = stages.filter((s) => !s.archivedAt);

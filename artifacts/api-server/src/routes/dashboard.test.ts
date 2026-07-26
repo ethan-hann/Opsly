@@ -18,6 +18,7 @@ import express from "express";
 // ---------------------------------------------------------------------------
 const mockState = vi.hoisted(() => ({
   selectQueue: [] as any[][],
+  slaTrackingEnabled: true,
 }));
 
 // ---------------------------------------------------------------------------
@@ -87,6 +88,16 @@ vi.mock("../middlewares/requireOrgMiddleware", () => ({
   },
   requireOrg: (req: any, _res: any, next: any) => {
     req.orgId = "test-org";
+    next();
+  },
+}));
+
+vi.mock("../lib/org-features", () => ({
+  requireOrgFeature: (featureKey: string) => (req: any, res: any, next: any) => {
+    if (featureKey === "sla_tracking" && !mockState.slaTrackingEnabled) {
+      res.status(403).json({ error: "Feature not enabled: sla_tracking" });
+      return;
+    }
     next();
   },
 }));
@@ -391,6 +402,15 @@ function pushSlaSummarySelects(
 describe("GET /api/dashboard/sla-summary", () => {
   beforeEach(() => {
     mockState.selectQueue.length = 0;
+    mockState.slaTrackingEnabled = true;
+  });
+
+  it("returns 403 when sla_tracking is disabled", async () => {
+    mockState.slaTrackingEnabled = false;
+
+    const res = await request(buildApp()).get("/api/dashboard/sla-summary");
+
+    expect(res.status).toBe(403);
   });
 
   it("returns 200 with 100% compliance and zero counts when no tasks exist", async () => {

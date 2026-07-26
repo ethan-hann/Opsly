@@ -570,6 +570,10 @@ router.get("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, requ
 
 // POST /webhooks/inbound — create
 router.post("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const parsed = CreateInboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -709,6 +713,10 @@ router.get("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, 
 
 // PATCH /webhooks/inbound/:id — update (creator only)
 router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -782,6 +790,10 @@ router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature
 
 // DELETE /webhooks/inbound/:id — delete (creator only)
 router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -819,6 +831,10 @@ router.delete("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeatur
 
 // POST /webhooks/inbound/:id/rotate-secret — rotate token (creator only)
 router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -878,6 +894,10 @@ router.get("/webhooks/outbound", requireOrgOrApiKey, requireWebhooksFeature, req
 
 // POST /webhooks/outbound — create
 router.post("/webhooks/outbound", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const parsed = CreateOutboundSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -984,6 +1004,10 @@ router.get("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature,
 
 // PATCH /webhooks/outbound/:id — update (creator only)
 router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -1043,6 +1067,10 @@ router.patch("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeatur
 
 // DELETE /webhooks/outbound/:id — delete (creator only)
 router.delete("/webhooks/outbound/:id", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const id = Number(req.params["id"]);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -1086,6 +1114,10 @@ const TestOutboundSchema = z.object({ url: z.url() });
 
 // POST /webhooks/outbound/test — fire a signed test event to any URL
 router.post("/webhooks/outbound/test", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:write"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const parsed = TestOutboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
@@ -1127,6 +1159,10 @@ const TestInboundSchema = z.object({
 
 // POST /webhooks/inbound/test — dry-run a payload through applyTemplate
 router.post("/webhooks/inbound/test", requireOrgOrApiKey, requireWebhooksFeature, requireScope("webhooks:read"), async (req, res): Promise<void> => {
+  if (!hasPermission(req, "manage_webhooks")) {
+    res.status(403).json({ error: "Permission required: manage_webhooks" });
+    return;
+  }
   const parsed = TestInboundSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 

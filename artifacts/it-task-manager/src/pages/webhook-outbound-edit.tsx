@@ -39,6 +39,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { useOrgContext } from "@/hooks/use-org-context";
 import {
   ArrowLeft,
   Trash2,
@@ -207,11 +208,14 @@ export default function WebhookOutboundEditPage({
   const VISIBILITY_OPTIONS = getVisibilityOptions(t);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { isFeatureEnabled } = useOrgContext();
 
   const isNew = params.id === "new";
   const hookId = isNew ? null : parseInt(params.id, 10);
 
-  const { data: hooks = [], isLoading: isLoadingList } = useListOutboundWebhooks();
+  const { data: hooks = [], isLoading: isLoadingList } = useListOutboundWebhooks({
+    query: { enabled: isFeatureEnabled("webhooks") },
+  });
   const existing: OutboundWebhook | undefined = hookId
     ? hooks.find((h) => h.id === hookId)
     : undefined;

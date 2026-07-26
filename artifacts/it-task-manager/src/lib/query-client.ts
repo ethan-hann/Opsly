@@ -22,7 +22,15 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: true,
-      staleTime: 0,
+      staleTime: 30_000,
+      retry: (failureCount, error) => {
+        const status =
+          typeof error === "object" && error !== null && "status" in error
+            ? (error as { status?: number }).status
+            : undefined;
+        if (typeof status === "number" && status >= 400 && status <= 499) return false;
+        return failureCount < 3;
+      },
       // Keep unused entries for 30 min so the in-memory cache survives
       // short offline sessions without a page refresh.
       gcTime: 30 * 60 * 1000,
