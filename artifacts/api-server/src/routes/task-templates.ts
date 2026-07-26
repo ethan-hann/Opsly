@@ -34,6 +34,7 @@ router.get("/task-templates", requireOrg, async (req, res): Promise<void> => {
     .where(eq(taskTemplatesTable.orgId, orgId))
     .orderBy(taskTemplatesTable.createdAt);
 
+  res.setHeader("Cache-Control", "private, max-age=30");
   res.json(ListTaskTemplatesResponse.parse(templates.map(serializeTemplate)));
 });
 

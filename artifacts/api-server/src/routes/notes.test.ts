@@ -51,6 +51,7 @@ vi.mock("@workspace/db", () => {
   return {
     db: {
       select: () => makeChain(mockState.selectQueue.shift() ?? []),
+      execute: () => Promise.resolve({ rows: mockState.selectQueue.shift() ?? [] }),
       insert: () => ({
         values: () => ({
           returning: () => Promise.resolve(mockState.insertResult),
@@ -278,8 +279,8 @@ describe("POST /api/notes", () => {
   });
 
   it("dispatches note.created with the task's projectId when note has taskId but no projectId", async () => {
-    // validateTaskId → task found
-    mockState.selectQueue.push([{ id: 7 }]);
+    // Consolidated validation query: task exists in org
+    mockState.selectQueue.push([{ projectId: null, taskId: 7, taskProjectId: 42 }]);
     mockState.insertResult = [TASK_LINKED_NOTE];
     // resolveEffectiveProjectId → task has projectId 42
     mockState.selectQueue.push([{ projectId: 42 }]);
@@ -467,8 +468,8 @@ describe("PATCH /api/notes/:id", () => {
     // Note starts linked to project 10 directly
     const noteInProject10 = { ...OWNER_NOTE, id: 9, projectId: 10, taskId: null };
     mockState.selectQueue.push([noteInProject10]);
-    // validateProjectId(20) needs to return a truthy row
-    mockState.selectQueue.push([{ id: 20 }]);
+    // Consolidated validation query: project 20 exists in org
+    mockState.selectQueue.push([{ projectId: 20, taskId: null, taskProjectId: null }]);
     // updated note moves to project 20
     const updatedNote = { ...noteInProject10, projectId: 20 };
     mockState.updateResult = [updatedNote];
@@ -528,10 +529,8 @@ describe("POST /api/notes — task/project cross-validation", () => {
   });
 
   it("returns 400 when the task belongs to another org (rejected by individual task-org check)", async () => {
-    // validateProjectId → found
-    mockState.selectQueue.push([{ id: 5 }]);
-    // validateTaskId → not found (task is in a different org)
-    mockState.selectQueue.push([]);
+    // Consolidated validation query: project exists but task does not
+    mockState.selectQueue.push([{ projectId: 5, taskId: null, taskProjectId: null }]);
 
     const res = await request(buildApp())
       .post("/api/notes")
@@ -542,12 +541,8 @@ describe("POST /api/notes — task/project cross-validation", () => {
   });
 
   it("returns 201 when both projectId and taskId match the same project", async () => {
-    // validateProjectId → found
-    mockState.selectQueue.push([{ id: 5 }]);
-    // validateTaskId → found
-    mockState.selectQueue.push([{ id: 11 }]);
-    // validateTaskBelongsToProject → found
-    mockState.selectQueue.push([{ id: 11 }]);
+    // Consolidated validation query: project exists, task exists, and task belongs to project
+    mockState.selectQueue.push([{ projectId: 5, taskId: 11, taskProjectId: 5 }]);
     // insert + resolveEffectiveProjectId (note has directprojectId so no extra select)
     mockState.insertResult = [{ ...OWNER_NOTE, projectId: 5, taskId: 11 }];
 
@@ -605,10 +600,8 @@ describe("PATCH /api/notes/:id — task/project cross-validation", () => {
     const noteWithProject = { ...OWNER_NOTE, id: 10, projectId: 1, taskId: null };
     // Existing note has projectId:1, no taskId
     mockState.selectQueue.push([noteWithProject]);
-    // validateTaskId(99) → found
-    mockState.selectQueue.push([{ id: 99 }]);
-    // validateTaskBelongsToProject(taskId=99, projectId=1) → not found
-    mockState.selectQueue.push([]);
+    // Consolidated validation query: task exists but belongs to a different project
+    mockState.selectQueue.push([{ projectId: 1, taskId: 99, taskProjectId: 2 }]);
 
     const res = await request(buildApp())
       .patch("/api/notes/10")

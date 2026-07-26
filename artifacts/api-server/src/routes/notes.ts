@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { notesTable, projectsTable, tasksTable } from "@workspace/db";
-import { eq, and, or, ne, isNull } from "drizzle-orm";
+import { eq, and, or, ne, isNull, sql } from "drizzle-orm";
 import {
   ListNotesQueryParams,
   ListNotesResponse,
@@ -38,41 +38,41 @@ function visibilityFilter(userId: string) {
   );
 }
 
-async function validateProjectId(projectId: number, orgId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: projectsTable.id })
-    .from(projectsTable)
-    .where(and(eq(projectsTable.id, projectId), eq(projectsTable.orgId, orgId)))
-    .limit(1);
-  return !!row;
-}
+type NoteReferenceValidationRow = {
+  projectId: number | null;
+  taskId: number | null;
+  taskProjectId: number | null;
+};
 
-async function validateTaskId(taskId: number, orgId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: tasksTable.id })
-    .from(tasksTable)
-    .where(and(eq(tasksTable.id, taskId), eq(tasksTable.orgId, orgId)))
-    .limit(1);
-  return !!row;
-}
-
-async function validateTaskBelongsToProject(
-  taskId: number,
-  projectId: number,
+async function getNoteReferenceValidationRow(
   orgId: string,
-): Promise<boolean> {
-  const [row] = await db
-    .select({ id: tasksTable.id })
-    .from(tasksTable)
-    .where(
-      and(
-        eq(tasksTable.id, taskId),
-        eq(tasksTable.projectId, projectId),
-        eq(tasksTable.orgId, orgId),
-      ),
-    )
-    .limit(1);
-  return !!row;
+  taskId: number | null,
+  projectId: number | null,
+): Promise<NoteReferenceValidationRow> {
+  const result = await db.execute(sql`
+    SELECT
+      project_match.id AS "projectId",
+      task_match.id AS "taskId",
+      task_match.project_id AS "taskProjectId"
+    FROM (SELECT 1) AS base
+    LEFT JOIN (
+      SELECT id
+      FROM projects
+      WHERE org_id = ${orgId}
+        AND id = ${projectId}
+      LIMIT 1
+    ) AS project_match ON TRUE
+    LEFT JOIN (
+      SELECT id, project_id
+      FROM tasks
+      WHERE org_id = ${orgId}
+        AND id = ${taskId}
+      LIMIT 1
+    ) AS task_match ON TRUE
+  `);
+
+  const [row] = result.rows as NoteReferenceValidationRow[];
+  return row ?? { projectId: null, taskId: null, taskProjectId: null };
 }
 
 /**
@@ -161,18 +161,24 @@ router.post("/notes", requireOrg, async (req, res) => {
   const orgId = req.orgId!;
   const userId = req.user!.id;
 
-  if (body.data.projectId != null) {
-    if (!(await validateProjectId(body.data.projectId, orgId))) {
+  if (body.data.projectId != null || body.data.taskId != null) {
+    const validation = await getNoteReferenceValidationRow(
+      orgId,
+      body.data.taskId ?? null,
+      body.data.projectId ?? null,
+    );
+
+    if (body.data.projectId != null && validation.projectId == null) {
       return res.status(400).json({ error: "Invalid projectId" });
     }
-  }
-  if (body.data.taskId != null) {
-    if (!(await validateTaskId(body.data.taskId, orgId))) {
+    if (body.data.taskId != null && validation.taskId == null) {
       return res.status(400).json({ error: "Invalid taskId" });
     }
-  }
-  if (body.data.projectId != null && body.data.taskId != null) {
-    if (!(await validateTaskBelongsToProject(body.data.taskId, body.data.projectId, orgId))) {
+    if (
+      body.data.projectId != null &&
+      body.data.taskId != null &&
+      validation.taskProjectId !== body.data.projectId
+    ) {
       return res.status(400).json({ error: "Task does not belong to the specified project" });
     }
   }
@@ -247,17 +253,6 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(403).json({ error: "Only the note owner can change visibility" });
   }
 
-  if (body.data.projectId != null) {
-    if (!(await validateProjectId(body.data.projectId, orgId))) {
-      return res.status(400).json({ error: "Invalid projectId" });
-    }
-  }
-  if (body.data.taskId != null) {
-    if (!(await validateTaskId(body.data.taskId, orgId))) {
-      return res.status(400).json({ error: "Invalid taskId" });
-    }
-  }
-
   // Determine the effective resulting projectId and taskId after the patch is
   // applied, then cross-check them if both are non-null.
   const effectiveProjectId =
@@ -265,8 +260,28 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
   const effectiveTaskId =
     "taskId" in body.data ? (body.data.taskId ?? null) : existing.taskId;
 
-  if (effectiveProjectId != null && effectiveTaskId != null) {
-    if (!(await validateTaskBelongsToProject(effectiveTaskId, effectiveProjectId, orgId))) {
+  const shouldValidateProject = body.data.projectId != null;
+  const shouldValidateTask = body.data.taskId != null;
+  const shouldValidateTaskProjectRelation =
+    effectiveProjectId != null && effectiveTaskId != null;
+
+  if (shouldValidateProject || shouldValidateTask || shouldValidateTaskProjectRelation) {
+    const validation = await getNoteReferenceValidationRow(
+      orgId,
+      effectiveTaskId,
+      effectiveProjectId,
+    );
+
+    if (shouldValidateProject && validation.projectId == null) {
+      return res.status(400).json({ error: "Invalid projectId" });
+    }
+    if (shouldValidateTask && validation.taskId == null) {
+      return res.status(400).json({ error: "Invalid taskId" });
+    }
+    if (
+      shouldValidateTaskProjectRelation &&
+      validation.taskProjectId !== effectiveProjectId
+    ) {
       return res.status(400).json({ error: "Task does not belong to the specified project" });
     }
   }
