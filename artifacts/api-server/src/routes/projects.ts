@@ -16,6 +16,7 @@ import {
 import { requireOrgOrApiKey, requireOrg, requirePermission, requireScope, hasPermission } from "../middlewares/requireOrgMiddleware";
 import { dispatchProjectCreated, dispatchProjectUpdated, dispatchProjectDeleted } from "../lib/webhook-dispatcher";
 import { logOrgEvent } from "../lib/log-org-event";
+import { broadcastToOrg } from "../lib/sse";
 
 const router: IRouter = Router();
 
@@ -123,6 +124,7 @@ router.post("/projects", requireOrgOrApiKey, requireScope("projects:write"), asy
   const creatorName = req.user ? displayName(req.user) : null;
   const serialized = serializeProject(project, 0, 0, false, creatorName);
   dispatchProjectCreated(req.orgId!, serialized);
+  broadcastToOrg(req.orgId!, "project-changed", { projectId: project.id, action: "created" });
 
   const { actorId: pActorId, actorName: pActorName } = resolveActor(req);
   void logOrgEvent({
@@ -213,6 +215,7 @@ router.patch("/projects/:id", requireOrgOrApiKey, requireScope("projects:write")
 
   const serializedUpdate = serializeProject(project, counts?.total ?? 0, counts?.completed ?? 0);
   dispatchProjectUpdated(req.orgId!, serializedUpdate);
+  broadcastToOrg(req.orgId!, "project-changed", { projectId: project.id, action: "updated" });
 
   const { actorId: upActorId, actorName: upActorName } = resolveActor(req);
   void logOrgEvent({
@@ -251,6 +254,7 @@ router.delete("/projects/:id", requireOrgOrApiKey, requireScope("projects:write"
   }
 
   dispatchProjectDeleted(req.orgId!, { id: project.id, name: project.name });
+  broadcastToOrg(req.orgId!, "project-changed", { projectId: project.id, action: "deleted" });
 
   const { actorId: delActorId, actorName: delActorName } = resolveActor(req);
   void logOrgEvent({

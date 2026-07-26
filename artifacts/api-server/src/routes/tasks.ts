@@ -47,6 +47,7 @@ import {
   notifyTaskAssigned,
   notifyTaskUpdated,
 } from "../lib/notifications";
+import { broadcastToOrg } from "../lib/sse";
 
 const router: IRouter = Router();
 
@@ -609,6 +610,7 @@ router.post("/tasks", requireOrgOrApiKey, requireScope("tasks:write"), async (re
   const enriched = await buildTaskWithProject(task, orgId, stagesMap);
   const webhookCustomFields = await resolveCustomFieldNames(enriched.customFields as Record<string, unknown>, orgId);
   dispatchTaskCreated(orgId, task.projectId, { ...enriched, customFields: webhookCustomFields });
+  broadcastToOrg(orgId, "task-changed", { taskId: task.id, action: "created" });
 
   // Auto-watch the assignee + fire assignment notification (fire-and-forget)
   if (task.assignee) {
@@ -860,6 +862,7 @@ router.patch("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), asy
     await insertChangeEvents(prev.id, orgId, actorId, actorNameStr, prev, next, stagesMap);
   }
 
+  broadcastToOrg(orgId, "task-changed", { taskIds: prevRows.map((row) => row.id), action: "bulk-updated" });
   res.json(BulkUpdateTasksResponse.parse({ updated: prevRows.length }));
 });
 
@@ -1249,6 +1252,8 @@ router.patch("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asyn
     }
   })();
 
+  broadcastToOrg(orgId, "task-changed", { taskId: task.id, action: "updated" });
+
   res.json(UpdateTaskResponse.parse(enriched));
 });
 
@@ -1287,6 +1292,7 @@ router.delete("/tasks/bulk", requireOrgOrApiKey, requireScope("tasks:write"), as
   await db.delete(commentsTable).where(inArray(commentsTable.taskId, ownedIds));
   await db.delete(tasksTable).where(and(inArray(tasksTable.id, ownedIds), eq(tasksTable.orgId, orgId)));
 
+  broadcastToOrg(orgId, "task-changed", { taskIds: ownedIds, action: "bulk-deleted" });
   res.json(BulkDeleteTasksResponse.parse({ deleted: ownedIds.length }));
 });
 
@@ -1331,6 +1337,7 @@ router.delete("/tasks/:id", requireOrgOrApiKey, requireScope("tasks:write"), asy
     orgId,
   });
 
+  broadcastToOrg(orgId, "task-changed", { taskId: existing.id, action: "deleted" });
   res.sendStatus(204);
 });
 

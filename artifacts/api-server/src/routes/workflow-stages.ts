@@ -15,6 +15,7 @@ import {
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
 import { requireOrgFeature } from "../lib/org-features";
 import { logOrgEvent } from "../lib/log-org-event";
+import { broadcastToOrg } from "../lib/sse";
 
 const router: IRouter = Router();
 
@@ -96,6 +97,7 @@ router.post(
       metadata: { type: stage.type, color: stage.color },
     });
 
+    broadcastToOrg(orgId, "stage-changed", {});
     res.status(201).json(CreateWorkflowStageResponse.parse(serializeStage(stage)));
   },
 );
@@ -139,6 +141,7 @@ router.post(
       metadata: { ids },
     });
 
+    broadcastToOrg(orgId, "stage-changed", {});
     res.sendStatus(204);
   },
 );
@@ -251,6 +254,7 @@ router.patch(
       metadata: Object.keys(setData).length > 0 ? setData as Record<string, unknown> : null,
     });
 
+    broadcastToOrg(orgId, "stage-changed", {});
     res.json(UpdateWorkflowStageResponse.parse(serializeStage(updated)));
   },
 );
@@ -357,6 +361,7 @@ router.delete(
       metadata: reassignTo ? { reassignedTo: reassignTo, affectedCount: count } : null,
     });
 
+    broadcastToOrg(orgId, "stage-changed", {});
     res.sendStatus(204);
   },
 );

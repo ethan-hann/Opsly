@@ -68,7 +68,7 @@ export function SseProvider({ children }: { children: ReactNode }) {
       es = new EventSource(url, { withCredentials: true });
 
       // Forward all known event types to subscribers.
-      const KNOWN_EVENTS = ["notification", "role-changed"] as const;
+      const KNOWN_EVENTS = ["notification", "role-changed", "task-changed", "comment-changed", "reaction-changed", "project-changed", "stage-changed", "notes-changed"] as const;
       for (const evt of KNOWN_EVENTS) {
         es.addEventListener(evt, (e: MessageEvent) => {
           dispatch(evt, e.data as string);

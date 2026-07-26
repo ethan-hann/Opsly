@@ -34,7 +34,7 @@ export const queryClient = new QueryClient({
       // Keep unused entries for 30 min so the in-memory cache survives
       // short offline sessions without a page refresh.
       gcTime: 30 * 60 * 1000,
-      refetchInterval: 8_000,
+      refetchInterval: 60_000,
       refetchIntervalInBackground: false,
       // 'online' pauses queries when offline and returns cached data instead
       // of firing and erroring (which was wiping dropdown / form data).
