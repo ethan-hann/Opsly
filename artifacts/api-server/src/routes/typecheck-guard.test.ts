@@ -26,13 +26,15 @@ import { tmpdir } from "node:os";
 // pnpm sets cwd to the package root (artifacts/api-server) when running tests.
 // Two levels up is the monorepo root.
 const repoRoot = resolve(process.cwd(), "../..");
-// On Windows pnpm creates a .cmd shim; the bare "tsc" path does not exist as
-// a directly executable file and spawnSync returns status:null (ENOENT).
-const tscBin = join(
-  repoRoot,
-  "node_modules/.bin",
-  process.platform === "win32" ? "tsc.cmd" : "tsc",
-);
+const tscBin = join(repoRoot, "node_modules/.bin", "tsc");
+// On Windows, .cmd shims cannot be executed by CreateProcess without going
+// through cmd.exe — spawnSync returns status:null (ENOENT) for any .bin shim.
+// Use shell:true so Node delegates to cmd.exe, which resolves PATHEXT and
+// executes tsc.cmd correctly.  Linux/macOS are unaffected (shell:false there).
+const spawnOpts = {
+  encoding: "utf8" as const,
+  shell: process.platform === "win32",
+};
 
 /** Write a minimal tsconfig that resolves @workspace/api-zod via the built dist. */
 function writeTsconfig(dir: string): void {
@@ -104,18 +106,19 @@ describe("typecheck guard — broken API import is caught by tsc", () => {
       );
       writeTsconfig(dir);
 
-      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
-        encoding: "utf8",
-      });
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], spawnOpts);
+
+      // tsc may write to stdout or stderr depending on version/platform.
+      const output = (result.stdout ?? "") + (result.stderr ?? "");
 
       // The guard must fire: tsc must exit with a non-zero status.
       expect(
         result.status,
-        `tsc should have failed on the bad import but exited 0.\nstdout: ${result.stdout}`,
+        `tsc should have failed on the bad import but exited 0.\noutput: ${output}`,
       ).not.toBe(0);
 
       // The output should name the offending symbol so the developer knows what to fix.
-      expect(result.stdout).toMatch(/_NonExistentSymbol_ThatShouldNeverExist/);
+      expect(output).toMatch(/_NonExistentSymbol_ThatShouldNeverExist/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -133,14 +136,14 @@ describe("typecheck guard — broken API import is caught by tsc", () => {
       );
       writeTsconfig(dir);
 
-      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
-        encoding: "utf8",
-      });
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], spawnOpts);
+
+      const output = (result.stdout ?? "") + (result.stderr ?? "");
 
       // No false positives: clean code must pass.
       expect(
         result.status,
-        `tsc should have passed on the wildcard import but exited ${result.status}.\nstdout: ${result.stdout}`,
+        `tsc should have passed on the wildcard import but exited ${result.status}.\noutput: ${output}`,
       ).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -162,18 +165,18 @@ describe("typecheck guard — broken React Query hook import is caught by tsc", 
       );
       writeTsconfigForClientReact(dir);
 
-      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
-        encoding: "utf8",
-      });
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], spawnOpts);
+
+      const output = (result.stdout ?? "") + (result.stderr ?? "");
 
       // The guard must fire: a missing hook export must cause a non-zero exit.
       expect(
         result.status,
-        `tsc should have failed on the bad hook import but exited 0.\nstdout: ${result.stdout}`,
+        `tsc should have failed on the bad hook import but exited 0.\noutput: ${output}`,
       ).not.toBe(0);
 
       // tsc output must name the offending symbol so the developer knows what to fix.
-      expect(result.stdout).toMatch(/_NonExistentHook_ThatShouldNeverExist/);
+      expect(output).toMatch(/_NonExistentHook_ThatShouldNeverExist/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -191,14 +194,14 @@ describe("typecheck guard — broken React Query hook import is caught by tsc", 
       );
       writeTsconfigForClientReact(dir);
 
-      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], {
-        encoding: "utf8",
-      });
+      const result = spawnSync(tscBin, ["--noEmit", "--project", join(dir, "tsconfig.json")], spawnOpts);
+
+      const output = (result.stdout ?? "") + (result.stderr ?? "");
 
       // No false positives: clean code must pass.
       expect(
         result.status,
-        `tsc should have passed on the wildcard import but exited ${result.status}.\nstdout: ${result.stdout}`,
+        `tsc should have passed on the wildcard import but exited ${result.status}.\noutput: ${output}`,
       ).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });

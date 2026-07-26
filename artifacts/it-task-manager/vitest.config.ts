@@ -15,10 +15,19 @@ export default defineConfig({
   },
   server: {
     deps: {
-      // idb-keyval is ESM-only. On Windows, Node's CommonJS loader rejects it
-      // with ERR_REQUIRE_ESM. Inlining it through Vite's transform pipeline
-      // avoids the native loader entirely and makes the package work in jsdom.
-      inline: ["idb-keyval"],
+      // These packages are ESM-only. On Windows, vitest's jsdom environment
+      // loads them via Node's CommonJS loader and gets ERR_REQUIRE_ESM.
+      // Inlining them routes the import through Vite's transform pipeline
+      // instead, which produces a CJS-compatible module for the test runner.
+      //
+      // idb-keyval     — imported directly by app code
+      // @exodus/bytes  — imported by html-encoding-sniffer (jsdom dep); the
+      //                  /encoding-lite.js subpath is what actually throws, so
+      //                  matching the package root covers all subpaths
+      // html-encoding-sniffer — jsdom dep that does the require(); inlining it
+      //                         ensures its own require() of @exodus/bytes goes
+      //                         through Vite rather than the native loader
+      inline: ["idb-keyval", "@exodus/bytes", "html-encoding-sniffer"],
     },
   },
   resolve: {
