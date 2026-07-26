@@ -1,24 +1,20 @@
-# Environment prep for the GitHub Copilot coding agent.
+# Environment prep for the GitHub Copilot coding agent (the `opsly-plan-executor`
+# agent in .github/agents/). GitHub runs the job named exactly `copilot-setup-steps`
+# — read from the DEFAULT BRANCH — as the first steps of the agent's job, in the same
+# ephemeral environment the agent then works in. Its whole purpose is to make the
+# toolchain and services available so the agent can actually run the repo's
+# install → codegen → schema push → build → typecheck → test sequence itself,
+# instead of reporting "pnpm is not available in this environment."
 #
-# GitHub runs the job named exactly `copilot-setup-steps` before the agent
-# starts, in the same ephemeral environment the agent then works in. Its whole
-# purpose is to make the toolchain available so the agent can run repo checks
-# itself instead of handing them back to you.
+# Why pnpm is installed via npm and NOT corepack: corepack's signature verification
+# fails in the agent sandbox ("key/signature mismatch"). `npm install -g` sidesteps it.
 #
-# This is why Copilot reported "pnpm not on PATH" and a corepack signature
-# mismatch: nothing installed pnpm. We install it directly via npm, which
-# sidesteps the corepack key/signature bug entirely.
-#
-# After this runs, the agent can execute:
-#   pnpm --filter @workspace/api-server run typecheck
-#   pnpm --filter @workspace/api-server run test
-#   pnpm --filter @workspace/api-server run build
+# NOTE: because the agent only reads this file from the default branch, changes here
+# take effect for the NEXT agent run after they merge to main — not retroactively.
 name: Copilot setup steps
 
 on:
-  # Lets you validate the setup manually from the Actions tab.
   workflow_dispatch:
-  # Re-run when the setup itself changes.
   push:
     paths:
       - .github/workflows/copilot-setup-steps.yml
@@ -31,30 +27,29 @@ jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
 
-    # ---------------------------------------------------------------------
-    # Optional: uncomment to run the live-Postgres integration suites
-    # (src/**/*-db.test.ts and task-events-index.test.ts). Without a
-    # DATABASE_URL these 3 suites auto-skip and everything else still runs,
-    # so this is only needed for full coverage.
-    #
-    # For the agent's own `pnpm test` to see the DB, DATABASE_URL must be
-    # exposed to the agent session — set it in the repo's Copilot environment
-    # (Settings > Environments) to match the service below.
-    # ---------------------------------------------------------------------
-    # services:
-    #   postgres:
-    #     image: postgres:16
-    #     env:
-    #       POSTGRES_USER: postgres
-    #       POSTGRES_PASSWORD: postgres
-    #       POSTGRES_DB: opsly_test
-    #     ports:
-    #       - 5432:5432
-    #     options: >-
-    #       --health-cmd "pg_isready -U postgres"
-    #       --health-interval 10s
-    #       --health-timeout 5s
-    #       --health-retries 5
+    # A live Postgres so the agent can `push-force` the schema and run the
+    # integration suites (src/**/*-db.test.ts, @workspace/db tests).
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: opsly
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Frontend vite.config.ts throws unless these are set, even for a build.
+      # Mirrors Dockerfile.frontend. Exported to $GITHUB_ENV below so the agent's
+      # own later commands inherit them too.
+      PORT: "3000"
+      BASE_PATH: /
 
     steps:
       - name: Check out repository
@@ -66,22 +61,36 @@ jobs:
           node-version: 22
 
       - name: Install pnpm
-        # Pinned to the version that produced pnpm-lock.yaml. Installed via npm
-        # rather than corepack to avoid the corepack signature-verification bug.
+        # Pinned to the lockfile's version; via npm, not corepack (see header).
         run: npm install -g pnpm@10.34.5
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build TypeScript project references
-        # Warms the workspace so `typecheck` and `build` are fast and green.
-        run: pnpm run typecheck:libs
+      - name: Persist build env for the agent session
+        # Job-level `env` covers these steps; writing to $GITHUB_ENV makes them
+        # available to the agent's subsequent commands in the same job.
+        run: |
+          {
+            echo "PORT=3000"
+            echo "BASE_PATH=/"
+          } >> "$GITHUB_ENV"
 
-      # ---------------------------------------------------------------------
-      # Optional companion to the Postgres service above: create the schema so
-      # the live-DB suites can run. Uncomment together with `services:`.
-      # ---------------------------------------------------------------------
-      # - name: Push database schema
-      #   env:
-      #     DATABASE_URL: postgres://postgres:postgres@localhost:5432/opsly_test
-      #   run: pnpm --filter @workspace/db run push-force
+      - name: Provision database schema (best-effort)
+        # Only wire DATABASE_URL through to the agent if Postgres is actually
+        # reachable — otherwise the DB integration suites auto-skip cleanly rather
+        # than crashing on a dead connection.
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/opsly
+        run: |
+          # Dependency-free readiness probe (no pg_isready needed on the host).
+          if timeout 15 bash -c 'until echo > /dev/tcp/localhost/5432; do sleep 1; done' 2>/dev/null; then
+            echo "DATABASE_URL=$DATABASE_URL" >> "$GITHUB_ENV"
+            pnpm --filter @workspace/db run push-force
+          else
+            echo "Postgres not reachable; skipping schema push. DB suites will auto-skip." >&2
+          fi
+
+      - name: Build api-server (warm the bundle)
+        # Non-fatal: a warm build speeds the agent up but must never block setup.
+        run: pnpm --filter @workspace/api-server run build || echo "api-server build skipped in setup" >&2

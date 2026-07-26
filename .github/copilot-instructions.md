@@ -73,6 +73,12 @@ pnpm --filter @workspace/api-spec run codegen   # sync generated api-zod / api-c
                                                  # API-surface change, before typecheck)
 ```
 
+In the Copilot coding-agent sandbox the environment is provisioned by
+`.github/workflows/copilot-setup-steps.yml` (pnpm, deps, a Postgres DB, build env). If a
+run lands without `pnpm`, install it with `npm install -g pnpm@10.34.5` and run
+`pnpm install --frozen-lockfile` — do **not** use `corepack` (its signature check fails
+in the sandbox). Bootstrap and run the checks rather than reporting them as impossible.
+
 Per package (use `--filter`, e.g. `pnpm --filter @workspace/api-server run test`):
 
 - api-server: `build`, `start`, `typecheck`, `test` (vitest).

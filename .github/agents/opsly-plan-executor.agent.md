@@ -27,6 +27,38 @@ A planning bundle lives under `planning/<feature-slug>/` and contains two files:
   Risks). Read it to understand intent and edge cases, but where it and
   `codex-prompt.md` ever disagree, **the prompt wins**.
 
+## Environment: bootstrap before you verify
+
+Your worktree runs in the Copilot sandbox provisioned by
+`.github/workflows/copilot-setup-steps.yml`: `pnpm` (installed via npm), all workspace
+`node_modules`, a live Postgres with the schema already pushed, and the frontend build
+env (`PORT`, `BASE_PATH`) are in place. Use `pnpm` directly.
+
+If a run ever lands somewhere `pnpm` is missing (setup-steps didn't apply — e.g. a run
+that started before this file reached the default branch), **recover, don't surrender**:
+
+1. `npm install -g pnpm@10.34.5` — do **not** use `corepack`; its signature check
+   fails in this sandbox ("key/signature mismatch"), which is a dead end, not a retry.
+2. `pnpm install --frozen-lockfile`
+
+Never finish a task by reporting "could not run typecheck/tests because pnpm / tsc / node_modules
+weren't available." That is a bootstrap you are expected to perform first, not a blocker
+to hand back to the reviewer.
+
+### Verification sequence (run for the packages you touched, from the repo root)
+
+1. `pnpm install --frozen-lockfile`
+2. **Only if you edited `lib/api-spec/openapi.yaml`:**
+   `pnpm --filter @workspace/api-spec run codegen` — **before** any typecheck, or you get
+   phantom "has no exported member" errors from stale generated types
+   (`.agents/memory/orval-codegen-command.md`).
+3. **Only if you changed the Drizzle schema:** `pnpm --filter @workspace/db run push-force`
+   (`.agents/memory/post-merge-procedure.md`).
+4. `pnpm --filter @workspace/api-server run build` and `pnpm --filter <pkg> run typecheck`.
+5. `pnpm --filter <pkg> run test` for the packages you changed. The DB integration suites
+   use the Postgres from setup-steps; where no DB is reachable they auto-skip, so a green
+   run without a DB is not proof those suites passed — say so.
+
 ## Startup: locate and read the bundle
 
 1. If the user named a slug or path, use it. Otherwise list `planning/*/` and, if
