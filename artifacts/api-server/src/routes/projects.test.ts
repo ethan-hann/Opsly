@@ -31,7 +31,7 @@ const mockState = vi.hoisted(() => ({
   deleteCalls: 0,
   /** Tracks calls to insert() so tests can assert on audit writes. */
   insertCalls: 0,
-  permissions: { manage_sla_policies: true } as Record<string, boolean>,
+  permissions: { manage_projects: true, manage_sla_policies: true } as Record<string, boolean>,
 }));
 
 // ---------------------------------------------------------------------------
@@ -243,6 +243,7 @@ describe("POST /api/projects", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    mockState.permissions = { manage_projects: true, manage_sla_policies: true };
   });
 
   it("returns 400 when name is missing", async () => {
@@ -269,6 +270,17 @@ describe("POST /api/projects", () => {
       taskCount: 0,
       completedTaskCount: 0,
     });
+  });
+
+  it("returns 403 when the caller lacks manage_projects permission", async () => {
+    mockState.permissions = { manage_projects: false, manage_sla_policies: true };
+
+    const res = await request(buildApp())
+      .post("/api/projects")
+      .send({ name: "Infra Upgrade" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringContaining("manage_projects") });
   });
 });
 
@@ -359,6 +371,7 @@ describe("PATCH /api/projects/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    mockState.permissions = { manage_projects: true, manage_sla_policies: true };
   });
 
   it("returns 400 for a non-integer id", async () => {
@@ -388,6 +401,17 @@ describe("PATCH /api/projects/:id", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ id: 1, name: "Infra Upgrade v2", taskCount: 5 });
   });
+
+  it("returns 403 when the caller lacks manage_projects permission", async () => {
+    mockState.permissions = { manage_projects: false, manage_sla_policies: true };
+
+    const res = await request(buildApp())
+      .patch("/api/projects/1")
+      .send({ name: "Infra Upgrade v2" });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringContaining("manage_projects") });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -400,6 +424,7 @@ describe("DELETE /api/projects/:id", () => {
     mockState.insertResult = [];
     mockState.updateResult = [];
     mockState.deleteResult = [];
+    mockState.permissions = { manage_projects: true, manage_sla_policies: true };
     vi.mocked(webhookDispatcher.dispatchProjectDeleted).mockClear();
   });
 
@@ -443,6 +468,15 @@ describe("DELETE /api/projects/:id", () => {
   it("returns 400 for a non-integer id", async () => {
     const res = await request(buildApp()).delete("/api/projects/bad-id");
     expect(res.status).toBe(400);
+  });
+
+  it("returns 403 when the caller lacks manage_projects permission", async () => {
+    mockState.permissions = { manage_projects: false, manage_sla_policies: true };
+
+    const res = await request(buildApp()).delete("/api/projects/1");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ error: expect.stringContaining("manage_projects") });
   });
 });
 

@@ -59,7 +59,7 @@ router.get("/custom-fields", requireOrg, requireCustomFieldsFeature, async (req,
   res.json(ListCustomFieldDefinitionsResponse.parse(definitions.map(serializeDef)));
 });
 
-/** POST /custom-fields — create a new field definition (admin only) */
+/** POST /custom-fields — create a new field definition (requires manage_custom_fields) */
 router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const parsed = CreateCustomFieldDefinitionBody.safeParse(req.body);
   if (!parsed.success) {
@@ -101,7 +101,7 @@ router.post("/custom-fields", requireOrg, requireCustomFieldsFeature, requirePer
   res.status(201).json(CreateCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
 
-/** PATCH /custom-fields/:id — update a field definition (admin only) */
+/** PATCH /custom-fields/:id — update a field definition (requires manage_custom_fields) */
 router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = UpdateCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
@@ -315,7 +315,7 @@ router.patch("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requi
   res.json(UpdateCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
 
-/** DELETE /custom-fields/:id — soft-delete a field definition (admin only) */
+/** DELETE /custom-fields/:id — soft-delete a field definition (requires manage_custom_fields) */
 router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = DeleteCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
@@ -356,7 +356,7 @@ router.delete("/custom-fields/:id", requireOrg, requireCustomFieldsFeature, requ
   res.sendStatus(204);
 });
 
-/** POST /custom-fields/:id/restore — un-soft-delete a field (admin only) */
+/** POST /custom-fields/:id/restore — un-soft-delete a field (requires manage_custom_fields) */
 router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = RestoreCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
@@ -386,7 +386,7 @@ router.post("/custom-fields/:id/restore", requireOrg, requireCustomFieldsFeature
   res.json(RestoreCustomFieldDefinitionResponse.parse(serializeDef(def)));
 });
 
-/** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (admin only) */
+/** POST /custom-fields/:id/purge — hard-delete a field and erase all stored values (requires manage_custom_fields) */
 router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const params = PurgeCustomFieldDefinitionParams.safeParse(req.params);
   if (!params.success) {
@@ -493,7 +493,7 @@ router.post("/custom-fields/:id/purge", requireOrg, requireCustomFieldsFeature, 
   res.json(PurgeCustomFieldDefinitionResponse.parse({ deletedFieldId: params.data.id, affectedTaskCount: result }));
 });
 
-/** POST /custom-fields/reorder — reorder field definitions (admin only) */
+/** POST /custom-fields/reorder — reorder field definitions (requires manage_custom_fields) */
 router.post("/custom-fields/reorder", requireOrg, requireCustomFieldsFeature, requirePermission("manage_custom_fields"), async (req, res): Promise<void> => {
   const parsed = ReorderCustomFieldDefinitionsBody.safeParse(req.body);
   if (!parsed.success) {
