@@ -2,13 +2,17 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@10.34.5",
   "scripts": {
     "preinstall": "node scripts/preinstall.js",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build --force",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
     "setup": "pnpm --filter @workspace/db run push && pnpm --filter @workspace/db run create-local-user admin@example.com changeme Local Admin && pnpm --filter @workspace/db run make-admin admin@example.com",
-    "dev": "concurrently --names \"api,web\" --prefix-colors \"cyan,magenta\" \"cross-env PORT=8080 pnpm --filter @workspace/api-server run dev\" \"cross-env PORT=20999 BASE_PATH=/ pnpm --filter @workspace/it-task-manager run dev\""
+    "dev": "concurrently --kill-others-on-fail --names \"api,web\" --prefix-colors \"cyan,magenta\" \"cross-env PORT=8080 pnpm --filter @workspace/api-server run dev\" \"cross-env PORT=20999 BASE_PATH=/ pnpm --filter @workspace/it-task-manager run dev\""
   },
   "private": true,
   "dependencies": {

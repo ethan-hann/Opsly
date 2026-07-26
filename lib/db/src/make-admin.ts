@@ -11,8 +11,10 @@ import pg from 'pg';
 const { Pool } = pg;
 
 async function main(): Promise<void> {
-  const revoke = process.argv.includes('--revoke');
-  const email = process.argv.find((a, i) => i >= 2 && !a.startsWith('--'));
+  const rawArgs = process.argv.slice(2);
+  const args = rawArgs[0] === '--' ? rawArgs.slice(1) : rawArgs;
+  const revoke = args.includes('--revoke');
+  const email = args.find((arg) => !arg.startsWith('--'))?.toLowerCase();
 
   if (!email) {
     console.error(`Usage: pnpm --filter @workspace/db ${revoke ? 'revoke' : 'make'}-admin <email>`);

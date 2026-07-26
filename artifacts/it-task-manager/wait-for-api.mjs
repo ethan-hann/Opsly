@@ -27,7 +27,7 @@ while (true) {
   }
 
   if (Date.now() - start > TIMEOUT_MS) {
-    process.stderr.write("\nTimed out waiting for API server.\n");
+    process.stderr.write("\nTimed out waiting for the API server to start. It probably failed during startup; scroll up in the [api] logs for the real error.\n");
     process.exit(1);
   }
 

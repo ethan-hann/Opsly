@@ -18,7 +18,7 @@ docker compose -f docker-compose.local.yml up --build
 
 Open **http://localhost:20999** and sign in with `admin@example.com` / `changeme`.
 
-To customise env vars, copy the example file first:
+To customize env vars, copy the example file first:
 
 ```sh
 cp .env.example .env
@@ -26,19 +26,34 @@ cp .env.example .env
 docker compose -f docker-compose.local.yml up --build
 ```
 
-Docker Compose reads `.env` automatically — no `--env-file` flag required.
+Docker Compose reads `.env` automatically � no `--env-file` flag required.
 
-### Native dev (two commands)
+### Native dev
+
+Run these commands in the same shell session so both `pnpm run setup` and
+`pnpm run dev` see the same `DATABASE_URL` value.
 
 ```sh
-# One-time setup: push DB schema and create default local user
+# bash / sh
+docker compose -f docker-compose.local.yml up db -d
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/opsly"
 pnpm run setup
-
-# Start API + frontend together
 pnpm run dev
 ```
 
-Or with the shell wrapper (sources `.env` automatically):
+```powershell
+# PowerShell
+docker compose -f docker-compose.local.yml up db -d
+$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/opsly"
+pnpm run setup
+pnpm run dev
+```
+
+> **Important:** If you recreate the Postgres volume, point `DATABASE_URL` at a
+> different local database, or start from a fresh DB container, run
+> `pnpm run setup` again before `pnpm run dev`.
+
+Or with the shell wrapper (sources `.env` automatically). Use the setup flag on the first native run and any time you recreate the local DB volume:
 
 ```sh
 # bash / sh
@@ -62,8 +77,10 @@ Open **http://localhost:20999** and sign in with `admin@example.com` / `changeme
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and adjust as needed.  All variables have
-sensible defaults for local development; no changes are required to get started.
+Copy `.env.example` to `.env` and adjust as needed. All variables have
+sensible defaults for local development, but native dev still requires
+`DATABASE_URL` to be set in the shell before running `pnpm run setup` or
+`pnpm run dev`.
 
 ```sh
 # bash / sh
@@ -77,7 +94,7 @@ Key variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/opsly` | Postgres connection string |
+| `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/opsly` | Postgres connection string |
 | `AUTH_MODE` | `local` | `local` \| `oidc` \| `replit_oidc` |
 | `STORAGE_DRIVER` | `local` | `local` \| `s3` \| `replit` |
 | `LOCAL_STORAGE_PATH` | `./data/exports` | Directory for export files (local driver) |
@@ -162,27 +179,35 @@ docker compose -f docker-compose.local.yml up db -d
 
 Or point `DATABASE_URL` at any reachable Postgres 16+ instance.
 
-### 3. First-time setup
+### 3. Set `DATABASE_URL`
+
+Set `DATABASE_URL` in the same shell where you will run setup and dev.
 
 ```sh
 # bash / sh
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/opsly"
-pnpm run setup
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/opsly"
 
 # PowerShell
-$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/opsly"
+$env:DATABASE_URL = "postgres://postgres:postgres@localhost:5432/opsly"
+```
+
+### 4. First-time setup
+
+```sh
 pnpm run setup
 ```
 
 This pushes the DB schema and creates the default local admin user
 (`admin@example.com` / `changeme`). The `setup` script always uses these
-fixed defaults. To use different credentials, run the DB scripts directly:
+fixed defaults.
 
-> **Safe to re-run.** `pnpm run setup` is idempotent — if the user already
+> **Safe to re-run.** `pnpm run setup` is idempotent - if the user already
 > exists it prints "already exists, skipping" and exits successfully. Run it
-> again after a `git pull`, a schema change, or any time you want to make sure
-> the workspace is fully initialized.
+> again after recreating the DB volume, switching to a different local DB,
+> a schema change, or any time you want to make sure the workspace is fully
+> initialized.
 
+To use different credentials, run the DB scripts directly:
 
 ```sh
 # bash / sh
@@ -193,22 +218,16 @@ pnpm --filter @workspace/db run make-admin your@email.com
 # PowerShell (same commands)
 ```
 
-### 4. Start the dev servers
+### 5. Start the dev servers
 
 ```sh
-# bash / sh
-export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/opsly"
-pnpm run dev
-
-# PowerShell
-$env:DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/opsly"
 pnpm run dev
 ```
 
 `pnpm run dev` starts the API server (`:8080`) and Vite frontend (`:20999`)
 concurrently in a single terminal.
 
-### 5. Open the app
+### 6. Open the app
 
 ```
 http://localhost:20999
@@ -288,7 +307,11 @@ pnpm --filter @workspace/db run reset-dev --yes
 | Symptom | Fix |
 |---|---|
 | `ERR_PNPM_IGNORED_BUILDS` | Run `pnpm approve-builds` and approve `esbuild` |
+| `DATABASE_URL must be set` | Set `DATABASE_URL` in the current shell before running `pnpm run setup` or `pnpm run dev` |
+| `relation "users" does not exist` or login fails for `admin@example.com` | Run `pnpm run setup` after starting Postgres or after recreating the DB volume |
 | `PORT environment variable is required` | Set `PORT` before starting the server manually, or use `pnpm run dev` which sets it automatically |
 | `BASE_PATH environment variable is required` | Use `pnpm run dev` or set `BASE_PATH=/` before starting the frontend |
 | Login fails in local mode | Ensure `AUTH_MODE=local` and run the setup step to create a local user |
 | Export download fails | Check `STORAGE_DRIVER=local` and that `LOCAL_STORAGE_PATH` is writable |
+
+

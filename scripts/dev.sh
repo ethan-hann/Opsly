@@ -1,18 +1,18 @@
 #!/usr/bin/env sh
-# dev.sh — start the full local dev stack (API + frontend) in one terminal.
+# dev.sh - start the full local dev stack (API + frontend) in one terminal.
 #
-# Usage:
-#   ./scripts/dev.sh
-#
-# On first run, complete the one-time setup first:
+# First run (or any fresh local DB volume):
 #   ./scripts/dev.sh --setup
 #
+# Later runs:
+#   ./scripts/dev.sh
+#
 # Environment (override by exporting before running, or via .env):
-#   DATABASE_URL          — default: postgresql://postgres:postgres@localhost:5432/opsly
-#   PORT (API)            — default: 8080
-#   VITE_PORT (frontend)  — default: 20999
-#   AUTH_MODE             — default: local
-#   STORAGE_DRIVER        — default: local
+#   DATABASE_URL          - default: postgres://postgres:postgres@localhost:5432/opsly
+#   PORT (API)            - default: 8080
+#   VITE_PORT (frontend)  - default: 20999
+#   AUTH_MODE             - default: local
+#   STORAGE_DRIVER        - default: local
 
 set -e
 
@@ -35,12 +35,15 @@ export INSTANCE_ADMIN_TOKEN="${INSTANCE_ADMIN_TOKEN:-local-dev-admin-token}"
 export NODE_ENV="${NODE_ENV:-development}"
 
 if [ "$1" = "--setup" ]; then
-  echo "==> Running one-time setup (DB schema push + default local user)..."
+  echo "==> Running setup (DB schema push + default local user)..."
   pnpm run setup
   echo "==> Setup complete."
+else
+  echo "==> If this is your first native run or you recreated the DB volume, run ./scripts/dev.sh --setup first."
 fi
 
 echo "==> Starting API server on :8080 and frontend on :20999..."
 
 # The root `dev` script uses concurrently and sets PORT per process.
 pnpm run dev
+
