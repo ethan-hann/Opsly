@@ -19,5 +19,10 @@
     "cross-env": "^10.1.0",
     "prettier": "^3.9.5",
     "typescript": "~5.9.3"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "@exodus/bytes@1.15.1": "patches/@exodus__bytes@1.15.1.patch"
+    }
   }
 }

@@ -1,0 +1,147 @@
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -196,6 +196,7 @@
+     },
+     "./encoding-lite.js": {
+       "types": "./encoding-lite.d.ts",
++      "require": "./encoding-lite.cjs",
+       "default": "./encoding-lite.js"
+     },
+     "./encoding-browser.js": {
+
+diff --git a/encoding-lite.cjs b/encoding-lite.cjs
+new file mode 100644
+--- /dev/null
++++ b/encoding-lite.cjs
+@@ -0,0 +1,130 @@
++"use strict";
++// CJS shim for @exodus/bytes/encoding-lite — workspace patch.
++// html-encoding-sniffer@6 uses require("@exodus/bytes/encoding-lite.js") from
++// within a Node.js CJS context (the vitest jsdom forks-pool worker).  Because
++// @exodus/bytes has "type":"module" in its package.json, every .js file is
++// treated as ESM even if it has CJS content, so the require() fails with
++// ERR_REQUIRE_ESM.  The fix: expose the same API via a .cjs file (which is
++// ALWAYS CommonJS regardless of the package type field) and route CJS callers
++// to it via a "require" condition in the exports map.
++// Logic is adapted verbatim from fallback/encoding.api.js, encoding.labels.js,
++// and fallback/encoding.js inside this package.
++
++// ─── getBOMEncoding ───────────────────────────────────────────────────────────
++function _fromSource(x) {
++  if (x instanceof Uint8Array) return x
++  if (ArrayBuffer.isView(x)) return new Uint8Array(x.buffer, x.byteOffset, x.byteLength)
++  const s = Object.prototype.toString.call(x)
++  if (s === '[object ArrayBuffer]' || s === '[object SharedArrayBuffer]') {
++    try { return new Uint8Array(x) } catch (_) { return new Uint8Array() }
++  }
++  throw new TypeError('Argument must be a SharedArrayBuffer, ArrayBuffer or ArrayBufferView')
++}
++
++function getBOMEncoding(input) {
++  const u8 = _fromSource(input)
++  if (u8.length >= 3 && u8[0] === 0xef && u8[1] === 0xbb && u8[2] === 0xbf) return 'utf-8'
++  if (u8.length < 2) return null
++  if (u8[0] === 0xff && u8[1] === 0xfe) return 'utf-16le'
++  if (u8[0] === 0xfe && u8[1] === 0xff) return 'utf-16be'
++  return null
++}
++
++// ─── labels + normalizeEncoding + labelToName ─────────────────────────────────
++const _labels = {
++  'utf-8': ['unicode-1-1-utf-8', 'unicode11utf8', 'unicode20utf8', 'utf8', 'x-unicode20utf8'],
++  'utf-16be': ['unicodefffe'],
++  'utf-16le': ['csunicode', 'iso-10646-ucs-2', 'ucs-2', 'unicode', 'unicodefeff', 'utf-16'],
++  'iso-8859-2': ['iso-ir-101'],
++  'iso-8859-3': ['iso-ir-109'],
++  'iso-8859-4': ['iso-ir-110'],
++  'iso-8859-5': ['csisolatincyrillic', 'cyrillic', 'iso-ir-144'],
++  'iso-8859-6': ['arabic', 'asmo-708', 'csiso88596e', 'csiso88596i', 'csisolatinarabic', 'ecma-114', 'iso-8859-6-e', 'iso-8859-6-i', 'iso-ir-127'],
++  'iso-8859-7': ['csisolatingreek', 'ecma-118', 'elot_928', 'greek', 'greek8', 'iso-ir-126', 'sun_eu_greek'],
++  'iso-8859-8': ['csiso88598e', 'csisolatinhebrew', 'hebrew', 'iso-8859-8-e', 'iso-ir-138', 'visual'],
++  'iso-8859-8-i': ['csiso88598i', 'logical'],
++  'iso-8859-16': [],
++  'koi8-r': ['cskoi8r', 'koi', 'koi8', 'koi8_r'],
++  'koi8-u': ['koi8-ru'],
++  'windows-874': ['dos-874', 'iso-8859-11', 'iso8859-11', 'iso885911', 'tis-620'],
++  ibm866: ['866', 'cp866', 'csibm866'],
++  'x-mac-cyrillic': ['x-mac-ukrainian'],
++  macintosh: ['csmacintosh', 'mac', 'x-mac-roman'],
++  gbk: ['chinese', 'csgb2312', 'csiso58gb231280', 'gb2312', 'gb_2312', 'gb_2312-80', 'iso-ir-58', 'x-gbk'],
++  gb18030: [],
++  big5: ['big5-hkscs', 'cn-big5', 'csbig5', 'x-x-big5'],
++  'euc-jp': ['cseucpkdfmtjapanese', 'x-euc-jp'],
++  shift_jis: ['csshiftjis', 'ms932', 'ms_kanji', 'shift-jis', 'sjis', 'windows-31j', 'x-sjis'],
++  'euc-kr': ['cseuckr', 'csksc56011987', 'iso-ir-149', 'korean', 'ks_c_5601-1987', 'ks_c_5601-1989', 'ksc5601', 'ksc_5601', 'windows-949'],
++  'iso-2022-jp': ['csiso2022jp'],
++  replacement: ['csiso2022kr', 'hz-gb-2312', 'iso-2022-cn', 'iso-2022-cn-ext', 'iso-2022-kr'],
++  'x-user-defined': [],
++}
++
++for (const i of [10, 13, 14, 15]) _labels[`iso-8859-${i}`] = [`iso8859-${i}`, `iso8859${i}`]
++for (const i of [2, 6, 7]) _labels[`iso-8859-${i}`].push(`iso_8859-${i}:1987`)
++for (const i of [3, 4, 5, 8]) _labels[`iso-8859-${i}`].push(`iso_8859-${i}:1988`)
++for (let i = 2; i < 9; i++) _labels[`iso-8859-${i}`].push(`iso8859-${i}`, `iso8859${i}`, `iso_8859-${i}`)
++for (let i = 2; i < 5; i++) _labels[`iso-8859-${i}`].push(`csisolatin${i}`, `l${i}`, `latin${i}`)
++for (let i = 0; i < 9; i++) _labels[`windows-125${i}`] = [`cp125${i}`, `x-cp125${i}`]
++_labels['windows-1252'].push('ansi_x3.4-1968', 'ascii', 'cp819', 'csisolatin1', 'ibm819', 'iso-8859-1', 'iso-ir-100', 'iso8859-1', 'iso88591', 'iso_8859-1', 'iso_8859-1:1987', 'l1', 'latin1', 'us-ascii')
++_labels['windows-1254'].push('csisolatin5', 'iso-8859-9', 'iso-ir-148', 'iso8859-9', 'iso88599', 'iso_8859-9', 'iso_8859-9:1989', 'l5', 'latin5')
++_labels['iso-8859-10'].push('csisolatin6', 'iso-ir-157', 'l6', 'latin6')
++_labels['iso-8859-15'].push('csisolatin9', 'iso_8859-15', 'l9')
++
++const _reverseLabels = new Map()
++for (const [canonical, aliases] of Object.entries(_labels)) {
++  _reverseLabels.set(canonical, canonical)
++  for (const alias of aliases) _reverseLabels.set(alias, canonical)
++}
++
++const _uppercasePrefixes = new Set(['utf', 'iso', 'koi', 'euc', 'ibm', 'gbk'])
++
++function normalizeEncoding(label) {
++  if (label === 'utf-8' || label === 'utf8' || label === 'UTF-8' || label === 'UTF8') return 'utf-8'
++  if (!label) return null
++  const s = String(label).replace(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/g, '').toLowerCase()
++  return _reverseLabels.get(s) ?? null
++}
++
++function labelToName(label) {
++  const enc = normalizeEncoding(label)
++  if (enc === 'utf-8') return 'UTF-8'
++  if (!enc) return enc
++  if (_uppercasePrefixes.has(enc.slice(0, 3))) return enc.toUpperCase()
++  if (enc === 'big5') return 'Big5'
++  if (enc === 'shift_jis') return 'Shift_JIS'
++  return enc
++}
++
++// ─── Remaining exports ────────────────────────────────────────────────────────
++function isomorphicDecode(bytes) {
++  let s = ''
++  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i])
++  return s
++}
++
++function isomorphicEncode(str) {
++  const out = new Uint8Array(str.length)
++  for (let i = 0; i < str.length; i++) {
++    const c = str.charCodeAt(i)
++    if (c > 0xff) throw new Error('isomorphicEncode: code point out of range')
++    out[i] = c
++  }
++  return out
++}
++
++function legacyHookDecode(_bytes, _encoding) { return '' }
++
++module.exports = {
++  TextDecoder,
++  TextEncoder,
++  TextDecoderStream: typeof TextDecoderStream !== 'undefined' ? TextDecoderStream : TextDecoder,
++  TextEncoderStream: typeof TextEncoderStream !== 'undefined' ? TextEncoderStream : TextEncoder,
++  normalizeEncoding,
++  getBOMEncoding,
++  labelToName,
++  legacyHookDecode,
++  isomorphicDecode,
++  isomorphicEncode,
++}
