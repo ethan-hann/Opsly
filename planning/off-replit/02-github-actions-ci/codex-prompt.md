@@ -1,59 +1,86 @@
-# Codex Prompt 02 — GitHub Actions CI + delete `.replit`
+# Codex Prompt 02 (follow-up) — add boot smoke check + orval-sync drift to CI
 
 ## Task
 
-Opsly is moving off Replit. Validation currently runs as Replit `[workflows]` in the `.replit` file: `api-server-tests` (`pnpm --filter @workspace/api-server test`), `typecheck` (`pnpm run typecheck`), and `orval-sync` (`pnpm --filter @workspace/api-spec run codegen` then `git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated`), all marked `isValidation = true`. Recreate these as a GitHub Actions workflow, add a new api-server boot smoke check, then delete `.replit`.
+Opsly already has a working GitHub Actions CI workflow at `.github/workflows/ci.yml` (a single `build-and-test` job on Node 24 with a `postgres:16` service, running typecheck → build → schema push → coverage-gated tests → DB integration tests). It replaced the old Replit `typecheck` and `api-server-tests` validations. Two gates are still missing and this change adds them:
 
-Assume Plan 01 has landed: Node is pinned to 24 (`.nvmrc`, root `engines.node`, and a `packageManager` field pinning pnpm), and `pnpm run dev` works locally.
+1. **An api-server boot smoke check** — nothing currently starts the built server before merge, so a startup crash (e.g. a module-load `ERR_REQUIRE_ESM`) ships undetected. Add a script that boots `dist/index.mjs`, confirms `GET /api/healthz` returns 200, and shuts it down.
+2. **An orval-sync drift check** — the old Replit `orval-sync` validation (regenerate the codegen, assert no git diff) was never ported. Add it so the generated API clients can't silently drift from the OpenAPI spec.
 
-1. **Add a boot smoke script.** Create `artifacts/api-server/scripts/smoke.mjs` (no new dependencies — use Node's built-in `fetch` and `child_process`) that:
-   - Builds the api-server if needed (either run `pnpm run build` first in CI, or have the script shell out to the build; prefer building in a CI step and having the script assume `dist/index.mjs` exists — pick one and document it in a comment).
-   - Spawns `node --enable-source-maps ./dist/index.mjs` with `PORT` set to a fixed test port (e.g. 8080) and `NODE_ENV` unset or `development`. **No database and no storage env are required**: `artifacts/api-server/src/index.ts` calls `app.listen` before any DB work, `/api/healthz` (`src/routes/health.ts`) is a static 200, and storage defaults to `local` (no required vars).
-   - Polls `GET http://localhost:<port>/api/healthz` until 200, with a ~30s timeout.
-   - On success: send SIGTERM to the child, exit 0. On timeout or if the child exits before healthz responds: print the child's captured stderr and exit non-zero.
-   - Add a `"smoke"` script to `artifacts/api-server/package.json` (e.g. `"smoke": "node ./scripts/smoke.mjs"`). Do not add dependencies.
+Do **not** delete `.replit` in this change (a later plan handles all Replit config removal). Do **not** restructure the existing single job or change how pnpm is installed.
 
-2. **Add the GitHub Actions workflow** at `.github/workflows/ci.yml`, triggered on `push` and `pull_request`. Use Node 24 and the repo's pinned pnpm (via `corepack enable` honoring the `packageManager` field, or `pnpm/action-setup` pinned to the same version). Structure it as jobs mirroring the old validations plus the smoke check:
-   - **typecheck**: `pnpm install --frozen-lockfile` then `pnpm run typecheck`.
-   - **orval-sync**: `pnpm install --frozen-lockfile`, `pnpm --filter @workspace/api-spec run codegen`, then `git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated` (mirror the exact command from the current `.replit` `orval-sync` workflow).
-   - **api-server-tests**: run with a `postgres:16` **service container** (health-checked) exposing 5432; set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/opsly` (match the credentials used by `docker-compose.local.yml`); run `pnpm --filter @workspace/db run push` to apply the schema; then `pnpm --filter @workspace/api-server test`. First inspect `artifacts/api-server/vitest.config.ts` and a few DB-touching tests to confirm whether they mock `@workspace/db` or need the real DB — provide the service DB regardless so both cases work; the `lib/db` suites (`create-local-user.test.ts`, `make-admin.test.ts`) skip themselves when `DATABASE_URL` is unset, so the DB must be present for them to actually run.
-   - **smoke**: `pnpm install --frozen-lockfile`, `pnpm --filter @workspace/api-server run build`, then `pnpm --filter @workspace/api-server run smoke`. No DB service on this job.
-   - Set a sensible `MINIMUM_RELEASE_AGE`-friendly install (the workspace enforces `minimumReleaseAge`; `--frozen-lockfile` installs from the committed lockfile so this is fine).
+### 1. Add the boot smoke script
 
-3. **Delete `.replit`.** Remove the file entirely. Do NOT delete `replit.md` or `replit.nix` in this change (a later plan handles those). Note in the PR description that removing `.replit` also removes the Replit `[deployment]` (autoscale) config and that a replacement deploy pipeline is a separate follow-up — do not add one here.
+Create `artifacts/api-server/scripts/smoke.mjs` (ES module; **no new dependencies** — use Node's built-in `fetch`, `child_process`, and `process`) that:
+
+- Assumes the api-server is **already built** to `artifacts/api-server/dist/index.mjs` (CI runs `pnpm --filter @workspace/api-server run build` — or the existing repo-wide `Build` step — before calling it). Add a comment stating this precondition. Optionally fail fast with a clear message if `dist/index.mjs` is missing.
+- Spawns `node --enable-source-maps ./dist/index.mjs` (matching the package's `start` script) from the api-server package dir, with `PORT` set to a fixed test port (e.g. `8080`) in the child's env. **No database and no storage env are required**: `artifacts/api-server/src/index.ts` requires `PORT`, calls `initStorageProvider()` (storage defaults to `local`, no required vars), then `app.listen`; all DB work is fire-and-forget inside the `listen` callback. `/api/healthz` (`src/routes/health.ts`) parses a static `{ status: "ok" }` via `HealthCheckResponse` and returns 200.
+- Captures the child's `stderr` (and `stdout`) into a buffer.
+- Polls `GET http://localhost:<port>/api/healthz` until it gets HTTP 200, with a ~30s overall timeout and a short delay between attempts.
+- **On success:** send `SIGTERM` to the child (the server installs a `SIGTERM` handler that closes the HTTP server and exits 0), then exit 0.
+- **On timeout, or if the child exits before healthz responds 200:** print the captured child stderr to the console and exit non-zero.
+- Make sure the script itself doesn't hang: clear the timeout, unref or kill the child on all exit paths.
+
+Add a `"smoke"` script to `artifacts/api-server/package.json`: `"smoke": "node ./scripts/smoke.mjs"`. Do not add dependencies.
+
+### 2. Wire the smoke check into `ci.yml`
+
+In the existing `build-and-test` job, add a step **after the `Build` step** (the bundle already exists at that point) and before or after the test steps:
+
+```yaml
+      - name: Boot smoke check (api-server)
+        run: pnpm --filter @workspace/api-server run smoke
+```
+
+No new service or env is needed — the job already sets `PORT`/`DATABASE_URL`; the smoke script sets its own `PORT` for the child and ignores the DB. Do not add a separate job.
+
+### 3. Replace the standalone `Typecheck` step with an orval-sync drift step
+
+**Remove** the existing `Typecheck` step (`run: pnpm run typecheck`) and **replace it, in the same position**, with a step that regenerates the codegen and fails on any drift, mirroring the old `.replit` `orval-sync` command exactly:
+
+```yaml
+      - name: Typecheck + API codegen drift check
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated
+```
+
+Why replace rather than add: the `codegen` script runs `pre-codegen.mjs → orval → post-codegen.mjs → pnpm -w run typecheck`, and that trailing `pnpm -w run typecheck` is the **identical command** the standalone `Typecheck` step runs (`pnpm run typecheck` from the repo root resolves to the same script). Keeping both would run the full workspace typecheck twice and make CI slower for no gain. Running codegen-then-typecheck is also the order the project requires (`.agents/memory/orval-codegen-command.md`: a typecheck against stale generated output throws phantom "missing export" errors). Name the step so a plain type error is still easy to spot in the Actions log (as above).
+
+Notes for you (the implementer):
+- Confirm before deleting: the `Build` step must run `pnpm -r --if-present run build` **directly** (not `pnpm run build`, which would itself typecheck). If Build calls `pnpm run build`, do not remove typecheck coverage without accounting for it. As written today, Build does not typecheck, so this combined step is the only typecheck — that is intended.
+- Scope the `git diff` to the two `generated` dirs (as above). Do **not** diff the workspace-level `index.ts` files: `pre-codegen.mjs` clears/owns them, and orval's known append/reset behavior makes them noisy — the committed `generated/` output is the meaningful drift signal.
 
 ## Acceptance Criteria
 
-- `.github/workflows/ci.yml` exists and defines jobs equivalent to `typecheck`, `orval-sync`, `api-server-tests` (with a `postgres:16` service + schema push), and a new `smoke` job — all on Node 24 with the pinned pnpm.
-- `artifacts/api-server/scripts/smoke.mjs` and the `smoke` npm script exist; running `pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/api-server run smoke` locally boots the server, gets 200 from `/api/healthz`, and exits 0 with **no Postgres running**. If the server crashes at startup, it exits non-zero and prints the child's stderr.
-- The `orval-sync` job uses the same codegen + `git diff --exit-code` commands as the current `.replit` workflow.
-- `.replit` is deleted. `replit.md` and `replit.nix` remain untouched.
-- No new npm dependencies were added. `pnpm-lock.yaml` is unchanged except as a result of `pnpm install` if anything shifted (ideally unchanged).
+- `artifacts/api-server/scripts/smoke.mjs` and a `"smoke"` npm script exist. Running `pnpm --filter @workspace/api-server run build && pnpm --filter @workspace/api-server run smoke` locally, **with no Postgres running**, boots the server, gets 200 from `/api/healthz`, and exits 0. If the server crashes at startup, the script prints the child's stderr and exits non-zero.
+- `.github/workflows/ci.yml` gains a smoke step (after `Build`) that runs `pnpm --filter @workspace/api-server run smoke`, and the standalone `Typecheck` step is replaced (in place) by a combined step that runs `pnpm --filter @workspace/api-spec run codegen` then `git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated`.
+- CI still runs the workspace typecheck exactly **once** (via the codegen step), not twice.
+- The existing job structure, Node version, pnpm install approach, Postgres service, and coverage/DB-integration steps are unchanged apart from the smoke step added and the Typecheck step being replaced by the combined codegen+typecheck+drift step.
+- No new npm dependencies. `pnpm-lock.yaml` unchanged.
 
 ## Relevant Files / Paths
 
-- `.replit` — current source of the three validation workflows and their exact commands; delete after porting.
-- `.github/workflows/ci.yml` — new workflow (there is currently no `.github/workflows/` dir; `.github/agents/` exists).
-- `artifacts/api-server/scripts/smoke.mjs` — new smoke script.
-- `artifacts/api-server/package.json` — add `smoke` script.
-- `artifacts/api-server/src/index.ts` — reference: shows `listen` precedes DB work (smoke needs no DB).
-- `artifacts/api-server/src/routes/health.ts` — reference: the static `/healthz` handler.
-- `artifacts/api-server/vitest.config.ts` — reference: determine DB needs of the api-server suite.
-- `lib/db/src/create-local-user.test.ts`, `lib/db/src/make-admin.test.ts` — reference: DB-gated suites that skip without `DATABASE_URL`.
-- `docker-compose.local.yml` — reference for the Postgres credentials/URL to match.
-- Root `package.json` — `packageManager` field (from Plan 01) the workflow should honor.
+- `.github/workflows/ci.yml` — existing single `build-and-test` job; add the two steps here.
+- `artifacts/api-server/scripts/smoke.mjs` — new smoke script (dir does not exist yet — create it).
+- `artifacts/api-server/package.json` — add the `smoke` script; `start` is already `node --enable-source-maps ./dist/index.mjs`.
+- `artifacts/api-server/src/index.ts` — reference: `PORT` required, `initStorageProvider()` then `app.listen`, DB work is fire-and-forget, `SIGTERM` → graceful exit 0.
+- `artifacts/api-server/src/routes/health.ts` — reference: static `/healthz` returning `{ status: "ok" }` via `HealthCheckResponse`.
+- `lib/api-spec/package.json` — the `codegen` script the orval-sync step calls.
+- `lib/api-zod/src/generated`, `lib/api-client-react/src/generated` — the generated dirs the drift check diffs.
 
 ## Standards to Follow
 
-- **American English** in workflow names, comments, and any docs.
-- Use `--frozen-lockfile` for installs in CI (respects the committed lockfile and the `minimumReleaseAge` policy).
-- Match the exact `orval-sync` command from `.replit` so the drift check behaves identically.
+- **American English** in workflow names, comments, and script messages (`.agents/memory/american-spellings.md`).
+- **Match the old `orval-sync` command exactly** so the drift check behaves identically to the retired Replit workflow (`.agents/memory/orval-codegen-command.md` documents that `codegen` = `pre-codegen → orval → post-codegen → typecheck`).
+- Respect the orval index.ts append/reset behavior — do not "fix up" generated `index.ts` files or widen the diff to include them (`.agents/memory/orval-index-append.md`).
+- Use Node built-ins only for the smoke script — the api-server is esbuild-bundled and must stay dependency-clean (`.agents/memory/api-server-build-quirks.md`).
 
 ## Out of Scope
 
-- Do NOT add a deploy/release pipeline (Docker build-and-push, environment deploys) — validation CI only; flag deploy as a follow-up.
-- Do NOT delete `replit.md` or `replit.nix` (Plan 03).
-- Do NOT remove or modify any Replit application code — Vite plugins, storage provider, auth mode, `@replit/*` dependencies (Plans 03–05).
-- Do NOT add npm dependencies for the smoke script.
+- Do NOT delete `.replit`, `replit.md`, or `replit.nix` — Plan 03 removes all Replit config together.
+- Do NOT add a deploy/release pipeline — Plan 06.
+- Do NOT restructure the single `build-and-test` job into multiple jobs, change the Node version, or swap the pnpm bootstrap (the `npm install -g pnpm@…` approach is deliberate; its comment explains why Corepack is avoided).
+- Do NOT weaken coverage or DB-integration steps. (The standalone `Typecheck` step *is* intentionally replaced by the combined codegen+typecheck+drift step — that is the one exception, and it must preserve the same typecheck command, just after codegen.)
 - Do NOT change the api-server `dev`/`build`/`start` scripts (Plan 01 owns those).
 - Do NOT expand the smoke check beyond booting + `/api/healthz`.
