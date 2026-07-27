@@ -50,8 +50,47 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+        with:
+          # Full history so the docs-only detection below can diff the PR head
+          # against its merge-base with the target branch.
+          fetch-depth: 0
+
+      # Docs/planning-only PRs don't need the build+test pipeline, but this job
+      # is a REQUIRED status check (ruleset "Protect main" requires the
+      # `build-and-test` context). We therefore can't skip the workflow with a
+      # trigger-level `paths-ignore` — the required context would never report
+      # and the PR would deadlock on "Expected — Waiting for status." Instead the
+      # job always runs (so the context is always reported), and the heavy steps
+      # below are gated on this step: they only execute when a non-docs file
+      # changed. A docs-only PR runs checkout → detect → done, reports green in
+      # well under a minute, and satisfies the required check.
+      - name: Detect non-docs changes
+        id: changes
+        run: |
+          base_sha='${{ github.event.pull_request.base.sha }}'
+          head_sha='${{ github.event.pull_request.head.sha }}'
+          base="$(git merge-base "$base_sha" "$head_sha" 2>/dev/null || true)"
+          if [ -z "$base" ]; then
+            echo "Unable to determine merge-base; running full pipeline."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          files="$(git diff --name-only "$base" "$head_sha" 2>/dev/null || true)"
+          echo "Changed files:"
+          echo "$files"
+          # "docs" = anything under planning/, .agents/, task-review/, or any
+          # .md file anywhere. If every changed file matches, skip the pipeline.
+          if echo "$files" | grep -qvE '(^planning/|^\.agents/|^task-review/|\.md$)'; then
+            echo "Code/config changed — running full pipeline."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Docs/planning only — skipping build & tests."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Node.js
+        if: steps.changes.outputs.code == 'true'
         uses: actions/setup-node@v5
         with:
           # Repo requires Node 24 (engines ">=24", .nvmrc, preinstall.js guard).
@@ -63,16 +102,19 @@ jobs:
           package-manager-cache: false
 
       - name: Install pnpm
+        if: steps.changes.outputs.code == 'true'
         # Via npm (not corepack — its signature check is unreliable), and with an
         # explicit version so this works whether or not package.json carries a
         # `packageManager` field (it does on Node-24 branches, not yet on main).
         run: npm install -g pnpm@10.34.5
 
       - name: Locate pnpm store
+        if: steps.changes.outputs.code == 'true'
         id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
+        if: steps.changes.outputs.code == 'true'
         uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
@@ -80,9 +122,11 @@ jobs:
           restore-keys: pnpm-store-${{ runner.os }}-
 
       - name: Install dependencies
+        if: steps.changes.outputs.code == 'true'
         run: pnpm install --frozen-lockfile
 
       - name: Typecheck + API codegen drift check
+        if: steps.changes.outputs.code == 'true'
         run: |
           pnpm --filter @workspace/api-spec run codegen
           git diff --exit-code \
@@ -92,12 +136,15 @@ jobs:
             lib/api-client-react/src/index.ts
 
       - name: Build
+        if: steps.changes.outputs.code == 'true'
         run: pnpm -r --if-present run build
 
       - name: Boot smoke check (api-server)
+        if: steps.changes.outputs.code == 'true'
         run: pnpm --filter @workspace/api-server run smoke
 
       - name: Push database schema
+        if: steps.changes.outputs.code == 'true'
         run: pnpm --filter @workspace/db run push-force
 
       # Unit tests with coverage gate (api-server, it-task-manager). The
@@ -105,15 +152,17 @@ jobs:
       # coverage drops below the floor — this is what forces new code to ship
       # with tests. Ratchet the thresholds up over time.
       - name: Test + coverage
+        if: steps.changes.outputs.code == 'true'
         run: pnpm -r --if-present run test:coverage
 
       # DB integration suites live in @workspace/db and have no coverage gate;
       # they run against the Postgres service above.
       - name: Test (db integration)
+        if: steps.changes.outputs.code == 'true'
         run: pnpm --filter @workspace/db run test
 
       - name: Coverage summary
-        if: always()
+        if: ${{ always() && steps.changes.outputs.code == 'true' }}
         run: |
           for pkg in artifacts/api-server artifacts/it-task-manager; do
             f="$pkg/coverage/coverage-summary.json"
