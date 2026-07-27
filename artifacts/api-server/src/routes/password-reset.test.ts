@@ -300,7 +300,7 @@ describe("POST /api/auth/local/reset-password", () => {
   });
 
   it("returns 400 when AUTH_MODE is not local", async () => {
-    mockState.authMode = "replit_oidc";
+    mockState.authMode = "oidc";
     const res = await request(buildApp())
       .post("/api/auth/local/reset-password")
       .send({ token: "abc", password: "newpassword1" });

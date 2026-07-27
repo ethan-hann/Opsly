@@ -25,7 +25,7 @@ import {
   ScrollText,
 } from "lucide-react";
 import { useTheme } from "../theme-provider";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { useOrgContext } from "@/hooks/use-org-context";
 import { Button } from "@/components/ui/button";
 import {

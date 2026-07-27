@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useGetMyOrg, onOrgSuspended } from "@workspace/api-client-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { useSseEvent } from "@/hooks/use-sse";
 import type { PendingInvitation, RolePermissions } from "@workspace/api-client-react";
 import { OrgContext, type OrgContextValue, type OrgFeatureKey, type OrgFeatureState } from "@/hooks/use-org-context";

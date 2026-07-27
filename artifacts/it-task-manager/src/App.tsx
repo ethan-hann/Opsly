@@ -6,7 +6,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import NotFound from '@/pages/not-found';
 import AdminConsolePage from '@/pages/admin/index';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
-import { useAuth } from '@workspace/replit-auth-web';
+import { useAuth } from '@workspace/auth-web';
 import { useTranslation } from 'react-i18next';
 
 import { ThemeProvider } from '@/components/theme-provider';

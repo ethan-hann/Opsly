@@ -7,7 +7,7 @@
       "path": "./lib/db"
     },
     {
-      "path": "./lib/replit-auth-web"
+      "path": "./lib/auth-web"
     },
     {
       "path": "./lib/api-zod"

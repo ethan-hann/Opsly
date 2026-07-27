@@ -65,7 +65,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import type { SavedView } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOrgContext } from "@/hooks/use-org-context";

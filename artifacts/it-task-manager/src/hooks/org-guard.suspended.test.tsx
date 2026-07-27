@@ -27,7 +27,7 @@ vi.mock("@workspace/api-client-react", () => ({
   }),
 }));
 
-vi.mock("@workspace/replit-auth-web", () => ({
+vi.mock("@workspace/auth-web", () => ({
   useAuth: () => ({ logout: vi.fn() }),
 }));
 

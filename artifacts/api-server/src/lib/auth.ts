@@ -5,10 +5,10 @@ import { eq } from 'drizzle-orm';
 import { type Request, type Response } from 'express';
 import * as client from 'openid-client';
 
-export type AuthMode = 'replit_oidc' | 'oidc' | 'local';
+export type AuthMode = 'oidc' | 'local';
 
 interface OidcAuthConfig {
-  mode: 'replit_oidc' | 'oidc';
+  mode: 'oidc';
   issuerUrl: string;
   clientId: string;
   clientSecret?: string;
@@ -36,9 +36,9 @@ let cachedAuthConfig: AuthConfig | null = null;
 
 function parseAuthMode(raw: string | undefined): AuthMode {
   if (!raw) return 'local';
-  if (raw === 'replit_oidc' || raw === 'oidc' || raw === 'local') return raw;
+  if (raw === 'oidc' || raw === 'local') return raw;
   throw new Error(
-    `Invalid AUTH_MODE "${raw}". Expected one of: local, oidc, replit_oidc.`,
+    `Invalid AUTH_MODE "${raw}". Expected one of: local, oidc.`,
   );
 }
 
@@ -54,15 +54,6 @@ export function getAuthConfig(): AuthConfig {
     return cachedAuthConfig;
   }
 
-  if (mode === 'replit_oidc') {
-    cachedAuthConfig = {
-      mode,
-      issuerUrl: process.env.ISSUER_URL ?? 'https://replit.com/oidc',
-      clientId: process.env.REPL_ID ?? '',
-    };
-    return cachedAuthConfig;
-  }
-
   cachedAuthConfig = {
     mode,
     issuerUrl: process.env.OIDC_ISSUER_URL ?? '',
@@ -72,8 +63,8 @@ export function getAuthConfig(): AuthConfig {
   return cachedAuthConfig;
 }
 
-export function isOidcAuthMode(mode: AuthMode): mode is 'replit_oidc' | 'oidc' {
-  return mode === 'replit_oidc' || mode === 'oidc';
+export function isOidcAuthMode(mode: AuthMode): mode is 'oidc' {
+  return mode === 'oidc';
 }
 
 export function getAuthMode(): AuthMode {
@@ -90,11 +81,6 @@ export function getOidcAuthConfig(): OidcAuthConfig {
     throw new Error('OIDC config requested while AUTH_MODE is local');
   }
   if (!config.issuerUrl || !config.clientId) {
-    if (config.mode === 'replit_oidc') {
-      throw new Error(
-        'REPL_ID (and optional ISSUER_URL) must be set when AUTH_MODE is replit_oidc',
-      );
-    }
     throw new Error(
       'OIDC_ISSUER_URL and OIDC_CLIENT_ID must be set when AUTH_MODE is oidc',
     );

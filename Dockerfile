@@ -33,7 +33,7 @@ COPY lib/api-client-react/package.json ./lib/api-client-react/
 COPY lib/api-spec/package.json ./lib/api-spec/
 COPY lib/api-zod/package.json ./lib/api-zod/
 COPY lib/db/package.json ./lib/db/
-COPY lib/replit-auth-web/package.json ./lib/replit-auth-web/
+COPY lib/auth-web/package.json ./lib/auth-web/
 
 RUN pnpm install --frozen-lockfile
 
@@ -92,7 +92,7 @@ COPY --from=builder /app/lib/db/package.json ./lib/db/
 COPY --from=builder /app/lib/api-zod/package.json ./lib/api-zod/
 COPY --from=builder /app/lib/api-client-react/package.json ./lib/api-client-react/
 COPY --from=builder /app/lib/api-spec/package.json ./lib/api-spec/
-COPY --from=builder /app/lib/replit-auth-web/package.json ./lib/replit-auth-web/
+COPY --from=builder /app/lib/auth-web/package.json ./lib/auth-web/
 COPY --from=builder /app/scripts/package.json ./scripts/
 # preinstall.js is the workspace preinstall hook referenced in the root
 # package.json; pnpm runs it before install and fails if it is missing.

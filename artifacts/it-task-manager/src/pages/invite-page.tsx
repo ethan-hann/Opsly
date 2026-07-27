@@ -6,7 +6,7 @@ import {
   useAcceptOrgInvitation,
   useDeclineOrgInvitation,
 } from "@workspace/api-client-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { Activity, AlertTriangle, CheckCircle, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
