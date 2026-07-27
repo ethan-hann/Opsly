@@ -87,5 +87,29 @@ jobs:
       - name: Push database schema
         run: pnpm --filter @workspace/db run push-force
 
-      - name: Test
-        run: pnpm -r --if-present run test
+      # Unit tests with coverage gate (api-server, it-task-manager). The
+      # per-package thresholds in each vitest.config.ts fail the build if
+      # coverage drops below the floor — this is what forces new code to ship
+      # with tests. Ratchet the thresholds up over time.
+      - name: Test + coverage
+        run: pnpm -r --if-present run test:coverage
+
+      # DB integration suites live in @workspace/db and have no coverage gate;
+      # they run against the Postgres service above.
+      - name: Test (db integration)
+        run: pnpm --filter @workspace/db run test
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          for pkg in artifacts/api-server artifacts/it-task-manager; do
+            f="$pkg/coverage/coverage-summary.json"
+            [ -f "$f" ] || continue
+            echo "### Coverage — $pkg" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const t=require("./"+process.argv[1]).total;
+              const row=(k)=>`| ${k} | ${t[k].pct}% (${t[k].covered}/${t[k].total}) |`;
+              console.log("| metric | coverage |\n|---|---|");
+              for (const k of ["lines","statements","functions","branches"]) console.log(row(k));
+            ' "$f" >> "$GITHUB_STEP_SUMMARY"
+          done

@@ -176,5 +176,21 @@ export default defineConfig({
           "src/**/*-db.test.ts",
           "src/routes/task-events-index.test.ts",
         ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary", "html"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.test.ts", "src/**/*.d.ts", "src/**/types.ts"],
+      // Global floor — ratchet upward over time. Set a few points below the
+      // current no-DB numbers (lines ~70, branches ~64); CI runs the DB suites
+      // too, so it can only score higher. Raise these as coverage grows.
+      thresholds: {
+        lines: 65,
+        statements: 64,
+        functions: 62,
+        branches: 58,
+      },
+    },
   },
 });

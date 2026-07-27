@@ -58,10 +58,15 @@ to hand back to the reviewer.
 3. `pnpm --filter <pkg> run typecheck` and `pnpm --filter @workspace/api-server run build`.
    The **frontend** build needs env vars or `vite.config.ts` throws — prefix it:
    `PORT=3000 BASE_PATH=/ pnpm --filter @workspace/it-task-manager run build`.
-4. `pnpm --filter <pkg> run test` for the packages you changed. The DB integration suites
-   need a reachable Postgres and a `DATABASE_URL`; the sandbox has neither by default, so
-   those suites **auto-skip** — a green run is not proof they passed, so say so. If a
-   change needs DB verification, note it as a follow-up rather than claiming it's covered.
+4. **Add or update tests for what you changed, in the same diff**, and run
+   `pnpm --filter <pkg> run test:coverage`. api-server and it-task-manager enforce a
+   per-package coverage floor (`vitest.config.ts` thresholds) — CI fails if new code
+   drops coverage below it, so "I'll add tests later" is not an option. When you mock a
+   shared module, spread the real one via `importOriginal` and override only what you
+   control, so adding an export never breaks the mock (`.agents/memory/test-mock-resilience.md`).
+   The DB integration suites need a reachable Postgres + `DATABASE_URL`; without them they
+   **auto-skip** — a green run is not proof they passed, so say so, and note DB
+   verification as a follow-up rather than claiming it's covered.
 5. **Only if you changed the Drizzle schema** and a DB is available:
    `pnpm --filter @workspace/db run push-force` (`.agents/memory/post-merge-procedure.md`).
 

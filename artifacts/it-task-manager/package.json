@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src/",
     "test": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "test:e2e": "playwright test --config playwright.config.ts"
   },
   "devDependencies": {
@@ -88,6 +89,7 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "vitest": "^4.1.10",
+    "@vitest/coverage-v8": "^4.1.10",
     "wouter": "^3.3.5",
     "zod": "catalog:"
   },

@@ -172,11 +172,12 @@ vi.mock("../lib/email", () => ({
   isEmailConfigured: () => false,
 }));
 
-vi.mock("../lib/sse", () => ({
-  registerSSE: () => undefined,
-  unregisterSSE: () => undefined,
-  pushEvent: () => undefined,
-  broadcastToOrg: () => undefined,
+// Resilient mock: spread the real module so new exports never break this mock,
+// then stub only the side-effecting emitters (so handlers stay inert / assertable).
+vi.mock("../lib/sse", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../lib/sse")>()),
+  pushEvent: vi.fn(),
+  broadcastToOrg: vi.fn(),
 }));
 
 vi.mock("../lib/webhook-dispatcher", () => ({

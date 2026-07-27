@@ -46,7 +46,10 @@ vi.mock("wouter", () => ({
   ),
 }));
 
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => ({
+  // Spread the real module so query-key generators (and any future export)
+  // stay available; override only the hooks below.
+  ...(await importOriginal<typeof import("@workspace/api-client-react")>()),
   useGetTask: () => ({
     data: mockTaskData,
     isLoading: mockIsLoading,

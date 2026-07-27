@@ -166,7 +166,10 @@ function makeComment(overrides: Partial<{
 // We override useListComments per test using vi.mocked after the module mock.
 const mockUseListComments = vi.hoisted(() => vi.fn(() => ({ data: [] as Record<string, unknown>[] })));
 
-vi.mock("@workspace/api-client-react", () => ({
+vi.mock("@workspace/api-client-react", async (importOriginal) => ({
+  // Spread the real module so query-key generators (and any future export)
+  // stay available; override only the hooks below.
+  ...(await importOriginal<typeof import("@workspace/api-client-react")>()),
   useGetTask: () => ({ data: MOCK_TASK, isLoading: false }),
   useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteTask: () => ({ mutate: vi.fn(), isPending: false }),

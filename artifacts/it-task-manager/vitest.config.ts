@@ -12,6 +12,28 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     // Exclude Playwright e2e tests — they run via `pnpm test:e2e`, not vitest.
     exclude: ["e2e/**", "**/node_modules/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary", "html"],
+      reportsDirectory: "./coverage",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/**/*.d.ts",
+        "src/test-setup.ts",
+        "src/i18n/**",
+        "src/main.tsx",
+      ],
+      // Global floor — ratchet upward over time. Frontend coverage starts low
+      // (lots of UI); this floor just prevents regression below today's level.
+      // Raise these deliberately as page/component tests are added.
+      thresholds: {
+        lines: 22,
+        statements: 21,
+        functions: 13,
+        branches: 17,
+      },
+    },
   },
   server: {
     deps: {
