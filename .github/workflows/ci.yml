@@ -78,11 +78,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Typecheck
-        run: pnpm run typecheck
+      - name: Typecheck + API codegen drift check
+        run: |
+          pnpm --filter @workspace/api-spec run codegen
+          git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated
 
       - name: Build
         run: pnpm -r --if-present run build
+
+      - name: Boot smoke check (api-server)
+        run: pnpm --filter @workspace/api-server run smoke
 
       - name: Push database schema
         run: pnpm --filter @workspace/db run push-force
