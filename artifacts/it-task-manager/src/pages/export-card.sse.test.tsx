@@ -34,7 +34,7 @@ vi.mock("@/hooks/use-toast", () => ({
   useToast: () => ({ toast: vi.fn() }),
 }));
 
-vi.mock("@workspace/replit-auth-web", () => ({
+vi.mock("@workspace/auth-web", () => ({
   useAuth: () => ({
     user: { id: "u1", email: "admin@example.com", firstName: "Admin", lastName: "User" },
   }),

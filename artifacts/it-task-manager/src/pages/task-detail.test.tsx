@@ -92,7 +92,7 @@ vi.mock("@workspace/api-client-react", async (importOriginal) => ({
   getListWorkflowStagesQueryKey: () => ["listWorkflowStages"],
 }));
 
-vi.mock("@workspace/replit-auth-web", () => ({
+vi.mock("@workspace/auth-web", () => ({
   useAuth: () => ({ user: { id: "u1", email: "user@example.com", firstName: "Test", lastName: "User" } }),
 }));
 

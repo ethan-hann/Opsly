@@ -22,7 +22,7 @@ interface AuthState {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  authMode: 'replit_oidc' | 'oidc' | 'local';
+  authMode: 'oidc' | 'local';
   loginMethod: 'oidc' | 'password';
   login: (returnTo?: string) => void;
   loginWithPassword: (
@@ -40,8 +40,8 @@ function getBasePath() {
 export function useAuth(): AuthState {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<'replit_oidc' | 'oidc' | 'local'>(
-    'replit_oidc',
+  const [authMode, setAuthMode] = useState<'oidc' | 'local'>(
+    'oidc',
   );
   const [loginMethod, setLoginMethod] = useState<'oidc' | 'password'>('oidc');
 
@@ -52,7 +52,7 @@ export function useAuth(): AuthState {
       fetch('/api/auth/config', { credentials: 'include' }).then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json() as Promise<{
-          mode: 'replit_oidc' | 'oidc' | 'local';
+          mode: 'oidc' | 'local';
           loginMethod: 'oidc' | 'password';
         }>;
       }),

@@ -41,7 +41,7 @@ vi.mock("@/hooks/use-org-context", () => ({
   }),
 }));
 
-vi.mock("@workspace/replit-auth-web", () => ({
+vi.mock("@workspace/auth-web", () => ({
   useAuth: () => ({
     user: { id: "u1", email: "user@example.com", firstName: "Test", lastName: "User" },
   }),

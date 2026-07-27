@@ -53,7 +53,7 @@ vi.mock("@workspace/api-client-react", () => {
   };
 });
 
-vi.mock("@workspace/replit-auth-web", () => ({
+vi.mock("@workspace/auth-web", () => ({
   useAuth: () => ({ user: { id: "user-1" }, isLoading: false }),
 }));
 

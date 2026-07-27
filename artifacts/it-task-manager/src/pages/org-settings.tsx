@@ -121,7 +121,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { useSseEvent } from "@/hooks/use-sse";
 import { CustomFieldsManager } from "@/components/ui/custom-fields-manager";
 import { FeatureGate } from "@/components/ui/feature-gate";

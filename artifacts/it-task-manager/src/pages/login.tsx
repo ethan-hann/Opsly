@@ -1,4 +1,4 @@
-import { useAuth } from '@workspace/replit-auth-web';
+import { useAuth } from '@workspace/auth-web';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Activity, Shield, Zap, BarChart3, MessageSquareText } from 'lucide-react';

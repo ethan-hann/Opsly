@@ -95,8 +95,8 @@ Key variables:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/opsly` | Postgres connection string |
-| `AUTH_MODE` | `local` | `local` \| `s3`| `oidc` \| `replit_oidc` |
-| `STORAGE_DRIVER` | `local` | `local` \| `s3`|`local` \| `s3`|`local` \| `s3` |
+| `AUTH_MODE` | `local` | `local` \| `oidc` |
+| `STORAGE_DRIVER` | `local` | `local` \| `s3` |
 | `LOCAL_STORAGE_PATH` | `./data/exports` | Directory for export files (local driver) |
 | `INSTANCE_ADMIN_TOKEN` | `local-dev-admin-token` | Static bearer token for instance-admin access |
 
@@ -114,19 +114,6 @@ export AUTH_MODE=local
 
 # PowerShell
 $env:AUTH_MODE = "local"
-```
-
-### Replit OIDC
-
-```sh
-# bash / sh
-export AUTH_MODE=replit_oidc
-export REPL_ID="<your-repl-id>"
-# export ISSUER_URL="https://replit.com/oidc"  # optional
-
-# PowerShell
-$env:AUTH_MODE = "replit_oidc"
-$env:REPL_ID = "<your-repl-id>"
 ```
 
 ### Generic OIDC

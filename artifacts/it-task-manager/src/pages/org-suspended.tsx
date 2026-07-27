@@ -1,5 +1,5 @@
 import { AlertTriangle } from "lucide-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useAuth } from "@workspace/auth-web";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 
