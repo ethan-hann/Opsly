@@ -112,17 +112,25 @@ jobs:
       # Ship the Cobertura reports (written by the `cobertura` vitest reporter)
       # to GitHub. This is what supplies data to the `code_coverage` rule in the
       # "Protect main" ruleset — without it that rule has nothing to evaluate.
+      #
+      # `language` must use GitHub Linguist casing ("TypeScript", not
+      # "typescript") or the upload 404s. Skip on PRs from forks, whose tokens
+      # lack code-quality:write — the condition mirrors the GitHub docs example.
       - name: Upload coverage (api-server)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-code-coverage@v1
         with:
           file: artifacts/api-server/coverage/cobertura-coverage.xml
-          language: typescript
+          language: TypeScript
+          label: code-coverage/api-server
 
       - name: Upload coverage (it-task-manager)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         uses: actions/upload-code-coverage@v1
         with:
           file: artifacts/it-task-manager/coverage/cobertura-coverage.xml
-          language: typescript
+          language: TypeScript
+          label: code-coverage/it-task-manager
 
       - name: Coverage summary
         if: always()
