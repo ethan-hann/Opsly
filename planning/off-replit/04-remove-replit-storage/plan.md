@@ -28,4 +28,6 @@ The storage layer (`artifacts/api-server/src/lib/storage/`) supports three drive
 
 ## Codex prompt
 
-Generated when this plan reaches the top of the queue (after 03 lands).
+Written: [codex-prompt.md](codex-prompt.md). Scoped to **full cleanup** (Ethan's call): beyond removing the `replit` driver, it also removes the now-orphaned `@google-cloud/storage` + `google-auth-library` deps, the dead `@google-cloud/*` esbuild external entry, and (conditionally, after verifying `pnpm why gaxios`) relaxes the `uuid <13` cap — resolving the "Open Questions" `@google-cloud/storage` item below.
+
+Verified before writing: `replit.ts` is the **only** source importer of `@google-cloud/storage`, and `google-auth-library` has zero source imports — so both are fully unused once the driver is deleted.
