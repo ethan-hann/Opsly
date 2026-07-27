@@ -61,7 +61,7 @@ Notes for you (the implementer):
 
 ## Relevant Files / Paths
 
-- `.github/workflows/ci.yml` — existing single `build-and-test` job; add the two steps here.
+- `.github/workflows/ci.yml` — existing single `build-and-test` job; add the smoke step and replace the `Typecheck` step here.
 - `artifacts/api-server/scripts/smoke.mjs` — new smoke script (dir does not exist yet — create it).
 - `artifacts/api-server/package.json` — add the `smoke` script; `start` is already `node --enable-source-maps ./dist/index.mjs`.
 - `artifacts/api-server/src/index.ts` — reference: `PORT` required, `initStorageProvider()` then `app.listen`, DB work is fire-and-forget, `SIGTERM` → graceful exit 0.
