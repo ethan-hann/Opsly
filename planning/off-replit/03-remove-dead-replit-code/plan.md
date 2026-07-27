@@ -28,4 +28,8 @@ With CI moved off Replit, several Replit-specific artifacts are now pure dead we
 
 ## Codex prompt
 
-Generated when this plan reaches the top of the queue (after 02 lands), so it reflects the then-current `pnpm-workspace.yaml` and `vite.config.ts`.
+See [codex-prompt.md](codex-prompt.md) — generated against the current tree (after 02 landed), reflecting the present `pnpm-workspace.yaml` and `vite.config.ts`.
+
+**Open questions resolved during generation (by exploring the repo):**
+- **`replit.md` reusable content** — its "First-time setup" section (instance-admin bootstrap via `INSTANCE_ADMIN_TOKEN` and `make-admin`, plus the startup warning) is **already fully documented** in both `SELF_HOSTING.md` and `LOCAL_DEV.md`. Nothing needs to be migrated; `replit.md` can be deleted outright.
+- **`stripe-replit-sync`** — appears **only** in its own `minimumReleaseAgeExclude` entry (no dependency, no code, no catalog reference). Safe to remove the exclude entry; there is no dependency to also pull.
