@@ -32,7 +32,8 @@ Each plan is independently shippable, reviewable as its own diff, and ordered by
 
 - **01**: full plan + Codex prompt written, ready to hand off.
 - **02**: **core CI shipped** (`.github/workflows/ci.yml` is green). Plan + Codex prompt now re-scoped to the two remaining gaps — the api-server boot smoke check and the `orval-sync` drift check — ready to hand off. `.replit` deletion was moved into Plan 03.
-- **03, 04, 05**: plan written (scope/risk/approach). Plan 03 now also owns deleting `.replit`. Codex prompts are intentionally generated **just before each is executed**, so they reflect the actual tree state after the preceding plans land (especially 05, which depends on exact import sites and needs its own verification pass). Ask for the prompt when that plan reaches the top of the queue.
+- **03, 04**: shipped (merged). Plan 03 also deleted `.replit`; Plan 04 removed `ReplitStorageProvider` and the Google Cloud dependency chain.
+- **05**: plan + Codex prompt written (2026-07-27), ready to hand off — the last Replit-coupled surface. A fresh grep at prompt-generation time found **9** app importers + **5** test mocks (not the "~9 + 2" first estimated) and that `lib/replit-auth-web/src/use-auth.ts` itself hardcodes `replit_oidc`. Neutral package name decided: `@workspace/auth-web`.
 - **06**: direction decided (Docker build/push + host); to be scoped into a full plan once the target host is chosen. Not blocking 01–05.
 
 ## Notes carried forward
