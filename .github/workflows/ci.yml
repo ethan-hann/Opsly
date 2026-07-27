@@ -81,7 +81,11 @@ jobs:
       - name: Typecheck + API codegen drift check
         run: |
           pnpm --filter @workspace/api-spec run codegen
-          git diff --exit-code lib/api-zod/src/generated lib/api-client-react/src/generated
+          git diff --exit-code \
+            lib/api-zod/src/generated \
+            lib/api-zod/src/index.ts \
+            lib/api-client-react/src/generated \
+            lib/api-client-react/src/index.ts
 
       - name: Build
         run: pnpm -r --if-present run build

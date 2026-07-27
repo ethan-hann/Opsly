@@ -7,7 +7,7 @@
  *   pnpm --filter @workspace/api-server run smoke
  *
  * No Postgres or storage environment variables are required: /api/healthz
- * returns 200 with a static payload before any DB work is attempted.
+ * returns 200 with a static payload and does not depend on DB availability.
  *
  * Usage (from repo root): pnpm --filter @workspace/api-server run smoke
  */
@@ -21,6 +21,7 @@ const SMOKE_PORT = 8080;
 const HEALTH_URL = `http://localhost:${SMOKE_PORT}/api/healthz`;
 const POLL_INTERVAL_MS = 500;
 const TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 2_000;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const entryPoint = path.resolve(__dirname, "../dist/index.mjs");
@@ -36,11 +37,12 @@ if (!existsSync(entryPoint)) {
 /** Collected output from the child process for diagnostics on failure. */
 const childOutput = [];
 
-const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
+const child = spawn("node", ["--enable-source-maps", entryPoint], {
   cwd: path.resolve(__dirname, ".."),
   env: {
     ...process.env,
     PORT: String(SMOKE_PORT),
+    STORAGE_DRIVER: "local",
     // lib/db requires DATABASE_URL at module-load time, but boot smoke does
     // not need a reachable database because /api/healthz is static.
     DATABASE_URL:
@@ -84,7 +86,10 @@ async function pollHealthz() {
     }
 
     try {
-      const res = await fetch(HEALTH_URL);
+      const remainingMs = deadline - Date.now();
+      const res = await fetch(HEALTH_URL, {
+        signal: AbortSignal.timeout(Math.min(REQUEST_TIMEOUT_MS, remainingMs)),
+      });
       if (res.status === 200) {
         return { ok: true };
       }
@@ -121,4 +126,3 @@ if (result.ok) {
   cleanup();
   process.exit(1);
 }
-
