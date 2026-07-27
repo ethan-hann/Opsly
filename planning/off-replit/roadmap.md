@@ -15,8 +15,8 @@ Each plan is independently shippable, reviewable as its own diff, and ordered by
 | # | Plan | What it does | Risk | Depends on |
 |---|------|--------------|------|-----------|
 | 01 | [Local dev build fix + Node pin](01-local-dev-build-fix/plan.md) | Fix the `ERR_REQUIRE_ESM` crash (bound `uuid` override to `>=11.1.1 <13`), pin Node 24, fail-fast preinstall guard, esbuild watch loop for the api-server, actionable `wait-for-api` message, native-setup README. | Low | — |
-| 02 | [GitHub Actions CI + delete `.replit`](02-github-actions-ci/plan.md) | Port the three `.replit` validations (`api-server-tests`, `typecheck`, `orval-sync`) plus a new api-server boot smoke check into a GitHub Actions workflow (Node 24 + `postgres:16` service), then delete `.replit`. | Low–Med | 01 (Node pin, smoke script) |
-| 03 | [Remove dead Replit code](03-remove-dead-replit-code/plan.md) | Remove the unused `@replit/connectors-sdk` dependency, the `REPL_ID`-gated Replit Vite dev plugins + their catalog entries, the `@replit/*` / `stripe-replit-sync` `minimumReleaseAgeExclude` entries, and `replit.md` / `replit.nix`. | Low | 02 (`.replit` already gone) |
+| 02 | [GitHub Actions CI (+ smoke + orval-sync)](02-github-actions-ci/plan.md) | **Core CI shipped:** `.github/workflows/ci.yml` (Node 24 + `postgres:16`, typecheck/build/coverage-gated tests) replaces the `typecheck`/`api-server-tests` validations. **Remaining:** add the api-server boot smoke check and the `orval-sync` drift check. `.replit` deletion moved to Plan 03. | Low–Med | 01 (Node pin, smoke script) |
+| 03 | [Remove dead Replit code](03-remove-dead-replit-code/plan.md) | Delete `.replit` (its validations now live in GitHub Actions), remove the unused `@replit/connectors-sdk` dependency, the `REPL_ID`-gated Replit Vite dev plugins + their catalog entries, the `@replit/*` / `stripe-replit-sync` `minimumReleaseAgeExclude` entries, and `replit.md` / `replit.nix`. | Low | 02 (CI ported) |
 | 04 | [Remove ReplitStorageProvider](04-remove-replit-storage/plan.md) | Delete `ReplitStorageProvider`, its factory branch and startup-validation branch, its tests, and the Replit sections of `SELF_HOSTING.md`. Leaves `local` (default) and `s3`. | Medium | 03 |
 | 05 | [Decouple auth from Replit](05-decouple-auth/plan.md) | Drop the `replit_oidc` auth mode (keep generic `oidc` + `local`) and rename `@workspace/replit-auth-web` → a neutral name across all ~9 import sites and mocks. | Med–High (touches auth) | 04 |
 | 06 | Deploy pipeline (planned) | Replace the deleted Replit `[deployment]` (autoscale) with a conventional **Docker build/push + host** pipeline — build the existing `Dockerfile`(s), push to a registry, deploy to a host. Scoped as its own plan once the target host is chosen. | TBD | 02 |
@@ -30,8 +30,9 @@ Each plan is independently shippable, reviewable as its own diff, and ordered by
 
 ## Status
 
-- **01 & 02**: full plan + Codex prompt written, ready to hand off.
-- **03, 04, 05**: plan written (scope/risk/approach). Codex prompts are intentionally generated **just before each is executed**, so they reflect the actual tree state after the preceding plans land (especially 05, which depends on exact import sites and needs its own verification pass). Ask for the prompt when that plan reaches the top of the queue.
+- **01**: full plan + Codex prompt written, ready to hand off.
+- **02**: **core CI shipped** (`.github/workflows/ci.yml` is green). Plan + Codex prompt now re-scoped to the two remaining gaps — the api-server boot smoke check and the `orval-sync` drift check — ready to hand off. `.replit` deletion was moved into Plan 03.
+- **03, 04, 05**: plan written (scope/risk/approach). Plan 03 now also owns deleting `.replit`. Codex prompts are intentionally generated **just before each is executed**, so they reflect the actual tree state after the preceding plans land (especially 05, which depends on exact import sites and needs its own verification pass). Ask for the prompt when that plan reaches the top of the queue.
 - **06**: direction decided (Docker build/push + host); to be scoped into a full plan once the target host is chosen. Not blocking 01–05.
 
 ## Notes carried forward
