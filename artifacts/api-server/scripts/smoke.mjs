@@ -41,6 +41,10 @@ const child = spawn("node", ["--enable-source-maps", "./dist/index.mjs"], {
   env: {
     ...process.env,
     PORT: String(SMOKE_PORT),
+    // lib/db requires DATABASE_URL at module-load time, but boot smoke does
+    // not need a reachable database because /api/healthz is static.
+    DATABASE_URL:
+      process.env.DATABASE_URL ?? "postgres://postgres:postgres@localhost:5432/opsly_test",
     // Suppress pino's pretty-printing in smoke output for cleaner CI logs.
     NODE_ENV: "production",
   },
@@ -117,3 +121,4 @@ if (result.ok) {
   cleanup();
   process.exit(1);
 }
+
