@@ -8,7 +8,6 @@ description: How the durable export storage system works — StorageProvider abs
 ## Architecture
 
 - `artifacts/api-server/src/lib/storage/provider.ts` — `StorageProvider` interface + `getStorageProvider()` factory (reads `STORAGE_DRIVER` env var)
-- `artifacts/api-server/src/lib/storage/replit.ts` — GCS-backed impl (needs `DEFAULT_OBJECT_STORAGE_BUCKET_ID`)
 - `artifacts/api-server/src/lib/storage/s3.ts` — S3-compatible impl (needs `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`; optional `S3_ENDPOINT`)
 - `lib/db/src/schema/export-jobs.ts` — `exportJobsTable` persists job state (id, orgId, userId, token, objectKey, status, filename, contentType, createdAt, expiresAt)
 
@@ -16,7 +15,7 @@ description: How the durable export storage system works — StorageProvider abs
 
 **Why:** In-memory Maps were wiped on server restart. DB + object storage makes exports durable across restarts.
 
-**How to apply:** `getStorageProvider()` is a lazy singleton — reads `STORAGE_DRIVER` once and caches. Use `require()` (not import) inside the factory to allow lazy loading of GCS/S3 SDKs.
+**How to apply:** `getStorageProvider()` is a lazy singleton — reads `STORAGE_DRIVER` once and caches. Use `require()` (not import) inside the factory to allow lazy loading of the S3 SDK.
 
 **Export object key format:** `{orgId}/{userId}/{token}` — scoped to org+user, uses the download token as the unique suffix.
 
@@ -37,5 +36,3 @@ The db mock needs `insert`, `update`, `delete` chains in addition to `select`. A
 
 ## Packages added to api-server
 - `@aws-sdk/client-s3`
-- `@google-cloud/storage`
-- `google-auth-library`

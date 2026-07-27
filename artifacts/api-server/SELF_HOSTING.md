@@ -12,31 +12,17 @@ The data-export feature writes export files to object storage so they
 survive server restarts and scale beyond a single process.  Choose one
 driver by setting `STORAGE_DRIVER`.
 
-### STORAGE_DRIVER=replit (default)
+### STORAGE_DRIVER=local (default)
 
-Used when running on [Replit](https://replit.com).  Backed by Google Cloud
-Storage via the Replit sidecar — no GCP service-account key is needed.
-
-**Required**
-
-| Variable | Description |
-|---|---|
-| `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | Bucket ID from the Replit Object Storage tool (shown in the Replit console). |
+The default driver when `STORAGE_DRIVER` is unset.  Export files are written
+to the local filesystem — no cloud bucket required.
 
 **Optional**
 
 | Variable | Default | Description |
 |---|---|---|
-| `STORAGE_PREFIX` | `exports/` | Key prefix applied to every export object. Change only if you share the bucket with other workloads. |
-
-**Setup steps**
-
-1. Open the Replit console → **Object Storage** → create a bucket.
-2. Copy the bucket ID and add it as a secret named `DEFAULT_OBJECT_STORAGE_BUCKET_ID`.
-3. Start (or restart) the API server.  The startup log will confirm:
-   ```
-   {"driver":"replit","bucket":"<id>","prefix":"exports/","msg":"Storage driver ready"}
-   ```
+| `LOCAL_STORAGE_PATH` | `./data/exports` | Directory where export files are written. |
+| `STORAGE_PREFIX` | `exports/` | Key prefix applied to every export object. Change only if you need to scope exports within a shared directory. |
 
 ---
 

@@ -37,7 +37,6 @@ const external = [
   "@aws-sdk/*",
   "@azure/*",
   "@opentelemetry/*",
-  "@google-cloud/*",
   "@google/*",
   "googleapis",
   "firebase-admin",

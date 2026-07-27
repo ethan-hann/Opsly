@@ -95,8 +95,8 @@ Key variables:
 | Variable | Default | Description |
 |---|---|---|
 | `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/opsly` | Postgres connection string |
-| `AUTH_MODE` | `local` | `local` \| `oidc` \| `replit_oidc` |
-| `STORAGE_DRIVER` | `local` | `local` \| `s3` \| `replit` |
+| `AUTH_MODE` | `local` | `local` \| `s3`| `oidc` \| `replit_oidc` |
+| `STORAGE_DRIVER` | `local` | `local` \| `s3`|`local` \| `s3`|`local` \| `s3` |
 | `LOCAL_STORAGE_PATH` | `./data/exports` | Directory for export files (local driver) |
 | `INSTANCE_ADMIN_TOKEN` | `local-dev-admin-token` | Static bearer token for instance-admin access |
 

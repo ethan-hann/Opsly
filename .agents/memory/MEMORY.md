@@ -10,7 +10,7 @@
 - [api-zod stale tsbuildinfo](api-zod-tsbuildinfo-stale.md) — broken codegen run caches empty dist/index.d.ts; fix: delete dist/ + tsbuildinfo, rebuild. Also: schema naming rule to avoid orval conflicts.
 - [American spellings](american-spellings.md) — always use American English in UI strings, comments, names, and tests; key pairs: organisation→organization, colour→color, behaviour→behavior, cancelled→canceled, centre→center.
 - [SMTP / email patterns](email-smtp-patterns.md) — nodemailer singleton; digest mailer multi-org aggregation rule; migration pattern; TS null-literal narrowing trap in tests.
-- [Export storage](export-storage.md) — StorageProvider abstraction (replit/s3); exportJobsTable replaces in-memory Maps; singleton mock pattern for storage in tests.
+- [Export storage](export-storage.md) — StorageProvider abstraction (local/s3); exportJobsTable replaces in-memory Maps; singleton mock pattern for storage in tests.
 - [Markdown editor theming](md-editor-theming.md) — override @uiw/react-md-editor GitHub tokens via [data-color-mode] in index.css; dock system replaced by MDEditor built-in preview; previewMode prop controls edit/live/preview default.
 - [Terminology system](terminology-system.md) — TerminologyProvider placement, t()/tSingular() usage rules; GlobalSearchPalette must live inside TerminologyProvider; module-level string constants must be factory functions.
 - [Secret encryption](secret-encryption.md) — all DB-stored credentials use encrypt()/decrypt() in lib/encryption.ts (AES-256-GCM, SECRET_ENCRYPTION_KEY); columns end in _encrypted; API responses expose hasPassword only.
