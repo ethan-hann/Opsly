@@ -178,7 +178,7 @@ export default defineConfig({
         ],
     coverage: {
       provider: "v8",
-      reporter: ["text-summary", "json-summary", "html", "cobertura"],
+      reporter: ["text-summary", "json-summary", "html"],
       reportsDirectory: "./coverage",
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts", "src/**/*.d.ts", "src/**/types.ts"],

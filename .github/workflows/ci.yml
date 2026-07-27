@@ -21,12 +21,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
-    # code-quality:write lets actions/upload-code-coverage post the Cobertura
-    # reports to GitHub, which feeds the `code_coverage` branch-protection rule.
-    permissions:
-      contents: read
-      code-quality: write
-
     # A live Postgres so the integration suites (src/**/*-db.test.ts and the
     # @workspace/db tests) run instead of auto-skipping.
     services:
@@ -108,29 +102,6 @@ jobs:
       # they run against the Postgres service above.
       - name: Test (db integration)
         run: pnpm --filter @workspace/db run test
-
-      # Ship the Cobertura reports (written by the `cobertura` vitest reporter)
-      # to GitHub. This is what supplies data to the `code_coverage` rule in the
-      # "Protect main" ruleset — without it that rule has nothing to evaluate.
-      #
-      # `language` must use GitHub Linguist casing ("TypeScript", not
-      # "typescript") or the upload 404s. Skip on PRs from forks, whose tokens
-      # lack code-quality:write — the condition mirrors the GitHub docs example.
-      - name: Upload coverage (api-server)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/upload-code-coverage@v1
-        with:
-          file: artifacts/api-server/coverage/cobertura-coverage.xml
-          language: TypeScript
-          label: code-coverage/api-server
-
-      - name: Upload coverage (it-task-manager)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/upload-code-coverage@v1
-        with:
-          file: artifacts/it-task-manager/coverage/cobertura-coverage.xml
-          language: TypeScript
-          label: code-coverage/it-task-manager
 
       - name: Coverage summary
         if: always()

@@ -14,7 +14,7 @@ export default defineConfig({
     exclude: ["e2e/**", "**/node_modules/**"],
     coverage: {
       provider: "v8",
-      reporter: ["text-summary", "json-summary", "html", "cobertura"],
+      reporter: ["text-summary", "json-summary", "html"],
       reportsDirectory: "./coverage",
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
