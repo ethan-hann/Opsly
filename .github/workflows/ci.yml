@@ -1,12 +1,16 @@
 # Continuous integration: typecheck, build, and test every pull request
-# (and pushes to main) before changes land. A required status check on this
-# workflow is what actually blocks merging red PRs — see the note at the bottom.
+# before changes land. A required status check on this workflow is what
+# actually blocks merging red PRs — see the note at the bottom.
+#
+# We deliberately do NOT run on push to main: a PR is already tested before it
+# merges, so re-running the identical checks on the resulting merge commit is
+# pure duplication. Enforce "Require branches to be up to date before merging"
+# in branch protection so the PR is tested against current main — that keeps
+# main green without a redundant post-merge run.
 name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 # Cancel superseded runs on the same ref (e.g. new push to a PR branch).
 concurrency:
