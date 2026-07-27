@@ -1,9 +1,8 @@
 /**
  * StorageProvider — pluggable object-storage abstraction.
  *
- * Three concrete implementations are provided:
+ * Two concrete implementations are provided:
  *  - LocalStorageProvider   (STORAGE_DRIVER=local, default when unset — writes to ./data/exports/)
- *  - ReplitStorageProvider  (STORAGE_DRIVER=replit — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID)
  *  - S3StorageProvider      (STORAGE_DRIVER=s3 — any S3-compatible endpoint)
  *
  * The active implementation is chosen by the STORAGE_DRIVER environment
@@ -18,7 +17,6 @@
 import { logger } from "../logger";
 import { LocalStorageProvider } from "./local";
 import { S3StorageProvider } from "./s3";
-import { ReplitStorageProvider } from "./replit";
 
 // ── Interface ─────────────────────────────────────────────────────────────────
 
@@ -70,9 +68,6 @@ export function getStorageProvider(): StorageProvider {
 
   if (driver === "s3") {
     _provider = new S3StorageProvider();
-  } else if (driver === "replit") {
-    // Replit/GCS implementation — requires DEFAULT_OBJECT_STORAGE_BUCKET_ID.
-    _provider = new ReplitStorageProvider();
   } else {
     // Default: local filesystem — writes to LOCAL_STORAGE_PATH (default ./data/exports/).
     _provider = new LocalStorageProvider();
@@ -152,42 +147,6 @@ export function initStorageProvider(): void {
       );
     } catch (err) {
       logger.fatal({ err, driver: "s3" }, "Storage driver failed to initialize");
-      process.exit(1);
-    }
-  } else if (driver === "replit") {
-    const required = (["DEFAULT_OBJECT_STORAGE_BUCKET_ID"] as const).map(varStatus);
-    const missing = required.filter((v) => v.status === "missing");
-
-    if (missing.length > 0) {
-      const ctx = {
-        driver: "replit",
-        required,
-        optional: [
-          { name: "STORAGE_PREFIX", status: process.env.STORAGE_PREFIX ? "set" : "not set", note: "default: exports/" },
-        ],
-        fixGuide:
-          "Provision a Replit Object Storage bucket, then set:\n" +
-          "  DEFAULT_OBJECT_STORAGE_BUCKET_ID — bucket ID shown in the Replit Object Storage tool\n" +
-          "  STORAGE_PREFIX                   — (optional) object key prefix, default: exports/\n" +
-          "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
-      };
-      const msg = "Storage misconfigured: STORAGE_DRIVER=replit requires DEFAULT_OBJECT_STORAGE_BUCKET_ID";
-      if (isProd) { logger.fatal(ctx, msg); process.exit(1); }
-      else         { logger.warn(ctx, msg + " — export features disabled in this dev environment"); return; }
-    }
-
-    try {
-      getStorageProvider();
-      logger.info(
-        {
-          driver: "replit",
-          bucket: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID,
-          prefix: process.env.STORAGE_PREFIX ?? "exports/",
-        },
-        "Storage driver ready",
-      );
-    } catch (err) {
-      logger.fatal({ err, driver: "replit" }, "Storage driver failed to initialize");
       process.exit(1);
     }
   } else {

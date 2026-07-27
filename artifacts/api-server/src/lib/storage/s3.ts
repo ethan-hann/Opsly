@@ -12,8 +12,7 @@
  * Optional:
  *   S3_ENDPOINT      — custom endpoint URL (omit for AWS S3)
  *   STORAGE_PREFIX   — key prefix applied to every object (default "exports/").
- *                      Must match the prefix used by ReplitStorageProvider so
- *                      the two drivers are interchangeable.  All keys passed to
+ *                      Must match the prefix used by LocalStorageProvider so the two drivers are interchangeable.  All keys passed to
  *                      put/get/delete/exists are stored under this prefix; list()
  *                      strips the prefix from returned keys so callers always
  *                      work with unprefixed objectKeys (same format as the DB).
@@ -29,7 +28,7 @@ import {
 } from "@aws-sdk/client-s3";
 import type { StorageProvider } from "./provider";
 
-// Must match the default used in replit.ts so drivers are interchangeable.
+// Must match the default used in local.ts so drivers are interchangeable.
 const PREFIX = process.env.STORAGE_PREFIX ?? "exports/";
 
 function requireEnv(name: string): string {
@@ -132,8 +131,7 @@ export class S3StorageProvider implements StorageProvider {
    *
    * Only objects under PREFIX are enumerated (foreign bucket objects are
    * never visible).  The PREFIX is stripped from each returned key so the
-   * result matches the DB objectKey format, exactly as ReplitStorageProvider
-   * does.  Handles S3 pagination transparently.
+   * result matches the DB objectKey format, exactly as LocalStorageProvider does.  Handles S3 pagination transparently.
    */
   async list(): Promise<string[]> {
     const keys: string[] = [];

@@ -877,7 +877,7 @@ describe("runStorageAudit", () => {
   });
 
   it("never deletes keys that list() did not return — foreign bucket objects are always safe", async () => {
-    // Both storage providers (Replit and S3) now use STORAGE_PREFIX scoping in
+    // The storage providers (Local and S3) use STORAGE_PREFIX scoping in
     // list(), so foreign objects are never returned and therefore never reached
     // by the audit.  This test proves the audit never calls delete() for any
     // key outside the set returned by list(), even if unrelated keys somehow

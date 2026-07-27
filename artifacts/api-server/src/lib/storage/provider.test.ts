@@ -9,8 +9,6 @@
  * Their external dependencies are mocked instead:
  *   - @aws-sdk/client-s3 is mocked so S3StorageProvider can be instantiated
  *     without real credentials or a running S3 endpoint.
- *   - @google-cloud/storage is mocked so ReplitStorageProvider can be
- *     instantiated without a running Replit sidecar.
  *   - No mock needed for local.ts — it uses Node's built-in fs module.
  *
  * Covered — getStorageProvider():
@@ -26,9 +24,6 @@
  *  - STORAGE_DRIVER=s3, missing vars, NODE_ENV=production → logs FATAL, calls process.exit(1)
  *  - STORAGE_DRIVER=s3, missing vars, NODE_ENV=development → logs WARN, no process.exit
  *  - STORAGE_DRIVER=local (default) → always succeeds, logs INFO
- *  - STORAGE_DRIVER=replit, var present → logs INFO, no process.exit
- *  - STORAGE_DRIVER=replit, missing var, NODE_ENV=production → logs FATAL, calls process.exit(1)
- *  - STORAGE_DRIVER=replit, missing var, NODE_ENV=development → logs WARN, no process.exit
  */
 
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -53,19 +48,6 @@ vi.mock("@aws-sdk/client-s3", () => {
     HeadObjectCommand: makeCmd(),
     ListObjectsV2Command: makeCmd(),
   };
-});
-
-// ---------------------------------------------------------------------------
-// Mock @google-cloud/storage so ReplitStorageProvider can be constructed
-// without a running Replit sidecar.
-// ---------------------------------------------------------------------------
-vi.mock("@google-cloud/storage", () => {
-  function MockStorage(this: object) {}
-  MockStorage.prototype.bucket = vi.fn(() => ({
-    file: vi.fn(() => ({})),
-    getFiles: vi.fn(async () => [[]]),
-  }));
-  return { Storage: MockStorage };
 });
 
 vi.mock("../logger", () => ({
@@ -113,10 +95,6 @@ function clearS3Env() {
   }
 }
 
-function clearReplitEnv() {
-  delete process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-}
-
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
@@ -127,7 +105,6 @@ beforeEach(() => {
   delete process.env.STORAGE_DRIVER;
   delete process.env.NODE_ENV;
   clearS3Env();
-  clearReplitEnv();
   vi.mocked(logger.info).mockClear();
   vi.mocked(logger.warn).mockClear();
   vi.mocked(logger.fatal).mockClear();
@@ -137,7 +114,6 @@ afterEach(() => {
   delete process.env.STORAGE_DRIVER;
   delete process.env.NODE_ENV;
   clearS3Env();
-  clearReplitEnv();
 });
 
 // ---------------------------------------------------------------------------
@@ -318,63 +294,6 @@ describe("initStorageProvider", () => {
 
       expect(exitSpy).not.toHaveBeenCalled();
       expect(vi.mocked(logger.fatal)).not.toHaveBeenCalled();
-    });
-  });
-
-  // ── STORAGE_DRIVER=replit ─────────────────────────────────────────────────
-
-  describe("STORAGE_DRIVER=replit", () => {
-    beforeEach(() => {
-      process.env.STORAGE_DRIVER = "replit";
-    });
-
-    it("logs INFO and does NOT call process.exit when DEFAULT_OBJECT_STORAGE_BUCKET_ID is set", () => {
-      process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID = "bucket-abc123";
-
-      initStorageProvider();
-
-      expect(vi.mocked(logger.info)).toHaveBeenCalledOnce();
-      const [ctx, msg] = vi.mocked(logger.info).mock.calls[0] as [
-        Record<string, unknown>,
-        string,
-      ];
-      expect(ctx).toMatchObject({ driver: "replit" });
-      expect(msg).toMatch(/Storage driver ready/);
-      expect(exitSpy).not.toHaveBeenCalled();
-    });
-
-    it("logs FATAL and calls process.exit(1) when DEFAULT_OBJECT_STORAGE_BUCKET_ID is missing in production", () => {
-      // DEFAULT_OBJECT_STORAGE_BUCKET_ID is not set.
-      process.env.NODE_ENV = "production";
-
-      // exitSpy throws so execution truly stops after process.exit(1).
-      expect(() => initStorageProvider()).toThrow("process.exit(1)");
-
-      expect(vi.mocked(logger.fatal)).toHaveBeenCalledOnce();
-      const [ctx, msg] = vi.mocked(logger.fatal).mock.calls[0] as [
-        Record<string, unknown>,
-        string,
-      ];
-      expect(ctx).toMatchObject({ driver: "replit" });
-      expect(msg).toMatch(/Storage misconfigured/);
-      expect(msg).toMatch(/DEFAULT_OBJECT_STORAGE_BUCKET_ID/);
-      expect(exitSpy).toHaveBeenCalledWith(1);
-    });
-
-    it("logs WARN and does NOT call process.exit when DEFAULT_OBJECT_STORAGE_BUCKET_ID is missing in development", () => {
-      // DEFAULT_OBJECT_STORAGE_BUCKET_ID is not set; non-production environment.
-      process.env.NODE_ENV = "development";
-
-      initStorageProvider();
-
-      expect(vi.mocked(logger.warn)).toHaveBeenCalledOnce();
-      const [, msg] = vi.mocked(logger.warn).mock.calls[0] as [
-        Record<string, unknown>,
-        string,
-      ];
-      expect(msg).toMatch(/Storage misconfigured/);
-      expect(msg).toMatch(/export features disabled/);
-      expect(exitSpy).not.toHaveBeenCalled();
     });
   });
 });
