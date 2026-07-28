@@ -8,7 +8,7 @@ body:
         Opsly uses an **issue-first** process: open and discuss a proposal here
         and wait for a maintainer to agree on the approach **before** starting a
         pull request. Unsolicited large PRs are declined regardless of quality —
-        see [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+        see [CONTRIBUTING.md](https://github.com/ethan-hann/Opsly/blob/main/CONTRIBUTING.md).
   - type: textarea
     id: problem
     attributes:

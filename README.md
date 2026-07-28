@@ -17,9 +17,6 @@ SLAs, and audit trails — without changing tools.
 
 ## Screenshots
 
-<!-- Drop the two images into docs/screenshots/ (dashboard-light.png,
-     dashboard-dark.png) and these will render. See docs/screenshots/README.md. -->
-
 | Dashboard — light | Dashboard — dark |
 | :---: | :---: |
 | ![Opsly dashboard in light mode](docs/screenshots/dashboard-light.png) | ![Opsly dashboard in dark mode](docs/screenshots/dashboard-dark.png) |
@@ -33,10 +30,10 @@ docs will live on the project [documentation site](#documentation) as it's built
 ### What makes Opsly stand out
 
 - 🌍 **Localized in 8 languages** out of the box — English, Spanish, French,
-  German, Portuguese, Japanese, Chinese, and Arabic. First-class internationalization
-  is rare in projects this size.
+  German, Portuguese, Japanese, Chinese, and Arabic.
 - 📴 **Offline-first** — keep working while disconnected; edits queue locally and
   sync automatically on reconnect, with a live pending-sync indicator on cards.
+- ⛓️ **Dependency Trees** - model and enforce dependencies between tasks.
 - ⚡ **Real-time updates** — notifications and cross-org changes stream live over
   Server-Sent Events, no page refresh needed.
 - ✍️ **Rich Markdown editor** with **Mermaid diagram** rendering for notes, task
@@ -48,7 +45,6 @@ docs will live on the project [documentation site](#documentation) as it's built
 ### Core work management
 
 - **Projects & tasks** with priorities, assignees, custom fields, and history.
-- **Task Trees** — model dependencies between tasks.
 - **Workflows** — configurable stages that tasks move through.
 - **Organizations & roles** — multi-tenant orgs with granular, per-role permissions (RBAC).
 - **Dashboards & Kanban** views for status at a glance.

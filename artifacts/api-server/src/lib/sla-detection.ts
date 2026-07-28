@@ -86,7 +86,7 @@ export async function detectAndMarkSlaBreaches(
 
       if (!policy) continue; // no SLA configured for this priority
 
-      const slaResult = getSlaStatus(task.createdAt, task.status, task.priority, policy);
+      const slaResult = getSlaStatus(task.createdAt, task.status, policy);
 
       // ── Breach detection ────────────────────────────────────────────────────
       // Fire when EITHER the resolution or response SLA is breached.

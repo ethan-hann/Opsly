@@ -20,24 +20,23 @@ function useSlaResult(
   createdAt: string,
   updatedAt: string | null | undefined,
   status: string,
-  priority: string,
   policy: SlaPolicy | null | undefined,
   stageType?: "open" | "closed",
 ): SlaResult {
   const [result, setResult] = useState<SlaResult>(() =>
-    getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt),
+    getSlaStatus(createdAt, status, policy ?? null, stageType, updatedAt),
   );
 
   useEffect(() => {
     // Recompute immediately when props change
-    setResult(getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt));
+    setResult(getSlaStatus(createdAt, status, policy ?? null, stageType, updatedAt));
 
     const id = setInterval(() => {
-      setResult(getSlaStatus(createdAt, status, priority, policy ?? null, stageType, updatedAt));
+      setResult(getSlaStatus(createdAt, status, policy ?? null, stageType, updatedAt));
     }, 5_000);
 
     return () => clearInterval(id);
-  }, [createdAt, updatedAt, status, priority, policy, stageType]);
+  }, [createdAt, updatedAt, status, policy, stageType]);
 
   return result;
 }
@@ -45,7 +44,7 @@ function useSlaResult(
 export function SlaBadge({ createdAt, updatedAt, status, priority, policies, className, stageType }: SlaBadgeProps) {
   const { t } = useTranslation();
   const policy = policies?.find((p) => p.priority === priority) ?? null;
-  const result = useSlaResult(createdAt, updatedAt, status, priority, policy, stageType);
+  const result = useSlaResult(createdAt, updatedAt, status, policy, stageType);
 
   if (result.resolutionStatus === "none" && result.responseStatus === "none") {
     return null;

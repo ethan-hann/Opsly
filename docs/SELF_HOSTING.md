@@ -151,6 +151,8 @@ Navigate to your domain and sign in with the `BOOTSTRAP_ADMIN_EMAIL` /
 
 All variables are read by the API container. None have defaults that are safe
 to use in production without review — change the values marked **⚠ change me**.
+The provided compose files already set `NODE_ENV=production` and the container
+`PORT` for you; only set those yourself for a bare-metal (non-Docker) deployment.
 
 ### Database
 
@@ -285,6 +287,17 @@ S3_SECRET_ACCESS_KEY=...
 # S3_ENDPOINT=         # omit for AWS S3
 # STORAGE_PREFIX=exports/
 ```
+
+**Required bucket permissions:** the credentials need `s3:PutObject`,
+`s3:GetObject`, `s3:DeleteObject`, `s3:HeadObject`, and `s3:ListBucket` on the
+bucket. Scope them to just the export bucket, and use `STORAGE_PREFIX` to keep
+exports namespaced so the storage audit never touches unrelated objects.
+
+**Fail-fast validation:** on startup the server logs a `Storage driver ready`
+line once the driver initializes. If a required `S3_*` variable is missing it
+logs a FATAL message listing each variable as `set` or `missing` — secret
+**values are never logged** — and exits immediately with code 1. Check that log
+entry's `fixGuide` field for exactly what to set.
 
 #### MinIO example (self-hosted S3, no cloud dependency)
 

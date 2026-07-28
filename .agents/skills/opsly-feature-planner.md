@@ -23,6 +23,33 @@ Before drafting anything, actually explore the codebase relevant to the feature 
  
 Pay attention to things that look like a trap for an implementer working blind: tables or stores that lack an index/column needed for an obvious follow-on feature (e.g. a sessions table with no way to query "all sessions for user X"), endpoints that must follow one of two competing patterns already present in the file (e.g. hand-written zod schemas vs. orval-generated ones) rather than inventing a third, or features that only make sense under one configuration mode and must explicitly guard against the others. These are exactly the kind of thing worth surfacing as open questions or explicit guardrails, because Codex won't discover them without being told.
  
+## Step 2.5: Decide the plan's shape (single vs. multi-step)
+
+Codex implements one plan per worktree and opens one pull request per plan, so how
+you slice a multi-step feature directly determines how much serial push → PR → CI →
+merge waiting Ethan sits through. Serial waiting only applies to steps that **depend
+on each other** — so map the dependencies first, then pick the smallest safe shape:
+
+- **Single** (default). One issue, one PR. Almost every feature and fix. Do not
+  invent steps that aren't there.
+- **Phased single-PR.** One issue, one PR, but the prompt carries an ordered
+  `## Steps` list Codex works through *in the same worktree*, verifying after each.
+  Use when the work is genuinely sequential (step 2 builds on step 1) but each step
+  is small and low-risk enough that it doesn't need its own review/CI/merge.
+  **Prefer this over splitting** — it collapses the chain into one PR and skips the
+  round-trips entirely.
+- **Sequenced epic (multi-PR).** A tracking issue plus one ordered sub-issue per
+  step, each its own PR. Use *only* when a step must land, pass CI, and ideally be
+  verified before the next can safely build on it — risky migrations, schema/infra
+  changes, auth changes (the off-replit program is the canonical example). Splitting
+  is a cost, not a virtue; justify it.
+
+**Surface the parallelism.** Within any multi-step feature, state explicitly which
+units are independent so Ethan can run them in concurrent worktrees instead of
+single-file. A five-step feature where steps 2–4 are independent is not a five-PR
+serial chain — it's step 1, then 2/3/4 in parallel, then 5. Getting this right is
+where most of the wall-clock time is won.
+
 ## Step 3: Write the planning doc
  
 This is for Ethan to review quickly, not for Codex. Keep it tight — a few paragraphs and a short list, not an essay. Use this structure:
@@ -53,6 +80,17 @@ This is the artifact that actually gets handed off, so treat ambiguity as a bug.
 ## Task
 Plain-language description of what to build and why, self-contained (don't assume Codex read the plan above).
  
+## Plan Shape
+One of `single`, `phased-single-pr`, or `epic-step` (see Step 2.5). For
+`single`, omit the rest of this section. For `phased-single-pr`, add an ordered
+`## Steps` list — each step names what to do and how to verify it before moving on —
+and instruct Codex to complete all steps in this one worktree. For `epic-step`, add:
+- `## Position` — "Step N of M in epic #<tracking-issue>."
+- `## Prerequisites` — which issue(s) must be merged to main first ("Depends on #123;
+  start from current main with #123 already merged").
+- and make `## Out of Scope` below explicitly exclude every other step ("do NOT
+  implement steps N+1…M / issues #… — this PR is only step N").
+ 
 ## Acceptance Criteria
 Concrete, checkable list of what "done" looks like. Prefer behavior ("a user can X and sees Y") over vague quality statements. Where a new piece of data or an endpoint should follow the shape of something that already exists, say so explicitly by name and file path rather than describing the shape from scratch — Codex should be pointed at the precedent, not left to reinvent it.
 
@@ -72,7 +110,22 @@ A good Codex prompt reads like something you could hand to a competent contracto
  
 ## Output
  
-Produce both documents together, plan first, then the Codex prompt, in the same response. Save them as markdown files (e.g. `planning/<feature-slug>/plan.md` and `planning/<feature-slug>/codex-prompt.md`) in the repo if it's connected, so they persist and can be referenced later — otherwise present them inline.
+Produce the plan first, then the Codex prompt(s), in the same response for Ethan to
+review. Then persist them as **GitHub issues** in the Opsly repo (via `gh`), since the
+`opsly-plan-executor` reads from issues — the plan/prompt split maps to issue
+body/comment exactly:
+
+- **Single / phased-single-pr:** one issue — the plan as the body, the Codex prompt as
+  a comment led by a `## Codex Prompt` heading — labeled `codex-ready`.
+- **Sequenced epic:** a tracking issue (body = the roadmap: an ordered checklist of the
+  sub-issues, showing the dependency arrows and which are parallelizable) plus one
+  sub-issue per step (body = that step's plan, a `## Codex Prompt` comment = that step's
+  prompt, with `Depends on: #<prev>` noted). Label only the currently-unblocked
+  sub-issues `codex-ready`; the executor won't start a step whose prerequisite is still
+  open.
+
+If the repo/`gh` isn't available, fall back to `planning/<feature-slug>/plan.md` +
+`codex-prompt.md` files (one folder per step for an epic) and present them inline.
  
 ## Example
  

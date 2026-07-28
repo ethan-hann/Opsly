@@ -20,7 +20,7 @@ Closes #<!-- issue number — Opsly is issue-first; PRs without an accepted issu
 ## Legal
 
 - [ ] My commits are signed off (`git commit -s`, Developer Certificate of Origin)
-- [ ] I agree to the [Contributor License Agreement](../blob/main/CLA.md) and my contribution is my own work
+- [ ] I agree to the [Contributor License Agreement](https://github.com/ethan-hann/Opsly/blob/main/CLA.md) and my contribution is my own work
 
 ## Notes for the reviewer
 

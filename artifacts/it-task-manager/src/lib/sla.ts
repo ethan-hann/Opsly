@@ -22,7 +22,6 @@ export interface SlaResult {
 export function getSlaStatus(
   createdAt: Date | string,
   status: string,
-  priority: string,
   policy: SlaPolicy | null | undefined,
   stageType?: "open" | "closed",
   resolvedAt?: Date | string | null,

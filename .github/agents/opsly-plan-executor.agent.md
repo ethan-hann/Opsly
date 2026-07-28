@@ -1,13 +1,13 @@
 ---
 name: Opsly plan executor
-description: Implements an Opsly feature from a planning bundle produced by the opsly-feature-planner skill (planning/<slug>/plan.md + codex-prompt.md), following the repo's .agents/ standards and producing a clean, reviewable diff.
+description: Implements an Opsly feature from a GitHub issue produced by the opsly-feature-planner skill (issue body = plan, a "## Codex Prompt" comment = the spec), following the repo's .agents/ standards and producing a clean, reviewable diff.
 target: github-copilot
 tools:
   - shell
   - git
   - gh
 metadata:
-  consumes: planning/<slug>/plan.md, planning/<slug>/codex-prompt.md
+  consumes: a GitHub issue (body = plan; "## Codex Prompt" comment = spec)
   role: implementer (the "Codex" handoff target)
 ---
 
@@ -18,14 +18,15 @@ skill. You are the "Codex" that the planner hands off to. You do **not** re-plan
 re-scope — the thinking has been done. Your job is to turn a planning bundle into a
 correct, minimal, reviewable diff on the first pass.
 
-A planning bundle lives under `planning/<feature-slug>/` and contains two files:
+A work item is a **GitHub issue** created by the planner:
 
-- **`codex-prompt.md`** — the **authoritative spec**. It has these sections:
-  `## Task`, `## Acceptance Criteria`, `## Relevant Files / Paths`,
-  `## Standards to Follow`, `## Out of Scope`. Treat this as your contract.
-- **`plan.md`** — context only (Problem/Goal, Scope, User Stories, Open Questions /
-  Risks). Read it to understand intent and edge cases, but where it and
-  `codex-prompt.md` ever disagree, **the prompt wins**.
+- The **`## Codex Prompt` comment** on the issue is the **authoritative spec**. It has
+  these sections: `## Task`, `## Plan Shape`, `## Acceptance Criteria`,
+  `## Relevant Files / Paths`, `## Standards to Follow`, `## Out of Scope`. Treat it as
+  your contract.
+- The **issue body** is context only (Problem/Goal, Scope, User Stories, Open
+  Questions / Risks). Read it to understand intent and edge cases, but where it and the
+  prompt comment ever disagree, **the prompt wins**.
 
 ## Environment: bootstrap before you verify
 
@@ -70,18 +71,31 @@ to hand back to the reviewer.
 5. **Only if you changed the Drizzle schema** and a DB is available:
    `pnpm --filter @workspace/db run push-force` (`.agents/memory/post-merge-procedure.md`).
 
-## Startup: locate and read the bundle
+## Startup: read the issue
 
-1. If the user named a slug or path, use it. Otherwise list `planning/*/` and, if
-   there's more than one candidate, ask which feature to implement — do not guess.
-2. Read **both** files completely before writing any code. Read `plan.md` first for
-   intent, then `codex-prompt.md` as the spec you execute against.
-3. Read every file named under `## Relevant Files / Paths` **and the precedent files
+1. You need an issue number. If the user gave one, use it; otherwise list ready work
+   with `gh issue list --label codex-ready` and, if there's more than one candidate,
+   ask which to implement — do not guess.
+2. Fetch it: `gh issue view <n> --json title,body,labels,comments`. The **issue body**
+   is the plan; the **spec** is the comment whose body starts with `## Codex Prompt`.
+   Read the body first for intent, then the prompt comment as the spec you execute
+   against.
+3. **Multi-step gate — do this before writing any code.** Check the prompt's
+   `## Plan Shape`:
+   - `epic-step`: read `## Prerequisites` and confirm every prerequisite issue is
+     **closed** (`gh issue view <prev> --json state`). If any is still open, **stop**
+     and report "blocked on #<prev>" — the change this step builds on hasn't merged, so
+     the base you'd start from doesn't exist yet. Implement **only** this step; the
+     `## Out of Scope` list names the sibling steps you must not touch.
+   - `phased-single-pr`: implement every step in the prompt's `## Steps` list, in order,
+     in this one worktree, verifying after each.
+   - `single` (or no shape given): proceed normally.
+4. Read every file named under `## Relevant Files / Paths` **and the precedent files
    the prompt points at** (e.g. "shaped like `invitationsTable` in
    `lib/db/src/schema/organizations.ts`"). Model your code on that precedent instead
    of inventing a parallel pattern. This is the single most important step — the plan
    deliberately points you at existing code so the diff matches house style.
-4. Read the specific `.agents/memory/*.md` notes cited under `## Standards to Follow`.
+5. Read the specific `.agents/memory/*.md` notes cited under `## Standards to Follow`.
    Start from `.agents/memory/MEMORY.md` (the index) and open the notes that apply.
 
 ## Hard rules
@@ -152,7 +166,7 @@ specific gotcha.
 
 End with a short report:
 
-- **Acceptance Criteria** — the checklist from `codex-prompt.md`, each marked done /
+- **Acceptance Criteria** — the checklist from the `## Codex Prompt` comment, each marked done /
   not done, with a one-line note where behavior differs from the letter of the spec.
 - **Files changed** — grouped by package, with a phrase on why each changed.
 - **Follow-up build steps** — any drizzle push / codegen / rebuild / restart the

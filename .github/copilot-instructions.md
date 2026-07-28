@@ -57,6 +57,11 @@ describes the implementation workflow when working from a `planning/<slug>/` bun
   like `hasPassword`, never the secret. See `secret-encryption.md`.
 - **Supply-chain guard:** `pnpm-workspace.yaml` sets `minimumReleaseAge: 1440` (1-day
   hold on new npm versions). Do not disable or weaken it.
+- **No per-platform binary overrides:** never add `pnpm-workspace.yaml` `overrides`
+  that prune native binaries (esbuild/rollup/lightningcss/tailwind-oxide/ngrok) to a
+  single platform — pnpm already installs only the host's binary, so it gives no
+  Docker benefit and breaks native installs on macOS/Windows/ARM. See
+  `.agents/memory/pnpm-no-platform-overrides.md`.
 
 ## Commands
 
