@@ -190,7 +190,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .returning();
 
   broadcastToOrg(orgId, "notes-changed", {});
-  dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note, req.orgId!), serializeNote(note, userId));
+  dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note, orgId), serializeNote(note, userId));
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -296,7 +296,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
 
   // Capture the effective project before the update so we can notify webhooks
   // that were watching the old project if the note is being re-assigned.
-  const oldEffectiveProjectId = await resolveEffectiveProjectId(existing, req.orgId!);
+  const oldEffectiveProjectId = await resolveEffectiveProjectId(existing, orgId);
 
   const [note] = await db
     .update(notesTable)
@@ -308,7 +308,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  const newEffectiveProjectId = await resolveEffectiveProjectId(note, req.orgId!);
+  const newEffectiveProjectId = await resolveEffectiveProjectId(note, orgId);
   const serialized = serializeNote(note, userId);
 
   broadcastToOrg(orgId, "notes-changed", {});
