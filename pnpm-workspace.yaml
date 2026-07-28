@@ -16,7 +16,7 @@
 # passed (e.g. an urgent security bugfix), you can add it to the
 # `minimumReleaseAgeExclude` allowlist below. Only consider doing this for
 # packages released by trusted organizations with an impeccable security
-# posture (e.g. Replit packsges, react from Meta, typescript from Microsoft). Even then,
+# posture (e.g. react from Meta, typescript from Microsoft). Even then,
 # remove the exclusion once the 1-day window has passed.
 #
 # Example:
@@ -66,7 +66,11 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
-  # replit uses linux-x64 only, we can exclude all other platforms
+  # These overrides prune native prebuilt binaries (esbuild, rollup, lightningcss,
+  # tailwind oxide) down to the linux-x64-gnu build/deploy target to shrink the
+  # production image. NOTE: this also removes the macOS/Windows/ARM binaries, so a
+  # native `pnpm install` for local dev on those platforms will fail — use the
+  # Docker-based workflow, or revisit these exclusions now that the project is public.
   "esbuild>@esbuild/darwin-arm64": "-"
   "esbuild>@esbuild/darwin-x64": "-"
   "esbuild>@esbuild/freebsd-arm64": "-"

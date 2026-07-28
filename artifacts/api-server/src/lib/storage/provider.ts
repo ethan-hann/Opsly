@@ -126,7 +126,7 @@ export function initStorageProvider(): void {
           "  S3_SECRET_ACCESS_KEY — IAM secret access key\n" +
           "  S3_ENDPOINT          — (optional) custom endpoint URL\n" +
           "  STORAGE_PREFIX       — (optional) object key prefix, default: exports/\n" +
-          "See artifacts/api-server/SELF_HOSTING.md for the full setup guide.",
+          "See docs/SELF_HOSTING.md for the full setup guide.",
       };
       const msg = `Storage misconfigured: STORAGE_DRIVER=s3 requires ${missing.map((v) => v.name).join(", ")}`;
       if (isProd) { logger.fatal(ctx, msg); process.exit(1); }

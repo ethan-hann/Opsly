@@ -46,6 +46,13 @@ Thumbs.db
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
-# Replit
+# Local scratch / pasted assets (not tracked in the public repo)
+attached_assets/
 .cache/
 .local/
+
+# Maintainer-local planning bundles and review notes. Kept on disk for the
+# opsly-plan-executor workflow but intentionally not published in the public repo
+# (they document internal process and where security checks are still pending).
+planning/
+task-review/

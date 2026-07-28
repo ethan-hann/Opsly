@@ -1,0 +1,67 @@
+name: Bug report
+description: Report a defect in Opsly
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. Please search existing issues
+        first — duplicates will be closed. **Do not report security
+        vulnerabilities here**; follow [SECURITY.md](../blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+      placeholder: When I ..., Opsly does ..., but I expected ...
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal, numbered steps. Include sample data if relevant.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - api-server (backend)
+        - it-task-manager (frontend)
+        - lib/db (database/schema)
+        - Self-hosting / deployment
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: How you're running Opsly (self-hosted vs. hosted), version/commit SHA, browser, OS.
+      placeholder: |
+        - Deployment: self-hosted (docker-compose)
+        - Commit: abc7df8
+        - Browser: Firefox 128
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste any console/server output. Redact secrets and personal data.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this is not a duplicate.
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md).
+          required: true

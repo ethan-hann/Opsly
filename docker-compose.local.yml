@@ -19,7 +19,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.local
+      dockerfile: docker/Dockerfile.local
       target: runtime
     container_name: opsly-api
     depends_on:
@@ -64,7 +64,7 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile.local
+      dockerfile: docker/Dockerfile.local
       target: runtime
     container_name: opsly-web
     depends_on:
