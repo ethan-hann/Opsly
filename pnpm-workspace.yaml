@@ -79,13 +79,18 @@ overrides:
   # .agents/memory/pnpm-no-platform-overrides.md.
   # drizzle-kit uses esbuild internally on an older version that's vulnerable, this overrides it
   "@esbuild-kit/esm-loader": "npm:tsx@^4.21.0"
-  esbuild: "0.27.3"
+  esbuild: "0.28.1"
   # Security overrides (previously in package.json pnpm.overrides, moved here for pnpm 11 compatibility)
   # Keep the >=11.1.1 security floor. The <13 cap (which prevented ESM-only uuid from breaking
   # CommonJS dependents like gaxios@6 from @google-cloud/storage) has been removed because
   # @google-cloud/storage was dropped in task 04 — no CJS uuid consumer remains in the tree.
   uuid: ">=11.1.1"
   js-yaml: "^4.3.0"
+  # Dependabot security floors (transitive deps). Bump as advisories land.
+  shell-quote: ">=1.9.0"       # GHSA quadratic-DoS in parse()
+  postcss: ">=8.5.18"          # source-map path traversal
+  fast-uri: "^3.1.4"           # host confusion via backslash authority (stay in 3.x)
+  brace-expansion: ">=5.0.8"   # unbounded-expansion DoS (patched only in 5.0.8)
 
 allowBuilds:
   esbuild: true
