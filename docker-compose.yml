@@ -5,7 +5,7 @@
 #   # Edit .env.production with your real values
 #   docker compose --env-file .env.production up -d
 #
-# See SELF_HOSTING.md for the full setup guide.
+# See docs/SELF_HOSTING.md for the full setup guide.
 
 services:
   db:
@@ -36,7 +36,7 @@ services:
     image: ${OPSLY_IMAGE:-opsly-api:latest}
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile
     container_name: opsly-api
     restart: unless-stopped
     depends_on:
@@ -120,7 +120,7 @@ services:
     image: ${OPSLY_WEB_IMAGE:-opsly-web:latest}
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: docker/Dockerfile.frontend
     container_name: opsly-web
     restart: unless-stopped
     depends_on:

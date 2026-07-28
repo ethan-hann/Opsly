@@ -1,0 +1,5 @@
+# Default owner for the whole repo. Requires the "Require review from Code
+# Owners" branch-protection rule to make @ethan-hann a mandatory reviewer.
+# Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+* @ethan-hann

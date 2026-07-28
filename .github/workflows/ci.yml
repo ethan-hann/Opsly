@@ -43,7 +43,7 @@ jobs:
       # live-DB suites; drizzle push-force reads it too.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/opsly_test
       # The frontend's vite.config.ts throws unless PORT and BASE_PATH are set,
-      # even for a production build. Values mirror Dockerfile.frontend.
+      # even for a production build. Values mirror docker/Dockerfile.frontend.
       PORT: "3000"
       BASE_PATH: /
 

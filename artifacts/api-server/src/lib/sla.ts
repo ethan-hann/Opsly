@@ -21,15 +21,13 @@ export interface SlaResult {
  *
  * @param createdAt - Task creation timestamp
  * @param status    - Current task status string (legacy: "done" counts as resolved)
- * @param priority  - Task priority
- * @param policy    - SLA policy for this priority (null if none configured)
+ * @param policy    - SLA policy for the task's priority (null if none configured)
  * @param stageType - Optional: explicit stage type ("open" | "closed"). When provided,
  *                    takes precedence over the legacy `status === "done"` check.
  */
 export function getSlaStatus(
   createdAt: Date | string,
   status: string,
-  priority: string,
   policy: SlaPolicy | null | undefined,
   stageType?: "open" | "closed",
 ): SlaResult {

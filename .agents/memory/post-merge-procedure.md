@@ -14,7 +14,7 @@ After **every** task merge into main, run:
 **Why:** Merged tasks routinely add new DB tables/columns and new API routes. Without the schema push the API crashes with "column does not exist". Without the rebuild, new routes are unreachable.
 
 ## Automation
-This is codified in `scripts/post-merge.sh` and wired as the Replit post-merge script (timeout: 180 000 ms). It runs automatically after each task merge, followed by workflow reconciliation which restarts the running workflows.
+The three steps above are codified in `scripts/post-merge.sh`. Run it manually after each task merge — it is no longer triggered automatically, so don't assume a merge has already applied the schema push and rebuild.
 
 ## Backfill migrations
 `drizzle push-force` handles DDL (tables, columns, indexes). Backfill scripts (`pnpm --filter @workspace/db migrate:*`) for seeding permission rows or other data must still be run **manually** after the post-merge script — check `git diff HEAD~N HEAD --name-only | grep migrations/` after a merge to spot them, then run each with `pnpm --filter @workspace/db migrate:<name>`.

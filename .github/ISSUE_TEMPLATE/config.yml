@@ -1,0 +1,13 @@
+# Blank issues are disabled so every issue goes through a template — part of the
+# strict, issue-first contribution process.
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/ethan-hann/Opsly/security/advisories/new
+    about: Report vulnerabilities privately — never in a public issue. See SECURITY.md.
+  - name: Question or discussion
+    url: https://github.com/ethan-hann/Opsly/discussions
+    about: Ask questions, share ideas, or discuss usage here instead of opening an issue.
+  - name: Commercial license / competing use
+    url: https://github.com/ethan-hann/Opsly/discussions
+    about: Opsly is source-available under the FSL. Reach out here about commercial licensing or uses the FSL doesn't permit.

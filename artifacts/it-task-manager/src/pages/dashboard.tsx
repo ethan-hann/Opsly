@@ -82,7 +82,7 @@ export default function Dashboard() {
   const slaBreachedTasks = (overdueTasks ?? []).filter((task) => {
     if (task.stageType === "closed") return false;
     const policy = slaPolicies?.find((p) => p.priority === task.priority) ?? null;
-    const result = getSlaStatus(task.createdAt, task.status, task.priority, policy, task.stageType as "open" | "closed" | undefined);
+    const result = getSlaStatus(task.createdAt, task.status, policy, task.stageType as "open" | "closed" | undefined);
     return result.isResolutionBreached;
   });
 

@@ -40,7 +40,7 @@ describe("getSlaStatus", () => {
   });
 
   it("returns all-none when policy is null", () => {
-    const result = getSlaStatus(minsAgo(30), "todo", "high", null);
+    const result = getSlaStatus(minsAgo(30), "todo",null);
     expect(result).toEqual({
       resolutionStatus: "none",
       responseStatus: "none",
@@ -51,7 +51,7 @@ describe("getSlaStatus", () => {
   });
 
   it("returns all-none when policy has both minutes set to null", () => {
-    const result = getSlaStatus(minsAgo(30), "todo", "high", makePolicy(null, null));
+    const result = getSlaStatus(minsAgo(30), "todo",makePolicy(null, null));
     expect(result.resolutionStatus).toBe("none");
     expect(result.responseStatus).toBe("none");
     expect(result.isResolutionBreached).toBe(false);
@@ -59,7 +59,7 @@ describe("getSlaStatus", () => {
 
   it("returns on_track when well within both SLA limits", () => {
     // elapsed=60 out of response=120 (50%), resolution=480 (12.5%)
-    const result = getSlaStatus(minsAgo(60), "todo", "high", makePolicy(120, 480));
+    const result = getSlaStatus(minsAgo(60), "todo",makePolicy(120, 480));
     expect(result.responseStatus).toBe("on_track");
     expect(result.resolutionStatus).toBe("on_track");
     expect(result.isResolutionBreached).toBe(false);
@@ -69,20 +69,20 @@ describe("getSlaStatus", () => {
 
   it("returns warning when >80% of response SLA has elapsed (default threshold)", () => {
     // elapsed=70 out of response=80 → remaining=10 → 10/80 = 0.125 < 0.20 → warning
-    const result = getSlaStatus(minsAgo(70), "todo", "high", makePolicy(80, 480));
+    const result = getSlaStatus(minsAgo(70), "todo",makePolicy(80, 480));
     expect(result.responseStatus).toBe("warning");
     expect(result.resolutionStatus).toBe("on_track");
   });
 
   it("returns on_track when just below the 80% warning threshold", () => {
     // elapsed=60 out of response=80 → remaining=20 → 20/80 = 0.25 > 0.20 → on_track
-    const result = getSlaStatus(minsAgo(60), "todo", "high", makePolicy(80, 480));
+    const result = getSlaStatus(minsAgo(60), "todo",makePolicy(80, 480));
     expect(result.responseStatus).toBe("on_track");
   });
 
   it("returns warning when >80% of resolution SLA has elapsed (default threshold)", () => {
     // elapsed=400 out of resolution=480 → remaining=80 → 80/480 = 0.1667 < 0.20 → warning
-    const result = getSlaStatus(minsAgo(400), "todo", "high", makePolicy(null, 480));
+    const result = getSlaStatus(minsAgo(400), "todo",makePolicy(null, 480));
     expect(result.resolutionStatus).toBe("warning");
     expect(result.responseStatus).toBe("none");
   });
@@ -91,13 +91,13 @@ describe("getSlaStatus", () => {
     // Policy with 75% threshold → warning when remaining/total ≤ 0.25
     // elapsed=60 out of response=80 → remaining=20 → 20/80 = 0.25 exactly → warning
     const policyWith75 = { ...makePolicy(80, null), warningThresholdPercent: 75 };
-    const result = getSlaStatus(minsAgo(60), "todo", "high", policyWith75);
+    const result = getSlaStatus(minsAgo(60), "todo",policyWith75);
     expect(result.responseStatus).toBe("warning");
   });
 
   it("returns breached when past the response SLA deadline", () => {
     // elapsed=130 out of response=120 → remaining=-10
-    const result = getSlaStatus(minsAgo(130), "todo", "high", makePolicy(120, 480));
+    const result = getSlaStatus(minsAgo(130), "todo",makePolicy(120, 480));
     expect(result.responseStatus).toBe("breached");
     expect(result.resolutionStatus).toBe("on_track");
     expect(result.isResolutionBreached).toBe(false);
@@ -106,7 +106,7 @@ describe("getSlaStatus", () => {
 
   it("returns resolution breached with isResolutionBreached=true when past resolution deadline", () => {
     // elapsed=490 out of resolution=480 → remaining=-10
-    const result = getSlaStatus(minsAgo(490), "todo", "high", makePolicy(120, 480));
+    const result = getSlaStatus(minsAgo(490), "todo",makePolicy(120, 480));
     expect(result.resolutionStatus).toBe("breached");
     expect(result.isResolutionBreached).toBe(true);
     expect(result.resolutionMinutesRemaining).toBe(-10);
@@ -114,7 +114,7 @@ describe("getSlaStatus", () => {
 
   it("returns on_track for a done task even when far past both SLA deadlines", () => {
     // Done tasks are never considered breached regardless of elapsed time
-    const result = getSlaStatus(minsAgo(600), "done", "high", makePolicy(120, 480));
+    const result = getSlaStatus(minsAgo(600), "done",makePolicy(120, 480));
     expect(result.resolutionStatus).toBe("on_track");
     expect(result.responseStatus).toBe("on_track");
     expect(result.isResolutionBreached).toBe(false);
@@ -123,12 +123,12 @@ describe("getSlaStatus", () => {
   it("rounds remainingMinutes using Math.round", () => {
     // elapsed=60.4 min → resolutionRemaining = 480 - 60.4 = 419.6 → rounds to 420
     const createdAt = new Date(FIXED_NOW - 60.4 * 60_000);
-    const result = getSlaStatus(createdAt, "todo", "high", makePolicy(null, 480));
+    const result = getSlaStatus(createdAt, "todo",makePolicy(null, 480));
     expect(result.resolutionMinutesRemaining).toBe(420);
   });
 
   it("accepts createdAt as an ISO string", () => {
-    const result = getSlaStatus(minsAgo(60).toISOString(), "todo", "high", makePolicy(120, null));
+    const result = getSlaStatus(minsAgo(60).toISOString(), "todo",makePolicy(120, null));
     expect(result.responseStatus).toBe("on_track");
     expect(result.responseMinutesRemaining).toBe(60);
   });
