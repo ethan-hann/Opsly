@@ -109,12 +109,12 @@ function serializeInbound(
 }
 
 /** One-shot lookup of a template name by id. Returns null when id is absent or not found. */
-async function resolveTemplateName(taskTemplateId: number | null | undefined): Promise<string | null> {
+async function resolveTemplateName(taskTemplateId: number | null | undefined, orgId: string): Promise<string | null> {
   if (!taskTemplateId) return null;
   const [t] = await db
     .select({ name: taskTemplatesTable.name })
     .from(taskTemplatesTable)
-    .where(eq(taskTemplatesTable.id, taskTemplateId))
+    .where(and(eq(taskTemplatesTable.id, taskTemplateId), eq(taskTemplatesTable.orgId, orgId)))
     .limit(1);
   return t?.name ?? null;
 }
@@ -625,7 +625,7 @@ router.post("/webhooks/inbound", requireOrgOrApiKey, requireWebhooksFeature, req
     })
     .returning();
 
-  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  const templateName = await resolveTemplateName(hook.taskTemplateId, orgId);
 
   void logOrgEvent({
     orgId,
@@ -773,7 +773,7 @@ router.patch("/webhooks/inbound/:id", requireOrgOrApiKey, requireWebhooksFeature
     .where(and(eq(inboundWebhooksTable.id, id), eq(inboundWebhooksTable.orgId, orgId)))
     .returning();
 
-  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  const templateName = await resolveTemplateName(hook.taskTemplateId, orgId);
 
   void logOrgEvent({
     orgId,
@@ -859,7 +859,7 @@ router.post("/webhooks/inbound/:id/rotate-secret", requireOrgOrApiKey, requireWe
     .where(and(eq(inboundWebhooksTable.id, id), eq(inboundWebhooksTable.orgId, orgId)))
     .returning();
 
-  const templateName = await resolveTemplateName(hook.taskTemplateId);
+  const templateName = await resolveTemplateName(hook.taskTemplateId, orgId);
 
   void logOrgEvent({
     orgId,

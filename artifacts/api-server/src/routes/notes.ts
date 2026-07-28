@@ -84,13 +84,13 @@ async function getNoteReferenceValidationRow(
 async function resolveEffectiveProjectId(note: {
   projectId: number | null;
   taskId: number | null;
-}): Promise<number | null> {
+}, orgId: string): Promise<number | null> {
   if (note.projectId != null) return note.projectId;
   if (note.taskId == null) return null;
   const [row] = await db
     .select({ projectId: tasksTable.projectId })
     .from(tasksTable)
-    .where(eq(tasksTable.id, note.taskId))
+    .where(and(eq(tasksTable.id, note.taskId), eq(tasksTable.orgId, orgId)))
     .limit(1);
   return row?.projectId ?? null;
 }
@@ -190,7 +190,7 @@ router.post("/notes", requireOrg, async (req, res) => {
     .returning();
 
   broadcastToOrg(orgId, "notes-changed", {});
-  dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note), serializeNote(note, userId));
+  dispatchNoteCreated(orgId, await resolveEffectiveProjectId(note, orgId), serializeNote(note, userId));
   return res.status(201).json(CreateNoteResponse.parse(serializeNote(note, userId)));
 });
 
@@ -296,7 +296,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
 
   // Capture the effective project before the update so we can notify webhooks
   // that were watching the old project if the note is being re-assigned.
-  const oldEffectiveProjectId = await resolveEffectiveProjectId(existing);
+  const oldEffectiveProjectId = await resolveEffectiveProjectId(existing, orgId);
 
   const [note] = await db
     .update(notesTable)
@@ -308,7 +308,7 @@ router.patch("/notes/:id", requireOrg, async (req, res) => {
     return res.status(404).json({ error: "Note not found" });
   }
 
-  const newEffectiveProjectId = await resolveEffectiveProjectId(note);
+  const newEffectiveProjectId = await resolveEffectiveProjectId(note, orgId);
   const serialized = serializeNote(note, userId);
 
   broadcastToOrg(orgId, "notes-changed", {});
@@ -357,7 +357,7 @@ router.delete("/notes/:id", requireOrg, async (req, res) => {
     .where(and(eq(notesTable.id, params.data.id), eq(notesTable.orgId, req.orgId!)));
 
   broadcastToOrg(req.orgId!, "notes-changed", {});
-  dispatchNoteDeleted(req.orgId!, await resolveEffectiveProjectId(existing), serializeNote(existing, userId));
+  dispatchNoteDeleted(req.orgId!, await resolveEffectiveProjectId(existing, req.orgId!), serializeNote(existing, userId));
   return res.sendStatus(204);
 });
 
