@@ -1186,8 +1186,6 @@
       "featureWebhooksDesc": "Gestão de webhooks de entrada e saída",
       "featureApiKeys": "Chaves API",
       "featureApiKeysDesc": "Acesso programático à API",
-      "featureDataExport": "Exportação de dados",
-      "featureDataExportDesc": "Exportar como ZIP/CSV",
       "featureCustomFields": "Campos personalizados",
       "featureCustomFieldsDesc": "Definições de campos personalizados",
       "featureCustomStatuses": "Status personalizados",

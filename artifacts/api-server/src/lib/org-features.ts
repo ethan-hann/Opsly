@@ -39,6 +39,9 @@ export async function getOrgFeatureStates(
     result[feat] = 'enabled'; // default
   }
   for (const row of rows) {
+    // Ignore rows for features that have since been retired from ORG_FEATURES —
+    // otherwise a stale row would re-introduce a gate that no longer exists.
+    if (!ORG_FEATURES.includes(row.feature)) continue;
     result[row.feature] = (row.featureState ?? 'enabled') as OrgFeatureState;
   }
   return result;

@@ -117,7 +117,7 @@ vi.mock("@workspace/db", () => {
     workflowStagesTable: {},
     orgFeaturesTable: { feature: "feature", featureState: "featureState", orgId: "orgId" },
     orgTerminologyTable: { termKey: "termKey", customLabel: "customLabel", orgId: "orgId" },
-    ORG_FEATURES: ["webhooks", "api_keys", "data_export", "custom_fields", "custom_statuses", "sla_tracking"],
+    ORG_FEATURES: ["webhooks", "api_keys", "custom_fields", "custom_statuses", "sla_tracking"],
     OWNER_PERMISSIONS: {},
     ADMIN_PERMISSIONS: {},
     MEMBER_PERMISSIONS: {},
@@ -1219,7 +1219,7 @@ vi.mock("../lib/org-features", () => ({
   requireOrgFeature: () => (_req: any, _res: any, next: any) => next(),
   isOrgFeatureEnabled: async () => true,
   getOrgFeatureStates: async () => ({
-    webhooks: "enabled", api_keys: "enabled", data_export: "enabled",
+    webhooks: "enabled", api_keys: "enabled",
     custom_fields: "enabled", custom_statuses: "enabled", sla_tracking: "enabled",
     branding: "enabled",
   }),

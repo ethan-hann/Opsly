@@ -135,7 +135,7 @@ vi.mock("@workspace/db", () => {
     TERMINOLOGY_KEYS: ["projects", "tasks", "members", "workflows", "stages"],
     TERMINOLOGY_DEFAULTS: { projects: "Projects", tasks: "Tasks", members: "Members", workflows: "Workflows", stages: "Stages" },
     SINGULAR_TERMINOLOGY_KEYS: [],
-    ORG_FEATURES: ["webhooks", "api_keys", "data_export", "custom_fields", "custom_statuses", "sla_tracking"],
+    ORG_FEATURES: ["webhooks", "api_keys", "custom_fields", "custom_statuses", "sla_tracking"],
     sql: (...args: any[]) => args,
     eq: () => ({}),
     and: () => ({}),

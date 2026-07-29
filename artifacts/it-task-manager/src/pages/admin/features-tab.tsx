@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next";
 
 const BASE = (import.meta.env.BASE_URL as string).replace(/\/$/, "");
 
-type OrgFeature = "webhooks" | "api_keys" | "data_export" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding" | "task_trees";
+type OrgFeature = "webhooks" | "api_keys" | "custom_fields" | "custom_statuses" | "sla_tracking" | "branding" | "task_trees";
 
 interface AdminOrg {
   id: string;
@@ -49,7 +49,6 @@ function OrgFeaturePanel({ org }: { org: AdminOrg }) {
   const FEATURES: Array<{ key: OrgFeature; label: string; description: string }> = [
     { key: "webhooks", label: t('admin.features.featureWebhooks'), description: t('admin.features.featureWebhooksDesc') },
     { key: "api_keys", label: t('admin.features.featureApiKeys'), description: t('admin.features.featureApiKeysDesc') },
-    { key: "data_export", label: t('admin.features.featureDataExport'), description: t('admin.features.featureDataExportDesc') },
     { key: "custom_fields", label: t('admin.features.featureCustomFields'), description: t('admin.features.featureCustomFieldsDesc') },
     { key: "custom_statuses", label: t('admin.features.featureCustomStatuses'), description: t('admin.features.featureCustomStatusesDesc') },
     { key: "sla_tracking", label: t('admin.features.featureSlaTracking'), description: t('admin.features.featureSlaTrackingDesc') },

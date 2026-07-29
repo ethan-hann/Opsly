@@ -28,7 +28,6 @@ import type { OrgFeatureKey } from "@/hooks/use-org-context";
 const FEATURE_LABELS: Record<OrgFeatureKey, string> = {
   webhooks: "Webhooks",
   api_keys: "API Keys",
-  data_export: "Data Export",
   custom_fields: "Custom Fields",
   custom_statuses: "Workflow Stages",
   sla_tracking: "SLA Tracking",
@@ -41,8 +40,6 @@ const FEATURE_DESCRIPTIONS: Record<OrgFeatureKey, string> = {
     "Send and receive real-time events with external systems via inbound and outbound webhooks.",
   api_keys:
     "Issue machine credentials to let scripts and integrations access your org's data programmatically.",
-  data_export:
-    "Download a full copy of your organization's tasks, comments, projects, and notes.",
   custom_fields:
     "Add typed custom fields (text, number, date, select) to every task in your organization.",
   custom_statuses:

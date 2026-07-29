@@ -1180,8 +1180,6 @@
       "featureWebhooksDesc": "入站和出站Webhook管理",
       "featureApiKeys": "API密钥",
       "featureApiKeysDesc": "通过API密钥进行编程访问",
-      "featureDataExport": "数据导出",
-      "featureDataExportDesc": "以ZIP/CSV格式导出",
       "featureCustomFields": "自定义字段",
       "featureCustomFieldsDesc": "任务上的自定义字段定义",
       "featureCustomStatuses": "自定义状态",

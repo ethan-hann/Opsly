@@ -1180,8 +1180,6 @@
       "featureWebhooksDesc": "إدارة Webhooks الواردة والصادرة",
       "featureApiKeys": "مفاتيح API",
       "featureApiKeysDesc": "الوصول البرمجي عبر مفاتيح API",
-      "featureDataExport": "تصدير البيانات",
-      "featureDataExportDesc": "تصدير كـ ZIP/CSV",
       "featureCustomFields": "الحقول المخصصة",
       "featureCustomFieldsDesc": "تعريفات الحقول المخصصة على المهام",
       "featureCustomStatuses": "حالات مخصصة",

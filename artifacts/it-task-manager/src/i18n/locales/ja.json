@@ -1180,8 +1180,6 @@
       "featureWebhooksDesc": "受信・送信Webhookの管理",
       "featureApiKeys": "APIキー",
       "featureApiKeysDesc": "APIキーによるプログラマティックアクセス",
-      "featureDataExport": "データエクスポート",
-      "featureDataExportDesc": "ZIP/CSVとしてエクスポート",
       "featureCustomFields": "カスタムフィールド",
       "featureCustomFieldsDesc": "タスクのカスタムフィールド定義",
       "featureCustomStatuses": "カスタムステータス",

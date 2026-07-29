@@ -1208,8 +1208,6 @@
       "featureWebhooksDesc": "Inbound and outbound webhook management",
       "featureApiKeys": "API Keys",
       "featureApiKeysDesc": "Programmatic API access via API keys",
-      "featureDataExport": "Data Export",
-      "featureDataExportDesc": "Export tasks, projects, and comments as ZIP/CSV",
       "featureCustomFields": "Custom Fields",
       "featureCustomFieldsDesc": "Custom field definitions on tasks",
       "featureCustomStatuses": "Custom Statuses",

@@ -3,10 +3,11 @@ import type { Organization, PendingInvitation, RolePermissions } from "@workspac
 
 // ─── Feature types ────────────────────────────────────────────────────────────
 
+// Data export is intentionally not gateable — see ORG_FEATURES in
+// lib/db/src/schema/instance-admin.ts.
 export type OrgFeatureKey =
   | "webhooks"
   | "api_keys"
-  | "data_export"
   | "custom_fields"
   | "custom_statuses"
   | "sla_tracking"
