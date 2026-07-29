@@ -46,6 +46,7 @@
     "migrate:add-comment-edited-at": "tsx src/migrations/add-comment-edited-at.ts",
     "migrate:add-edit-comments-permission": "tsx src/migrations/add-edit-comments-permission.ts",
     "migrate:add-multi-auth-support": "tsx src/migrations/add-multi-auth-support.ts",
+    "migrate:remove-data-export-feature": "tsx src/migrations/remove-data-export-feature.ts",
     "make-admin": "tsx src/make-admin.ts",
     "revoke-admin": "tsx src/make-admin.ts --revoke",
     "create-local-user": "tsx src/create-local-user.ts",

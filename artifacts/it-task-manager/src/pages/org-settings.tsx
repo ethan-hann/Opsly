@@ -3581,7 +3581,8 @@ export default function OrgSettings() {
   const showSlaTab = isFeatureEnabled("sla_tracking") && isAdmin;
   const showCustomFieldsTab = isFeatureEnabled("custom_fields") && isAdmin;
   const showApiKeysTab = isFeatureEnabled("api_keys") && isOwner;
-  const showExportTab = isFeatureEnabled("data_export") && isAdmin;
+  // Export is never feature-gated — users can always extract their own data.
+  const showExportTab = isAdmin;
 
   const tabVisible: Record<string, boolean> = {
     general: true,
@@ -4538,12 +4539,10 @@ export default function OrgSettings() {
           </TabsContent>
         )}
 
-        {/* ── Export (feature-gated) ────────────────────────────────────────── */}
+        {/* ── Export (never feature-gated) ──────────────────────────────────── */}
         {showExportTab && (
           <TabsContent value="export" className="space-y-6 mt-6">
-            <FeatureGate feature="data_export">
-              <ExportCard />
-            </FeatureGate>
+            <ExportCard />
           </TabsContent>
         )}
       </Tabs>

@@ -21,9 +21,6 @@ import {
 import { eq, count, and, lt, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireOrg, requirePermission } from "../middlewares/requireOrgMiddleware";
-import { requireOrgFeature } from "../lib/org-features";
-
-const requireDataExportFeature = requireOrgFeature('data_export');
 import { createNotification } from "../lib/notifications";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
@@ -382,7 +379,7 @@ setInterval(async () => {
 
 // ── POST /export ──────────────────────────────────────────────────────────────
 //TODO: Need to create new permission for data export and pass it anywhere `manage_org_settings` is currently used
-router.post("/export", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
+router.post("/export", requireOrg, requirePermission("manage_org_settings"), async (req, res) => {
   const orgId = req.orgId!;
 
   const parsed = ExportBodySchema.safeParse(req.body);
@@ -505,7 +502,7 @@ router.post("/export", requireOrg, requireDataExportFeature, requirePermission("
 
 // ── GET /export/pending ───────────────────────────────────────────────────────
 
-router.get("/export/pending", requireOrg, requireDataExportFeature, async (req, res) => {
+router.get("/export/pending", requireOrg, async (req, res) => {
   const userId = req.user?.id;
   if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
@@ -561,7 +558,7 @@ router.get("/export/pending", requireOrg, requireDataExportFeature, async (req, 
 
 // ── GET /export/download/:token ───────────────────────────────────────────────
 
-router.get("/export/download/:token", requireOrg, requireDataExportFeature, requirePermission("manage_org_settings"), async (req, res) => {
+router.get("/export/download/:token", requireOrg, requirePermission("manage_org_settings"), async (req, res) => {
   const token = String(req.params["token"] ?? "");
   if (!token) {
     res.status(404).json({ error: "Export expired — start a new one" });

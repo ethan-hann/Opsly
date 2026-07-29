@@ -11,10 +11,15 @@ import { organizationsTable } from './organizations';
 
 // ─── Feature names ───────────────────────────────────────────────────────────
 
+/**
+ * Gateable per-org features.
+ *
+ * NOTE: data export is deliberately absent and must stay that way — users can
+ * always extract their own data, regardless of plan or instance configuration.
+ */
 export const ORG_FEATURES = [
   'webhooks',
   'api_keys',
-  'data_export',
   'custom_fields',
   'custom_statuses',
   'sla_tracking',

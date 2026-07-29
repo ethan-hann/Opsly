@@ -1180,8 +1180,6 @@
       "featureWebhooksDesc": "Gestion des webhooks entrants et sortants",
       "featureApiKeys": "Clés API",
       "featureApiKeysDesc": "Accès API programmatique via des clés",
-      "featureDataExport": "Exportation des données",
-      "featureDataExportDesc": "Exporter les tâches, projets et commentaires en ZIP/CSV",
       "featureCustomFields": "Champs personnalisés",
       "featureCustomFieldsDesc": "Définitions de champs personnalisés sur les tâches",
       "featureCustomStatuses": "Statuts personnalisés",
