@@ -53,6 +53,8 @@ export const HandleBrowserLoginCallbackResponse = zod.void()
 
 /**
  * Destroys the server-side session identified by the `Authorization` header or `sid` cookie, clears the cookie, and redirects to the OIDC provider's end-session endpoint so the provider session is also invalidated. The `returnTo` parameter controls where the provider redirects the browser after logout.
+ *
+ * Uses `POST` so the request is not forgeable via a cross-site navigation (the SameSite=Lax `sid` cookie is not sent on cross-site POSTs). The browser follows the `302` after submitting the request.
  * @summary Clear the session and begin OIDC logout
  */
 export const logoutBrowserSessionQueryReturnToDefault = `/`;
