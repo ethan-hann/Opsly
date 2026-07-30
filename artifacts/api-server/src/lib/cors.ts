@@ -2,13 +2,24 @@ import type cors from "cors";
 
 const LOCALHOST_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
+// A browser Origin header is scheme+host+port with no path, so entries are
+// normalized to URL.origin — this tolerates env values that carry a trailing
+// slash or a path (e.g. https://app.example/opsly) instead of silently never
+// matching. Unparseable entries are dropped.
 function buildAllowedOrigins(): string[] {
   const origins = new Set<string>();
-  const appUrl = process.env["APP_URL"];
-  if (appUrl) origins.add(appUrl.replace(/\/$/, ""));
-  for (const entry of (process.env["CORS_ALLOWED_ORIGINS"] ?? "").split(",")) {
-    const trimmed = entry.trim().replace(/\/$/, "");
-    if (trimmed) origins.add(trimmed);
+  const raw = [
+    process.env["APP_URL"],
+    ...(process.env["CORS_ALLOWED_ORIGINS"] ?? "").split(","),
+  ];
+  for (const entry of raw) {
+    const trimmed = entry?.trim();
+    if (!trimmed) continue;
+    try {
+      origins.add(new URL(trimmed).origin);
+    } catch {
+      // Not a valid absolute URL — skip rather than add an unmatchable entry.
+    }
   }
   return [...origins];
 }
@@ -28,7 +39,9 @@ export function isOriginAllowed(
 
 export function buildCorsOptions(): cors.CorsOptions {
   const allowedOrigins = buildAllowedOrigins();
-  const isDev = process.env["NODE_ENV"] !== "production";
+  // Only true development, not merely "not production" — staging/test must not
+  // implicitly allow localhost CORS. The dev script sets NODE_ENV=development.
+  const isDev = process.env["NODE_ENV"] === "development";
   return {
     credentials: true,
     origin(origin, callback) {

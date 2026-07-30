@@ -89,4 +89,20 @@ describe("buildCorsOptions", () => {
       }),
     ).toBe(false);
   });
+
+  it("matches the browser origin even when APP_URL carries a path", () => {
+    expect(
+      resolve("https://app.opsly.example", {
+        APP_URL: "https://app.opsly.example/opsly",
+        CORS_ALLOWED_ORIGINS: undefined,
+        NODE_ENV: "production",
+      }),
+    ).toBe(true);
+  });
+
+  it("allows localhost only when NODE_ENV is development", () => {
+    const env = { APP_URL: undefined, CORS_ALLOWED_ORIGINS: undefined };
+    expect(resolve("http://localhost:20999", { ...env, NODE_ENV: "development" })).toBe(true);
+    expect(resolve("http://localhost:20999", { ...env, NODE_ENV: "staging" })).toBe(false);
+  });
 });
