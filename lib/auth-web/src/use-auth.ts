@@ -129,7 +129,14 @@ export function useAuth(): AuthState {
 
   const logout = useCallback(() => {
     const base = getBasePath();
-    window.location.href = `/api/logout?returnTo=${encodeURIComponent(base)}`;
+    // A form POST (not fetch) so the browser follows the server's redirect to
+    // the returnTo path or the external OIDC end-session URL. POST is also what
+    // keeps logout un-forgeable cross-site — see the route handler.
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/api/logout?returnTo=${encodeURIComponent(base)}`;
+    document.body.appendChild(form);
+    form.submit();
   }, []);
 
   return {

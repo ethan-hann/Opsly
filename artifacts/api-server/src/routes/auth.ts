@@ -477,7 +477,11 @@ router.get('/callback', async (req: Request, res: Response) => {
   res.redirect(returnTo);
 });
 
-router.get('/logout', async (req: Request, res: Response) => {
+// POST, not GET: with the SameSite=Lax session cookie a cross-site POST carries
+// no `sid`, so a forged cross-site logout has no session to clear — whereas a
+// GET would still fire on a top-level navigation. The browser follows the
+// redirect (returnTo, or the OIDC end-session URL) after the form submission.
+router.post('/logout', async (req: Request, res: Response) => {
   const returnTo = getSafeReturnTo(req.query.returnTo);
   const sid = getSessionId(req);
   await clearSession(res, sid);
